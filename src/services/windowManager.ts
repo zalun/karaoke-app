@@ -97,11 +97,21 @@ class WindowManager {
   }
 
   async syncState(state: PlayerState): Promise<void> {
-    await emit("player:state-sync", state);
+    try {
+      await emit("player:state-sync", state);
+    } catch (err) {
+      // Window might not exist yet, ignore
+      console.debug("syncState failed:", err);
+    }
   }
 
   async sendCommand(command: "play" | "pause" | "seek", value?: number): Promise<void> {
-    await emit("player:command", { command, value });
+    try {
+      await emit("player:command", { command, value });
+    } catch (err) {
+      // Window might not exist yet, ignore
+      console.debug("sendCommand failed:", err);
+    }
   }
 
   async listenForReattach(callback: () => void): Promise<UnlistenFn> {
@@ -141,6 +151,16 @@ class WindowManager {
 
   async listenForStateRequest(callback: () => void): Promise<UnlistenFn> {
     return listen("player:request-state", callback);
+  }
+
+  async emitFinalState(state: PlayerState): Promise<void> {
+    await emit("player:final-state", state);
+  }
+
+  async listenForFinalState(callback: (state: PlayerState) => void): Promise<UnlistenFn> {
+    return listen<PlayerState>("player:final-state", (event) => {
+      callback(event.payload);
+    });
   }
 }
 

@@ -8,6 +8,7 @@ import { youtubeService } from "./services";
 import type { SearchResult } from "./types";
 
 type PanelTab = "queue" | "history";
+type MainTab = "player" | "search";
 
 function App() {
   const [dependenciesReady, setDependenciesReady] = useState(false);
@@ -15,6 +16,7 @@ function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PanelTab>("queue");
+  const [mainTab, setMainTab] = useState<MainTab>("search");
 
   const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { addToQueue, playDirect } = useQueueStore();
@@ -98,28 +100,56 @@ function App() {
         <SearchBar onSearch={handleSearch} isLoading={isSearching} />
 
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
-          {/* Left: Video + Search Results */}
+          {/* Left: Main content area */}
           <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
-            {/* Video Player - only show when video is loaded */}
+            {/* Player Controls - always visible when video is loaded */}
+            {currentVideo && <PlayerControls />}
+
+            {/* Tabs - only show when video is loaded */}
             {currentVideo && (
-              <>
-                <div className="h-[300px] lg:h-[400px] flex-shrink-0">
-                  <VideoPlayerArea />
-                </div>
-                <PlayerControls />
-              </>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setMainTab("player")}
+                  className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                    mainTab === "player"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  Now Playing
+                </button>
+                <button
+                  onClick={() => setMainTab("search")}
+                  className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                    mainTab === "search"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  Search Results
+                </button>
+              </div>
             )}
 
-            {/* Search Results */}
-            <div className="flex-1 overflow-auto">
-              <h2 className="text-lg font-semibold mb-3">Search Results</h2>
-              <SearchResults
-                results={searchResults}
-                isLoading={isSearching}
-                error={searchError}
-                onPlay={handlePlay}
-                onAddToQueue={handleAddToQueue}
-              />
+            {/* Content - both views stay mounted to avoid interrupting playback */}
+            <div className="flex-1 min-h-0 relative">
+              {/* Video Player - hidden but stays mounted when on search tab */}
+              {currentVideo && (
+                <div className={`h-full ${mainTab === "player" ? "" : "hidden"}`}>
+                  <VideoPlayerArea />
+                </div>
+              )}
+              {/* Search Results - hidden when on player tab */}
+              <div className={`h-full overflow-auto ${mainTab === "search" || !currentVideo ? "" : "hidden"}`}>
+                <h2 className="text-lg font-semibold mb-3">Search Results</h2>
+                <SearchResults
+                  results={searchResults}
+                  isLoading={isSearching}
+                  error={searchError}
+                  onPlay={handlePlay}
+                  onAddToQueue={handleAddToQueue}
+                />
+              </div>
             </div>
           </div>
 
@@ -161,18 +191,23 @@ function App() {
 function VideoPlayerArea() {
   const { isDetached } = usePlayerStore();
 
-  if (isDetached) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-        <div className="text-center text-gray-400">
-          <p className="text-4xl mb-2">🎤</p>
-          <p>Video playing in separate window</p>
-        </div>
+  return (
+    <div className="w-full h-full relative">
+      {/* Keep VideoPlayer mounted but hidden when detached to preserve state */}
+      <div className={isDetached ? "hidden" : "h-full"}>
+        <VideoPlayer />
       </div>
-    );
-  }
-
-  return <VideoPlayer />;
+      {/* Show placeholder when detached */}
+      {isDetached && (
+        <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
+          <div className="text-center text-gray-400">
+            <p className="text-4xl mb-2">🎤</p>
+            <p>Video playing in separate window</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function formatDuration(seconds?: number): string {

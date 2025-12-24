@@ -54,6 +54,35 @@ export function PlayerControls() {
     };
   }, [setIsDetached]);
 
+  // Listen for final state from detached window before it closes
+  useEffect(() => {
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForFinalState((finalState) => {
+      if (isMounted) {
+        // Update store with final state from detached window
+        usePlayerStore.setState({
+          currentTime: finalState.currentTime,
+          isPlaying: finalState.isPlaying,
+        });
+        // Seek to the final time
+        seekTo(finalState.currentTime);
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unlistenFn?.();
+    };
+  }, [seekTo]);
+
   // Listen for time updates from detached window
   useEffect(() => {
     if (!isDetached) return;

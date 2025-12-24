@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback } from "react";
 import { usePlayerStore, useQueueStore } from "../../stores";
 import { youtubeService } from "../../services";
+import { useWakeLock } from "../../hooks";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -8,6 +9,7 @@ export function VideoPlayer() {
     currentVideo,
     isPlaying,
     isLoading,
+    isDetached,
     volume,
     isMuted,
     seekTime,
@@ -19,6 +21,9 @@ export function VideoPlayer() {
     setError,
     clearSeek,
   } = usePlayerStore();
+
+  // Prevent screen from sleeping while playing (only when not detached)
+  useWakeLock(isPlaying && !isDetached);
 
   const tryPlay = useCallback(() => {
     const video = videoRef.current;
@@ -32,18 +37,19 @@ export function VideoPlayer() {
   }, [setError, setIsPlaying]);
 
   // Handle play/pause state changes (only for pause, play is handled by canplay)
+  // Also pause when detached (video plays in separate window)
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    if (!isPlaying) {
+    if (isDetached || !isPlaying) {
       video.pause();
     } else if (video.readyState >= 3) {
       // Video is ready, play it
       tryPlay();
     }
     // If isPlaying but video not ready, handleCanPlay will trigger play
-  }, [isPlaying, tryPlay]);
+  }, [isPlaying, isDetached, tryPlay]);
 
   useEffect(() => {
     const video = videoRef.current;
