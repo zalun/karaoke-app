@@ -70,7 +70,6 @@ export function PlayerControls() {
 
     const setupListener = async () => {
       const unlisten = await windowManager.listenForStateRequest(() => {
-        console.log("[PlayerControls] Received state request from detached window");
         if (currentVideo?.streamUrl) {
           windowManager.syncState({
             streamUrl: currentVideo.streamUrl,
@@ -118,11 +117,7 @@ export function PlayerControls() {
   }, [isDetached, seekTime]);
 
   const handleDetach = useCallback(async () => {
-    console.log("[PlayerControls] handleDetach called", { streamUrl: currentVideo?.streamUrl });
-    if (!currentVideo?.streamUrl) {
-      console.log("[PlayerControls] No stream URL, aborting detach");
-      return;
-    }
+    if (!currentVideo?.streamUrl) return;
 
     const success = await windowManager.detachPlayer({
       streamUrl: currentVideo.streamUrl,
@@ -133,7 +128,6 @@ export function PlayerControls() {
       isMuted,
     });
 
-    console.log("[PlayerControls] detachPlayer returned", success);
     if (success) {
       setIsDetached(true);
     }

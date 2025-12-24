@@ -19,7 +19,6 @@ export function DetachedPlayer() {
   useEffect(() => {
     const setupListeners = async () => {
       const unlistenState = await windowManager.listenForStateSync((newState) => {
-        console.log("[DetachedPlayer] Received state sync:", newState);
         setState(newState);
       });
 
@@ -43,7 +42,6 @@ export function DetachedPlayer() {
       });
 
       // Request initial state from main window after listeners are set up
-      console.log("[DetachedPlayer] Requesting initial state");
       await windowManager.requestInitialState();
 
       return () => {
