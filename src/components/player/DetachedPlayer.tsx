@@ -4,7 +4,7 @@ import { windowManager, type PlayerState } from "../../services/windowManager";
 export function DetachedPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isReady, setIsReady] = useState(false);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [shouldRestorePosition, setShouldRestorePosition] = useState(true);
   const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
   const [state, setState] = useState<PlayerState>({
     streamUrl: null,
@@ -85,9 +85,9 @@ export function DetachedPlayer() {
       setIsReady(false);
       setCurrentStreamUrl(state.streamUrl);
 
-      // If this is a NEW video (not the first load), mark it so we don't restore position
+      // If this is a NEW video (not initial detach), don't restore position
       if (isNewVideo) {
-        setIsFirstLoad(false);
+        setShouldRestorePosition(false);
       }
 
       video.src = state.streamUrl;
@@ -102,9 +102,8 @@ export function DetachedPlayer() {
 
     setIsReady(true);
 
-    // Only restore time position on first load (detach scenario)
-    // For new videos, start from the beginning
-    if (isFirstLoad && state.currentTime > 1) {
+    // Restore position only on initial detach, not when switching videos
+    if (shouldRestorePosition && state.currentTime > 1) {
       video.currentTime = state.currentTime;
     }
 
@@ -113,9 +112,9 @@ export function DetachedPlayer() {
       video.play().catch(console.error);
     }
 
-    // After first load, mark as not first load anymore
-    setIsFirstLoad(false);
-  }, [isReady, state.currentTime, state.isPlaying, isFirstLoad]);
+    // After first video loads, don't restore position for subsequent videos
+    setShouldRestorePosition(false);
+  }, [isReady, state.currentTime, state.isPlaying, shouldRestorePosition]);
 
   // Handle play/pause state changes (only after video is ready)
   useEffect(() => {
