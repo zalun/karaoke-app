@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from "react";
-import { usePlayerStore } from "../../stores";
+import { usePlayerStore, useQueueStore } from "../../stores";
+import { youtubeService } from "../../services";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -10,6 +11,7 @@ export function VideoPlayer() {
     volume,
     isMuted,
     seekTime,
+    setCurrentVideo,
     setIsPlaying,
     setCurrentTime,
     setDuration,
@@ -59,6 +61,37 @@ export function VideoPlayer() {
     clearSeek();
   }, [seekTime, clearSeek]);
 
+  // Keyboard shortcuts for seeking
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const video = videoRef.current;
+      if (!video || !currentVideo) return;
+
+      switch (e.key) {
+        case "ArrowLeft":
+          e.preventDefault();
+          video.currentTime = Math.max(0, video.currentTime - 10);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+          break;
+        case " ":
+          e.preventDefault();
+          setIsPlaying(!isPlaying);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentVideo, isPlaying, setIsPlaying]);
+
   const handleTimeUpdate = () => {
     if (videoRef.current) {
       setCurrentTime(videoRef.current.currentTime);
@@ -79,10 +112,29 @@ export function VideoPlayer() {
     }
   };
 
-  const handleEnded = () => {
-    setIsPlaying(false);
-    // TODO: Trigger queue next
-  };
+  const handleEnded = useCallback(async () => {
+    const { playNext } = useQueueStore.getState();
+    const nextItem = playNext();
+
+    if (nextItem && nextItem.video.youtubeId) {
+      // Play next from queue
+      setIsLoading(true);
+      try {
+        const streamInfo = await youtubeService.getStreamUrl(nextItem.video.youtubeId);
+        setCurrentVideo({
+          ...nextItem.video,
+          streamUrl: streamInfo.url,
+        });
+        setIsPlaying(true);
+      } catch (err) {
+        console.error("Failed to play next:", err);
+        setError("Failed to play next video");
+        setIsLoading(false);
+      }
+    } else {
+      setIsPlaying(false);
+    }
+  }, [setCurrentVideo, setIsPlaying, setIsLoading, setError]);
 
   const handleError = () => {
     setError("Failed to load video");
@@ -96,10 +148,17 @@ export function VideoPlayer() {
   if (!currentVideo?.streamUrl) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-        <div className="text-center text-gray-400">
-          <p className="text-4xl mb-2">🎤</p>
-          <p>Search for a song to start</p>
-        </div>
+        {isLoading ? (
+          <div className="text-center text-white">
+            <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
+            <p>Loading video...</p>
+          </div>
+        ) : (
+          <div className="text-center text-gray-400">
+            <p className="text-4xl mb-2">🎤</p>
+            <p>Search for a song to start</p>
+          </div>
+        )}
       </div>
     );
   }

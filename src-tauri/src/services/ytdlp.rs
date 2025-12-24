@@ -128,7 +128,7 @@ impl YtDlpService {
                                 .or_else(|| v["uploader"].as_str())
                                 .unwrap_or("Unknown")
                                 .to_string(),
-                            duration: v["duration"].as_u64(),
+                            duration: v["duration"].as_f64().map(|d| d as u64),
                             thumbnail: v["thumbnail"].as_str().map(|s| s.to_string())
                                 .or_else(|| v["thumbnails"].as_array()
                                     .and_then(|arr| arr.first())
@@ -231,7 +231,7 @@ impl YtDlpService {
                 .or_else(|| v["uploader"].as_str())
                 .unwrap_or("Unknown")
                 .to_string(),
-            duration: v["duration"].as_u64(),
+            duration: v["duration"].as_f64().map(|d| d as u64),
             thumbnail: v["thumbnail"].as_str().map(|s| s.to_string()),
             description: v["description"].as_str().map(|s| s.to_string()),
         })

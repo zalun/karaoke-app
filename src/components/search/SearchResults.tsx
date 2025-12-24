@@ -48,7 +48,16 @@ export function SearchResults({
     );
   }
 
-  if (results.length === 0) {
+  // Filter out channels/playlists (they don't have duration and have IDs starting with UC/PL)
+  const videoResults = results.filter((result) => {
+    // Must have a duration (videos have duration, channels/playlists don't)
+    if (!result.duration || result.duration === 0) return false;
+    // YouTube video IDs are exactly 11 characters
+    if (result.id.length !== 11) return false;
+    return true;
+  });
+
+  if (videoResults.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-gray-400">No results. Try a different search.</div>
@@ -58,7 +67,7 @@ export function SearchResults({
 
   return (
     <div className="space-y-2">
-      {results.map((result) => {
+      {videoResults.map((result) => {
         const isCurrentlyPlaying = currentVideo?.id === result.id;
 
         return (

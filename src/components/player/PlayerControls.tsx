@@ -1,5 +1,6 @@
 import { useRef, useCallback } from "react";
-import { usePlayerStore } from "../../stores";
+import { usePlayerStore, useQueueStore } from "../../stores";
+import { youtubeService } from "../../services";
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -16,11 +17,16 @@ export function PlayerControls() {
     duration,
     volume,
     isMuted,
+    setCurrentVideo,
     setIsPlaying,
+    setIsLoading,
+    setError,
     setVolume,
     toggleMute,
     seekTo,
   } = usePlayerStore();
+
+  const { hasNext, hasPrevious, playNext, playPrevious } = useQueueStore();
 
   const handleSeek = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -36,6 +42,44 @@ export function PlayerControls() {
     [duration, seekTo]
   );
 
+  const handlePrevious = useCallback(async () => {
+    const prevItem = playPrevious();
+    if (prevItem && prevItem.video.youtubeId) {
+      setIsLoading(true);
+      try {
+        const streamInfo = await youtubeService.getStreamUrl(prevItem.video.youtubeId);
+        setCurrentVideo({
+          ...prevItem.video,
+          streamUrl: streamInfo.url,
+        });
+        setIsPlaying(true);
+      } catch (err) {
+        console.error("Failed to play previous:", err);
+        setError("Failed to play previous video");
+        setIsLoading(false);
+      }
+    }
+  }, [playPrevious, setCurrentVideo, setIsPlaying, setIsLoading, setError]);
+
+  const handleNext = useCallback(async () => {
+    const nextItem = playNext();
+    if (nextItem && nextItem.video.youtubeId) {
+      setIsLoading(true);
+      try {
+        const streamInfo = await youtubeService.getStreamUrl(nextItem.video.youtubeId);
+        setCurrentVideo({
+          ...nextItem.video,
+          streamUrl: streamInfo.url,
+        });
+        setIsPlaying(true);
+      } catch (err) {
+        console.error("Failed to play next:", err);
+        setError("Failed to play next video");
+        setIsLoading(false);
+      }
+    }
+  }, [playNext, setCurrentVideo, setIsPlaying, setIsLoading, setError]);
+
   if (!currentVideo) {
     return null;
   }
@@ -45,12 +89,40 @@ export function PlayerControls() {
   return (
     <div className="bg-gray-800 p-3 rounded-lg mt-2">
       <div className="flex items-center gap-4">
+        {/* Previous */}
+        <button
+          onClick={handlePrevious}
+          disabled={!hasPrevious()}
+          className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
+            hasPrevious()
+              ? "hover:bg-gray-700 text-white"
+              : "text-gray-600 cursor-not-allowed"
+          }`}
+          title="Previous"
+        >
+          ⏮
+        </button>
+
         {/* Play/Pause */}
         <button
           onClick={() => setIsPlaying(!isPlaying)}
           className="w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full transition-colors"
         >
           {isPlaying ? "⏸" : "▶"}
+        </button>
+
+        {/* Next */}
+        <button
+          onClick={handleNext}
+          disabled={!hasNext()}
+          className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
+            hasNext()
+              ? "hover:bg-gray-700 text-white"
+              : "text-gray-600 cursor-not-allowed"
+          }`}
+          title="Next"
+        >
+          ⏭
         </button>
 
         {/* Progress */}
