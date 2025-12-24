@@ -33,16 +33,22 @@ export function PlayerControls() {
 
   // Listen for reattachment from detached window
   useEffect(() => {
-    const setupListener = async () => {
-      const unlisten = await windowManager.listenForReattach(() => {
-        setIsDetached(false);
-      });
-      return unlisten;
-    };
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
 
-    const cleanup = setupListener();
+    windowManager.listenForReattach(() => {
+      if (isMounted) setIsDetached(false);
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
     return () => {
-      cleanup.then((fn) => fn?.());
+      isMounted = false;
+      unlistenFn?.();
     };
   }, [setIsDetached]);
 
@@ -50,17 +56,24 @@ export function PlayerControls() {
   useEffect(() => {
     if (!isDetached) return;
 
-    const setupListener = async () => {
-      const unlisten = await windowManager.listenForTimeUpdate((time) => {
-        // Update current time from detached window without triggering sync loop
-        usePlayerStore.setState({ currentTime: time });
-      });
-      return unlisten;
-    };
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
 
-    const cleanup = setupListener();
+    windowManager.listenForTimeUpdate((time) => {
+      if (isMounted) {
+        usePlayerStore.setState({ currentTime: time });
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
     return () => {
-      cleanup.then((fn) => fn?.());
+      isMounted = false;
+      unlistenFn?.();
     };
   }, [isDetached]);
 
@@ -68,25 +81,31 @@ export function PlayerControls() {
   useEffect(() => {
     if (!isDetached) return;
 
-    const setupListener = async () => {
-      const unlisten = await windowManager.listenForStateRequest(() => {
-        if (currentVideo?.streamUrl) {
-          windowManager.syncState({
-            streamUrl: currentVideo.streamUrl,
-            isPlaying,
-            currentTime,
-            duration,
-            volume,
-            isMuted,
-          });
-        }
-      });
-      return unlisten;
-    };
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
 
-    const cleanup = setupListener();
+    windowManager.listenForStateRequest(() => {
+      if (isMounted && currentVideo?.streamUrl) {
+        windowManager.syncState({
+          streamUrl: currentVideo.streamUrl,
+          isPlaying,
+          currentTime,
+          duration,
+          volume,
+          isMuted,
+        });
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
     return () => {
-      cleanup.then((fn) => fn?.());
+      isMounted = false;
+      unlistenFn?.();
     };
   }, [isDetached, currentVideo?.streamUrl, isPlaying, currentTime, duration, volume, isMuted]);
 

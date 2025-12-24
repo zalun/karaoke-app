@@ -17,16 +17,27 @@ export function DetachedPlayer() {
 
   // Listen for state sync from main window
   useEffect(() => {
+    let isMounted = true;
     let stateReceived = false;
     let retryTimeout: ReturnType<typeof setTimeout>;
+    let unlistenState: (() => void) | undefined;
+    let unlistenCommands: (() => void) | undefined;
 
     const setupListeners = async () => {
-      const unlistenState = await windowManager.listenForStateSync((newState) => {
+      const stateListener = await windowManager.listenForStateSync((newState) => {
         stateReceived = true;
-        setState(newState);
+        if (isMounted) setState(newState);
       });
 
-      const unlistenCommands = await windowManager.listenForCommands((cmd) => {
+      if (isMounted) {
+        unlistenState = stateListener;
+      } else {
+        stateListener();
+        return;
+      }
+
+      const commandsListener = await windowManager.listenForCommands((cmd) => {
+        if (!isMounted) return;
         const video = videoRef.current;
         if (!video) return;
 
@@ -45,32 +56,36 @@ export function DetachedPlayer() {
         }
       });
 
+      if (isMounted) {
+        unlistenCommands = commandsListener;
+      } else {
+        commandsListener();
+        return;
+      }
+
       // Request initial state with retry mechanism
       const requestWithRetry = async (attempts: number) => {
-        if (stateReceived || attempts <= 0) return;
+        if (!isMounted || stateReceived || attempts <= 0) return;
 
         await windowManager.requestInitialState();
 
-        // Retry after a delay if no state received
         retryTimeout = setTimeout(() => {
-          if (!stateReceived) {
+          if (isMounted && !stateReceived) {
             requestWithRetry(attempts - 1);
           }
         }, 100);
       };
 
       await requestWithRetry(5);
-
-      return () => {
-        unlistenState();
-        unlistenCommands();
-        clearTimeout(retryTimeout);
-      };
     };
 
-    const cleanup = setupListeners();
+    setupListeners();
+
     return () => {
-      cleanup.then((fn) => fn?.());
+      isMounted = false;
+      clearTimeout(retryTimeout);
+      unlistenState?.();
+      unlistenCommands?.();
     };
   }, []);
 
