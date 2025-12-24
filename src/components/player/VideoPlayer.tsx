@@ -9,11 +9,13 @@ export function VideoPlayer() {
     isLoading,
     volume,
     isMuted,
+    seekTime,
     setIsPlaying,
     setCurrentTime,
     setDuration,
     setIsLoading,
     setError,
+    clearSeek,
   } = usePlayerStore();
 
   const tryPlay = useCallback(() => {
@@ -47,6 +49,15 @@ export function VideoPlayer() {
 
     video.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
+
+  // Handle seeking
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || seekTime === null) return;
+
+    video.currentTime = seekTime;
+    clearSeek();
+  }, [seekTime, clearSeek]);
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {

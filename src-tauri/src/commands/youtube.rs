@@ -58,12 +58,14 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
     match method.as_str() {
         "brew" => {
             // First check if Homebrew is available
-            let brew_check = Command::new("brew")
+            let brew_available = Command::new("brew")
                 .arg("--version")
                 .output()
-                .await;
+                .await
+                .map(|o| o.status.success())
+                .unwrap_or(false);
 
-            if brew_check.is_err() || !brew_check.unwrap().status.success() {
+            if !brew_available {
                 return Ok(InstallResult {
                     success: false,
                     message: "Homebrew is not installed".to_string(),
@@ -100,12 +102,14 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
         }
         "pip" => {
             // Check if pip3 is available
-            let pip_check = Command::new("pip3")
+            let pip_available = Command::new("pip3")
                 .arg("--version")
                 .output()
-                .await;
+                .await
+                .map(|o| o.status.success())
+                .unwrap_or(false);
 
-            if pip_check.is_err() || !pip_check.unwrap().status.success() {
+            if !pip_available {
                 return Ok(InstallResult {
                     success: false,
                     message: "pip3 is not installed".to_string(),

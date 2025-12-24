@@ -22,6 +22,7 @@ interface PlayerState {
   isFullscreen: boolean;
   isLoading: boolean;
   error: string | null;
+  seekTime: number | null;
 
   // Actions
   setCurrentVideo: (video: Video | null) => void;
@@ -33,6 +34,8 @@ interface PlayerState {
   setIsFullscreen: (fullscreen: boolean) => void;
   setIsLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  seekTo: (time: number) => void;
+  clearSeek: () => void;
   reset: () => void;
 }
 
@@ -46,6 +49,7 @@ const initialState = {
   isFullscreen: false,
   isLoading: false,
   error: null,
+  seekTime: null,
 };
 
 export const usePlayerStore = create<PlayerState>((set) => ({
@@ -60,5 +64,7 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   setIsFullscreen: (isFullscreen) => set({ isFullscreen }),
   setIsLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error, isLoading: false }),
+  seekTo: (time) => set({ seekTime: time }),
+  clearSeek: () => set({ seekTime: null }),
   reset: () => set(initialState),
 }));
