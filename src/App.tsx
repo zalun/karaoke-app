@@ -16,7 +16,7 @@ function App() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PanelTab>("queue");
 
-  const { setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
+  const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { addToQueue, playDirect } = useQueueStore();
 
   const handleSearch = useCallback(async (query: string) => {
@@ -100,11 +100,15 @@ function App() {
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
           {/* Left: Video + Search Results */}
           <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
-            {/* Video Player */}
-            <div className="h-[300px] lg:h-[400px] flex-shrink-0">
-              <VideoPlayerArea />
-            </div>
-            <PlayerControls />
+            {/* Video Player - only show when video is loaded */}
+            {currentVideo && (
+              <>
+                <div className="h-[300px] lg:h-[400px] flex-shrink-0">
+                  <VideoPlayerArea />
+                </div>
+                <PlayerControls />
+              </>
+            )}
 
             {/* Search Results */}
             <div className="flex-1 overflow-auto">

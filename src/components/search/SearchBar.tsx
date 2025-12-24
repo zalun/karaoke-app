@@ -47,8 +47,8 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
   );
 
   return (
-    <div className="space-y-2">
-      <form onSubmit={handleSubmit} className="relative">
+    <form onSubmit={handleSubmit} className="flex gap-2">
+      <div className="relative flex-1">
         <input
           type="text"
           value={inputValue}
@@ -65,16 +65,18 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
         >
           {isLoading ? "..." : "Search"}
         </button>
-      </form>
-      <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={addKaraoke}
-          onChange={(e) => setAddKaraoke(e.target.checked)}
-          className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-800"
-        />
-        <span>Add &quot;karaoke&quot; to search</span>
-      </label>
-    </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => setAddKaraoke(!addKaraoke)}
+        className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${
+          addKaraoke
+            ? "bg-blue-600 text-white"
+            : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+        }`}
+      >
+        +"karaoke"
+      </button>
+    </form>
   );
 }
