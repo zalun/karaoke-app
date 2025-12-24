@@ -249,9 +249,10 @@ function QueuePanel() {
       </div>
       <button
         onClick={clearQueue}
-        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
+        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
       >
-        Clear Queue
+        <span>🗑️</span>
+        <span>Clear Queue</span>
       </button>
     </div>
   );
@@ -334,9 +335,10 @@ function HistoryPanel() {
       </div>
       <button
         onClick={clearHistory}
-        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
+        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
       >
-        Clear History
+        <span>🗑️</span>
+        <span>Clear History</span>
       </button>
     </div>
   );
