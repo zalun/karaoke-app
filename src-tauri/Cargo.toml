@@ -1,0 +1,30 @@
+[package]
+name = "karaoke-app"
+version = "0.1.0"
+description = "Home karaoke application for macOS"
+authors = ["Piotr Zalewa"]
+license = "MIT"
+repository = "https://github.com/zalun/karaoke-app"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "karaoke_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+thiserror = "1"
+chrono = { version = "0.4", features = ["serde"] }
+log = "0.4"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = "0.24"
