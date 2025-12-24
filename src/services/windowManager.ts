@@ -19,13 +19,17 @@ class WindowManager {
   }
 
   async detachPlayer(initialState: PlayerState): Promise<boolean> {
+    console.log("[windowManager] detachPlayer called", initialState);
+
     if (this.playerWindow) {
       // Already detached, focus the window
+      console.log("[windowManager] Window already exists, focusing");
       await this.playerWindow.setFocus();
       return true;
     }
 
     try {
+      console.log("[windowManager] Creating new window");
       // Create the player window
       this.playerWindow = new WebviewWindow("player", {
         url: "/#/player",
@@ -42,9 +46,11 @@ class WindowManager {
       // Wait for the window to be created
       await new Promise<void>((resolve, reject) => {
         this.playerWindow!.once("tauri://created", () => {
+          console.log("[windowManager] Window created successfully");
           resolve();
         });
         this.playerWindow!.once("tauri://error", (e) => {
+          console.error("[windowManager] Window creation error:", e);
           reject(e);
         });
       });
@@ -122,6 +128,14 @@ class WindowManager {
 
   async emitTimeUpdate(time: number): Promise<void> {
     await emit("player:time-update", time);
+  }
+
+  async requestInitialState(): Promise<void> {
+    await emit("player:request-state");
+  }
+
+  async listenForStateRequest(callback: () => void): Promise<UnlistenFn> {
+    return listen("player:request-state", callback);
   }
 }
 

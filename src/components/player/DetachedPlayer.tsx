@@ -3,6 +3,9 @@ import { windowManager, type PlayerState } from "../../services/windowManager";
 
 export function DetachedPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
   const [state, setState] = useState<PlayerState>({
     streamUrl: null,
     isPlaying: false,
@@ -16,6 +19,7 @@ export function DetachedPlayer() {
   useEffect(() => {
     const setupListeners = async () => {
       const unlistenState = await windowManager.listenForStateSync((newState) => {
+        console.log("[DetachedPlayer] Received state sync:", newState);
         setState(newState);
       });
 
@@ -38,6 +42,10 @@ export function DetachedPlayer() {
         }
       });
 
+      // Request initial state from main window after listeners are set up
+      console.log("[DetachedPlayer] Requesting initial state");
+      await windowManager.requestInitialState();
+
       return () => {
         unlistenState();
         unlistenCommands();
@@ -55,23 +63,55 @@ export function DetachedPlayer() {
     const video = videoRef.current;
     if (!video) return;
 
-    if (state.streamUrl && video.src !== state.streamUrl) {
+    if (state.streamUrl && state.streamUrl !== currentStreamUrl) {
+      const isNewVideo = currentStreamUrl !== null && state.streamUrl !== currentStreamUrl;
+
+      setIsReady(false);
+      setCurrentStreamUrl(state.streamUrl);
+
+      // If this is a NEW video (not the first load), mark it so we don't restore position
+      if (isNewVideo) {
+        setIsFirstLoad(false);
+      }
+
       video.src = state.streamUrl;
       video.load();
     }
-  }, [state.streamUrl]);
+  }, [state.streamUrl, currentStreamUrl]);
 
-  // Handle play/pause state
+  // Handle canplay event - set initial time and play if needed
+  const handleCanPlay = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || isReady) return;
+
+    setIsReady(true);
+
+    // Only restore time position on first load (detach scenario)
+    // For new videos, start from the beginning
+    if (isFirstLoad && state.currentTime > 1) {
+      video.currentTime = state.currentTime;
+    }
+
+    // Start playing if it should be playing
+    if (state.isPlaying) {
+      video.play().catch(console.error);
+    }
+
+    // After first load, mark as not first load anymore
+    setIsFirstLoad(false);
+  }, [isReady, state.currentTime, state.isPlaying, isFirstLoad]);
+
+  // Handle play/pause state changes (only after video is ready)
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !state.streamUrl) return;
+    if (!video || !state.streamUrl || !isReady) return;
 
     if (state.isPlaying && video.paused) {
       video.play().catch(console.error);
     } else if (!state.isPlaying && !video.paused) {
       video.pause();
     }
-  }, [state.isPlaying, state.streamUrl]);
+  }, [state.isPlaying, state.streamUrl, isReady]);
 
   // Handle volume
   useEffect(() => {
@@ -107,12 +147,13 @@ export function DetachedPlayer() {
         ref={videoRef}
         className="w-full h-full object-contain"
         onTimeUpdate={handleTimeUpdate}
+        onCanPlay={handleCanPlay}
         onDoubleClick={handleDoubleClick}
         playsInline
       />
-      {!state.streamUrl && (
+      {(!state.streamUrl || !isReady) && (
         <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-          <p>Waiting for video...</p>
+          <p>{state.streamUrl ? "Loading..." : "Waiting for video..."}</p>
         </div>
       )}
     </div>

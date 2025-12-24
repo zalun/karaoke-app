@@ -10,7 +10,9 @@
     "core:default",
     "core:window:allow-create",
     "core:window:allow-close",
+    "core:window:allow-destroy",
     "core:window:allow-set-focus",
-    "core:event:default"
+    "core:event:default",
+    "core:webview:allow-create-webview-window"
   ]
 }
