@@ -17,8 +17,12 @@ export function DetachedPlayer() {
 
   // Listen for state sync from main window
   useEffect(() => {
+    let stateReceived = false;
+    let retryTimeout: ReturnType<typeof setTimeout>;
+
     const setupListeners = async () => {
       const unlistenState = await windowManager.listenForStateSync((newState) => {
+        stateReceived = true;
         setState(newState);
       });
 
@@ -41,12 +45,26 @@ export function DetachedPlayer() {
         }
       });
 
-      // Request initial state from main window after listeners are set up
-      await windowManager.requestInitialState();
+      // Request initial state with retry mechanism
+      const requestWithRetry = async (attempts: number) => {
+        if (stateReceived || attempts <= 0) return;
+
+        await windowManager.requestInitialState();
+
+        // Retry after a delay if no state received
+        retryTimeout = setTimeout(() => {
+          if (!stateReceived) {
+            requestWithRetry(attempts - 1);
+          }
+        }, 100);
+      };
+
+      await requestWithRetry(5);
 
       return () => {
         unlistenState();
         unlistenCommands();
+        clearTimeout(retryTimeout);
       };
     };
 
