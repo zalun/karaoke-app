@@ -49,11 +49,20 @@ class WindowManager {
         });
       });
 
-      // Listen for window close
+      // Listen for window close request
       const unlistenClose = await this.playerWindow.onCloseRequested(async () => {
         await this.reattachPlayer();
       });
       this.unlistenFns.push(unlistenClose);
+
+      // Listen for unexpected window destruction (crash, etc.)
+      const unlistenDestroy = await this.playerWindow.once("tauri://destroyed", async () => {
+        this.unlistenFns.forEach((fn) => fn());
+        this.unlistenFns = [];
+        this.playerWindow = null;
+        await emit("player:reattached");
+      });
+      this.unlistenFns.push(unlistenDestroy);
 
       // Send initial state to the player window
       await this.syncState(initialState);
