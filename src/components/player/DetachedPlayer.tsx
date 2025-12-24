@@ -1,8 +1,12 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { windowManager, type PlayerState } from "../../services/windowManager";
 
+// Throttle time updates to reduce event frequency (500ms interval)
+const TIME_UPDATE_THROTTLE_MS = 500;
+
 export function DetachedPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const lastTimeUpdateRef = useRef<number>(0);
   const [isReady, setIsReady] = useState(false);
   const [shouldRestorePosition, setShouldRestorePosition] = useState(true);
   const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
@@ -151,10 +155,14 @@ export function DetachedPlayer() {
     video.volume = state.isMuted ? 0 : state.volume;
   }, [state.volume, state.isMuted]);
 
-  // Send time updates back to main window
+  // Send time updates back to main window (throttled to reduce event frequency)
   const handleTimeUpdate = useCallback(() => {
     const video = videoRef.current;
-    if (video) {
+    if (!video) return;
+
+    const now = Date.now();
+    if (now - lastTimeUpdateRef.current >= TIME_UPDATE_THROTTLE_MS) {
+      lastTimeUpdateRef.current = now;
       windowManager.emitTimeUpdate(video.currentTime);
     }
   }, []);
