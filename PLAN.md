@@ -197,20 +197,26 @@ display_apply_config(config_id) -> ()              // Manually apply configurati
 
 ### Phase 1: Foundation
 **Result:** Application launches and displays basic UI
-- [ ] Initialize Tauri 2.0 + React + Vite project
-- [ ] Configure Tailwind CSS
-- [ ] Setup SQLite with migrations
-- [ ] Basic application layout
-- [ ] Configure Zustand stores
+- [x] Initialize Tauri 2.0 + React + Vite project
+- [x] Configure Tailwind CSS
+- [x] Setup SQLite with migrations
+- [x] Basic application layout
+- [x] Configure Zustand stores
 
 ### Phase 2: YouTube Integration
 **Result:** Can search YouTube videos and play them in the application
-- [ ] Implement yt-dlp service in Rust
-- [ ] YouTube search (ytsearch)
-- [ ] Stream URL extraction
-- [ ] VideoPlayer component (HTML5 video)
-- [ ] SearchBar + SearchResults
-- [ ] Click on result → play video
+- [x] Implement yt-dlp service in Rust
+- [x] YouTube search (ytsearch)
+- [x] Stream URL extraction
+- [x] VideoPlayer component (HTML5 video)
+- [x] SearchBar + SearchResults
+- [x] Click on result → play video
+- [ ] yt-dlp dependency check:
+  - On app startup, verify yt-dlp is installed
+  - If missing, show user-friendly error with install options
+  - "Install with Homebrew" button (runs `brew install yt-dlp`)
+  - Manual install instructions as fallback
+  - Re-check button after installation
 
 ### Phase 3: Queue System
 **Result:** Can add videos to queue, queue automatically advances to next
@@ -290,7 +296,7 @@ display_apply_config(config_id) -> ()              // Manually apply configurati
 | Display hotplug detection | macOS: `CGDisplayRegisterReconfigurationCallback` in Rust via `core-graphics` crate |
 | Fullscreen without interrupting playback | Use native fullscreen API (don't reload component), preserve `<video>` element reference |
 | YT streaming URL expiration | Fetch fresh URL immediately before playback |
-| yt-dlp distribution | Bundle with app or auto-download on first launch |
+| yt-dlp dependency | Check on startup, show install prompt with Homebrew button if missing |
 | UI blocking during download | Async Tokio tasks + Tauri events for progress |
 | External drive detection | notify crate (kqueue) + fallback polling /Volumes/ every 5s |
 | Video formats from USB drive | HTML5 video supports MP4/WebM, warning for others |

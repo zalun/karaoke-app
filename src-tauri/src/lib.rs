@@ -1,4 +1,6 @@
+mod commands;
 mod db;
+mod services;
 
 use db::Database;
 use std::sync::Mutex;
@@ -12,6 +14,13 @@ pub struct AppState {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::youtube_search,
+            commands::youtube_get_stream_url,
+            commands::youtube_get_info,
+            commands::youtube_check_available,
+            commands::youtube_install_ytdlp,
+        ])
         .setup(|app| {
             let app_data_dir = app
                 .path()

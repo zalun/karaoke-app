@@ -4,93 +4,201 @@ import type { Video } from "./playerStore";
 export interface QueueItem {
   id: string;
   video: Video;
-  position: number;
-  status: "pending" | "playing" | "completed" | "skipped";
   addedAt: Date;
 }
 
 interface QueueState {
-  items: QueueItem[];
-  currentIndex: number;
-  isLoading: boolean;
+  queue: QueueItem[];
+  history: QueueItem[];
+  historyIndex: number; // -1 means "at end of history", otherwise index of current position
 
   // Actions
   addToQueue: (video: Video) => void;
   removeFromQueue: (itemId: string) => void;
-  reorder: (itemId: string, newPosition: number) => void;
-  playNext: () => QueueItem | null;
+  reorderQueue: (itemId: string, newPosition: number) => void;
   clearQueue: () => void;
-  setCurrentIndex: (index: number) => void;
+  clearHistory: () => void;
+
+  // Playback actions - return the item to play (or null)
+  playDirect: (video: Video) => QueueItem; // Play directly (e.g., from search) - adds to history
+  playFromQueue: (index: number) => QueueItem | null;
+  playFromHistory: (index: number) => QueueItem | null;
+  playNext: () => QueueItem | null;
+  playPrevious: () => QueueItem | null;
+
+  // State queries
+  getCurrentItem: () => QueueItem | null;
+  hasNext: () => boolean;
+  hasPrevious: () => boolean;
 }
 
 export const useQueueStore = create<QueueState>((set, get) => ({
-  items: [],
-  currentIndex: -1,
-  isLoading: false,
+  queue: [],
+  history: [],
+  historyIndex: -1,
 
   addToQueue: (video) => {
     const newItem: QueueItem = {
       id: crypto.randomUUID(),
       video,
-      position: get().items.length,
-      status: "pending",
       addedAt: new Date(),
     };
-    set((state) => ({ items: [...state.items, newItem] }));
+    set((state) => ({ queue: [...state.queue, newItem] }));
   },
 
   removeFromQueue: (itemId) => {
     set((state) => ({
-      items: state.items
-        .filter((item) => item.id !== itemId)
-        .map((item, index) => ({ ...item, position: index })),
+      queue: state.queue.filter((item) => item.id !== itemId),
     }));
   },
 
-  reorder: (itemId, newPosition) => {
+  reorderQueue: (itemId, newPosition) => {
     set((state) => {
-      const items = [...state.items];
-      const currentIndex = items.findIndex((item) => item.id === itemId);
+      const queue = [...state.queue];
+      const currentIndex = queue.findIndex((item) => item.id === itemId);
       if (currentIndex === -1) return state;
 
-      const [item] = items.splice(currentIndex, 1);
-      items.splice(newPosition, 0, item);
+      const [item] = queue.splice(currentIndex, 1);
+      queue.splice(newPosition, 0, item);
 
-      return {
-        items: items.map((item, index) => ({ ...item, position: index })),
-      };
+      return { queue };
     });
   },
 
-  playNext: () => {
-    const { items, currentIndex } = get();
-    const nextIndex = currentIndex + 1;
+  clearQueue: () => {
+    set({ queue: [] });
+  },
 
-    if (nextIndex >= items.length) {
+  clearHistory: () => {
+    set({ history: [], historyIndex: -1 });
+  },
+
+  playDirect: (video) => {
+    const newItem: QueueItem = {
+      id: crypto.randomUUID(),
+      video,
+      addedAt: new Date(),
+    };
+
+    set((state) => ({
+      history: [...state.history, newItem],
+      historyIndex: -1, // Reset to end of history
+    }));
+
+    return newItem;
+  },
+
+  playFromQueue: (index) => {
+    const { queue, history } = get();
+
+    if (index < 0 || index >= queue.length) {
       return null;
     }
 
-    set((state) => ({
-      currentIndex: nextIndex,
-      items: state.items.map((item, index) => ({
-        ...item,
-        status:
-          index === nextIndex
-            ? "playing"
-            : index < nextIndex
-              ? "completed"
-              : "pending",
-      })),
-    }));
+    const item = queue[index];
+    const newQueue = queue.filter((_, i) => i !== index);
+    const newHistory = [...history, item];
 
-    return items[nextIndex];
+    set({
+      queue: newQueue,
+      history: newHistory,
+      historyIndex: -1, // Reset to end of history
+    });
+
+    return item;
   },
 
-  clearQueue: () => {
-    set({ items: [], currentIndex: -1 });
+  playFromHistory: (index) => {
+    const { history } = get();
+
+    if (index < 0 || index >= history.length) {
+      return null;
+    }
+
+    set({ historyIndex: index });
+
+    return history[index];
   },
 
-  setCurrentIndex: (index) => {
-    set({ currentIndex: index });
+  playNext: () => {
+    const { queue, history, historyIndex } = get();
+
+    // Calculate effective index (convert -1 to actual end index)
+    const effectiveIndex = historyIndex === -1 ? history.length - 1 : historyIndex;
+
+    // Check if there are more items ahead in history
+    if (effectiveIndex < history.length - 1) {
+      const nextIndex = effectiveIndex + 1;
+      set({ historyIndex: nextIndex });
+      return history[nextIndex];
+    }
+
+    // Otherwise, take from queue
+    if (queue.length === 0) {
+      return null;
+    }
+
+    const item = queue[0];
+    const newQueue = queue.slice(1);
+    const newHistory = [...history, item];
+
+    set({
+      queue: newQueue,
+      history: newHistory,
+      historyIndex: -1, // Reset to end
+    });
+
+    return item;
+  },
+
+  playPrevious: () => {
+    const { history, historyIndex } = get();
+
+    if (history.length === 0) {
+      return null;
+    }
+
+    // Calculate effective index
+    const effectiveIndex = historyIndex === -1 ? history.length - 1 : historyIndex;
+
+    // Check if we can go back
+    if (effectiveIndex <= 0) {
+      return null;
+    }
+
+    const prevIndex = effectiveIndex - 1;
+    set({ historyIndex: prevIndex });
+
+    return history[prevIndex];
+  },
+
+  getCurrentItem: () => {
+    const { history, historyIndex } = get();
+
+    if (history.length === 0) {
+      return null;
+    }
+
+    const effectiveIndex = historyIndex === -1 ? history.length - 1 : historyIndex;
+    return history[effectiveIndex] || null;
+  },
+
+  hasNext: () => {
+    const { queue, history, historyIndex } = get();
+    const effectiveIndex = historyIndex === -1 ? history.length - 1 : historyIndex;
+
+    // Has next if there's more in history ahead OR items in queue
+    return effectiveIndex < history.length - 1 || queue.length > 0;
+  },
+
+  hasPrevious: () => {
+    const { history, historyIndex } = get();
+
+    if (history.length === 0) {
+      return false;
+    }
+
+    const effectiveIndex = historyIndex === -1 ? history.length - 1 : historyIndex;
+    return effectiveIndex > 0;
   },
 }));
