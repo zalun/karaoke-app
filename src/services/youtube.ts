@@ -20,4 +20,8 @@ export const youtubeService = {
   async checkAvailable(): Promise<boolean> {
     return invoke<boolean>("youtube_check_available");
   },
+
+  async installYtDlp(method: "brew" | "pip" | "curl"): Promise<{ success: boolean; message: string; output: string }> {
+    return invoke<{ success: boolean; message: string; output: string }>("youtube_install_ytdlp", { method });
+  },
 };

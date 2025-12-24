@@ -2,11 +2,13 @@ import { useState, useCallback } from "react";
 import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
 import { SearchBar, SearchResults } from "./components/search";
+import { DependencyCheck } from "./components/DependencyCheck";
 import { usePlayerStore, useQueueStore } from "./stores";
 import { youtubeService } from "./services";
 import type { SearchResult } from "./types";
 
 function App() {
+  const [dependenciesReady, setDependenciesReady] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -75,6 +77,10 @@ function App() {
     },
     [addToQueue]
   );
+
+  if (!dependenciesReady) {
+    return <DependencyCheck onReady={() => setDependenciesReady(true)} />;
+  }
 
   return (
     <AppLayout>

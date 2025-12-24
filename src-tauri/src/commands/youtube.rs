@@ -43,3 +43,154 @@ pub async fn youtube_check_available() -> Result<bool, YouTubeError> {
     let service = YtDlpService::new();
     Ok(service.is_available())
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstallResult {
+    pub success: bool,
+    pub message: String,
+    pub output: String,
+}
+
+#[tauri::command]
+pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouTubeError> {
+    use std::process::Command;
+
+    match method.as_str() {
+        "brew" => {
+            // First check if Homebrew is available
+            let brew_check = Command::new("brew")
+                .arg("--version")
+                .output();
+
+            if brew_check.is_err() || !brew_check.unwrap().status.success() {
+                return Ok(InstallResult {
+                    success: false,
+                    message: "Homebrew is not installed".to_string(),
+                    output: "Please install Homebrew first from https://brew.sh".to_string(),
+                });
+            }
+
+            // Run brew install yt-dlp
+            let output = Command::new("brew")
+                .args(["install", "yt-dlp"])
+                .output()
+                .map_err(|e| YouTubeError {
+                    message: format!("Failed to run brew: {}", e),
+                })?;
+
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let combined_output = format!("{}\n{}", stdout, stderr).trim().to_string();
+
+            if output.status.success() {
+                Ok(InstallResult {
+                    success: true,
+                    message: "yt-dlp installed successfully!".to_string(),
+                    output: combined_output,
+                })
+            } else {
+                Ok(InstallResult {
+                    success: false,
+                    message: "Installation failed".to_string(),
+                    output: combined_output,
+                })
+            }
+        }
+        "pip" => {
+            // Check if pip3 is available
+            let pip_check = Command::new("pip3")
+                .arg("--version")
+                .output();
+
+            if pip_check.is_err() || !pip_check.unwrap().status.success() {
+                return Ok(InstallResult {
+                    success: false,
+                    message: "pip3 is not installed".to_string(),
+                    output: "Please install Python 3 and pip first".to_string(),
+                });
+            }
+
+            // Run pip3 install yt-dlp
+            let output = Command::new("pip3")
+                .args(["install", "yt-dlp"])
+                .output()
+                .map_err(|e| YouTubeError {
+                    message: format!("Failed to run pip3: {}", e),
+                })?;
+
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let combined_output = format!("{}\n{}", stdout, stderr).trim().to_string();
+
+            if output.status.success() {
+                Ok(InstallResult {
+                    success: true,
+                    message: "yt-dlp installed successfully!".to_string(),
+                    output: combined_output,
+                })
+            } else {
+                Ok(InstallResult {
+                    success: false,
+                    message: "Installation failed".to_string(),
+                    output: combined_output,
+                })
+            }
+        }
+        "curl" => {
+            // Download yt-dlp binary directly
+            let home = std::env::var("HOME").unwrap_or_default();
+            let local_bin = format!("{}/.local/bin", home);
+
+            // Create directory if it doesn't exist
+            let _ = std::fs::create_dir_all(&local_bin);
+
+            let output = Command::new("curl")
+                .args([
+                    "-L",
+                    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos",
+                    "-o",
+                    &format!("{}/yt-dlp", local_bin),
+                ])
+                .output()
+                .map_err(|e| YouTubeError {
+                    message: format!("Failed to run curl: {}", e),
+                })?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                return Ok(InstallResult {
+                    success: false,
+                    message: "Download failed".to_string(),
+                    output: stderr,
+                });
+            }
+
+            // Make it executable
+            let chmod_output = Command::new("chmod")
+                .args(["+x", &format!("{}/yt-dlp", local_bin)])
+                .output()
+                .map_err(|e| YouTubeError {
+                    message: format!("Failed to chmod: {}", e),
+                })?;
+
+            if chmod_output.status.success() {
+                Ok(InstallResult {
+                    success: true,
+                    message: "yt-dlp installed successfully!".to_string(),
+                    output: format!("Downloaded to {}/yt-dlp\n\nNote: You may need to add ~/.local/bin to your PATH:\nexport PATH=\"$HOME/.local/bin:$PATH\"", local_bin),
+                })
+            } else {
+                Ok(InstallResult {
+                    success: false,
+                    message: "Failed to make executable".to_string(),
+                    output: String::from_utf8_lossy(&chmod_output.stderr).to_string(),
+                })
+            }
+        }
+        _ => Ok(InstallResult {
+            success: false,
+            message: "Unknown installation method".to_string(),
+            output: String::new(),
+        }),
+    }
+}

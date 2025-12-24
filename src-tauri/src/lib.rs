@@ -19,6 +19,7 @@ pub fn run() {
             commands::youtube_get_stream_url,
             commands::youtube_get_info,
             commands::youtube_check_available,
+            commands::youtube_install_ytdlp,
         ])
         .setup(|app| {
             let app_data_dir = app
