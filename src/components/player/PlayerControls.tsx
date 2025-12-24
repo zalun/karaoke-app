@@ -10,6 +10,8 @@ function formatTime(seconds: number): string {
 
 export function PlayerControls() {
   const progressRef = useRef<HTMLDivElement>(null);
+  // Flag to prevent sync loops when receiving time updates from detached window
+  const isReceivingTimeUpdate = useRef(false);
   const {
     currentVideo,
     isPlaying,
@@ -61,7 +63,11 @@ export function PlayerControls() {
 
     windowManager.listenForTimeUpdate((time) => {
       if (isMounted) {
+        // Set flag to prevent sync loops
+        isReceivingTimeUpdate.current = true;
         usePlayerStore.setState({ currentTime: time });
+        // Reset flag after state update
+        isReceivingTimeUpdate.current = false;
       }
     }).then((unlisten) => {
       if (isMounted) {
@@ -110,6 +116,8 @@ export function PlayerControls() {
   }, [isDetached, currentVideo?.streamUrl, isPlaying, currentTime, duration, volume, isMuted]);
 
   // Sync state to detached window when relevant state changes
+  // Note: currentTime is intentionally excluded from dependencies to prevent sync loops.
+  // Time updates flow one-way: detached window → main window via listenForTimeUpdate.
   useEffect(() => {
     if (!isDetached || !currentVideo?.streamUrl) return;
 
