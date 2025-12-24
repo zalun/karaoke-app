@@ -5,8 +5,6 @@ export function useWakeLock(enabled: boolean) {
   const isEnabled = useRef(false);
 
   useEffect(() => {
-    console.log("[useWakeLock] enabled:", enabled);
-
     if (enabled && !isEnabled.current) {
       isEnabled.current = true;
       keepAwakeService.enable();

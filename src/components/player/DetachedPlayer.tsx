@@ -6,7 +6,6 @@ import { useWakeLock } from "../../hooks";
 const TIME_UPDATE_THROTTLE_MS = 500;
 
 export function DetachedPlayer() {
-  console.log("[DetachedPlayer] Component rendering...");
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastTimeUpdateRef = useRef<number>(0);
   const pendingCommandRef = useRef<{ command: "play" | "pause" | "seek"; value?: number } | null>(null);
@@ -34,11 +33,8 @@ export function DetachedPlayer() {
     let unlistenState: (() => void) | undefined;
     let unlistenCommands: (() => void) | undefined;
 
-    console.log("[DetachedPlayer] Setting up listeners...");
-
     const setupListeners = async () => {
       const stateListener = await windowManager.listenForStateSync((newState) => {
-        console.log("[DetachedPlayer] Received state sync:", newState);
         stateReceived = true;
         if (isMounted) setState(newState);
       });
@@ -51,22 +47,19 @@ export function DetachedPlayer() {
       }
 
       const commandsListener = await windowManager.listenForCommands((cmd) => {
-        console.log("[DetachedPlayer] Received command:", cmd, "readyState:", videoRef.current?.readyState);
         if (!isMounted) return;
         const video = videoRef.current;
         if (!video) return;
 
         // If video isn't ready, queue the command for later
         if (video.readyState < 3) {
-          console.log("[DetachedPlayer] Video not ready, queuing command");
           pendingCommandRef.current = cmd;
           return;
         }
 
         switch (cmd.command) {
           case "play":
-            console.log("[DetachedPlayer] Executing play command");
-            video.play().catch((err) => console.error("[DetachedPlayer] Play failed:", err));
+            video.play().catch(console.error);
             break;
           case "pause":
             video.pause();
@@ -136,22 +129,18 @@ export function DetachedPlayer() {
   // Handle canplay event - set initial time and play if needed
   const handleCanPlay = useCallback(() => {
     const video = videoRef.current;
-    console.log("[DetachedPlayer] handleCanPlay called, isReady:", isReady, "video:", !!video);
     if (!video || isReady) return;
 
     setIsReady(true);
-    console.log("[DetachedPlayer] Video ready, state:", { isPlaying: state.isPlaying, isMuted: state.isMuted, currentTime: state.currentTime });
 
     // Restore position only on initial detach, not when switching videos
     if (shouldRestorePosition && state.currentTime > 1) {
-      console.log("[DetachedPlayer] Restoring position to:", state.currentTime);
       video.currentTime = state.currentTime;
     }
 
     // Process any pending command that arrived before video was ready
     const pendingCmd = pendingCommandRef.current;
     const shouldPlay = pendingCmd?.command === "play" || (!pendingCmd && state.isPlaying);
-    console.log("[DetachedPlayer] pendingCmd:", pendingCmd, "shouldPlay:", shouldPlay);
 
     if (pendingCmd) {
       pendingCommandRef.current = null;
@@ -163,19 +152,17 @@ export function DetachedPlayer() {
     }
 
     if (shouldPlay) {
-      console.log("[DetachedPlayer] Attempting to play with muted autoplay...");
       // Use muted autoplay to bypass browser restrictions, then restore volume
       isMutedForAutoplayRef.current = true;
       video.muted = true;
       video.play()
         .then(() => {
-          console.log("[DetachedPlayer] Play succeeded! Unmuting...");
           isMutedForAutoplayRef.current = false;
           video.muted = state.isMuted;
         })
         .catch((err) => {
           isMutedForAutoplayRef.current = false;
-          console.error("[DetachedPlayer] Autoplay failed:", err);
+          console.error("Autoplay failed:", err);
         });
     }
 

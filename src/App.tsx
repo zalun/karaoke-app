@@ -1,7 +1,22 @@
 import { useState, useCallback } from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
 import { SearchBar, SearchResults } from "./components/search";
+import { DraggableQueueItem } from "./components/queue";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { usePlayerStore, useQueueStore } from "./stores";
 import { youtubeService } from "./services";
@@ -11,7 +26,6 @@ type PanelTab = "queue" | "history";
 type MainTab = "player" | "search";
 
 function App() {
-  console.log("[App] Component rendering...");
   const [dependenciesReady, setDependenciesReady] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -219,8 +233,15 @@ function formatDuration(seconds?: number): string {
 }
 
 function QueuePanel() {
-  const { queue, playFromQueue, removeFromQueue, clearQueue } = useQueueStore();
+  const { queue, playFromQueue, removeFromQueue, reorderQueue, clearQueue } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const handlePlayFromQueue = useCallback(
     async (index: number) => {
@@ -244,6 +265,22 @@ function QueuePanel() {
     [playFromQueue, setCurrentVideo, setIsPlaying, setIsLoading, setError]
   );
 
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+
+      if (over && active.id !== over.id) {
+        const oldIndex = queue.findIndex((item) => item.id === active.id);
+        const newIndex = queue.findIndex((item) => item.id === over.id);
+
+        if (oldIndex !== -1 && newIndex !== -1) {
+          reorderQueue(active.id as string, newIndex);
+        }
+      }
+    },
+    [queue, reorderQueue]
+  );
+
   if (queue.length === 0) {
     return (
       <div className="text-gray-400 text-sm flex-1">
@@ -257,36 +294,29 @@ function QueuePanel() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex-1 overflow-auto space-y-2">
-        {queue.map((item, index) => (
-          <div
-            key={item.id}
-            onClick={() => handlePlayFromQueue(index)}
-            className="flex gap-2 p-2 rounded cursor-pointer transition-colors bg-gray-700 hover:bg-gray-600"
-          >
-            <span className="text-gray-400 w-6 flex items-center justify-center">
-              {index + 1}.
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm truncate">{item.video.title}</p>
-              <p className="text-xs text-gray-400 truncate">
-                {item.video.artist}
-                {item.video.duration && ` • ${formatDuration(item.video.duration)}`}
-              </p>
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                removeFromQueue(item.id);
-              }}
-              className="text-gray-400 hover:text-red-400 text-sm"
-              title="Remove from queue"
-            >
-              ✕
-            </button>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={queue.map((item) => item.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="flex-1 overflow-auto space-y-2">
+            {queue.map((item, index) => (
+              <DraggableQueueItem
+                key={item.id}
+                item={item}
+                index={index}
+                onPlay={() => handlePlayFromQueue(index)}
+                onRemove={() => removeFromQueue(item.id)}
+                formatDuration={formatDuration}
+              />
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
       <button
         onClick={clearQueue}
         className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"

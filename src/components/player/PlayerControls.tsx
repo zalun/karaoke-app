@@ -175,7 +175,6 @@ export function PlayerControls() {
   const handleDetach = useCallback(async () => {
     if (!currentVideo?.streamUrl) return;
 
-    console.log("[PlayerControls] Detaching with state:", { isPlaying, currentTime, volume, isMuted });
     const success = await windowManager.detachPlayer({
       streamUrl: currentVideo.streamUrl,
       isPlaying,
@@ -185,7 +184,6 @@ export function PlayerControls() {
       isMuted,
     });
 
-    console.log("[PlayerControls] Detach result:", success);
     if (success) {
       setIsDetached(true);
     }

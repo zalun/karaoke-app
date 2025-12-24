@@ -19,10 +19,8 @@ class WindowManager {
   }
 
   async detachPlayer(initialState: PlayerState): Promise<boolean> {
-    console.log("[WindowManager] detachPlayer called with:", initialState);
     if (this.playerWindow) {
       // Already detached, focus the window
-      console.log("[WindowManager] Window already exists, focusing");
       await this.playerWindow.setFocus();
       return true;
     }
@@ -32,13 +30,10 @@ class WindowManager {
       const existingWindows = await getAllWebviewWindows();
       const existingPlayer = existingWindows.find(w => w.label === "player");
       if (existingPlayer) {
-        console.log("[WindowManager] Found stale player window, closing it...");
         await existingPlayer.close();
         // Small delay to ensure window is closed
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-
-      console.log("[WindowManager] Creating player window...");
       // Create the player window
       this.playerWindow = new WebviewWindow("player", {
         url: "/#/player",
@@ -55,11 +50,9 @@ class WindowManager {
       // Wait for the window to be created
       await new Promise<void>((resolve, reject) => {
         this.playerWindow!.once("tauri://created", () => {
-          console.log("[WindowManager] Window created (tauri://created)");
           resolve();
         });
         this.playerWindow!.once("tauri://error", (e) => {
-          console.error("[WindowManager] Window creation error:", e);
           reject(e);
         });
       });
@@ -80,9 +73,7 @@ class WindowManager {
       this.unlistenFns.push(unlistenDestroy);
 
       // Send initial state to the player window
-      console.log("[WindowManager] Sending initial state sync...");
       await this.syncState(initialState);
-      console.log("[WindowManager] Initial state sync sent, returning true");
 
       return true;
     } catch (error) {
@@ -114,24 +105,18 @@ class WindowManager {
   }
 
   async syncState(state: PlayerState): Promise<void> {
-    console.log("[WindowManager] syncState:", state);
     try {
       await emit("player:state-sync", state);
-      console.log("[WindowManager] syncState emitted successfully");
-    } catch (err) {
+    } catch {
       // Window might not exist yet, ignore
-      console.debug("[WindowManager] syncState failed:", err);
     }
   }
 
   async sendCommand(command: "play" | "pause" | "seek", value?: number): Promise<void> {
-    console.log("[WindowManager] sendCommand:", command, value);
     try {
       await emit("player:command", { command, value });
-      console.log("[WindowManager] sendCommand emitted successfully");
-    } catch (err) {
+    } catch {
       // Window might not exist yet, ignore
-      console.debug("[WindowManager] sendCommand failed:", err);
     }
   }
 
