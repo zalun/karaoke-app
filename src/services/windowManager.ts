@@ -75,8 +75,8 @@ class WindowManager {
     }
   }
 
-  async reattachPlayer(): Promise<void> {
-    if (!this.playerWindow) return;
+  async reattachPlayer(): Promise<boolean> {
+    if (!this.playerWindow) return true;
 
     try {
       // Clean up listeners
@@ -85,8 +85,10 @@ class WindowManager {
 
       // Close the window
       await this.playerWindow.close();
+      return true;
     } catch (error) {
       console.error("Failed to close player window:", error);
+      return false;
     } finally {
       this.playerWindow = null;
       // Notify main window that player was reattached
