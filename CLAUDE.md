@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Git Workflow
 
-- Always create a feature branch for changes (never commit directly to main)
+- Every change requires a GitHub issue first
+- Create a feature branch from the issue (never commit directly to main)
 - Create a pull request for code review before merging
-- Branch naming: `feature/<description>` or `fix/<description>`
+- Branch naming: `feature/<issue-number>-<description>` or `fix/<issue-number>-<description>`
 
 ## Build and Development Commands
 
