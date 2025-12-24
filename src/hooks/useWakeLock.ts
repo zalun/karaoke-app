@@ -1,50 +1,25 @@
 import { useEffect, useRef } from "react";
+import { keepAwakeService } from "../services";
 
 export function useWakeLock(enabled: boolean) {
-  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const isEnabled = useRef(false);
 
   useEffect(() => {
-    if (!("wakeLock" in navigator)) {
-      return;
+    console.log("[useWakeLock] enabled:", enabled);
+
+    if (enabled && !isEnabled.current) {
+      isEnabled.current = true;
+      keepAwakeService.enable();
+    } else if (!enabled && isEnabled.current) {
+      isEnabled.current = false;
+      keepAwakeService.disable();
     }
 
-    const requestWakeLock = async () => {
-      try {
-        wakeLockRef.current = await navigator.wakeLock.request("screen");
-      } catch (err) {
-        // Wake lock request failed (e.g., low battery, tab not visible)
-        console.debug("Wake lock request failed:", err);
+    return () => {
+      if (isEnabled.current) {
+        isEnabled.current = false;
+        keepAwakeService.disable();
       }
     };
-
-    const releaseWakeLock = async () => {
-      if (wakeLockRef.current) {
-        try {
-          await wakeLockRef.current.release();
-        } catch {
-          // Ignore release errors
-        }
-        wakeLockRef.current = null;
-      }
-    };
-
-    if (enabled) {
-      requestWakeLock();
-
-      // Re-acquire wake lock when page becomes visible again
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === "visible" && enabled) {
-          requestWakeLock();
-        }
-      };
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-
-      return () => {
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
-        releaseWakeLock();
-      };
-    } else {
-      releaseWakeLock();
-    }
   }, [enabled]);
 }

@@ -11,6 +11,7 @@ type PanelTab = "queue" | "history";
 type MainTab = "player" | "search";
 
 function App() {
+  console.log("[App] Component rendering...");
   const [dependenciesReady, setDependenciesReady] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
