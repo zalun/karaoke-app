@@ -21,6 +21,7 @@ interface PlayerState {
   isMuted: boolean;
   isFullscreen: boolean;
   isLoading: boolean;
+  isDetached: boolean;
   error: string | null;
   seekTime: number | null;
 
@@ -33,6 +34,7 @@ interface PlayerState {
   toggleMute: () => void;
   setIsFullscreen: (fullscreen: boolean) => void;
   setIsLoading: (loading: boolean) => void;
+  setIsDetached: (detached: boolean) => void;
   setError: (error: string | null) => void;
   seekTo: (time: number) => void;
   clearSeek: () => void;
@@ -48,6 +50,7 @@ const initialState = {
   isMuted: false,
   isFullscreen: false,
   isLoading: false,
+  isDetached: false,
   error: null,
   seekTime: null,
 };
@@ -63,6 +66,7 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
   setIsFullscreen: (isFullscreen) => set({ isFullscreen }),
   setIsLoading: (isLoading) => set({ isLoading }),
+  setIsDetached: (isDetached) => set({ isDetached }),
   setError: (error) => set({ error, isLoading: false }),
   seekTo: (time) => set({ seekTime: time }),
   clearSeek: () => set({ seekTime: null }),

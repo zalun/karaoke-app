@@ -102,7 +102,7 @@ function App() {
           <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
             {/* Video Player */}
             <div className="h-[300px] lg:h-[400px] flex-shrink-0">
-              <VideoPlayer />
+              <VideoPlayerArea />
             </div>
             <PlayerControls />
 
@@ -152,6 +152,23 @@ function App() {
       </div>
     </AppLayout>
   );
+}
+
+function VideoPlayerArea() {
+  const { isDetached } = usePlayerStore();
+
+  if (isDetached) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
+        <div className="text-center text-gray-400">
+          <p className="text-4xl mb-2">🎤</p>
+          <p>Video playing in separate window</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <VideoPlayer />;
 }
 
 function formatDuration(seconds?: number): string {
