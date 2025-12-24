@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { usePlayerStore } from "../../stores";
 
 export function VideoPlayer() {
@@ -16,20 +16,30 @@ export function VideoPlayer() {
     setError,
   } = usePlayerStore();
 
+  const tryPlay = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.play().catch((e) => {
+      console.error("Failed to play video:", e);
+      setError("Failed to play video");
+      setIsPlaying(false);
+    });
+  }, [setError, setIsPlaying]);
+
+  // Handle play/pause state changes (only for pause, play is handled by canplay)
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    if (isPlaying) {
-      video.play().catch((e) => {
-        console.error("Failed to play video:", e);
-        setError("Failed to play video");
-        setIsPlaying(false);
-      });
-    } else {
+    if (!isPlaying) {
       video.pause();
+    } else if (video.readyState >= 3) {
+      // Video is ready, play it
+      tryPlay();
     }
-  }, [isPlaying, setError, setIsPlaying]);
+    // If isPlaying but video not ready, handleCanPlay will trigger play
+  }, [isPlaying, tryPlay]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -37,18 +47,6 @@ export function VideoPlayer() {
 
     video.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
-
-  // Cleanup video when stream URL changes
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    return () => {
-      video.pause();
-      video.removeAttribute("src");
-      video.load();
-    };
-  }, [currentVideo?.streamUrl]);
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
@@ -59,7 +57,14 @@ export function VideoPlayer() {
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
-      setIsLoading(false);
+    }
+  };
+
+  const handleCanPlay = () => {
+    setIsLoading(false);
+    // Auto-play when video is ready and isPlaying is true
+    if (isPlaying) {
+      tryPlay();
     }
   };
 
@@ -96,6 +101,7 @@ export function VideoPlayer() {
         className="w-full h-full object-contain"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onCanPlay={handleCanPlay}
         onEnded={handleEnded}
         onError={handleError}
         onLoadStart={handleLoadStart}

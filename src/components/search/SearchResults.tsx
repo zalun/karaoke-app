@@ -1,4 +1,5 @@
 import type { SearchResult } from "../../types";
+import { usePlayerStore } from "../../stores";
 
 interface SearchResultsProps {
   results: SearchResult[];
@@ -29,6 +30,8 @@ export function SearchResults({
   onPlay,
   onAddToQueue,
 }: SearchResultsProps) {
+  const { currentVideo, isPlaying } = usePlayerStore();
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -55,55 +58,79 @@ export function SearchResults({
 
   return (
     <div className="space-y-2">
-      {results.map((result) => (
-        <div
-          key={result.id}
-          className="flex gap-3 p-3 bg-gray-800 hover:bg-gray-750 rounded-lg transition-colors group"
-        >
-          {/* Thumbnail */}
-          <div className="w-32 h-20 flex-shrink-0 bg-gray-700 rounded overflow-hidden">
-            {result.thumbnail ? (
-              <img
-                src={result.thumbnail}
-                alt={result.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-500">
-                🎵
-              </div>
-            )}
-          </div>
+      {results.map((result) => {
+        const isCurrentlyPlaying = currentVideo?.id === result.id;
 
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-sm truncate" title={result.title}>
-              {result.title}
-            </h3>
-            <p className="text-xs text-gray-400 truncate">{result.channel}</p>
-            <div className="flex gap-2 mt-1 text-xs text-gray-500">
-              <span>{formatDuration(result.duration)}</span>
-              {result.view_count && <span>• {formatViewCount(result.view_count)}</span>}
+        return (
+          <div
+            key={result.id}
+            onClick={() => onPlay(result)}
+            className={`flex gap-3 p-3 rounded-lg transition-colors cursor-pointer ${
+              isCurrentlyPlaying
+                ? "bg-blue-900/50 border border-blue-600"
+                : "bg-gray-800 hover:bg-gray-700"
+            }`}
+          >
+            {/* Thumbnail */}
+            <div className="w-32 h-20 flex-shrink-0 bg-gray-700 rounded overflow-hidden relative">
+              {result.thumbnail ? (
+                <img
+                  src={result.thumbnail}
+                  alt={result.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-500">
+                  🎵
+                </div>
+              )}
+              {isCurrentlyPlaying && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                  <span className="text-white text-2xl">
+                    {isPlaying ? "▶" : "⏸"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <h3 className={`font-medium text-sm truncate ${isCurrentlyPlaying ? "text-blue-300" : ""}`} title={result.title}>
+                {result.title}
+              </h3>
+              <p className="text-xs text-gray-400 truncate">{result.channel}</p>
+              <div className="flex gap-2 mt-1 text-xs text-gray-500">
+                <span>{formatDuration(result.duration)}</span>
+                {result.view_count && <span>• {formatViewCount(result.view_count)}</span>}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlay(result);
+                }}
+                className="w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                aria-label="Play"
+              >
+                ▶
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddToQueue(result);
+                }}
+                className="w-8 h-8 flex items-center justify-center bg-gray-600 hover:bg-gray-500 rounded text-lg transition-colors"
+                aria-label="Add to queue"
+              >
+                +
+              </button>
             </div>
           </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={() => onPlay(result)}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
-            >
-              Play
-            </button>
-            <button
-              onClick={() => onAddToQueue(result)}
-              className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-sm transition-colors"
-            >
-              + Queue
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
