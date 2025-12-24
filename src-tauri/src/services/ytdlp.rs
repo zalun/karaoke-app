@@ -57,15 +57,43 @@ impl YtDlpService {
             .unwrap_or(false)
     }
 
+    /// Validate YouTube video ID format (alphanumeric, dash, underscore, 11 chars)
+    fn validate_video_id(video_id: &str) -> Result<(), YtDlpError> {
+        if video_id.is_empty() || video_id.len() > 20 {
+            return Err(YtDlpError::ExecutionError("Invalid video ID length".to_string()));
+        }
+        if !video_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+            return Err(YtDlpError::ExecutionError("Invalid characters in video ID".to_string()));
+        }
+        Ok(())
+    }
+
+    /// Sanitize search query (remove potentially dangerous characters)
+    fn sanitize_query(query: &str) -> String {
+        // Remove shell metacharacters and limit length
+        query
+            .chars()
+            .filter(|c| !matches!(c, ';' | '&' | '|' | '$' | '`' | '\\' | '\n' | '\r'))
+            .take(200)
+            .collect()
+    }
+
     /// Search YouTube for videos
     pub fn search(&self, query: &str, max_results: u32) -> Result<Vec<SearchResult>, YtDlpError> {
+        let sanitized_query = Self::sanitize_query(query);
+        if sanitized_query.trim().is_empty() {
+            return Err(YtDlpError::ExecutionError("Empty search query".to_string()));
+        }
+
+        // Limit max_results to reasonable bounds
+        let max_results = max_results.min(50);
+
+        let search_term = format!("ytsearch{}:{}", max_results, sanitized_query);
         let output = Command::new("yt-dlp")
-            .args([
-                &format!("ytsearch{}:{}", max_results, query),
-                "--dump-json",
-                "--flat-playlist",
-                "--no-warnings",
-            ])
+            .arg(&search_term)
+            .arg("--dump-json")
+            .arg("--flat-playlist")
+            .arg("--no-warnings")
             .output()
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::NotFound {
@@ -84,21 +112,34 @@ impl YtDlpService {
         let results: Vec<SearchResult> = stdout
             .lines()
             .filter_map(|line| {
-                serde_json::from_str::<serde_json::Value>(line).ok().map(|v| SearchResult {
-                    id: v["id"].as_str().unwrap_or_default().to_string(),
-                    title: v["title"].as_str().unwrap_or_default().to_string(),
-                    channel: v["channel"].as_str()
-                        .or_else(|| v["uploader"].as_str())
-                        .unwrap_or_default()
-                        .to_string(),
-                    duration: v["duration"].as_u64(),
-                    thumbnail: v["thumbnail"].as_str().map(|s| s.to_string())
-                        .or_else(|| v["thumbnails"].as_array()
-                            .and_then(|arr| arr.first())
-                            .and_then(|t| t["url"].as_str())
-                            .map(|s| s.to_string())),
-                    view_count: v["view_count"].as_u64(),
-                })
+                match serde_json::from_str::<serde_json::Value>(line) {
+                    Ok(v) => {
+                        // Require id to be present
+                        let id = v["id"].as_str()?;
+                        if id.is_empty() {
+                            return None;
+                        }
+                        Some(SearchResult {
+                            id: id.to_string(),
+                            title: v["title"].as_str().unwrap_or("Unknown").to_string(),
+                            channel: v["channel"].as_str()
+                                .or_else(|| v["uploader"].as_str())
+                                .unwrap_or("Unknown")
+                                .to_string(),
+                            duration: v["duration"].as_u64(),
+                            thumbnail: v["thumbnail"].as_str().map(|s| s.to_string())
+                                .or_else(|| v["thumbnails"].as_array()
+                                    .and_then(|arr| arr.first())
+                                    .and_then(|t| t["url"].as_str())
+                                    .map(|s| s.to_string())),
+                            view_count: v["view_count"].as_u64(),
+                        })
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to parse search result: {}", e);
+                        None
+                    }
+                }
             })
             .collect();
 
@@ -111,15 +152,16 @@ impl YtDlpService {
 
     /// Get streaming URL for a video
     pub fn get_stream_url(&self, video_id: &str) -> Result<StreamInfo, YtDlpError> {
+        Self::validate_video_id(video_id)?;
+
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
 
         let output = Command::new("yt-dlp")
-            .args([
-                &url,
-                "-f", "best[ext=mp4]/best",
-                "--get-url",
-                "--no-warnings",
-            ])
+            .arg(&url)
+            .arg("-f")
+            .arg("best[ext=mp4]/best")
+            .arg("--get-url")
+            .arg("--no-warnings")
             .output()
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::NotFound {
@@ -151,15 +193,15 @@ impl YtDlpService {
 
     /// Get video info without downloading
     pub fn get_video_info(&self, video_id: &str) -> Result<VideoInfo, YtDlpError> {
+        Self::validate_video_id(video_id)?;
+
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
 
         let output = Command::new("yt-dlp")
-            .args([
-                &url,
-                "--dump-json",
-                "--no-warnings",
-                "--no-download",
-            ])
+            .arg(&url)
+            .arg("--dump-json")
+            .arg("--no-warnings")
+            .arg("--no-download")
             .output()
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::NotFound {
@@ -180,10 +222,10 @@ impl YtDlpService {
 
         Ok(VideoInfo {
             id: v["id"].as_str().unwrap_or_default().to_string(),
-            title: v["title"].as_str().unwrap_or_default().to_string(),
+            title: v["title"].as_str().unwrap_or("Unknown").to_string(),
             channel: v["channel"].as_str()
                 .or_else(|| v["uploader"].as_str())
-                .unwrap_or_default()
+                .unwrap_or("Unknown")
                 .to_string(),
             duration: v["duration"].as_u64(),
             thumbnail: v["thumbnail"].as_str().map(|s| s.to_string()),

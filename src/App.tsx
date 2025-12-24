@@ -37,6 +37,7 @@ function App() {
   const handlePlay = useCallback(
     async (result: SearchResult) => {
       setIsLoading(true);
+      setSearchError(null);
 
       try {
         const streamInfo = await youtubeService.getStreamUrl(result.id);
@@ -58,6 +59,8 @@ function App() {
         setSearchError(
           err instanceof Error ? err.message : "Failed to load video"
         );
+        setIsLoading(false);
+        setIsPlaying(false);
       }
     },
     [setCurrentVideo, setIsPlaying, setIsLoading]

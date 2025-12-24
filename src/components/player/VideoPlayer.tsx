@@ -6,6 +6,7 @@ export function VideoPlayer() {
   const {
     currentVideo,
     isPlaying,
+    isLoading,
     volume,
     isMuted,
     setIsPlaying,
@@ -23,11 +24,12 @@ export function VideoPlayer() {
       video.play().catch((e) => {
         console.error("Failed to play video:", e);
         setError("Failed to play video");
+        setIsPlaying(false);
       });
     } else {
       video.pause();
     }
-  }, [isPlaying, setError]);
+  }, [isPlaying, setError, setIsPlaying]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -87,7 +89,7 @@ export function VideoPlayer() {
         onLoadStart={handleLoadStart}
         playsInline
       />
-      {usePlayerStore.getState().isLoading && (
+      {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">
           <div className="text-white">Loading...</div>
         </div>
