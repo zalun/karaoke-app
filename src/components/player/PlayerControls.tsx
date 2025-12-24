@@ -1,6 +1,6 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { usePlayerStore, useQueueStore } from "../../stores";
-import { youtubeService } from "../../services";
+import { youtubeService, windowManager } from "../../services";
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -10,6 +10,8 @@ function formatTime(seconds: number): string {
 
 export function PlayerControls() {
   const progressRef = useRef<HTMLDivElement>(null);
+  // Flag to prevent sync loops when receiving time updates from detached window
+  const isReceivingTimeUpdate = useRef(false);
   const {
     currentVideo,
     isPlaying,
@@ -17,9 +19,12 @@ export function PlayerControls() {
     duration,
     volume,
     isMuted,
+    isDetached,
+    seekTime,
     setCurrentVideo,
     setIsPlaying,
     setIsLoading,
+    setIsDetached,
     setError,
     setVolume,
     toggleMute,
@@ -27,6 +32,138 @@ export function PlayerControls() {
   } = usePlayerStore();
 
   const { hasNext, hasPrevious, playNext, playPrevious } = useQueueStore();
+
+  // Listen for reattachment from detached window
+  useEffect(() => {
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForReattach(() => {
+      if (isMounted) setIsDetached(false);
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unlistenFn?.();
+    };
+  }, [setIsDetached]);
+
+  // Listen for time updates from detached window
+  useEffect(() => {
+    if (!isDetached) return;
+
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForTimeUpdate((time) => {
+      if (isMounted) {
+        // Set flag to prevent sync loops
+        isReceivingTimeUpdate.current = true;
+        usePlayerStore.setState({ currentTime: time });
+        // Reset flag after state update
+        isReceivingTimeUpdate.current = false;
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unlistenFn?.();
+    };
+  }, [isDetached]);
+
+  // Listen for state requests from detached window and respond with current state
+  useEffect(() => {
+    if (!isDetached) return;
+
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForStateRequest(() => {
+      if (isMounted && currentVideo?.streamUrl) {
+        windowManager.syncState({
+          streamUrl: currentVideo.streamUrl,
+          isPlaying,
+          currentTime,
+          duration,
+          volume,
+          isMuted,
+        });
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unlistenFn?.();
+    };
+  }, [isDetached, currentVideo?.streamUrl, isPlaying, currentTime, duration, volume, isMuted]);
+
+  // Sync state to detached window when relevant state changes
+  // Note: currentTime is intentionally excluded from dependencies to prevent sync loops.
+  // Time updates flow one-way: detached window → main window via listenForTimeUpdate.
+  useEffect(() => {
+    if (!isDetached || !currentVideo?.streamUrl) return;
+
+    windowManager.syncState({
+      streamUrl: currentVideo.streamUrl,
+      isPlaying,
+      currentTime,
+      duration,
+      volume,
+      isMuted,
+    });
+  }, [isDetached, currentVideo?.streamUrl, isPlaying, volume, isMuted]);
+
+  // Send play/pause commands to detached window
+  useEffect(() => {
+    if (!isDetached) return;
+    windowManager.sendCommand(isPlaying ? "play" : "pause");
+  }, [isDetached, isPlaying]);
+
+  // Send seek commands to detached window
+  useEffect(() => {
+    if (!isDetached || seekTime === null) return;
+    windowManager.sendCommand("seek", seekTime);
+  }, [isDetached, seekTime]);
+
+  const handleDetach = useCallback(async () => {
+    if (!currentVideo?.streamUrl) return;
+
+    const success = await windowManager.detachPlayer({
+      streamUrl: currentVideo.streamUrl,
+      isPlaying,
+      currentTime,
+      duration,
+      volume,
+      isMuted,
+    });
+
+    if (success) {
+      setIsDetached(true);
+    }
+  }, [currentVideo?.streamUrl, isPlaying, currentTime, duration, volume, isMuted, setIsDetached]);
+
+  const handleReattach = useCallback(async () => {
+    await windowManager.reattachPlayer();
+    setIsDetached(false);
+  }, [setIsDetached]);
 
   const handleSeek = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -159,6 +296,15 @@ export function PlayerControls() {
           onChange={(e) => setVolume(parseFloat(e.target.value))}
           className="w-20"
         />
+
+        {/* Detach/Reattach */}
+        <button
+          onClick={isDetached ? handleReattach : handleDetach}
+          className="w-8 h-8 flex items-center justify-center hover:bg-gray-700 rounded transition-colors"
+          title={isDetached ? "Reattach player" : "Detach player"}
+        >
+          {isDetached ? "⊡" : "⧉"}
+        </button>
       </div>
 
       {/* Video info */}
