@@ -38,6 +38,18 @@ export function VideoPlayer() {
     video.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
 
+  // Cleanup video when stream URL changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    return () => {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [currentVideo?.streamUrl]);
+
   const handleTimeUpdate = () => {
     if (videoRef.current) {
       setCurrentTime(videoRef.current.currentTime);

@@ -20,28 +20,28 @@ pub async fn youtube_search(
     max_results: Option<u32>,
 ) -> Result<Vec<SearchResult>, YouTubeError> {
     let service = YtDlpService::new();
-    let results = service.search(&query, max_results.unwrap_or(10))?;
+    let results = service.search(&query, max_results.unwrap_or(10)).await?;
     Ok(results)
 }
 
 #[tauri::command]
 pub async fn youtube_get_stream_url(video_id: String) -> Result<StreamInfo, YouTubeError> {
     let service = YtDlpService::new();
-    let stream_info = service.get_stream_url(&video_id)?;
+    let stream_info = service.get_stream_url(&video_id).await?;
     Ok(stream_info)
 }
 
 #[tauri::command]
 pub async fn youtube_get_info(video_id: String) -> Result<VideoInfo, YouTubeError> {
     let service = YtDlpService::new();
-    let video_info = service.get_video_info(&video_id)?;
+    let video_info = service.get_video_info(&video_id).await?;
     Ok(video_info)
 }
 
 #[tauri::command]
 pub async fn youtube_check_available() -> Result<bool, YouTubeError> {
     let service = YtDlpService::new();
-    Ok(service.is_available())
+    Ok(service.is_available().await)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -53,14 +53,15 @@ pub struct InstallResult {
 
 #[tauri::command]
 pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouTubeError> {
-    use std::process::Command;
+    use tokio::process::Command;
 
     match method.as_str() {
         "brew" => {
             // First check if Homebrew is available
             let brew_check = Command::new("brew")
                 .arg("--version")
-                .output();
+                .output()
+                .await;
 
             if brew_check.is_err() || !brew_check.unwrap().status.success() {
                 return Ok(InstallResult {
@@ -74,6 +75,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
             let output = Command::new("brew")
                 .args(["install", "yt-dlp"])
                 .output()
+                .await
                 .map_err(|e| YouTubeError {
                     message: format!("Failed to run brew: {}", e),
                 })?;
@@ -100,7 +102,8 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
             // Check if pip3 is available
             let pip_check = Command::new("pip3")
                 .arg("--version")
-                .output();
+                .output()
+                .await;
 
             if pip_check.is_err() || !pip_check.unwrap().status.success() {
                 return Ok(InstallResult {
@@ -114,6 +117,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
             let output = Command::new("pip3")
                 .args(["install", "yt-dlp"])
                 .output()
+                .await
                 .map_err(|e| YouTubeError {
                     message: format!("Failed to run pip3: {}", e),
                 })?;
@@ -137,21 +141,61 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
             }
         }
         "curl" => {
+            // Detect platform and select appropriate binary
+            let binary_name = match std::env::consts::OS {
+                "macos" => "yt-dlp_macos",
+                "linux" => "yt-dlp_linux",
+                "windows" => {
+                    return Ok(InstallResult {
+                        success: false,
+                        message: "Direct download not supported on Windows".to_string(),
+                        output: "Please use pip or download manually from https://github.com/yt-dlp/yt-dlp#installation".to_string(),
+                    });
+                }
+                os => {
+                    return Ok(InstallResult {
+                        success: false,
+                        message: format!("Unsupported platform: {}", os),
+                        output: "Please install manually from https://github.com/yt-dlp/yt-dlp#installation".to_string(),
+                    });
+                }
+            };
+
             // Download yt-dlp binary directly
             let home = std::env::var("HOME").unwrap_or_default();
+            if home.is_empty() {
+                return Ok(InstallResult {
+                    success: false,
+                    message: "Could not determine home directory".to_string(),
+                    output: "HOME environment variable not set".to_string(),
+                });
+            }
+
             let local_bin = format!("{}/.local/bin", home);
 
             // Create directory if it doesn't exist
-            let _ = std::fs::create_dir_all(&local_bin);
+            if let Err(e) = std::fs::create_dir_all(&local_bin) {
+                return Ok(InstallResult {
+                    success: false,
+                    message: "Failed to create directory".to_string(),
+                    output: format!("Could not create {}: {}", local_bin, e),
+                });
+            }
+
+            let download_url = format!(
+                "https://github.com/yt-dlp/yt-dlp/releases/latest/download/{}",
+                binary_name
+            );
 
             let output = Command::new("curl")
                 .args([
                     "-L",
-                    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos",
+                    &download_url,
                     "-o",
                     &format!("{}/yt-dlp", local_bin),
                 ])
                 .output()
+                .await
                 .map_err(|e| YouTubeError {
                     message: format!("Failed to run curl: {}", e),
                 })?;
@@ -169,6 +213,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
             let chmod_output = Command::new("chmod")
                 .args(["+x", &format!("{}/yt-dlp", local_bin)])
                 .output()
+                .await
                 .map_err(|e| YouTubeError {
                     message: format!("Failed to chmod: {}", e),
                 })?;
@@ -177,7 +222,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
                 Ok(InstallResult {
                     success: true,
                     message: "yt-dlp installed successfully!".to_string(),
-                    output: format!("Downloaded to {}/yt-dlp\n\nNote: You may need to add ~/.local/bin to your PATH:\nexport PATH=\"$HOME/.local/bin:$PATH\"", local_bin),
+                    output: format!("Downloaded {} to {}/yt-dlp\n\nNote: You may need to add ~/.local/bin to your PATH:\nexport PATH=\"$HOME/.local/bin:$PATH\"", binary_name, local_bin),
                 })
             } else {
                 Ok(InstallResult {

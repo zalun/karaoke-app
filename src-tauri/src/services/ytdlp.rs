@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 use thiserror::Error;
+use tokio::process::Command;
 
 #[derive(Error, Debug)]
 pub enum YtDlpError {
@@ -49,10 +49,11 @@ impl YtDlpService {
     }
 
     /// Check if yt-dlp is available
-    pub fn is_available(&self) -> bool {
+    pub async fn is_available(&self) -> bool {
         Command::new("yt-dlp")
             .arg("--version")
             .output()
+            .await
             .map(|output| output.status.success())
             .unwrap_or(false)
     }
@@ -79,7 +80,7 @@ impl YtDlpService {
     }
 
     /// Search YouTube for videos
-    pub fn search(&self, query: &str, max_results: u32) -> Result<Vec<SearchResult>, YtDlpError> {
+    pub async fn search(&self, query: &str, max_results: u32) -> Result<Vec<SearchResult>, YtDlpError> {
         let sanitized_query = Self::sanitize_query(query);
         if sanitized_query.trim().is_empty() {
             return Err(YtDlpError::ExecutionError("Empty search query".to_string()));
@@ -95,6 +96,7 @@ impl YtDlpService {
             .arg("--flat-playlist")
             .arg("--no-warnings")
             .output()
+            .await
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::NotFound {
                     YtDlpError::NotFound
@@ -151,7 +153,7 @@ impl YtDlpService {
     }
 
     /// Get streaming URL for a video
-    pub fn get_stream_url(&self, video_id: &str) -> Result<StreamInfo, YtDlpError> {
+    pub async fn get_stream_url(&self, video_id: &str) -> Result<StreamInfo, YtDlpError> {
         Self::validate_video_id(video_id)?;
 
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
@@ -163,6 +165,7 @@ impl YtDlpService {
             .arg("--get-url")
             .arg("--no-warnings")
             .output()
+            .await
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::NotFound {
                     YtDlpError::NotFound
@@ -192,7 +195,7 @@ impl YtDlpService {
     }
 
     /// Get video info without downloading
-    pub fn get_video_info(&self, video_id: &str) -> Result<VideoInfo, YtDlpError> {
+    pub async fn get_video_info(&self, video_id: &str) -> Result<VideoInfo, YtDlpError> {
         Self::validate_video_id(video_id)?;
 
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
@@ -203,6 +206,7 @@ impl YtDlpService {
             .arg("--no-warnings")
             .arg("--no-download")
             .output()
+            .await
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::NotFound {
                     YtDlpError::NotFound
