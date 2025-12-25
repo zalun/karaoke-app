@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { youtubeService } from "../services";
+import { youtubeService, createLogger } from "../services";
+
+const log = createLogger("DependencyCheck");
 
 type InstallMethod = "brew" | "pip" | "curl";
 
@@ -16,18 +18,21 @@ export function DependencyCheck({ onReady }: DependencyCheckProps) {
   const outputRef = useRef<HTMLPreElement>(null);
 
   const checkYtDlp = useCallback(async () => {
+    log.info("Checking yt-dlp availability");
     setChecking(true);
     setError(null);
 
     try {
       const available = await youtubeService.checkAvailable();
       if (available) {
+        log.info("yt-dlp is available");
         onReady();
       } else {
+        log.warn("yt-dlp not found");
         setChecking(false);
       }
     } catch (err) {
-      console.error("Failed to check yt-dlp:", err);
+      log.error("Failed to check yt-dlp", err);
       setChecking(false);
     }
   }, [onReady]);
@@ -44,6 +49,7 @@ export function DependencyCheck({ onReady }: DependencyCheckProps) {
   }, [output]);
 
   const handleInstall = async (method: InstallMethod) => {
+    log.info(`Installing yt-dlp via ${method}`);
     setInstalling(true);
     setInstallMethod(method);
     setError(null);
@@ -54,12 +60,15 @@ export function DependencyCheck({ onReady }: DependencyCheckProps) {
       setOutput(result.output);
 
       if (result.success) {
+        log.info(`yt-dlp installed successfully via ${method}`);
         // Wait a moment then re-check
         setTimeout(() => checkYtDlp(), 1000);
       } else {
+        log.error(`yt-dlp installation failed: ${result.message}`);
         setError(result.message);
       }
     } catch (err) {
+      log.error("yt-dlp installation error", err);
       setError(err instanceof Error ? err.message : "Installation failed");
     } finally {
       setInstalling(false);
