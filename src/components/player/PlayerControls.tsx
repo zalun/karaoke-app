@@ -251,7 +251,13 @@ export function PlayerControls() {
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className={`bg-gray-800 p-3 rounded-lg ${isDisabled ? "opacity-60" : ""}`}>
+    <div className={`bg-gray-800 p-3 rounded-lg relative ${isDisabled ? "opacity-60" : ""}`}>
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-gray-900/50 rounded-lg flex items-center justify-center z-10">
+          <div className="w-8 h-8 border-4 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      )}
       <div className="flex items-center gap-4">
         {/* Previous */}
         <button
@@ -277,7 +283,7 @@ export function PlayerControls() {
               : "bg-blue-600 hover:bg-blue-700"
           }`}
         >
-          {isLoading ? "..." : isPlaying ? "⏸" : "▶"}
+          {isPlaying ? "⏸" : "▶"}
         </button>
 
         {/* Next */}
@@ -300,9 +306,9 @@ export function PlayerControls() {
             <span>{isDisabled ? "--:--" : formatTime(currentTime)}</span>
             <div
               ref={progressRef}
-              onClick={isDisabled ? undefined : handleSeek}
+              onClick={isDisabled || isLoading ? undefined : handleSeek}
               className={`flex-1 h-2 bg-gray-700 rounded-full transition-all ${
-                isDisabled ? "cursor-not-allowed" : "cursor-pointer hover:h-3"
+                isDisabled || isLoading ? "cursor-not-allowed" : "cursor-pointer hover:h-3"
               }`}
             >
               <div
@@ -310,7 +316,15 @@ export function PlayerControls() {
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
-            <span>{isDisabled ? "--:--" : formatTime(duration)}</span>
+            <span>
+              {isDisabled
+                ? "--:--"
+                : duration > 0
+                  ? formatTime(duration)
+                  : currentVideo?.duration
+                    ? formatTime(currentVideo.duration)
+                    : "--:--"}
+            </span>
           </div>
         </div>
 
@@ -350,7 +364,7 @@ export function PlayerControls() {
       {/* Video info */}
       <div className="mt-2 text-sm">
         <p className="font-medium truncate">
-          {isLoading ? "Loading..." : currentVideo?.title || "No video selected"}
+          {currentVideo?.title || "No video selected"}
         </p>
         {currentVideo?.artist && (
           <p className="text-gray-400 truncate">{currentVideo.artist}</p>

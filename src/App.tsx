@@ -59,17 +59,23 @@ function App() {
       setIsLoading(true);
       setSearchError(null);
 
+      // Set video info immediately (without stream URL) for instant UI feedback
+      const pendingVideo = {
+        id: result.id,
+        title: result.title,
+        artist: result.channel,
+        duration: result.duration,
+        thumbnailUrl: result.thumbnail,
+        source: "youtube" as const,
+        youtubeId: result.id,
+      };
+      setCurrentVideo(pendingVideo);
+
       try {
         const streamInfo = await youtubeService.getStreamUrl(result.id);
 
         const video = {
-          id: result.id,
-          title: result.title,
-          artist: result.channel,
-          duration: result.duration,
-          thumbnailUrl: result.thumbnail,
-          source: "youtube" as const,
-          youtubeId: result.id,
+          ...pendingVideo,
           streamUrl: streamInfo.url,
         };
 
@@ -82,6 +88,7 @@ function App() {
         setSearchError(
           err instanceof Error ? err.message : "Failed to load video"
         );
+        setCurrentVideo(null); // Clear on error
         setIsLoading(false);
         setIsPlaying(false);
       }
