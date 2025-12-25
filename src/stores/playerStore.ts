@@ -90,9 +90,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const cached = get().prefetchedStreamUrl;
     if (!cached || cached.videoId !== videoId) return null;
 
-    // Check if cache has expired
+    // Check if cache has expired and proactively clear if so
     const age = Date.now() - cached.timestamp;
-    if (age > PREFETCH_CACHE_EXPIRY_MS) return null;
+    if (age > PREFETCH_CACHE_EXPIRY_MS) {
+      set({ prefetchedStreamUrl: null });
+      return null;
+    }
 
     return cached.url;
   },

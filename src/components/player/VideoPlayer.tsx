@@ -38,16 +38,16 @@ export function VideoPlayer() {
     prefetchTriggeredRef.current = null;
   }, [currentVideo?.id]);
 
-  // Invalidate prefetch cache when queue changes (e.g., user reorders or removes items)
-  const queue = useQueueStore((state) => state.queue);
+  // Invalidate prefetch cache when first queue item changes (e.g., user reorders or removes items)
+  // Only subscribe to queue[0] to avoid re-renders when other queue items change
+  const nextQueueVideoId = useQueueStore((state) => state.queue[0]?.video.youtubeId);
   useEffect(() => {
-    const nextVideoId = queue[0]?.video.youtubeId;
-    invalidatePrefetchIfStale(nextVideoId);
+    invalidatePrefetchIfStale(nextQueueVideoId);
     // Also reset prefetch trigger if queue's first item changed
-    if (prefetchTriggeredRef.current && prefetchTriggeredRef.current !== nextVideoId) {
+    if (prefetchTriggeredRef.current && prefetchTriggeredRef.current !== nextQueueVideoId) {
       prefetchTriggeredRef.current = null;
     }
-  }, [queue]);
+  }, [nextQueueVideoId]);
 
   const tryPlay = useCallback(() => {
     const video = videoRef.current;
