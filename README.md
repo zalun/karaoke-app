@@ -11,6 +11,21 @@ A home karaoke application for macOS built with Tauri 2.0 and React.
 - **Multi-Display Support** - Detach video window to a secondary display/projector
 - **Display Memory** - Remembers window layouts for different display configurations
 
+## Installation
+
+Download the latest release from the [Releases page](https://github.com/zalun/karaoke-app/releases/latest):
+
+- **Apple Silicon (M1/M2/M3):** `Karaoke_x.x.x_aarch64.dmg`
+- **Intel Macs:** `Karaoke_x.x.x_x64.dmg`
+
+### Steps
+1. Download the `.dmg` file for your Mac architecture
+2. Open the `.dmg` and drag Karaoke to your Applications folder
+3. On first launch, right-click the app and select "Open" (required for unsigned apps)
+4. The app will prompt to install `yt-dlp` if not already installed
+
+> **Note:** The app is not code-signed, so macOS will show a warning on first launch. This is expected for open-source apps without an Apple Developer certificate.
+
 ## Technology Stack
 
 - **Frontend:** React + TypeScript + Vite + Tailwind CSS
@@ -18,14 +33,9 @@ A home karaoke application for macOS built with Tauri 2.0 and React.
 - **Database:** SQLite
 - **Video:** yt-dlp
 
-## Status
-
-This project is currently in development. See [PLAN.md](PLAN.md) for the implementation roadmap.
-
 ## Requirements
 
-- macOS (primary target platform)
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) installed and available in PATH
+- macOS (Apple Silicon or Intel)
 
 ## Development
 
