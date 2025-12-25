@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { windowManager, type PlayerState } from "../../services/windowManager";
+import { useWakeLock } from "../../hooks";
 
 // Throttle time updates to reduce event frequency (500ms interval)
 const TIME_UPDATE_THROTTLE_MS = 500;
@@ -7,6 +8,8 @@ const TIME_UPDATE_THROTTLE_MS = 500;
 export function DetachedPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastTimeUpdateRef = useRef<number>(0);
+  const pendingCommandRef = useRef<{ command: "play" | "pause" | "seek"; value?: number } | null>(null);
+  const isMutedForAutoplayRef = useRef(false);
   const [isReady, setIsReady] = useState(false);
   const [shouldRestorePosition, setShouldRestorePosition] = useState(true);
   const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
@@ -18,6 +21,9 @@ export function DetachedPlayer() {
     volume: 1,
     isMuted: false,
   });
+
+  // Prevent screen from sleeping while playing
+  useWakeLock(state.isPlaying && isReady);
 
   // Listen for state sync from main window
   useEffect(() => {
@@ -44,6 +50,12 @@ export function DetachedPlayer() {
         if (!isMounted) return;
         const video = videoRef.current;
         if (!video) return;
+
+        // If video isn't ready, queue the command for later
+        if (video.readyState < 3) {
+          pendingCommandRef.current = cmd;
+          return;
+        }
 
         switch (cmd.command) {
           case "play":
@@ -126,14 +138,37 @@ export function DetachedPlayer() {
       video.currentTime = state.currentTime;
     }
 
-    // Start playing if it should be playing
-    if (state.isPlaying) {
-      video.play().catch(console.error);
+    // Process any pending command that arrived before video was ready
+    const pendingCmd = pendingCommandRef.current;
+    const shouldPlay = pendingCmd?.command === "play" || (!pendingCmd && state.isPlaying);
+
+    if (pendingCmd) {
+      pendingCommandRef.current = null;
+      if (pendingCmd.command === "pause") {
+        video.pause();
+      } else if (pendingCmd.command === "seek" && pendingCmd.value !== undefined) {
+        video.currentTime = pendingCmd.value;
+      }
+    }
+
+    if (shouldPlay) {
+      // Use muted autoplay to bypass browser restrictions, then restore volume
+      isMutedForAutoplayRef.current = true;
+      video.muted = true;
+      video.play()
+        .then(() => {
+          isMutedForAutoplayRef.current = false;
+          video.muted = state.isMuted;
+        })
+        .catch((err) => {
+          isMutedForAutoplayRef.current = false;
+          console.error("Autoplay failed:", err);
+        });
     }
 
     // After first video loads, don't restore position for subsequent videos
     setShouldRestorePosition(false);
-  }, [isReady, state.currentTime, state.isPlaying, shouldRestorePosition]);
+  }, [isReady, state.currentTime, state.isPlaying, state.isMuted, shouldRestorePosition]);
 
   // Handle play/pause state changes (only after video is ready)
   useEffect(() => {
@@ -152,7 +187,11 @@ export function DetachedPlayer() {
     const video = videoRef.current;
     if (!video) return;
 
-    video.volume = state.isMuted ? 0 : state.volume;
+    video.volume = state.volume;
+    // Don't change muted state if we're in the middle of muted autoplay
+    if (!isMutedForAutoplayRef.current) {
+      video.muted = state.isMuted;
+    }
   }, [state.volume, state.isMuted]);
 
   // Send time updates back to main window (throttled to reduce event frequency)
@@ -166,6 +205,26 @@ export function DetachedPlayer() {
       windowManager.emitTimeUpdate(video.currentTime);
     }
   }, []);
+
+  // Emit final state before window closes
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const video = videoRef.current;
+      if (video && state.streamUrl) {
+        windowManager.emitFinalState({
+          streamUrl: state.streamUrl,
+          isPlaying: !video.paused,
+          currentTime: video.currentTime,
+          duration: video.duration || state.duration,
+          volume: state.volume,
+          isMuted: state.isMuted,
+        });
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [state.streamUrl, state.duration, state.volume, state.isMuted]);
 
   // Double-click for fullscreen
   const handleDoubleClick = useCallback(() => {
@@ -188,6 +247,8 @@ export function DetachedPlayer() {
         onCanPlay={handleCanPlay}
         onDoubleClick={handleDoubleClick}
         playsInline
+        autoPlay
+        muted
       />
       {(!state.streamUrl || !isReady) && (
         <div className="absolute inset-0 flex items-center justify-center text-gray-500">

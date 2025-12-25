@@ -54,6 +54,35 @@ export function PlayerControls() {
     };
   }, [setIsDetached]);
 
+  // Listen for final state from detached window before it closes
+  useEffect(() => {
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForFinalState((finalState) => {
+      if (isMounted) {
+        // Update store with final state from detached window
+        usePlayerStore.setState({
+          currentTime: finalState.currentTime,
+          isPlaying: finalState.isPlaying,
+        });
+        // Seek to the final time
+        seekTo(finalState.currentTime);
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unlistenFn?.();
+    };
+  }, [seekTo]);
+
   // Listen for time updates from detached window
   useEffect(() => {
     if (!isDetached) return;
@@ -217,21 +246,25 @@ export function PlayerControls() {
     }
   }, [playNext, setCurrentVideo, setIsPlaying, setIsLoading, setError]);
 
-  if (!currentVideo) {
-    return null;
-  }
-
+  const { isLoading } = usePlayerStore();
+  const isDisabled = !currentVideo;
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="bg-gray-800 p-3 rounded-lg mt-2">
+    <div className={`bg-gray-800 p-3 rounded-lg relative ${isDisabled ? "opacity-60" : ""}`}>
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-gray-900/50 rounded-lg flex items-center justify-center z-10">
+          <div className="w-8 h-8 border-4 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      )}
       <div className="flex items-center gap-4">
         {/* Previous */}
         <button
           onClick={handlePrevious}
-          disabled={!hasPrevious()}
+          disabled={isDisabled || !hasPrevious()}
           className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
-            hasPrevious()
+            !isDisabled && hasPrevious()
               ? "hover:bg-gray-700 text-white"
               : "text-gray-600 cursor-not-allowed"
           }`}
@@ -243,7 +276,12 @@ export function PlayerControls() {
         {/* Play/Pause */}
         <button
           onClick={() => setIsPlaying(!isPlaying)}
-          className="w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full transition-colors"
+          disabled={isDisabled}
+          className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${
+            isDisabled
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
+          }`}
         >
           {isPlaying ? "⏸" : "▶"}
         </button>
@@ -251,9 +289,9 @@ export function PlayerControls() {
         {/* Next */}
         <button
           onClick={handleNext}
-          disabled={!hasNext()}
+          disabled={isDisabled || !hasNext()}
           className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
-            hasNext()
+            !isDisabled && hasNext()
               ? "hover:bg-gray-700 text-white"
               : "text-gray-600 cursor-not-allowed"
           }`}
@@ -265,25 +303,37 @@ export function PlayerControls() {
         {/* Progress */}
         <div className="flex-1">
           <div className="flex items-center gap-2 text-sm text-gray-400">
-            <span>{formatTime(currentTime)}</span>
+            <span>{isDisabled ? "--:--" : formatTime(currentTime)}</span>
             <div
               ref={progressRef}
-              onClick={handleSeek}
-              className="flex-1 h-2 bg-gray-700 rounded-full cursor-pointer hover:h-3 transition-all"
+              onClick={isDisabled || isLoading ? undefined : handleSeek}
+              className={`flex-1 h-2 bg-gray-700 rounded-full transition-all ${
+                isDisabled || isLoading ? "cursor-not-allowed" : "cursor-pointer hover:h-3"
+              }`}
             >
               <div
                 className="h-full bg-blue-500 rounded-full pointer-events-none"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
-            <span>{formatTime(duration)}</span>
+            <span>
+              {isDisabled
+                ? "--:--"
+                : duration > 0
+                  ? formatTime(duration)
+                  : currentVideo?.duration
+                    ? formatTime(currentVideo.duration)
+                    : "--:--"}
+            </span>
           </div>
         </div>
 
         {/* Volume */}
         <button
-          onClick={toggleMute}
-          className="w-8 h-8 flex items-center justify-center hover:bg-gray-700 rounded transition-colors"
+          onClick={isDisabled ? undefined : toggleMute}
+          className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${
+            isDisabled ? "cursor-not-allowed" : "hover:bg-gray-700"
+          }`}
         >
           {isMuted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
         </button>
@@ -294,13 +344,17 @@ export function PlayerControls() {
           step="0.1"
           value={isMuted ? 0 : volume}
           onChange={(e) => setVolume(parseFloat(e.target.value))}
+          disabled={isDisabled}
           className="w-20"
         />
 
         {/* Detach/Reattach */}
         <button
           onClick={isDetached ? handleReattach : handleDetach}
-          className="w-8 h-8 flex items-center justify-center hover:bg-gray-700 rounded transition-colors"
+          disabled={isDisabled}
+          className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${
+            isDisabled ? "cursor-not-allowed text-gray-600" : "hover:bg-gray-700"
+          }`}
           title={isDetached ? "Reattach player" : "Detach player"}
         >
           {isDetached ? "⊡" : "⧉"}
@@ -309,8 +363,10 @@ export function PlayerControls() {
 
       {/* Video info */}
       <div className="mt-2 text-sm">
-        <p className="font-medium truncate">{currentVideo.title}</p>
-        {currentVideo.artist && (
+        <p className="font-medium truncate">
+          {currentVideo?.title || "No video selected"}
+        </p>
+        {currentVideo?.artist && (
           <p className="text-gray-400 truncate">{currentVideo.artist}</p>
         )}
       </div>

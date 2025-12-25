@@ -8,6 +8,7 @@ use tauri::Manager;
 
 pub struct AppState {
     pub db: Mutex<Database>,
+    pub keep_awake: Mutex<Option<keepawake::KeepAwake>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -20,6 +21,8 @@ pub fn run() {
             commands::youtube_get_info,
             commands::youtube_check_available,
             commands::youtube_install_ytdlp,
+            commands::keep_awake_enable,
+            commands::keep_awake_disable,
         ])
         .setup(|app| {
             let app_data_dir = app
@@ -32,7 +35,10 @@ pub fn run() {
             let db_path = app_data_dir.join("karaoke.db");
             let db = Database::new(&db_path)?;
 
-            app.manage(AppState { db: Mutex::new(db) });
+            app.manage(AppState {
+                db: Mutex::new(db),
+                keep_awake: Mutex::new(None),
+            });
 
             Ok(())
         })

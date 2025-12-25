@@ -1,4 +1,4 @@
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { WebviewWindow, getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export interface PlayerState {
@@ -26,6 +26,14 @@ class WindowManager {
     }
 
     try {
+      // Check if a stale player window exists and close it
+      const existingWindows = await getAllWebviewWindows();
+      const existingPlayer = existingWindows.find(w => w.label === "player");
+      if (existingPlayer) {
+        await existingPlayer.close();
+        // Small delay to ensure window is closed
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       // Create the player window
       this.playerWindow = new WebviewWindow("player", {
         url: "/#/player",
@@ -97,11 +105,19 @@ class WindowManager {
   }
 
   async syncState(state: PlayerState): Promise<void> {
-    await emit("player:state-sync", state);
+    try {
+      await emit("player:state-sync", state);
+    } catch {
+      // Window might not exist yet, ignore
+    }
   }
 
   async sendCommand(command: "play" | "pause" | "seek", value?: number): Promise<void> {
-    await emit("player:command", { command, value });
+    try {
+      await emit("player:command", { command, value });
+    } catch {
+      // Window might not exist yet, ignore
+    }
   }
 
   async listenForReattach(callback: () => void): Promise<UnlistenFn> {
@@ -141,6 +157,16 @@ class WindowManager {
 
   async listenForStateRequest(callback: () => void): Promise<UnlistenFn> {
     return listen("player:request-state", callback);
+  }
+
+  async emitFinalState(state: PlayerState): Promise<void> {
+    await emit("player:final-state", state);
+  }
+
+  async listenForFinalState(callback: (state: PlayerState) => void): Promise<UnlistenFn> {
+    return listen<PlayerState>("player:final-state", (event) => {
+      callback(event.payload);
+    });
   }
 }
 

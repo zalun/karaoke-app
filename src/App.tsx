@@ -1,13 +1,29 @@
 import { useState, useCallback } from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
 import { SearchBar, SearchResults } from "./components/search";
+import { DraggableQueueItem } from "./components/queue";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { usePlayerStore, useQueueStore } from "./stores";
 import { youtubeService } from "./services";
 import type { SearchResult } from "./types";
 
 type PanelTab = "queue" | "history";
+type MainTab = "player" | "search";
 
 function App() {
   const [dependenciesReady, setDependenciesReady] = useState(false);
@@ -15,8 +31,9 @@ function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PanelTab>("queue");
+  const [mainTab, setMainTab] = useState<MainTab>("search");
 
-  const { setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
+  const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { addToQueue, playDirect } = useQueueStore();
 
   const handleSearch = useCallback(async (query: string) => {
@@ -42,17 +59,23 @@ function App() {
       setIsLoading(true);
       setSearchError(null);
 
+      // Set video info immediately (without stream URL) for instant UI feedback
+      const pendingVideo = {
+        id: result.id,
+        title: result.title,
+        artist: result.channel,
+        duration: result.duration,
+        thumbnailUrl: result.thumbnail,
+        source: "youtube" as const,
+        youtubeId: result.id,
+      };
+      setCurrentVideo(pendingVideo);
+
       try {
         const streamInfo = await youtubeService.getStreamUrl(result.id);
 
         const video = {
-          id: result.id,
-          title: result.title,
-          artist: result.channel,
-          duration: result.duration,
-          thumbnailUrl: result.thumbnail,
-          source: "youtube" as const,
-          youtubeId: result.id,
+          ...pendingVideo,
           streamUrl: streamInfo.url,
         };
 
@@ -65,6 +88,7 @@ function App() {
         setSearchError(
           err instanceof Error ? err.message : "Failed to load video"
         );
+        setCurrentVideo(null); // Clear on error
         setIsLoading(false);
         setIsPlaying(false);
       }
@@ -98,24 +122,56 @@ function App() {
         <SearchBar onSearch={handleSearch} isLoading={isSearching} />
 
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
-          {/* Left: Video + Search Results */}
+          {/* Left: Main content area */}
           <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
-            {/* Video Player */}
-            <div className="h-[300px] lg:h-[400px] flex-shrink-0">
-              <VideoPlayerArea />
-            </div>
+            {/* Player Controls - always visible, disabled when no video */}
             <PlayerControls />
 
-            {/* Search Results */}
-            <div className="flex-1 overflow-auto">
-              <h2 className="text-lg font-semibold mb-3">Search Results</h2>
-              <SearchResults
-                results={searchResults}
-                isLoading={isSearching}
-                error={searchError}
-                onPlay={handlePlay}
-                onAddToQueue={handleAddToQueue}
-              />
+            {/* Tabs - only show when video is loaded */}
+            {currentVideo && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setMainTab("player")}
+                  className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                    mainTab === "player"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  Now Playing
+                </button>
+                <button
+                  onClick={() => setMainTab("search")}
+                  className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                    mainTab === "search"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  Search Results
+                </button>
+              </div>
+            )}
+
+            {/* Content - both views stay mounted to avoid interrupting playback */}
+            <div className="flex-1 min-h-0 relative">
+              {/* Video Player - hidden but stays mounted when on search tab */}
+              {currentVideo && (
+                <div className={`h-full ${mainTab === "player" ? "" : "hidden"}`}>
+                  <VideoPlayerArea />
+                </div>
+              )}
+              {/* Search Results - hidden when on player tab */}
+              <div className={`h-full overflow-auto ${mainTab === "search" || !currentVideo ? "" : "hidden"}`}>
+                <h2 className="text-lg font-semibold mb-3">Search Results</h2>
+                <SearchResults
+                  results={searchResults}
+                  isLoading={isSearching}
+                  error={searchError}
+                  onPlay={handlePlay}
+                  onAddToQueue={handleAddToQueue}
+                />
+              </div>
             </div>
           </div>
 
@@ -157,18 +213,23 @@ function App() {
 function VideoPlayerArea() {
   const { isDetached } = usePlayerStore();
 
-  if (isDetached) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-        <div className="text-center text-gray-400">
-          <p className="text-4xl mb-2">🎤</p>
-          <p>Video playing in separate window</p>
-        </div>
+  return (
+    <div className="w-full h-full relative">
+      {/* Keep VideoPlayer mounted but hidden when detached to preserve state */}
+      <div className={isDetached ? "hidden" : "h-full"}>
+        <VideoPlayer />
       </div>
-    );
-  }
-
-  return <VideoPlayer />;
+      {/* Show placeholder when detached */}
+      {isDetached && (
+        <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
+          <div className="text-center text-gray-400">
+            <p className="text-4xl mb-2">🎤</p>
+            <p>Video playing in separate window</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function formatDuration(seconds?: number): string {
@@ -179,8 +240,19 @@ function formatDuration(seconds?: number): string {
 }
 
 function QueuePanel() {
-  const { queue, playFromQueue, removeFromQueue, clearQueue } = useQueueStore();
+  const { queue, playFromQueue, removeFromQueue, reorderQueue, clearQueue } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement required before drag starts, allows clicks
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const handlePlayFromQueue = useCallback(
     async (index: number) => {
@@ -204,6 +276,22 @@ function QueuePanel() {
     [playFromQueue, setCurrentVideo, setIsPlaying, setIsLoading, setError]
   );
 
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+
+      if (over && active.id !== over.id) {
+        const oldIndex = queue.findIndex((item) => item.id === active.id);
+        const newIndex = queue.findIndex((item) => item.id === over.id);
+
+        if (oldIndex !== -1 && newIndex !== -1) {
+          reorderQueue(active.id as string, newIndex);
+        }
+      }
+    },
+    [queue, reorderQueue]
+  );
+
   if (queue.length === 0) {
     return (
       <div className="text-gray-400 text-sm flex-1">
@@ -217,41 +305,35 @@ function QueuePanel() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex-1 overflow-auto space-y-2">
-        {queue.map((item, index) => (
-          <div
-            key={item.id}
-            onClick={() => handlePlayFromQueue(index)}
-            className="flex gap-2 p-2 rounded cursor-pointer transition-colors bg-gray-700 hover:bg-gray-600"
-          >
-            <span className="text-gray-400 w-6 flex items-center justify-center">
-              {index + 1}.
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm truncate">{item.video.title}</p>
-              <p className="text-xs text-gray-400 truncate">
-                {item.video.artist}
-                {item.video.duration && ` • ${formatDuration(item.video.duration)}`}
-              </p>
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                removeFromQueue(item.id);
-              }}
-              className="text-gray-400 hover:text-red-400 text-sm"
-              title="Remove from queue"
-            >
-              ✕
-            </button>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={queue.map((item) => item.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="flex-1 overflow-auto space-y-2">
+            {queue.map((item, index) => (
+              <DraggableQueueItem
+                key={item.id}
+                item={item}
+                index={index}
+                onPlay={() => handlePlayFromQueue(index)}
+                onRemove={() => removeFromQueue(item.id)}
+                formatDuration={formatDuration}
+              />
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
       <button
         onClick={clearQueue}
-        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
+        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
       >
-        Clear Queue
+        <span>🗑️</span>
+        <span>Clear Queue</span>
       </button>
     </div>
   );
@@ -334,9 +416,10 @@ function HistoryPanel() {
       </div>
       <button
         onClick={clearHistory}
-        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
+        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
       >
-        Clear History
+        <span>🗑️</span>
+        <span>Clear History</span>
       </button>
     </div>
   );
