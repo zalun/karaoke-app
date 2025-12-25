@@ -8,7 +8,11 @@ import {
 } from "../../stores";
 import { youtubeService } from "../../services";
 import { useWakeLock } from "../../hooks";
-import { NextSongOverlay } from "./NextSongOverlay";
+import {
+  NextSongOverlay,
+  OVERLAY_SHOW_THRESHOLD_SECONDS,
+  COUNTDOWN_START_THRESHOLD_SECONDS,
+} from "./NextSongOverlay";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -256,18 +260,17 @@ export function VideoPlayer() {
           <div className="text-white">Loading...</div>
         </div>
       )}
-      {nextQueueItem && duration > 0 && (() => {
+      {(() => {
+        if (!nextQueueItem || duration <= 0) return null;
         const timeRemaining = Math.ceil(duration - currentTime);
-        if (timeRemaining <= 20) {
-          return (
-            <NextSongOverlay
-              title={nextQueueItem.video.title}
-              artist={nextQueueItem.video.artist}
-              countdown={timeRemaining > 0 && timeRemaining <= 10 ? timeRemaining : undefined}
-            />
-          );
-        }
-        return null;
+        if (timeRemaining > OVERLAY_SHOW_THRESHOLD_SECONDS) return null;
+        return (
+          <NextSongOverlay
+            title={nextQueueItem.video.title}
+            artist={nextQueueItem.video.artist}
+            countdown={timeRemaining <= COUNTDOWN_START_THRESHOLD_SECONDS ? timeRemaining : undefined}
+          />
+        );
       })()}
     </div>
   );

@@ -1,7 +1,11 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { windowManager, type PlayerState } from "../../services/windowManager";
 import { useWakeLock } from "../../hooks";
-import { NextSongOverlay } from "./NextSongOverlay";
+import {
+  NextSongOverlay,
+  OVERLAY_SHOW_THRESHOLD_SECONDS,
+  COUNTDOWN_START_THRESHOLD_SECONDS,
+} from "./NextSongOverlay";
 
 // Throttle time updates to reduce event frequency (500ms interval)
 const TIME_UPDATE_THROTTLE_MS = 500;
@@ -14,7 +18,9 @@ export function DetachedPlayer() {
   const [isReady, setIsReady] = useState(false);
   const [shouldRestorePosition, setShouldRestorePosition] = useState(true);
   const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
-  const [videoTime, setVideoTime] = useState({ currentTime: 0, duration: 0 });
+  // Track time remaining for overlay (only update state when crossing thresholds to reduce re-renders)
+  const [overlayTimeRemaining, setOverlayTimeRemaining] = useState<number | null>(null);
+  const videoTimeRef = useRef({ currentTime: 0, duration: 0 });
   const [state, setState] = useState<PlayerState>({
     streamUrl: null,
     isPlaying: false,
@@ -197,13 +203,28 @@ export function DetachedPlayer() {
   }, [state.volume, state.isMuted]);
 
   // Send time updates back to main window (throttled to reduce event frequency)
-  // Also track local video time for overlay countdown
+  // Also track time remaining for overlay countdown (only update state on threshold crossings)
   const handleTimeUpdate = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Update local time for overlay (every update for smooth countdown)
-    setVideoTime({ currentTime: video.currentTime, duration: video.duration || 0 });
+    // Update ref (no re-render)
+    videoTimeRef.current = { currentTime: video.currentTime, duration: video.duration || 0 };
+
+    // Calculate time remaining and only update state when overlay visibility changes
+    const duration = video.duration || 0;
+    if (duration > 0) {
+      const timeRemaining = Math.ceil(duration - video.currentTime);
+      // Update state only when:
+      // - Entering/leaving overlay zone (20s threshold)
+      // - During countdown (every second from 10 to 1)
+      const shouldShowOverlay = timeRemaining <= OVERLAY_SHOW_THRESHOLD_SECONDS && timeRemaining > 0;
+      setOverlayTimeRemaining((prev) => {
+        if (!shouldShowOverlay) return prev === null ? null : null;
+        if (prev !== timeRemaining) return timeRemaining;
+        return prev;
+      });
+    }
 
     // Throttle emits to main window
     const now = Date.now();
@@ -262,19 +283,13 @@ export function DetachedPlayer() {
           <p>{state.streamUrl ? "Loading..." : "Waiting for video..."}</p>
         </div>
       )}
-      {state.nextSong && videoTime.duration > 0 && (() => {
-        const timeRemaining = Math.ceil(videoTime.duration - videoTime.currentTime);
-        if (timeRemaining <= 20) {
-          return (
-            <NextSongOverlay
-              title={state.nextSong.title}
-              artist={state.nextSong.artist}
-              countdown={timeRemaining > 0 && timeRemaining <= 10 ? timeRemaining : undefined}
-            />
-          );
-        }
-        return null;
-      })()}
+      {state.nextSong && overlayTimeRemaining !== null && overlayTimeRemaining > 0 && (
+        <NextSongOverlay
+          title={state.nextSong.title}
+          artist={state.nextSong.artist}
+          countdown={overlayTimeRemaining <= COUNTDOWN_START_THRESHOLD_SECONDS ? overlayTimeRemaining : undefined}
+        />
+      )}
     </div>
   );
 }

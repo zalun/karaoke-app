@@ -1,7 +1,12 @@
+// Thresholds for overlay visibility
+export const OVERLAY_SHOW_THRESHOLD_SECONDS = 20;
+export const COUNTDOWN_START_THRESHOLD_SECONDS = 10;
+
 interface NextSongOverlayProps {
   title: string;
   artist?: string;
-  countdown?: number; // Seconds remaining, shown when <= 10
+  // Seconds remaining, shown when <= 10 and > 0 (0 is hidden to avoid flicker before song change)
+  countdown?: number;
 }
 
 export function NextSongOverlay({ title, artist, countdown }: NextSongOverlayProps) {
