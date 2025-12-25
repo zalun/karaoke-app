@@ -36,30 +36,20 @@ export function DraggableQueueItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex gap-2 p-2 rounded transition-colors bg-gray-700 ${
+      {...attributes}
+      {...listeners}
+      onClick={onPlay}
+      className={`flex gap-2 p-2 rounded transition-colors bg-gray-700 cursor-grab active:cursor-grabbing touch-none ${
         isDragging ? "shadow-lg ring-2 ring-blue-500" : "hover:bg-gray-600"
       }`}
     >
-      {/* Drag handle */}
-      <button
-        {...attributes}
-        {...listeners}
-        className="text-gray-500 hover:text-gray-300 cursor-grab active:cursor-grabbing px-1 touch-none"
-        title="Drag to reorder"
-      >
-        ⋮⋮
-      </button>
-
       {/* Index number */}
       <span className="text-gray-400 w-6 flex items-center justify-center">
         {index + 1}.
       </span>
 
-      {/* Video info - clickable to play */}
-      <div
-        className="flex-1 min-w-0 cursor-pointer"
-        onClick={onPlay}
-      >
+      {/* Video info */}
+      <div className="flex-1 min-w-0">
         <p className="text-sm truncate">{item.video.title}</p>
         <p className="text-xs text-gray-400 truncate">
           {item.video.artist}
@@ -73,7 +63,7 @@ export function DraggableQueueItem({
           e.stopPropagation();
           onRemove();
         }}
-        className="text-gray-400 hover:text-red-400 text-sm"
+        className="text-gray-400 hover:text-red-400 text-sm px-1"
         title="Remove from queue"
       >
         ✕

@@ -237,7 +237,11 @@ function QueuePanel() {
   const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement required before drag starts, allows clicks
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
