@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use tauri::menu::{CheckMenuItem, Menu, MenuItemKind, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
+use tauri_plugin_shell::ShellExt;
 
 pub struct AppState {
     pub db: Mutex<Database>,
@@ -226,23 +227,10 @@ pub fn run() {
                     let state = app.state::<AppState>();
                     let log_dir = &state.log_dir;
                     info!("Opening log directory: {:?}", log_dir);
-                    #[cfg(target_os = "macos")]
-                    {
-                        let _ = std::process::Command::new("open")
-                            .arg(log_dir)
-                            .spawn();
-                    }
-                    #[cfg(target_os = "windows")]
-                    {
-                        let _ = std::process::Command::new("explorer")
-                            .arg(log_dir)
-                            .spawn();
-                    }
-                    #[cfg(target_os = "linux")]
-                    {
-                        let _ = std::process::Command::new("xdg-open")
-                            .arg(log_dir)
-                            .spawn();
+
+                    // Use Tauri's shell plugin for cross-platform file manager opening
+                    if let Err(e) = app.shell().open(log_dir.to_string_lossy(), None) {
+                        log::error!("Failed to open log directory: {}", e);
                     }
                 }
                 _ => {}

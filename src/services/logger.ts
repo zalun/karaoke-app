@@ -26,6 +26,7 @@ const STORAGE_KEY = "karaoke:debug-mode";
 class Logger {
   private debugEnabled: boolean;
   private consoleAttached = false;
+  private unlistenFn: (() => void) | null = null;
 
   constructor() {
     // Load persisted preference from localStorage as initial value
@@ -47,18 +48,26 @@ class Logger {
       if (backendDebug !== this.debugEnabled) {
         this.setDebugEnabled(backendDebug);
       }
-    } catch {
-      // Fallback to localStorage if not in Tauri context (e.g., during tests)
+    } catch (err) {
+      // Expected to fail if not in Tauri context (e.g., during tests)
+      // Real IPC errors would indicate a more serious problem
+      if (err instanceof Error && !err.message.includes("not found")) {
+        console.warn("Failed to sync debug mode with backend:", err);
+      }
     }
   }
 
   private async setupMenuListener(): Promise<void> {
     try {
-      await listen<boolean>("debug-mode-changed", (event) => {
+      const unlisten = await listen<boolean>("debug-mode-changed", (event) => {
         this.setDebugEnabled(event.payload);
       });
-    } catch {
-      // Not in Tauri context (e.g., during tests)
+      this.unlistenFn = unlisten;
+    } catch (err) {
+      // Expected to fail if not in Tauri context (e.g., during tests)
+      if (err instanceof Error && !err.message.includes("not found")) {
+        console.warn("Failed to setup debug mode listener:", err);
+      }
     }
   }
 
@@ -68,8 +77,18 @@ class Logger {
         await attachConsole();
         this.consoleAttached = true;
       } catch {
-        // May fail if not in Tauri context
+        // May fail if not in Tauri context - this is expected
       }
+    }
+  }
+
+  /**
+   * Cleanup event listeners. Call this when the logger is no longer needed.
+   */
+  destroy(): void {
+    if (this.unlistenFn) {
+      this.unlistenFn();
+      this.unlistenFn = null;
     }
   }
 
