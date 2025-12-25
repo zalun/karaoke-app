@@ -39,3 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SQLite database for persistence
 - Queue and history management
 - Basic video player controls
+
+[0.2.0]: https://github.com/zalun/karaoke-app/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/zalun/karaoke-app/releases/tag/v0.1.0
