@@ -1,6 +1,16 @@
 import { WebviewWindow, getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 
+// Event names for player window communication
+const PLAYER_EVENTS = {
+  REATTACHED: "player:reattached",
+  STATE_SYNC: "player:state-sync",
+  COMMAND: "player:command",
+  TIME_UPDATE: "player:time-update",
+  REQUEST_STATE: "player:request-state",
+  FINAL_STATE: "player:final-state",
+} as const;
+
 export interface PlayerState {
   streamUrl: string | null;
   isPlaying: boolean;
@@ -69,7 +79,7 @@ class WindowManager {
         this.unlistenFns.forEach((fn) => fn());
         this.unlistenFns = [];
         this.playerWindow = null;
-        await emit("player:reattached");
+        await emit(PLAYER_EVENTS.REATTACHED);
       });
       this.unlistenFns.push(unlistenDestroy);
 
@@ -101,13 +111,13 @@ class WindowManager {
     } finally {
       this.playerWindow = null;
       // Notify main window that player was reattached
-      await emit("player:reattached");
+      await emit(PLAYER_EVENTS.REATTACHED);
     }
   }
 
   async syncState(state: PlayerState): Promise<void> {
     try {
-      await emit("player:state-sync", state);
+      await emit(PLAYER_EVENTS.STATE_SYNC, state);
     } catch {
       // Window might not exist yet, ignore
     }
@@ -115,18 +125,18 @@ class WindowManager {
 
   async sendCommand(command: "play" | "pause" | "seek", value?: number): Promise<void> {
     try {
-      await emit("player:command", { command, value });
+      await emit(PLAYER_EVENTS.COMMAND, { command, value });
     } catch {
       // Window might not exist yet, ignore
     }
   }
 
   async listenForReattach(callback: () => void): Promise<UnlistenFn> {
-    return listen("player:reattached", callback);
+    return listen(PLAYER_EVENTS.REATTACHED, callback);
   }
 
   async listenForStateSync(callback: (state: PlayerState) => void): Promise<UnlistenFn> {
-    return listen<PlayerState>("player:state-sync", (event) => {
+    return listen<PlayerState>(PLAYER_EVENTS.STATE_SYNC, (event) => {
       callback(event.payload);
     });
   }
@@ -135,7 +145,7 @@ class WindowManager {
     callback: (command: { command: "play" | "pause" | "seek"; value?: number }) => void
   ): Promise<UnlistenFn> {
     return listen<{ command: "play" | "pause" | "seek"; value?: number }>(
-      "player:command",
+      PLAYER_EVENTS.COMMAND,
       (event) => {
         callback(event.payload);
       }
@@ -143,29 +153,29 @@ class WindowManager {
   }
 
   async listenForTimeUpdate(callback: (time: number) => void): Promise<UnlistenFn> {
-    return listen<number>("player:time-update", (event) => {
+    return listen<number>(PLAYER_EVENTS.TIME_UPDATE, (event) => {
       callback(event.payload);
     });
   }
 
   async emitTimeUpdate(time: number): Promise<void> {
-    await emit("player:time-update", time);
+    await emit(PLAYER_EVENTS.TIME_UPDATE, time);
   }
 
   async requestInitialState(): Promise<void> {
-    await emit("player:request-state");
+    await emit(PLAYER_EVENTS.REQUEST_STATE);
   }
 
   async listenForStateRequest(callback: () => void): Promise<UnlistenFn> {
-    return listen("player:request-state", callback);
+    return listen(PLAYER_EVENTS.REQUEST_STATE, callback);
   }
 
   async emitFinalState(state: PlayerState): Promise<void> {
-    await emit("player:final-state", state);
+    await emit(PLAYER_EVENTS.FINAL_STATE, state);
   }
 
   async listenForFinalState(callback: (state: PlayerState) => void): Promise<UnlistenFn> {
-    return listen<PlayerState>("player:final-state", (event) => {
+    return listen<PlayerState>(PLAYER_EVENTS.FINAL_STATE, (event) => {
       callback(event.payload);
     });
   }
