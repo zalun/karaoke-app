@@ -1,4 +1,8 @@
 import { create } from "zustand";
+import { youtubeService } from "../services";
+
+// Cache expiration: 5 hours (YouTube URLs typically expire after 6 hours)
+const PREFETCH_CACHE_EXPIRY_MS = 5 * 60 * 60 * 1000;
 
 export interface Video {
   id: string;
@@ -24,7 +28,7 @@ interface PlayerState {
   isDetached: boolean;
   error: string | null;
   seekTime: number | null;
-  prefetchedStreamUrl: { videoId: string; url: string } | null;
+  prefetchedStreamUrl: { videoId: string; url: string; timestamp: number } | null;
 
   // Actions
   setCurrentVideo: (video: Video | null) => void;
@@ -76,10 +80,31 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   seekTo: (time) => set({ seekTime: time }),
   clearSeek: () => set({ seekTime: null }),
   reset: () => set(initialState),
-  setPrefetchedStreamUrl: (videoId, url) => set({ prefetchedStreamUrl: { videoId, url } }),
+  setPrefetchedStreamUrl: (videoId, url) => set({
+    prefetchedStreamUrl: { videoId, url, timestamp: Date.now() }
+  }),
   getPrefetchedStreamUrl: (videoId) => {
     const cached = get().prefetchedStreamUrl;
-    return cached?.videoId === videoId ? cached.url : null;
+    if (!cached || cached.videoId !== videoId) return null;
+
+    // Check if cache has expired
+    const age = Date.now() - cached.timestamp;
+    if (age > PREFETCH_CACHE_EXPIRY_MS) return null;
+
+    return cached.url;
   },
   clearPrefetchedStreamUrl: () => set({ prefetchedStreamUrl: null }),
 }));
+
+// Helper function to get stream URL, using cache if available
+export async function getStreamUrlWithCache(videoId: string): Promise<string> {
+  const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(videoId);
+
+  if (cachedUrl) {
+    usePlayerStore.getState().clearPrefetchedStreamUrl();
+    return cachedUrl;
+  }
+
+  const streamInfo = await youtubeService.getStreamUrl(videoId);
+  return streamInfo.url;
+}

@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from "react";
-import { usePlayerStore, useQueueStore } from "../../stores";
-import { youtubeService, windowManager } from "../../services";
+import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "../../stores";
+import { windowManager } from "../../services";
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -213,22 +213,8 @@ export function PlayerControls() {
     if (prevItem && prevItem.video.youtubeId) {
       setIsLoading(true);
       try {
-        // Check for prefetched URL first
-        const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(prevItem.video.youtubeId);
-        let streamUrl: string;
-
-        if (cachedUrl) {
-          streamUrl = cachedUrl;
-          usePlayerStore.getState().clearPrefetchedStreamUrl();
-        } else {
-          const streamInfo = await youtubeService.getStreamUrl(prevItem.video.youtubeId);
-          streamUrl = streamInfo.url;
-        }
-
-        setCurrentVideo({
-          ...prevItem.video,
-          streamUrl,
-        });
+        const streamUrl = await getStreamUrlWithCache(prevItem.video.youtubeId);
+        setCurrentVideo({ ...prevItem.video, streamUrl });
         setIsPlaying(true);
       } catch (err) {
         console.error("Failed to play previous:", err);
@@ -243,22 +229,8 @@ export function PlayerControls() {
     if (nextItem && nextItem.video.youtubeId) {
       setIsLoading(true);
       try {
-        // Check for prefetched URL first
-        const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId);
-        let streamUrl: string;
-
-        if (cachedUrl) {
-          streamUrl = cachedUrl;
-          usePlayerStore.getState().clearPrefetchedStreamUrl();
-        } else {
-          const streamInfo = await youtubeService.getStreamUrl(nextItem.video.youtubeId);
-          streamUrl = streamInfo.url;
-        }
-
-        setCurrentVideo({
-          ...nextItem.video,
-          streamUrl,
-        });
+        const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
+        setCurrentVideo({ ...nextItem.video, streamUrl });
         setIsPlaying(true);
       } catch (err) {
         console.error("Failed to play next:", err);

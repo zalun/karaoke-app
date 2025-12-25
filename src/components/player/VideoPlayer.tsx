@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback } from "react";
-import { usePlayerStore, useQueueStore } from "../../stores";
+import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "../../stores";
 import { youtubeService } from "../../services";
 import { useWakeLock } from "../../hooks";
 
@@ -124,7 +124,7 @@ export function VideoPlayer() {
           prefetchTriggeredRef.current = nextVideoId;
           youtubeService.getStreamUrl(nextVideoId)
             .then(info => usePlayerStore.getState().setPrefetchedStreamUrl(nextVideoId, info.url))
-            .catch(() => {}); // Silent fail - prefetch is opportunistic
+            .catch((err) => console.debug("Prefetch failed for", nextVideoId, err));
         }
       }
     }
@@ -152,22 +152,8 @@ export function VideoPlayer() {
       // Play next from queue
       setIsLoading(true);
       try {
-        // Check for prefetched URL first
-        const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId);
-        let streamUrl: string;
-
-        if (cachedUrl) {
-          streamUrl = cachedUrl;
-          usePlayerStore.getState().clearPrefetchedStreamUrl();
-        } else {
-          const streamInfo = await youtubeService.getStreamUrl(nextItem.video.youtubeId);
-          streamUrl = streamInfo.url;
-        }
-
-        setCurrentVideo({
-          ...nextItem.video,
-          streamUrl,
-        });
+        const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
+        setCurrentVideo({ ...nextItem.video, streamUrl });
         setIsPlaying(true);
       } catch (err) {
         console.error("Failed to play next:", err);
