@@ -28,6 +28,8 @@ export function DetachedPlayer() {
   const lastTimeUpdateRef = useRef<number>(0);
   const pendingCommandRef = useRef<{ command: "play" | "pause" | "seek"; value?: number } | null>(null);
   const isMutedForAutoplayRef = useRef(false);
+  // Track intended play state via ref to avoid closure timing issues
+  const intendedPlayStateRef = useRef(true); // Default to true since we only detach while playing
   const [isReady, setIsReady] = useState(false);
   const [shouldRestorePosition, setShouldRestorePosition] = useState(true);
   const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
@@ -57,7 +59,11 @@ export function DetachedPlayer() {
     const setupListeners = async () => {
       const stateListener = await windowManager.listenForStateSync((newState) => {
         stateReceived = true;
-        if (isMounted) setState(newState);
+        if (isMounted) {
+          // Update ref immediately (no async batching)
+          intendedPlayStateRef.current = newState.isPlaying;
+          setState(newState);
+        }
       });
 
       if (isMounted) {
@@ -71,6 +77,10 @@ export function DetachedPlayer() {
         if (!isMounted) return;
         const video = videoRef.current;
         if (!video) return;
+
+        // Update ref for play/pause commands
+        if (cmd.command === "play") intendedPlayStateRef.current = true;
+        if (cmd.command === "pause") intendedPlayStateRef.current = false;
 
         // If video isn't ready, queue the command for later
         if (video.readyState < 3) {
@@ -167,11 +177,13 @@ export function DetachedPlayer() {
 
     // Process any pending command that arrived before video was ready
     const pendingCmd = pendingCommandRef.current;
-    const shouldPlay = pendingCmd?.command === "play" || (!pendingCmd && state.isPlaying);
+    // Use ref instead of state to avoid closure timing issues
+    const shouldPlay = pendingCmd?.command === "play" || (!pendingCmd && intendedPlayStateRef.current);
 
     if (pendingCmd) {
       pendingCommandRef.current = null;
       if (pendingCmd.command === "pause") {
+        intendedPlayStateRef.current = false;
         video.pause();
       } else if (pendingCmd.command === "seek" && pendingCmd.value !== undefined) {
         video.currentTime = pendingCmd.value;
@@ -195,7 +207,7 @@ export function DetachedPlayer() {
 
     // After first video loads, don't restore position for subsequent videos
     setShouldRestorePosition(false);
-  }, [isReady, state.currentTime, state.isPlaying, state.isMuted, shouldRestorePosition]);
+  }, [isReady, state.currentTime, state.isMuted, shouldRestorePosition]);
 
   // Handle play/pause state changes (only after video is ready)
   useEffect(() => {
