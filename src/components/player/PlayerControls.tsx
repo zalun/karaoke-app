@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from "react";
-import { usePlayerStore, useQueueStore } from "../../stores";
-import { youtubeService, windowManager } from "../../services";
+import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "../../stores";
+import { windowManager } from "../../services";
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -213,11 +213,8 @@ export function PlayerControls() {
     if (prevItem && prevItem.video.youtubeId) {
       setIsLoading(true);
       try {
-        const streamInfo = await youtubeService.getStreamUrl(prevItem.video.youtubeId);
-        setCurrentVideo({
-          ...prevItem.video,
-          streamUrl: streamInfo.url,
-        });
+        const streamUrl = await getStreamUrlWithCache(prevItem.video.youtubeId);
+        setCurrentVideo({ ...prevItem.video, streamUrl });
         setIsPlaying(true);
       } catch (err) {
         console.error("Failed to play previous:", err);
@@ -232,11 +229,8 @@ export function PlayerControls() {
     if (nextItem && nextItem.video.youtubeId) {
       setIsLoading(true);
       try {
-        const streamInfo = await youtubeService.getStreamUrl(nextItem.video.youtubeId);
-        setCurrentVideo({
-          ...nextItem.video,
-          streamUrl: streamInfo.url,
-        });
+        const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
+        setCurrentVideo({ ...nextItem.video, streamUrl });
         setIsPlaying(true);
       } catch (err) {
         console.error("Failed to play next:", err);

@@ -1,10 +1,18 @@
 import { useRef, useEffect, useCallback } from "react";
-import { usePlayerStore, useQueueStore } from "../../stores";
+import {
+  usePlayerStore,
+  useQueueStore,
+  getStreamUrlWithCache,
+  invalidatePrefetchIfStale,
+  PREFETCH_THRESHOLD_SECONDS,
+} from "../../stores";
 import { youtubeService } from "../../services";
 import { useWakeLock } from "../../hooks";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const prefetchTriggeredRef = useRef<string | null>(null);
+  const usedCachedUrlRef = useRef<boolean>(false);
   const {
     currentVideo,
     isPlaying,
@@ -24,6 +32,22 @@ export function VideoPlayer() {
 
   // Prevent screen from sleeping while playing (only when not detached)
   useWakeLock(isPlaying && !isDetached);
+
+  // Reset prefetch tracking when video changes
+  useEffect(() => {
+    prefetchTriggeredRef.current = null;
+  }, [currentVideo?.id]);
+
+  // Invalidate prefetch cache when first queue item changes (e.g., user reorders or removes items)
+  // Only subscribe to queue[0] to avoid re-renders when other queue items change
+  const nextQueueVideoId = useQueueStore((state) => state.queue[0]?.video.youtubeId);
+  useEffect(() => {
+    invalidatePrefetchIfStale(nextQueueVideoId);
+    // Also reset prefetch trigger if queue's first item changed
+    if (prefetchTriggeredRef.current && prefetchTriggeredRef.current !== nextQueueVideoId) {
+      prefetchTriggeredRef.current = null;
+    }
+  }, [nextQueueVideoId]);
 
   const tryPlay = useCallback(() => {
     const video = videoRef.current;
@@ -99,8 +123,34 @@ export function VideoPlayer() {
   }, [currentVideo, isPlaying, setIsPlaying]);
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
+    const video = videoRef.current;
+    if (!video) return;
+
+    const currentTime = video.currentTime;
+    const duration = video.duration;
+    setCurrentTime(currentTime);
+
+    // Prefetch next video before end (or immediately if video is short)
+    if (duration > 0) {
+      const timeRemaining = duration - currentTime;
+      const shouldPrefetch = timeRemaining <= PREFETCH_THRESHOLD_SECONDS || duration <= PREFETCH_THRESHOLD_SECONDS;
+
+      if (shouldPrefetch) {
+        const nextItem = useQueueStore.getState().queue[0];
+        const nextVideoId = nextItem?.video.youtubeId;
+        if (nextVideoId && prefetchTriggeredRef.current !== nextVideoId) {
+          prefetchTriggeredRef.current = nextVideoId;
+          const videoIdToFetch = nextVideoId; // Capture to avoid race condition
+          youtubeService.getStreamUrl(videoIdToFetch)
+            .then(info => {
+              // Only cache if this is still the next video in queue
+              if (useQueueStore.getState().queue[0]?.video.youtubeId === videoIdToFetch) {
+                usePlayerStore.getState().setPrefetchedStreamUrl(videoIdToFetch, info.url);
+              }
+            })
+            .catch((err) => console.debug("Prefetch failed for", videoIdToFetch, err));
+        }
+      }
     }
   };
 
@@ -112,6 +162,7 @@ export function VideoPlayer() {
 
   const handleCanPlay = () => {
     setIsLoading(false);
+    usedCachedUrlRef.current = false; // Reset on successful load
     // Auto-play when video is ready and isPlaying is true
     if (isPlaying) {
       tryPlay();
@@ -126,11 +177,12 @@ export function VideoPlayer() {
       // Play next from queue
       setIsLoading(true);
       try {
-        const streamInfo = await youtubeService.getStreamUrl(nextItem.video.youtubeId);
-        setCurrentVideo({
-          ...nextItem.video,
-          streamUrl: streamInfo.url,
-        });
+        // Check if we have a cached URL
+        const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId);
+        usedCachedUrlRef.current = !!cachedUrl;
+
+        const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
+        setCurrentVideo({ ...nextItem.video, streamUrl });
         setIsPlaying(true);
       } catch (err) {
         console.error("Failed to play next:", err);
@@ -142,10 +194,23 @@ export function VideoPlayer() {
     }
   }, [setCurrentVideo, setIsPlaying, setIsLoading, setError]);
 
-  const handleError = () => {
+  const handleError = useCallback(async () => {
+    // If we used a cached URL that might be stale, retry with fresh fetch
+    if (usedCachedUrlRef.current && currentVideo?.youtubeId) {
+      console.debug("Cached URL failed, retrying with fresh fetch");
+      usedCachedUrlRef.current = false;
+      setIsLoading(true);
+      try {
+        const streamInfo = await youtubeService.getStreamUrl(currentVideo.youtubeId);
+        setCurrentVideo({ ...currentVideo, streamUrl: streamInfo.url });
+        return; // Don't show error, we're retrying
+      } catch (err) {
+        console.error("Fresh fetch also failed:", err);
+      }
+    }
     setError("Failed to load video");
     setIsLoading(false);
-  };
+  }, [currentVideo, setCurrentVideo, setError, setIsLoading]);
 
   const handleLoadStart = () => {
     setIsLoading(true);

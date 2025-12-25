@@ -18,7 +18,7 @@ import { VideoPlayer, PlayerControls } from "./components/player";
 import { SearchBar, SearchResults } from "./components/search";
 import { DraggableQueueItem } from "./components/queue";
 import { DependencyCheck } from "./components/DependencyCheck";
-import { usePlayerStore, useQueueStore } from "./stores";
+import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "./stores";
 import { youtubeService } from "./services";
 import type { SearchResult } from "./types";
 
@@ -72,12 +72,8 @@ function App() {
       setCurrentVideo(pendingVideo);
 
       try {
-        const streamInfo = await youtubeService.getStreamUrl(result.id);
-
-        const video = {
-          ...pendingVideo,
-          streamUrl: streamInfo.url,
-        };
+        const streamUrl = await getStreamUrlWithCache(result.id);
+        const video = { ...pendingVideo, streamUrl };
 
         // Add to history and play
         playDirect(video);
@@ -260,11 +256,8 @@ function QueuePanel() {
       if (item && item.video.youtubeId) {
         setIsLoading(true);
         try {
-          const streamInfo = await youtubeService.getStreamUrl(item.video.youtubeId);
-          setCurrentVideo({
-            ...item.video,
-            streamUrl: streamInfo.url,
-          });
+          const streamUrl = await getStreamUrlWithCache(item.video.youtubeId);
+          setCurrentVideo({ ...item.video, streamUrl });
           setIsPlaying(true);
         } catch (err) {
           console.error("Failed to play:", err);
@@ -349,11 +342,8 @@ function HistoryPanel() {
       if (item && item.video.youtubeId) {
         setIsLoading(true);
         try {
-          const streamInfo = await youtubeService.getStreamUrl(item.video.youtubeId);
-          setCurrentVideo({
-            ...item.video,
-            streamUrl: streamInfo.url,
-          });
+          const streamUrl = await getStreamUrlWithCache(item.video.youtubeId);
+          setCurrentVideo({ ...item.video, streamUrl });
           setIsPlaying(true);
         } catch (err) {
           console.error("Failed to play:", err);
