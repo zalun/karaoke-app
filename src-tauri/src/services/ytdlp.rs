@@ -1,6 +1,121 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::path::PathBuf;
 use thiserror::Error;
 use tokio::process::Command;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
+/// Common installation paths for yt-dlp and other CLI tools.
+/// macOS .app bundles don't inherit the user's shell PATH, so we need to
+/// check these locations directly.
+const COMMON_BIN_PATHS: &[&str] = &[
+    "/opt/homebrew/bin",      // Apple Silicon Homebrew
+    "/usr/local/bin",         // Intel Homebrew / system installs
+    "/usr/bin",               // System binaries
+    "/bin",                   // Core binaries
+];
+
+/// Path separator for the current platform
+#[cfg(windows)]
+const PATH_SEPARATOR: &str = ";";
+#[cfg(not(windows))]
+const PATH_SEPARATOR: &str = ":";
+
+/// Get the user's ~/.local/bin path
+fn get_local_bin_path() -> Option<String> {
+    std::env::var("HOME")
+        .ok()
+        .map(|home| format!("{}/.local/bin", home))
+}
+
+/// Build an expanded PATH that includes common installation directories.
+/// This is necessary because macOS .app bundles run with a minimal PATH
+/// that doesn't include Homebrew, pip, or user bin directories.
+pub fn get_expanded_path() -> String {
+    let mut paths: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    // Add user's local bin first (pip --user, direct downloads)
+    if let Some(local_bin) = get_local_bin_path() {
+        seen.insert(local_bin.clone());
+        paths.push(local_bin);
+    }
+
+    // Add common paths
+    for path in COMMON_BIN_PATHS {
+        let path_str = path.to_string();
+        if seen.insert(path_str.clone()) {
+            paths.push(path_str);
+        }
+    }
+
+    // Add existing PATH entries (may be minimal in .app context)
+    if let Ok(existing_path) = std::env::var("PATH") {
+        for p in existing_path.split(PATH_SEPARATOR) {
+            if p.is_empty() {
+                continue;
+            }
+            let p_str = p.to_string();
+            if seen.insert(p_str.clone()) {
+                paths.push(p_str);
+            }
+        }
+    }
+
+    paths.join(PATH_SEPARATOR)
+}
+
+/// Check if a path exists and is executable
+fn is_executable(path: &PathBuf) -> bool {
+    if !path.exists() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        path.metadata()
+            .map(|m| m.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false)
+    }
+
+    #[cfg(not(unix))]
+    {
+        // On Windows, just check existence (executability determined by extension)
+        true
+    }
+}
+
+/// Find the full path to yt-dlp binary by checking common locations.
+/// Returns the path if found and executable, None otherwise.
+pub fn find_ytdlp_path() -> Option<PathBuf> {
+    // Check ~/.local/bin first (most likely for direct downloads)
+    if let Some(local_bin) = get_local_bin_path() {
+        let path = PathBuf::from(&local_bin).join("yt-dlp");
+        if is_executable(&path) {
+            return Some(path);
+        }
+    }
+
+    // Check common paths
+    for bin_path in COMMON_BIN_PATHS {
+        let path = PathBuf::from(bin_path).join("yt-dlp");
+        if is_executable(&path) {
+            return Some(path);
+        }
+    }
+
+    None
+}
+
+/// Get the yt-dlp command name or path to use.
+/// Returns the full path if found, otherwise just "yt-dlp" to rely on PATH.
+fn get_ytdlp_command() -> String {
+    find_ytdlp_path()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "yt-dlp".to_string())
+}
 
 #[derive(Error, Debug)]
 pub enum YtDlpError {
@@ -48,14 +163,20 @@ impl YtDlpService {
         Self
     }
 
-    /// Check if yt-dlp is available
+    /// Check if yt-dlp is available by verifying it can be executed
     pub async fn is_available(&self) -> bool {
-        Command::new("yt-dlp")
-            .arg("--version")
-            .output()
-            .await
-            .map(|output| output.status.success())
-            .unwrap_or(false)
+        if let Some(path) = find_ytdlp_path() {
+            // Verify it's executable by running --version
+            Command::new(path)
+                .arg("--version")
+                .env("PATH", get_expanded_path())
+                .output()
+                .await
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        } else {
+            false
+        }
     }
 
     /// Validate YouTube video ID format (alphanumeric, dash, underscore, 11 chars)
@@ -90,11 +211,12 @@ impl YtDlpService {
         let max_results = max_results.min(50);
 
         let search_term = format!("ytsearch{}:{}", max_results, sanitized_query);
-        let output = Command::new("yt-dlp")
+        let output = Command::new(get_ytdlp_command())
             .arg(&search_term)
             .arg("--dump-json")
             .arg("--flat-playlist")
             .arg("--no-warnings")
+            .env("PATH", get_expanded_path())
             .output()
             .await
             .map_err(|e| {
@@ -158,12 +280,13 @@ impl YtDlpService {
 
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
 
-        let output = Command::new("yt-dlp")
+        let output = Command::new(get_ytdlp_command())
             .arg(&url)
             .arg("-f")
             .arg("best[ext=mp4]/best")
             .arg("--get-url")
             .arg("--no-warnings")
+            .env("PATH", get_expanded_path())
             .output()
             .await
             .map_err(|e| {
@@ -200,11 +323,12 @@ impl YtDlpService {
 
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
 
-        let output = Command::new("yt-dlp")
+        let output = Command::new(get_ytdlp_command())
             .arg(&url)
             .arg("--dump-json")
             .arg("--no-warnings")
             .arg("--no-download")
+            .env("PATH", get_expanded_path())
             .output()
             .await
             .map_err(|e| {

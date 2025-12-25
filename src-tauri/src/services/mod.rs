@@ -1,3 +1,3 @@
 pub mod ytdlp;
 
-pub use ytdlp::YtDlpService;
+pub use ytdlp::{get_expanded_path, YtDlpService};
