@@ -10,6 +10,16 @@ import {
 // Throttle time updates to reduce event frequency (500ms interval)
 const TIME_UPDATE_THROTTLE_MS = 500;
 
+// Validate stream URL to prevent XSS - only allow http/https schemes
+function isValidStreamUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function DetachedPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastTimeUpdateRef = useRef<number>(0);
@@ -119,6 +129,12 @@ export function DetachedPlayer() {
     if (!video) return;
 
     if (state.streamUrl && state.streamUrl !== currentStreamUrl) {
+      // Validate URL before assignment to prevent XSS
+      if (!isValidStreamUrl(state.streamUrl)) {
+        console.error("Invalid stream URL rejected:", state.streamUrl);
+        return;
+      }
+
       const isNewVideo = currentStreamUrl !== null && state.streamUrl !== currentStreamUrl;
 
       setIsReady(false);
