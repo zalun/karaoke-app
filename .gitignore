@@ -8,7 +8,6 @@ build/
 # Tauri
 src-tauri/target/
 src-tauri/WixTools/
-src-tauri/icons/
 
 # Rust
 *.rs.bk
