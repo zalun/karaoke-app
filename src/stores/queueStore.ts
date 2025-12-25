@@ -1,5 +1,8 @@
 import { create } from "zustand";
+import { createLogger } from "../services";
 import type { Video } from "./playerStore";
+
+const log = createLogger("QueueStore");
 
 export interface QueueItem {
   id: string;
@@ -38,21 +41,27 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   historyIndex: -1,
 
   addToQueue: (video) => {
+    log.info(`addToQueue: ${video.title}`);
     const newItem: QueueItem = {
       id: crypto.randomUUID(),
       video,
       addedAt: new Date(),
     };
-    set((state) => ({ queue: [...state.queue, newItem] }));
+    set((state) => {
+      log.debug(`Queue size: ${state.queue.length} -> ${state.queue.length + 1}`);
+      return { queue: [...state.queue, newItem] };
+    });
   },
 
   removeFromQueue: (itemId) => {
+    log.debug(`removeFromQueue: ${itemId}`);
     set((state) => ({
       queue: state.queue.filter((item) => item.id !== itemId),
     }));
   },
 
   reorderQueue: (itemId, newPosition) => {
+    log.debug(`reorderQueue: ${itemId} -> position ${newPosition}`);
     set((state) => {
       const queue = [...state.queue];
       const currentIndex = queue.findIndex((item) => item.id === itemId);
@@ -66,14 +75,17 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   clearQueue: () => {
+    log.info("clearQueue");
     set({ queue: [] });
   },
 
   clearHistory: () => {
+    log.info("clearHistory");
     set({ history: [], historyIndex: -1 });
   },
 
   playDirect: (video) => {
+    log.info(`playDirect: ${video.title}`);
     const newItem: QueueItem = {
       id: crypto.randomUUID(),
       video,
@@ -92,10 +104,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const { queue, history } = get();
 
     if (index < 0 || index >= queue.length) {
+      log.warn(`playFromQueue: invalid index ${index}`);
       return null;
     }
 
     const item = queue[index];
+    log.info(`playFromQueue: ${item.video.title} (index ${index})`);
     const newQueue = queue.filter((_, i) => i !== index);
     const newHistory = [...history, item];
 
@@ -112,9 +126,11 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const { history } = get();
 
     if (index < 0 || index >= history.length) {
+      log.warn(`playFromHistory: invalid index ${index}`);
       return null;
     }
 
+    log.info(`playFromHistory: ${history[index].video.title} (index ${index})`);
     set({ historyIndex: index });
 
     return history[index];
@@ -129,16 +145,19 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     // Check if there are more items ahead in history
     if (effectiveIndex < history.length - 1) {
       const nextIndex = effectiveIndex + 1;
+      log.info(`playNext: from history - ${history[nextIndex].video.title}`);
       set({ historyIndex: nextIndex });
       return history[nextIndex];
     }
 
     // Otherwise, take from queue
     if (queue.length === 0) {
+      log.debug("playNext: queue empty");
       return null;
     }
 
     const item = queue[0];
+    log.info(`playNext: from queue - ${item.video.title}`);
     const newQueue = queue.slice(1);
     const newHistory = [...history, item];
 
@@ -155,6 +174,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const { history, historyIndex } = get();
 
     if (history.length === 0) {
+      log.debug("playPrevious: history empty");
       return null;
     }
 
@@ -163,10 +183,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
     // Check if we can go back
     if (effectiveIndex <= 0) {
+      log.debug("playPrevious: at start of history");
       return null;
     }
 
     const prevIndex = effectiveIndex - 1;
+    log.info(`playPrevious: ${history[prevIndex].video.title}`);
     set({ historyIndex: prevIndex });
 
     return history[prevIndex];

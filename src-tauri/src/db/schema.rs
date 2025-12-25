@@ -3,6 +3,12 @@ use rusqlite::{Connection, Result};
 const MIGRATIONS: &[&str] = &[
     // Migration 1: Initial schema
     r#"
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS videos (
         id INTEGER PRIMARY KEY,
         youtube_id TEXT UNIQUE,

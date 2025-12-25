@@ -1,5 +1,7 @@
 import { create } from "zustand";
-import { youtubeService } from "../services";
+import { youtubeService, createLogger } from "../services";
+
+const log = createLogger("PlayerStore");
 
 // Cache expiration: 5 hours (YouTube URLs typically expire after 6 hours)
 const PREFETCH_CACHE_EXPIRY_MS = 5 * 60 * 60 * 1000;
@@ -70,36 +72,80 @@ const initialState = {
 export const usePlayerStore = create<PlayerState>((set, get) => ({
   ...initialState,
 
-  setCurrentVideo: (video) => set({ currentVideo: video, error: null }),
-  setIsPlaying: (isPlaying) => set({ isPlaying }),
+  setCurrentVideo: (video) => {
+    log.debug(`setCurrentVideo: ${video?.title ?? "null"}`);
+    set({ currentVideo: video, error: null });
+  },
+  setIsPlaying: (isPlaying) => {
+    log.debug(`setIsPlaying: ${isPlaying}`);
+    set({ isPlaying });
+  },
   setCurrentTime: (currentTime) => set({ currentTime }),
-  setDuration: (duration) => set({ duration }),
-  setVolume: (volume) => set({ volume, isMuted: volume === 0 }),
-  toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
-  setIsFullscreen: (isFullscreen) => set({ isFullscreen }),
-  setIsLoading: (isLoading) => set({ isLoading }),
-  setIsDetached: (isDetached) => set({ isDetached }),
-  setError: (error) => set({ error, isLoading: false }),
-  seekTo: (time) => set({ seekTime: time }),
-  clearSeek: () => set({ seekTime: null }),
-  reset: () => set(initialState),
-  setPrefetchedStreamUrl: (videoId, url) => set({
-    prefetchedStreamUrl: { videoId, url, timestamp: Date.now() }
+  setDuration: (duration) => {
+    log.debug(`setDuration: ${duration}`);
+    set({ duration });
+  },
+  setVolume: (volume) => {
+    log.debug(`setVolume: ${volume}`);
+    set({ volume, isMuted: volume === 0 });
+  },
+  toggleMute: () => set((state) => {
+    log.debug(`toggleMute: ${!state.isMuted}`);
+    return { isMuted: !state.isMuted };
   }),
+  setIsFullscreen: (isFullscreen) => {
+    log.debug(`setIsFullscreen: ${isFullscreen}`);
+    set({ isFullscreen });
+  },
+  setIsLoading: (isLoading) => {
+    log.debug(`setIsLoading: ${isLoading}`);
+    set({ isLoading });
+  },
+  setIsDetached: (isDetached) => {
+    log.info(`setIsDetached: ${isDetached}`);
+    set({ isDetached });
+  },
+  setError: (error) => {
+    if (error) log.error(`setError: ${error}`);
+    set({ error, isLoading: false });
+  },
+  seekTo: (time) => {
+    log.debug(`seekTo: ${time}`);
+    set({ seekTime: time });
+  },
+  clearSeek: () => set({ seekTime: null }),
+  reset: () => {
+    log.info("reset: resetting player state");
+    set(initialState);
+  },
+  setPrefetchedStreamUrl: (videoId, url) => {
+    log.debug(`setPrefetchedStreamUrl: cached URL for ${videoId}`);
+    set({
+      prefetchedStreamUrl: { videoId, url, timestamp: Date.now() }
+    });
+  },
   getPrefetchedStreamUrl: (videoId) => {
     const cached = get().prefetchedStreamUrl;
-    if (!cached || cached.videoId !== videoId) return null;
+    if (!cached || cached.videoId !== videoId) {
+      log.debug(`getPrefetchedStreamUrl: cache miss for ${videoId}`);
+      return null;
+    }
 
     // Check if cache has expired and proactively clear if so
     const age = Date.now() - cached.timestamp;
     if (age > PREFETCH_CACHE_EXPIRY_MS) {
+      log.debug(`getPrefetchedStreamUrl: cache expired for ${videoId}`);
       set({ prefetchedStreamUrl: null });
       return null;
     }
 
+    log.debug(`getPrefetchedStreamUrl: cache hit for ${videoId}`);
     return cached.url;
   },
-  clearPrefetchedStreamUrl: () => set({ prefetchedStreamUrl: null }),
+  clearPrefetchedStreamUrl: () => {
+    log.debug("clearPrefetchedStreamUrl");
+    set({ prefetchedStreamUrl: null });
+  },
 }));
 
 /**
@@ -117,12 +163,14 @@ export async function getStreamUrlWithCache(
   const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(videoId);
 
   if (cachedUrl) {
+    log.info(`getStreamUrlWithCache: using cached URL for ${videoId}`);
     if (clearCache) {
       usePlayerStore.getState().clearPrefetchedStreamUrl();
     }
     return cachedUrl;
   }
 
+  log.info(`getStreamUrlWithCache: fetching fresh URL for ${videoId}`);
   const streamInfo = await youtubeService.getStreamUrl(videoId);
   return streamInfo.url;
 
@@ -137,6 +185,7 @@ export async function getStreamUrlWithCache(
 export function invalidatePrefetchIfStale(expectedVideoId: string | undefined): void {
   const cached = usePlayerStore.getState().prefetchedStreamUrl;
   if (cached && cached.videoId !== expectedVideoId) {
+    log.debug(`invalidatePrefetchIfStale: clearing stale cache for ${cached.videoId}`);
     usePlayerStore.getState().clearPrefetchedStreamUrl();
   }
 }

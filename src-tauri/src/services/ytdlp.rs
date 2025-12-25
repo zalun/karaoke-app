@@ -1,3 +1,4 @@
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -90,10 +91,14 @@ fn is_executable(path: &PathBuf) -> bool {
 /// Find the full path to yt-dlp binary by checking common locations.
 /// Returns the path if found and executable, None otherwise.
 pub fn find_ytdlp_path() -> Option<PathBuf> {
+    debug!("Searching for yt-dlp binary...");
+
     // Check ~/.local/bin first (most likely for direct downloads)
     if let Some(local_bin) = get_local_bin_path() {
         let path = PathBuf::from(&local_bin).join("yt-dlp");
+        debug!("Checking path: {:?}", path);
         if is_executable(&path) {
+            info!("Found yt-dlp at: {:?}", path);
             return Some(path);
         }
     }
@@ -101,11 +106,14 @@ pub fn find_ytdlp_path() -> Option<PathBuf> {
     // Check common paths
     for bin_path in COMMON_BIN_PATHS {
         let path = PathBuf::from(bin_path).join("yt-dlp");
+        debug!("Checking path: {:?}", path);
         if is_executable(&path) {
+            info!("Found yt-dlp at: {:?}", path);
             return Some(path);
         }
     }
 
+    warn!("yt-dlp binary not found in any common locations");
     None
 }
 
@@ -165,16 +173,20 @@ impl YtDlpService {
 
     /// Check if yt-dlp is available by verifying it can be executed
     pub async fn is_available(&self) -> bool {
+        debug!("Checking yt-dlp availability...");
         if let Some(path) = find_ytdlp_path() {
             // Verify it's executable by running --version
-            Command::new(path)
+            let result = Command::new(&path)
                 .arg("--version")
                 .env("PATH", get_expanded_path())
                 .output()
                 .await
                 .map(|o| o.status.success())
-                .unwrap_or(false)
+                .unwrap_or(false);
+            debug!("yt-dlp at {:?} executable check: {}", path, result);
+            result
         } else {
+            debug!("yt-dlp not found");
             false
         }
     }
@@ -204,6 +216,7 @@ impl YtDlpService {
     pub async fn search(&self, query: &str, max_results: u32) -> Result<Vec<SearchResult>, YtDlpError> {
         let sanitized_query = Self::sanitize_query(query);
         if sanitized_query.trim().is_empty() {
+            warn!("Empty search query after sanitization");
             return Err(YtDlpError::ExecutionError("Empty search query".to_string()));
         }
 
@@ -211,7 +224,12 @@ impl YtDlpService {
         let max_results = max_results.min(50);
 
         let search_term = format!("ytsearch{}:{}", max_results, sanitized_query);
-        let output = Command::new(get_ytdlp_command())
+        debug!("Executing yt-dlp search: {}", search_term);
+
+        let cmd = get_ytdlp_command();
+        debug!("Using yt-dlp command: {}", cmd);
+
+        let output = Command::new(&cmd)
             .arg(&search_term)
             .arg("--dump-json")
             .arg("--flat-playlist")
@@ -220,6 +238,7 @@ impl YtDlpService {
             .output()
             .await
             .map_err(|e| {
+                warn!("yt-dlp execution error: {}", e);
                 if e.kind() == std::io::ErrorKind::NotFound {
                     YtDlpError::NotFound
                 } else {
@@ -229,6 +248,7 @@ impl YtDlpService {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
+            warn!("yt-dlp search failed: {}", stderr);
             return Err(YtDlpError::ExecutionError(stderr.to_string()));
         }
 
@@ -260,7 +280,7 @@ impl YtDlpService {
                         })
                     },
                     Err(e) => {
-                        eprintln!("Failed to parse search result: {}", e);
+                        debug!("Failed to parse search result line: {}", e);
                         None
                     }
                 }
@@ -268,15 +288,18 @@ impl YtDlpService {
             .collect();
 
         if results.is_empty() {
+            warn!("No search results found for query: {}", sanitized_query);
             return Err(YtDlpError::NoResults);
         }
 
+        info!("Search completed: {} results for '{}'", results.len(), sanitized_query);
         Ok(results)
     }
 
     /// Get streaming URL for a video
     pub async fn get_stream_url(&self, video_id: &str) -> Result<StreamInfo, YtDlpError> {
         Self::validate_video_id(video_id)?;
+        debug!("Getting stream URL for video: {}", video_id);
 
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
 
@@ -290,6 +313,7 @@ impl YtDlpService {
             .output()
             .await
             .map_err(|e| {
+                warn!("Failed to get stream URL for {}: {}", video_id, e);
                 if e.kind() == std::io::ErrorKind::NotFound {
                     YtDlpError::NotFound
                 } else {
@@ -299,6 +323,7 @@ impl YtDlpService {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
+            warn!("yt-dlp get_stream_url failed for {}: {}", video_id, stderr);
             return Err(YtDlpError::ExecutionError(stderr.to_string()));
         }
 
@@ -307,9 +332,11 @@ impl YtDlpService {
             .to_string();
 
         if stream_url.is_empty() {
+            warn!("Empty stream URL returned for video: {}", video_id);
             return Err(YtDlpError::NoResults);
         }
 
+        info!("Got stream URL for video: {} (length: {} chars)", video_id, stream_url.len());
         Ok(StreamInfo {
             url: stream_url,
             format: "mp4".to_string(),
