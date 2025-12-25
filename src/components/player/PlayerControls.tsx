@@ -33,15 +33,20 @@ export function PlayerControls() {
   const nextQueueItem = useQueueStore((state) => state.queue[0]);
 
   // Build player state object for syncing to detached window
-  const buildPlayerState = useCallback(() => ({
-    streamUrl: currentVideo?.streamUrl ?? null,
-    isPlaying,
-    currentTime,
-    duration,
-    volume,
-    isMuted,
-    nextSong: nextQueueItem ? { title: nextQueueItem.video.title, artist: nextQueueItem.video.artist } : undefined,
-  }), [currentVideo?.streamUrl, isPlaying, currentTime, duration, volume, isMuted, nextQueueItem]);
+  // Uses fresh values from store to avoid stale closures
+  const buildPlayerState = useCallback(() => {
+    const state = usePlayerStore.getState();
+    const next = useQueueStore.getState().queue[0];
+    return {
+      streamUrl: state.currentVideo?.streamUrl ?? null,
+      isPlaying: state.isPlaying,
+      currentTime: state.currentTime,
+      duration: state.duration,
+      volume: state.volume,
+      isMuted: state.isMuted,
+      nextSong: next ? { title: next.video.title, artist: next.video.artist } : undefined,
+    };
+  }, []);
 
   // Listen for reattachment from detached window
   useEffect(() => {
@@ -126,8 +131,11 @@ export function PlayerControls() {
     let unlistenFn: (() => void) | undefined;
 
     windowManager.listenForStateRequest(() => {
-      if (isMounted && currentVideo?.streamUrl) {
-        windowManager.syncState(buildPlayerState());
+      if (isMounted) {
+        const state = buildPlayerState();
+        if (state.streamUrl) {
+          windowManager.syncState(state);
+        }
       }
     }).then((unlisten) => {
       if (isMounted) {
@@ -141,7 +149,7 @@ export function PlayerControls() {
       isMounted = false;
       unlistenFn?.();
     };
-  }, [isDetached, currentVideo?.streamUrl, isPlaying, currentTime, duration, volume, isMuted, nextQueueItem]);
+  }, [isDetached, buildPlayerState]);
 
   // Sync state to detached window when relevant state changes
   // Note: currentTime is intentionally excluded from dependencies to prevent sync loops.
@@ -149,7 +157,7 @@ export function PlayerControls() {
   useEffect(() => {
     if (!isDetached || !currentVideo?.streamUrl) return;
     windowManager.syncState(buildPlayerState());
-  }, [isDetached, currentVideo?.streamUrl, isPlaying, volume, isMuted, nextQueueItem, buildPlayerState]);
+  }, [isDetached, currentVideo?.streamUrl, isPlaying, volume, isMuted, nextQueueItem]);
 
   // Send play/pause commands to detached window
   useEffect(() => {
@@ -171,7 +179,7 @@ export function PlayerControls() {
     if (success) {
       setIsDetached(true);
     }
-  }, [currentVideo?.streamUrl, buildPlayerState, setIsDetached]);
+  }, [currentVideo?.streamUrl, setIsDetached, buildPlayerState]);
 
   const handleReattach = useCallback(async () => {
     await windowManager.reattachPlayer();

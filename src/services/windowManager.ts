@@ -159,11 +159,19 @@ class WindowManager {
   }
 
   async emitTimeUpdate(time: number): Promise<void> {
-    await emit(PLAYER_EVENTS.TIME_UPDATE, time);
+    try {
+      await emit(PLAYER_EVENTS.TIME_UPDATE, time);
+    } catch {
+      // Window might not exist anymore, ignore
+    }
   }
 
   async requestInitialState(): Promise<void> {
-    await emit(PLAYER_EVENTS.REQUEST_STATE);
+    try {
+      await emit(PLAYER_EVENTS.REQUEST_STATE);
+    } catch {
+      // Window might not exist yet, ignore
+    }
   }
 
   async listenForStateRequest(callback: () => void): Promise<UnlistenFn> {
@@ -171,7 +179,11 @@ class WindowManager {
   }
 
   async emitFinalState(state: PlayerState): Promise<void> {
-    await emit(PLAYER_EVENTS.FINAL_STATE, state);
+    try {
+      await emit(PLAYER_EVENTS.FINAL_STATE, state);
+    } catch {
+      // Window might not exist anymore, ignore
+    }
   }
 
   async listenForFinalState(callback: (state: PlayerState) => void): Promise<UnlistenFn> {
