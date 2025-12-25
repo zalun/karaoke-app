@@ -6,7 +6,7 @@ use db::Database;
 use log::{debug, info};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{CheckMenuItem, Menu, MenuItemKind, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
 
@@ -202,6 +202,15 @@ pub fn run() {
                     let current = state.debug_mode.load(Ordering::SeqCst);
                     let new_value = !current;
                     state.debug_mode.store(new_value, Ordering::SeqCst);
+
+                    // Update the menu checkbox state
+                    if let Some(menu) = app.menu() {
+                        if let Some(MenuItemKind::Check(item)) = menu.get(DEBUG_MODE_MENU_ID) {
+                            if let Err(e) = item.set_checked(new_value) {
+                                log::error!("Failed to update menu checkbox state: {}", e);
+                            }
+                        }
+                    }
 
                     // Save to database
                     match state.db.lock() {
