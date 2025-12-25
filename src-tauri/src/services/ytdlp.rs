@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use thiserror::Error;
 use tokio::process::Command;
@@ -13,6 +14,12 @@ const COMMON_BIN_PATHS: &[&str] = &[
     "/bin",                   // Core binaries
 ];
 
+/// Path separator for the current platform
+#[cfg(windows)]
+const PATH_SEPARATOR: &str = ";";
+#[cfg(not(windows))]
+const PATH_SEPARATOR: &str = ":";
+
 /// Get the user's ~/.local/bin path
 fn get_local_bin_path() -> Option<String> {
     std::env::var("HOME")
@@ -25,27 +32,33 @@ fn get_local_bin_path() -> Option<String> {
 /// that doesn't include Homebrew, pip, or user bin directories.
 pub fn get_expanded_path() -> String {
     let mut paths: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
 
     // Add user's local bin first (pip --user, direct downloads)
     if let Some(local_bin) = get_local_bin_path() {
+        seen.insert(local_bin.clone());
         paths.push(local_bin);
     }
 
     // Add common paths
     for path in COMMON_BIN_PATHS {
-        paths.push((*path).to_string());
+        let path_str = path.to_string();
+        if seen.insert(path_str.clone()) {
+            paths.push(path_str);
+        }
     }
 
     // Add existing PATH entries (may be minimal in .app context)
     if let Ok(existing_path) = std::env::var("PATH") {
-        for p in existing_path.split(':') {
-            if !paths.contains(&p.to_string()) {
-                paths.push(p.to_string());
+        for p in existing_path.split(PATH_SEPARATOR) {
+            let p_str = p.to_string();
+            if seen.insert(p_str.clone()) {
+                paths.push(p_str);
             }
         }
     }
 
-    paths.join(":")
+    paths.join(PATH_SEPARATOR)
 }
 
 /// Find the full path to yt-dlp binary by checking common locations.
@@ -124,21 +137,9 @@ impl YtDlpService {
         Self
     }
 
-    /// Check if yt-dlp is available
+    /// Check if yt-dlp is available by checking known installation locations
     pub async fn is_available(&self) -> bool {
-        // First try to find yt-dlp in known locations
-        if find_ytdlp_path().is_some() {
-            return true;
-        }
-
-        // Fall back to checking via command execution with expanded PATH
-        Command::new("yt-dlp")
-            .arg("--version")
-            .env("PATH", get_expanded_path())
-            .output()
-            .await
-            .map(|output| output.status.success())
-            .unwrap_or(false)
+        find_ytdlp_path().is_some()
     }
 
     /// Validate YouTube video ID format (alphanumeric, dash, underscore, 11 chars)
