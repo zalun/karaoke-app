@@ -33,26 +33,12 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
     [getSearchQuery, onSearch, setSearchQuery]
   );
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") {
-        const query = getSearchQuery();
-        if (query) {
-          setSearchQuery(query);
-          onSearch(query);
-        }
-      }
-    },
-    [getSearchQuery, onSearch, setSearchQuery]
-  );
-
   return (
     <form onSubmit={handleSubmit} className="relative">
       <input
         type="text"
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={handleKeyDown}
         placeholder="Search YouTube for videos..."
         className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-white placeholder-gray-400 pr-44"
         disabled={isLoading}
