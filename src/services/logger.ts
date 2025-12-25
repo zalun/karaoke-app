@@ -125,8 +125,14 @@ class Logger {
 class ScopedLogger {
   constructor(private context: string) {}
 
+  /**
+   * Sanitize and format log message to prevent log injection attacks.
+   * Replaces newlines and control characters with spaces.
+   */
   private formatMessage(message: string): string {
-    return `[${this.context}] ${message}`;
+    // Replace newlines and control characters to prevent log injection
+    const sanitized = message.replace(/[\r\n\t]/g, " ").replace(/\s+/g, " ");
+    return `[${this.context}] ${sanitized}`;
   }
 
   trace(message: string, data?: unknown): void {

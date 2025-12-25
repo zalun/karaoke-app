@@ -132,7 +132,7 @@ pub fn run() {
                 .level_for("wry", log::LevelFilter::Warn)
                 .level_for("hyper", log::LevelFilter::Warn)
                 .level_for("reqwest", log::LevelFilter::Warn)
-                // Max 5MB per log file, keep last 3 rotated files
+                // Max 5MB per log file, keep 3 rotated + 1 active = 4 files (~20MB total)
                 .max_file_size(5_000_000)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(3))
                 .build(),
