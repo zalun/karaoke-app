@@ -117,8 +117,8 @@ function App() {
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
           {/* Left: Main content area */}
           <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
-            {/* Player Controls - always visible when video is loaded */}
-            {currentVideo && <PlayerControls />}
+            {/* Player Controls - always visible, disabled when no video */}
+            <PlayerControls />
 
             {/* Tabs - only show when video is loaded */}
             {currentVideo && (
