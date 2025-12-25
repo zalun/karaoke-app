@@ -174,12 +174,15 @@ export function PlayerControls() {
   const handleDetach = useCallback(async () => {
     if (!currentVideo?.streamUrl) return;
 
+    // Pause before detaching - detached window will start paused
+    setIsPlaying(false);
+
     const success = await windowManager.detachPlayer(buildPlayerState());
 
     if (success) {
       setIsDetached(true);
     }
-  }, [currentVideo?.streamUrl, setIsDetached, buildPlayerState]);
+  }, [currentVideo?.streamUrl, setIsDetached, setIsPlaying, buildPlayerState]);
 
   const handleReattach = useCallback(async () => {
     await windowManager.reattachPlayer();
