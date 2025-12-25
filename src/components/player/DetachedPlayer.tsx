@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { windowManager, type PlayerState } from "../../services/windowManager";
 import { useWakeLock } from "../../hooks";
+import { NextSongOverlay } from "./NextSongOverlay";
 
 // Throttle time updates to reduce event frequency (500ms interval)
 const TIME_UPDATE_THROTTLE_MS = 500;
@@ -239,7 +240,7 @@ export function DetachedPlayer() {
   }, []);
 
   return (
-    <div className="w-screen h-screen bg-black flex items-center justify-center">
+    <div className="w-screen h-screen bg-black flex items-center justify-center relative">
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
@@ -254,6 +255,12 @@ export function DetachedPlayer() {
         <div className="absolute inset-0 flex items-center justify-center text-gray-500">
           <p>{state.streamUrl ? "Loading..." : "Waiting for video..."}</p>
         </div>
+      )}
+      {state.nextSong && (
+        <NextSongOverlay
+          title={state.nextSong.title}
+          artist={state.nextSong.artist}
+        />
       )}
     </div>
   );

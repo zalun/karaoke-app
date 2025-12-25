@@ -8,6 +8,7 @@ import {
 } from "../../stores";
 import { youtubeService } from "../../services";
 import { useWakeLock } from "../../hooks";
+import { NextSongOverlay } from "./NextSongOverlay";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -38,9 +39,9 @@ export function VideoPlayer() {
     prefetchTriggeredRef.current = null;
   }, [currentVideo?.id]);
 
-  // Invalidate prefetch cache when first queue item changes (e.g., user reorders or removes items)
-  // Only subscribe to queue[0] to avoid re-renders when other queue items change
-  const nextQueueVideoId = useQueueStore((state) => state.queue[0]?.video.youtubeId);
+  // Subscribe to first queue item for overlay and prefetch cache invalidation
+  const nextQueueItem = useQueueStore((state) => state.queue[0]);
+  const nextQueueVideoId = nextQueueItem?.video.youtubeId;
   useEffect(() => {
     invalidatePrefetchIfStale(nextQueueVideoId);
     // Also reset prefetch trigger if queue's first item changed
@@ -252,6 +253,12 @@ export function VideoPlayer() {
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">
           <div className="text-white">Loading...</div>
         </div>
+      )}
+      {nextQueueItem && (
+        <NextSongOverlay
+          title={nextQueueItem.video.title}
+          artist={nextQueueItem.video.artist}
+        />
       )}
     </div>
   );

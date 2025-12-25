@@ -32,6 +32,7 @@ export function PlayerControls() {
   } = usePlayerStore();
 
   const { hasNext, hasPrevious, playNext, playPrevious } = useQueueStore();
+  const nextQueueItem = useQueueStore((state) => state.queue[0]);
 
   // Listen for reattachment from detached window
   useEffect(() => {
@@ -128,6 +129,7 @@ export function PlayerControls() {
           duration,
           volume,
           isMuted,
+          nextSong: nextQueueItem ? { title: nextQueueItem.video.title, artist: nextQueueItem.video.artist } : undefined,
         });
       }
     }).then((unlisten) => {
@@ -142,7 +144,7 @@ export function PlayerControls() {
       isMounted = false;
       unlistenFn?.();
     };
-  }, [isDetached, currentVideo?.streamUrl, isPlaying, currentTime, duration, volume, isMuted]);
+  }, [isDetached, currentVideo?.streamUrl, isPlaying, currentTime, duration, volume, isMuted, nextQueueItem]);
 
   // Sync state to detached window when relevant state changes
   // Note: currentTime is intentionally excluded from dependencies to prevent sync loops.
@@ -157,8 +159,9 @@ export function PlayerControls() {
       duration,
       volume,
       isMuted,
+      nextSong: nextQueueItem ? { title: nextQueueItem.video.title, artist: nextQueueItem.video.artist } : undefined,
     });
-  }, [isDetached, currentVideo?.streamUrl, isPlaying, volume, isMuted]);
+  }, [isDetached, currentVideo?.streamUrl, isPlaying, volume, isMuted, nextQueueItem]);
 
   // Send play/pause commands to detached window
   useEffect(() => {
@@ -182,12 +185,13 @@ export function PlayerControls() {
       duration,
       volume,
       isMuted,
+      nextSong: nextQueueItem ? { title: nextQueueItem.video.title, artist: nextQueueItem.video.artist } : undefined,
     });
 
     if (success) {
       setIsDetached(true);
     }
-  }, [currentVideo?.streamUrl, isPlaying, currentTime, duration, volume, isMuted, setIsDetached]);
+  }, [currentVideo?.streamUrl, isPlaying, currentTime, duration, volume, isMuted, nextQueueItem, setIsDetached]);
 
   const handleReattach = useCallback(async () => {
     await windowManager.reattachPlayer();
