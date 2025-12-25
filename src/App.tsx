@@ -72,11 +72,21 @@ function App() {
       setCurrentVideo(pendingVideo);
 
       try {
-        const streamInfo = await youtubeService.getStreamUrl(result.id);
+        // Check for prefetched URL first
+        const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(result.id);
+        let streamUrl: string;
+
+        if (cachedUrl) {
+          streamUrl = cachedUrl;
+          usePlayerStore.getState().clearPrefetchedStreamUrl();
+        } else {
+          const streamInfo = await youtubeService.getStreamUrl(result.id);
+          streamUrl = streamInfo.url;
+        }
 
         const video = {
           ...pendingVideo,
-          streamUrl: streamInfo.url,
+          streamUrl,
         };
 
         // Add to history and play
@@ -260,10 +270,21 @@ function QueuePanel() {
       if (item && item.video.youtubeId) {
         setIsLoading(true);
         try {
-          const streamInfo = await youtubeService.getStreamUrl(item.video.youtubeId);
+          // Check for prefetched URL first
+          const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(item.video.youtubeId);
+          let streamUrl: string;
+
+          if (cachedUrl) {
+            streamUrl = cachedUrl;
+            usePlayerStore.getState().clearPrefetchedStreamUrl();
+          } else {
+            const streamInfo = await youtubeService.getStreamUrl(item.video.youtubeId);
+            streamUrl = streamInfo.url;
+          }
+
           setCurrentVideo({
             ...item.video,
-            streamUrl: streamInfo.url,
+            streamUrl,
           });
           setIsPlaying(true);
         } catch (err) {
@@ -349,10 +370,21 @@ function HistoryPanel() {
       if (item && item.video.youtubeId) {
         setIsLoading(true);
         try {
-          const streamInfo = await youtubeService.getStreamUrl(item.video.youtubeId);
+          // Check for prefetched URL first
+          const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(item.video.youtubeId);
+          let streamUrl: string;
+
+          if (cachedUrl) {
+            streamUrl = cachedUrl;
+            usePlayerStore.getState().clearPrefetchedStreamUrl();
+          } else {
+            const streamInfo = await youtubeService.getStreamUrl(item.video.youtubeId);
+            streamUrl = streamInfo.url;
+          }
+
           setCurrentVideo({
             ...item.video,
-            streamUrl: streamInfo.url,
+            streamUrl,
           });
           setIsPlaying(true);
         } catch (err) {

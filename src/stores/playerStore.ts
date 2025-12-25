@@ -24,6 +24,7 @@ interface PlayerState {
   isDetached: boolean;
   error: string | null;
   seekTime: number | null;
+  prefetchedStreamUrl: { videoId: string; url: string } | null;
 
   // Actions
   setCurrentVideo: (video: Video | null) => void;
@@ -39,6 +40,9 @@ interface PlayerState {
   seekTo: (time: number) => void;
   clearSeek: () => void;
   reset: () => void;
+  setPrefetchedStreamUrl: (videoId: string, url: string) => void;
+  getPrefetchedStreamUrl: (videoId: string) => string | null;
+  clearPrefetchedStreamUrl: () => void;
 }
 
 const initialState = {
@@ -53,9 +57,10 @@ const initialState = {
   isDetached: false,
   error: null,
   seekTime: null,
+  prefetchedStreamUrl: null,
 };
 
-export const usePlayerStore = create<PlayerState>((set) => ({
+export const usePlayerStore = create<PlayerState>((set, get) => ({
   ...initialState,
 
   setCurrentVideo: (video) => set({ currentVideo: video, error: null }),
@@ -71,4 +76,10 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   seekTo: (time) => set({ seekTime: time }),
   clearSeek: () => set({ seekTime: null }),
   reset: () => set(initialState),
+  setPrefetchedStreamUrl: (videoId, url) => set({ prefetchedStreamUrl: { videoId, url } }),
+  getPrefetchedStreamUrl: (videoId) => {
+    const cached = get().prefetchedStreamUrl;
+    return cached?.videoId === videoId ? cached.url : null;
+  },
+  clearPrefetchedStreamUrl: () => set({ prefetchedStreamUrl: null }),
 }));

@@ -5,6 +5,7 @@ import { useWakeLock } from "../../hooks";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const prefetchTriggeredRef = useRef<string | null>(null);
   const {
     currentVideo,
     isPlaying,
@@ -24,6 +25,11 @@ export function VideoPlayer() {
 
   // Prevent screen from sleeping while playing (only when not detached)
   useWakeLock(isPlaying && !isDetached);
+
+  // Reset prefetch tracking when video changes
+  useEffect(() => {
+    prefetchTriggeredRef.current = null;
+  }, [currentVideo?.id]);
 
   const tryPlay = useCallback(() => {
     const video = videoRef.current;
@@ -99,8 +105,28 @@ export function VideoPlayer() {
   }, [currentVideo, isPlaying, setIsPlaying]);
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
+    const video = videoRef.current;
+    if (!video) return;
+
+    const currentTime = video.currentTime;
+    const duration = video.duration;
+    setCurrentTime(currentTime);
+
+    // Prefetch next video 20s before end (or immediately if video <= 20s)
+    if (duration > 0) {
+      const timeRemaining = duration - currentTime;
+      const shouldPrefetch = timeRemaining <= 20 || duration <= 20;
+
+      if (shouldPrefetch) {
+        const nextItem = useQueueStore.getState().queue[0];
+        const nextVideoId = nextItem?.video.youtubeId;
+        if (nextVideoId && prefetchTriggeredRef.current !== nextVideoId) {
+          prefetchTriggeredRef.current = nextVideoId;
+          youtubeService.getStreamUrl(nextVideoId)
+            .then(info => usePlayerStore.getState().setPrefetchedStreamUrl(nextVideoId, info.url))
+            .catch(() => {}); // Silent fail - prefetch is opportunistic
+        }
+      }
     }
   };
 
@@ -126,10 +152,21 @@ export function VideoPlayer() {
       // Play next from queue
       setIsLoading(true);
       try {
-        const streamInfo = await youtubeService.getStreamUrl(nextItem.video.youtubeId);
+        // Check for prefetched URL first
+        const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId);
+        let streamUrl: string;
+
+        if (cachedUrl) {
+          streamUrl = cachedUrl;
+          usePlayerStore.getState().clearPrefetchedStreamUrl();
+        } else {
+          const streamInfo = await youtubeService.getStreamUrl(nextItem.video.youtubeId);
+          streamUrl = streamInfo.url;
+        }
+
         setCurrentVideo({
           ...nextItem.video,
-          streamUrl: streamInfo.url,
+          streamUrl,
         });
         setIsPlaying(true);
       } catch (err) {

@@ -213,10 +213,21 @@ export function PlayerControls() {
     if (prevItem && prevItem.video.youtubeId) {
       setIsLoading(true);
       try {
-        const streamInfo = await youtubeService.getStreamUrl(prevItem.video.youtubeId);
+        // Check for prefetched URL first
+        const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(prevItem.video.youtubeId);
+        let streamUrl: string;
+
+        if (cachedUrl) {
+          streamUrl = cachedUrl;
+          usePlayerStore.getState().clearPrefetchedStreamUrl();
+        } else {
+          const streamInfo = await youtubeService.getStreamUrl(prevItem.video.youtubeId);
+          streamUrl = streamInfo.url;
+        }
+
         setCurrentVideo({
           ...prevItem.video,
-          streamUrl: streamInfo.url,
+          streamUrl,
         });
         setIsPlaying(true);
       } catch (err) {
@@ -232,10 +243,21 @@ export function PlayerControls() {
     if (nextItem && nextItem.video.youtubeId) {
       setIsLoading(true);
       try {
-        const streamInfo = await youtubeService.getStreamUrl(nextItem.video.youtubeId);
+        // Check for prefetched URL first
+        const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId);
+        let streamUrl: string;
+
+        if (cachedUrl) {
+          streamUrl = cachedUrl;
+          usePlayerStore.getState().clearPrefetchedStreamUrl();
+        } else {
+          const streamInfo = await youtubeService.getStreamUrl(nextItem.video.youtubeId);
+          streamUrl = streamInfo.url;
+        }
+
         setCurrentVideo({
           ...nextItem.video,
-          streamUrl: streamInfo.url,
+          streamUrl,
         });
         setIsPlaying(true);
       } catch (err) {
