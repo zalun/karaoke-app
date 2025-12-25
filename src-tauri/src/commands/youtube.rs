@@ -1,4 +1,4 @@
-use crate::services::{ytdlp::{SearchResult, StreamInfo, VideoInfo}, YtDlpService};
+use crate::services::{get_expanded_path, ytdlp::{SearchResult, StreamInfo, VideoInfo}, YtDlpService};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -57,9 +57,12 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
 
     match method.as_str() {
         "brew" => {
+            let expanded_path = get_expanded_path();
+
             // First check if Homebrew is available
             let brew_available = Command::new("brew")
                 .arg("--version")
+                .env("PATH", &expanded_path)
                 .output()
                 .await
                 .map(|o| o.status.success())
@@ -76,6 +79,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
             // Run brew install yt-dlp
             let output = Command::new("brew")
                 .args(["install", "yt-dlp"])
+                .env("PATH", &expanded_path)
                 .output()
                 .await
                 .map_err(|e| YouTubeError {
@@ -101,9 +105,12 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
             }
         }
         "pip" => {
+            let expanded_path = get_expanded_path();
+
             // Check if pip3 is available
             let pip_available = Command::new("pip3")
                 .arg("--version")
+                .env("PATH", &expanded_path)
                 .output()
                 .await
                 .map(|o| o.status.success())
@@ -120,6 +127,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
             // Run pip3 install yt-dlp
             let output = Command::new("pip3")
                 .args(["install", "yt-dlp"])
+                .env("PATH", &expanded_path)
                 .output()
                 .await
                 .map_err(|e| YouTubeError {
@@ -226,7 +234,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
                 Ok(InstallResult {
                     success: true,
                     message: "yt-dlp installed successfully!".to_string(),
-                    output: format!("Downloaded {} to {}/yt-dlp\n\nNote: You may need to add ~/.local/bin to your PATH:\nexport PATH=\"$HOME/.local/bin:$PATH\"", binary_name, local_bin),
+                    output: format!("Downloaded {} to {}/yt-dlp", binary_name, local_bin),
                 })
             } else {
                 Ok(InstallResult {
