@@ -14,6 +14,7 @@ export function DetachedPlayer() {
   const [isReady, setIsReady] = useState(false);
   const [shouldRestorePosition, setShouldRestorePosition] = useState(true);
   const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
+  const [videoTime, setVideoTime] = useState({ currentTime: 0, duration: 0 });
   const [state, setState] = useState<PlayerState>({
     streamUrl: null,
     isPlaying: false,
@@ -196,10 +197,15 @@ export function DetachedPlayer() {
   }, [state.volume, state.isMuted]);
 
   // Send time updates back to main window (throttled to reduce event frequency)
+  // Also track local video time for overlay countdown
   const handleTimeUpdate = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
 
+    // Update local time for overlay (every update for smooth countdown)
+    setVideoTime({ currentTime: video.currentTime, duration: video.duration || 0 });
+
+    // Throttle emits to main window
     const now = Date.now();
     if (now - lastTimeUpdateRef.current >= TIME_UPDATE_THROTTLE_MS) {
       lastTimeUpdateRef.current = now;
@@ -256,12 +262,19 @@ export function DetachedPlayer() {
           <p>{state.streamUrl ? "Loading..." : "Waiting for video..."}</p>
         </div>
       )}
-      {state.nextSong && (
-        <NextSongOverlay
-          title={state.nextSong.title}
-          artist={state.nextSong.artist}
-        />
-      )}
+      {state.nextSong && videoTime.duration > 0 && (() => {
+        const timeRemaining = Math.ceil(videoTime.duration - videoTime.currentTime);
+        if (timeRemaining <= 20) {
+          return (
+            <NextSongOverlay
+              title={state.nextSong.title}
+              artist={state.nextSong.artist}
+              countdown={timeRemaining > 0 && timeRemaining <= 10 ? timeRemaining : undefined}
+            />
+          );
+        }
+        return null;
+      })()}
     </div>
   );
 }

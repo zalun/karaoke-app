@@ -22,6 +22,8 @@ export function VideoPlayer() {
     volume,
     isMuted,
     seekTime,
+    currentTime,
+    duration,
     setCurrentVideo,
     setIsPlaying,
     setCurrentTime,
@@ -254,12 +256,19 @@ export function VideoPlayer() {
           <div className="text-white">Loading...</div>
         </div>
       )}
-      {nextQueueItem && (
-        <NextSongOverlay
-          title={nextQueueItem.video.title}
-          artist={nextQueueItem.video.artist}
-        />
-      )}
+      {nextQueueItem && duration > 0 && (() => {
+        const timeRemaining = Math.ceil(duration - currentTime);
+        if (timeRemaining <= 20) {
+          return (
+            <NextSongOverlay
+              title={nextQueueItem.video.title}
+              artist={nextQueueItem.video.artist}
+              countdown={timeRemaining > 0 && timeRemaining <= 10 ? timeRemaining : undefined}
+            />
+          );
+        }
+        return null;
+      })()}
     </div>
   );
 }
