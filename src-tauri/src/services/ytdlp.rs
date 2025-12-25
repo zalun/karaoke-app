@@ -4,6 +4,9 @@ use std::path::PathBuf;
 use thiserror::Error;
 use tokio::process::Command;
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 /// Common installation paths for yt-dlp and other CLI tools.
 /// macOS .app bundles don't inherit the user's shell PATH, so we need to
 /// check these locations directly.
@@ -51,6 +54,9 @@ pub fn get_expanded_path() -> String {
     // Add existing PATH entries (may be minimal in .app context)
     if let Ok(existing_path) = std::env::var("PATH") {
         for p in existing_path.split(PATH_SEPARATOR) {
+            if p.is_empty() {
+                continue;
+            }
             let p_str = p.to_string();
             if seen.insert(p_str.clone()) {
                 paths.push(p_str);
@@ -61,13 +67,33 @@ pub fn get_expanded_path() -> String {
     paths.join(PATH_SEPARATOR)
 }
 
+/// Check if a path exists and is executable
+fn is_executable(path: &PathBuf) -> bool {
+    if !path.exists() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        path.metadata()
+            .map(|m| m.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false)
+    }
+
+    #[cfg(not(unix))]
+    {
+        // On Windows, just check existence (executability determined by extension)
+        true
+    }
+}
+
 /// Find the full path to yt-dlp binary by checking common locations.
-/// Returns the path if found, None otherwise.
+/// Returns the path if found and executable, None otherwise.
 pub fn find_ytdlp_path() -> Option<PathBuf> {
     // Check ~/.local/bin first (most likely for direct downloads)
     if let Some(local_bin) = get_local_bin_path() {
         let path = PathBuf::from(&local_bin).join("yt-dlp");
-        if path.exists() {
+        if is_executable(&path) {
             return Some(path);
         }
     }
@@ -75,7 +101,7 @@ pub fn find_ytdlp_path() -> Option<PathBuf> {
     // Check common paths
     for bin_path in COMMON_BIN_PATHS {
         let path = PathBuf::from(bin_path).join("yt-dlp");
-        if path.exists() {
+        if is_executable(&path) {
             return Some(path);
         }
     }
@@ -143,6 +169,7 @@ impl YtDlpService {
             // Verify it's executable by running --version
             Command::new(path)
                 .arg("--version")
+                .env("PATH", get_expanded_path())
                 .output()
                 .await
                 .map(|o| o.status.success())
