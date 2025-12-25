@@ -19,8 +19,10 @@ import { SearchBar, SearchResults } from "./components/search";
 import { DraggableQueueItem } from "./components/queue";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "./stores";
-import { youtubeService } from "./services";
+import { youtubeService, createLogger } from "./services";
 import type { SearchResult } from "./types";
+
+const log = createLogger("App");
 
 type PanelTab = "queue" | "history";
 type MainTab = "player" | "search";
@@ -37,14 +39,16 @@ function App() {
   const { addToQueue, playDirect } = useQueueStore();
 
   const handleSearch = useCallback(async (query: string) => {
+    log.info(`Searching for: "${query}"`);
     setIsSearching(true);
     setSearchError(null);
 
     try {
       const results = await youtubeService.search(query, 15);
+      log.info(`Search returned ${results.length} results`);
       setSearchResults(results);
     } catch (err) {
-      console.error("Search failed:", err);
+      log.error("Search failed", err);
       setSearchError(
         err instanceof Error ? err.message : "Search failed. Is yt-dlp installed?"
       );
@@ -56,6 +60,7 @@ function App() {
 
   const handlePlay = useCallback(
     async (result: SearchResult) => {
+      log.info(`Playing: "${result.title}" by ${result.channel}`);
       setIsLoading(true);
       setSearchError(null);
 
@@ -79,8 +84,9 @@ function App() {
         playDirect(video);
         setCurrentVideo(video);
         setIsPlaying(true);
+        log.info(`Now playing: ${result.title}`);
       } catch (err) {
-        console.error("Failed to get stream URL:", err);
+        log.error("Failed to get stream URL", err);
         setSearchError(
           err instanceof Error ? err.message : "Failed to load video"
         );
@@ -94,6 +100,7 @@ function App() {
 
   const handleAddToQueue = useCallback(
     (result: SearchResult) => {
+      log.info(`Adding to queue: "${result.title}"`);
       addToQueue({
         id: result.id,
         title: result.title,
@@ -235,6 +242,8 @@ function formatDuration(seconds?: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+const queueLog = createLogger("QueuePanel");
+
 function QueuePanel() {
   const { queue, playFromQueue, removeFromQueue, reorderQueue, clearQueue } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
@@ -254,13 +263,14 @@ function QueuePanel() {
     async (index: number) => {
       const item = playFromQueue(index);
       if (item && item.video.youtubeId) {
+        queueLog.info(`Playing from queue: "${item.video.title}"`);
         setIsLoading(true);
         try {
           const streamUrl = await getStreamUrlWithCache(item.video.youtubeId);
           setCurrentVideo({ ...item.video, streamUrl });
           setIsPlaying(true);
         } catch (err) {
-          console.error("Failed to play:", err);
+          queueLog.error("Failed to play from queue", err);
           setError("Failed to play video");
           setIsLoading(false);
         }
@@ -278,6 +288,7 @@ function QueuePanel() {
         const newIndex = queue.findIndex((item) => item.id === over.id);
 
         if (oldIndex !== -1 && newIndex !== -1) {
+          queueLog.debug(`Reordered queue: ${oldIndex} → ${newIndex}`);
           reorderQueue(active.id as string, newIndex);
         }
       }
@@ -314,7 +325,10 @@ function QueuePanel() {
                 item={item}
                 index={index}
                 onPlay={() => handlePlayFromQueue(index)}
-                onRemove={() => removeFromQueue(item.id)}
+                onRemove={() => {
+                  queueLog.info(`Removing from queue: "${item.video.title}"`);
+                  removeFromQueue(item.id);
+                }}
                 formatDuration={formatDuration}
               />
             ))}
@@ -322,7 +336,10 @@ function QueuePanel() {
         </SortableContext>
       </DndContext>
       <button
-        onClick={clearQueue}
+        onClick={() => {
+          queueLog.info(`Clearing queue (${queue.length} items)`);
+          clearQueue();
+        }}
         className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
       >
         <span>🗑️</span>
@@ -332,6 +349,8 @@ function QueuePanel() {
   );
 }
 
+const historyLog = createLogger("HistoryPanel");
+
 function HistoryPanel() {
   const { history, historyIndex, playFromHistory, clearHistory } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
@@ -340,13 +359,14 @@ function HistoryPanel() {
     async (index: number) => {
       const item = playFromHistory(index);
       if (item && item.video.youtubeId) {
+        historyLog.info(`Playing from history: "${item.video.title}"`);
         setIsLoading(true);
         try {
           const streamUrl = await getStreamUrlWithCache(item.video.youtubeId);
           setCurrentVideo({ ...item.video, streamUrl });
           setIsPlaying(true);
         } catch (err) {
-          console.error("Failed to play:", err);
+          historyLog.error("Failed to play from history", err);
           setError("Failed to play video");
           setIsLoading(false);
         }
@@ -405,7 +425,10 @@ function HistoryPanel() {
         })}
       </div>
       <button
-        onClick={clearHistory}
+        onClick={() => {
+          historyLog.info(`Clearing history (${history.length} items)`);
+          clearHistory();
+        }}
         className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
       >
         <span>🗑️</span>

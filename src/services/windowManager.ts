@@ -1,5 +1,8 @@
 import { WebviewWindow, getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { createLogger } from "./logger";
+
+const log = createLogger("WindowManager");
 
 // Event names for player window communication
 const PLAYER_EVENTS = {
@@ -32,15 +35,18 @@ class WindowManager {
   async detachPlayer(initialState: PlayerState): Promise<boolean> {
     if (this.playerWindow) {
       // Already detached, focus the window
+      log.debug("detachPlayer: window already exists, focusing");
       await this.playerWindow.setFocus();
       return true;
     }
 
     try {
+      log.info("detachPlayer: creating player window");
       // Check if a stale player window exists and close it
       const existingWindows = await getAllWebviewWindows();
       const existingPlayer = existingWindows.find(w => w.label === "player");
       if (existingPlayer) {
+        log.debug("detachPlayer: closing stale player window");
         await existingPlayer.close();
         // Small delay to ensure window is closed
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -61,21 +67,25 @@ class WindowManager {
       // Wait for the window to be created
       await new Promise<void>((resolve, reject) => {
         this.playerWindow!.once("tauri://created", () => {
+          log.debug("detachPlayer: window created");
           resolve();
         });
         this.playerWindow!.once("tauri://error", (e) => {
+          log.error("detachPlayer: window creation error", e);
           reject(e);
         });
       });
 
       // Listen for window close request
       const unlistenClose = await this.playerWindow.onCloseRequested(async () => {
+        log.debug("detachPlayer: close requested");
         await this.reattachPlayer();
       });
       this.unlistenFns.push(unlistenClose);
 
       // Listen for unexpected window destruction (crash, etc.)
       const unlistenDestroy = await this.playerWindow.once("tauri://destroyed", async () => {
+        log.warn("detachPlayer: window destroyed unexpectedly");
         this.unlistenFns.forEach((fn) => fn());
         this.unlistenFns = [];
         this.playerWindow = null;
@@ -86,9 +96,10 @@ class WindowManager {
       // Send initial state to the player window
       await this.syncState(initialState);
 
+      log.info("detachPlayer: success");
       return true;
     } catch (error) {
-      console.error("Failed to create player window:", error);
+      log.error("detachPlayer: failed", error);
       this.playerWindow = null;
       return false;
     }
@@ -97,6 +108,7 @@ class WindowManager {
   async reattachPlayer(): Promise<boolean> {
     if (!this.playerWindow) return true;
 
+    log.info("reattachPlayer: closing player window");
     try {
       // Clean up listeners
       this.unlistenFns.forEach((fn) => fn());
@@ -104,9 +116,10 @@ class WindowManager {
 
       // Close the window
       await this.playerWindow.close();
+      log.info("reattachPlayer: success");
       return true;
     } catch (error) {
-      console.error("Failed to close player window:", error);
+      log.error("reattachPlayer: failed", error);
       return false;
     } finally {
       this.playerWindow = null;
@@ -116,6 +129,7 @@ class WindowManager {
   }
 
   async syncState(state: PlayerState): Promise<void> {
+    log.debug(`syncState: isPlaying=${state.isPlaying}, currentTime=${state.currentTime.toFixed(1)}`);
     try {
       await emit(PLAYER_EVENTS.STATE_SYNC, state);
     } catch {
@@ -124,6 +138,7 @@ class WindowManager {
   }
 
   async sendCommand(command: "play" | "pause" | "seek", value?: number): Promise<void> {
+    log.debug(`sendCommand: ${command}${value !== undefined ? ` (${value})` : ""}`);
     try {
       await emit(PLAYER_EVENTS.COMMAND, { command, value });
     } catch {

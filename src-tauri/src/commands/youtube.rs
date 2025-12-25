@@ -1,4 +1,5 @@
 use crate::services::{get_expanded_path, ytdlp::{SearchResult, StreamInfo, VideoInfo}, YtDlpService};
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -19,29 +20,47 @@ pub async fn youtube_search(
     query: String,
     max_results: Option<u32>,
 ) -> Result<Vec<SearchResult>, YouTubeError> {
+    let max = max_results.unwrap_or(10);
+    debug!("youtube_search: query='{}', max_results={}", query, max);
+
     let service = YtDlpService::new();
-    let results = service.search(&query, max_results.unwrap_or(10)).await?;
+    let results = service.search(&query, max).await?;
+
+    info!("youtube_search: found {} results for '{}'", results.len(), query);
     Ok(results)
 }
 
 #[tauri::command]
 pub async fn youtube_get_stream_url(video_id: String) -> Result<StreamInfo, YouTubeError> {
+    debug!("youtube_get_stream_url: video_id='{}'", video_id);
+
     let service = YtDlpService::new();
     let stream_info = service.get_stream_url(&video_id).await?;
+
+    info!("youtube_get_stream_url: got stream URL for '{}'", video_id);
     Ok(stream_info)
 }
 
 #[tauri::command]
 pub async fn youtube_get_info(video_id: String) -> Result<VideoInfo, YouTubeError> {
+    debug!("youtube_get_info: video_id='{}'", video_id);
+
     let service = YtDlpService::new();
     let video_info = service.get_video_info(&video_id).await?;
+
+    info!("youtube_get_info: got info for '{}': {}", video_id, video_info.title);
     Ok(video_info)
 }
 
 #[tauri::command]
 pub async fn youtube_check_available() -> Result<bool, YouTubeError> {
+    debug!("youtube_check_available: checking yt-dlp availability");
+
     let service = YtDlpService::new();
-    Ok(service.is_available().await)
+    let available = service.is_available().await;
+
+    info!("youtube_check_available: yt-dlp available={}", available);
+    Ok(available)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -54,6 +73,8 @@ pub struct InstallResult {
 #[tauri::command]
 pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouTubeError> {
     use tokio::process::Command;
+
+    info!("youtube_install_ytdlp: attempting install via '{}'", method);
 
     match method.as_str() {
         "brew" => {

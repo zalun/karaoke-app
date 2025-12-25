@@ -1,6 +1,8 @@
 import { useRef, useCallback, useEffect } from "react";
 import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "../../stores";
-import { windowManager } from "../../services";
+import { windowManager, createLogger } from "../../services";
+
+const log = createLogger("PlayerControls");
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -174,6 +176,7 @@ export function PlayerControls() {
   const handleDetach = useCallback(async () => {
     if (!currentVideo?.streamUrl) return;
 
+    log.info("Detaching player");
     // Pause before detaching - detached window will start paused
     // Explicitly set isPlaying: false since setIsPlaying is async and buildPlayerState
     // might capture the old value before React processes the state update
@@ -184,10 +187,14 @@ export function PlayerControls() {
 
     if (success) {
       setIsDetached(true);
+      log.info("Player detached successfully");
+    } else {
+      log.error("Failed to detach player");
     }
   }, [currentVideo?.streamUrl, setIsDetached, setIsPlaying, buildPlayerState]);
 
   const handleReattach = useCallback(async () => {
+    log.info("Reattaching player");
     await windowManager.reattachPlayer();
     setIsDetached(false);
   }, [setIsDetached]);
@@ -201,12 +208,14 @@ export function PlayerControls() {
       const percentage = clickX / rect.width;
       const newTime = percentage * duration;
 
+      log.debug(`Seeking to ${formatTime(newTime)}`);
       seekTo(Math.max(0, Math.min(newTime, duration)));
     },
     [duration, seekTo]
   );
 
   const handlePrevious = useCallback(async () => {
+    log.info("Playing previous");
     const prevItem = playPrevious();
     if (prevItem && prevItem.video.youtubeId) {
       setIsLoading(true);
@@ -214,8 +223,9 @@ export function PlayerControls() {
         const streamUrl = await getStreamUrlWithCache(prevItem.video.youtubeId);
         setCurrentVideo({ ...prevItem.video, streamUrl });
         setIsPlaying(true);
+        log.info(`Now playing: ${prevItem.video.title}`);
       } catch (err) {
-        console.error("Failed to play previous:", err);
+        log.error("Failed to play previous", err);
         setError("Failed to play previous video");
         setIsLoading(false);
       }
@@ -223,6 +233,7 @@ export function PlayerControls() {
   }, [playPrevious, setCurrentVideo, setIsPlaying, setIsLoading, setError]);
 
   const handleNext = useCallback(async () => {
+    log.info("Playing next");
     const nextItem = playNext();
     if (nextItem && nextItem.video.youtubeId) {
       setIsLoading(true);
@@ -230,13 +241,31 @@ export function PlayerControls() {
         const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
         setCurrentVideo({ ...nextItem.video, streamUrl });
         setIsPlaying(true);
+        log.info(`Now playing: ${nextItem.video.title}`);
       } catch (err) {
-        console.error("Failed to play next:", err);
+        log.error("Failed to play next", err);
         setError("Failed to play next video");
         setIsLoading(false);
       }
     }
   }, [playNext, setCurrentVideo, setIsPlaying, setIsLoading, setError]);
+
+  const handlePlayPause = useCallback(() => {
+    const newState = !isPlaying;
+    log.info(newState ? "Playing" : "Pausing");
+    setIsPlaying(newState);
+  }, [isPlaying, setIsPlaying]);
+
+  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value);
+    log.debug(`Volume: ${Math.round(newVolume * 100)}%`);
+    setVolume(newVolume);
+  }, [setVolume]);
+
+  const handleMuteToggle = useCallback(() => {
+    log.info(isMuted ? "Unmuting" : "Muting");
+    toggleMute();
+  }, [isMuted, toggleMute]);
 
   const { isLoading } = usePlayerStore();
   const isDisabled = !currentVideo;
@@ -267,7 +296,7 @@ export function PlayerControls() {
 
         {/* Play/Pause */}
         <button
-          onClick={() => setIsPlaying(!isPlaying)}
+          onClick={handlePlayPause}
           disabled={isDisabled}
           className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${
             isDisabled
@@ -322,7 +351,7 @@ export function PlayerControls() {
 
         {/* Volume */}
         <button
-          onClick={isDisabled ? undefined : toggleMute}
+          onClick={isDisabled ? undefined : handleMuteToggle}
           className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${
             isDisabled ? "cursor-not-allowed" : "hover:bg-gray-700"
           }`}
@@ -335,7 +364,7 @@ export function PlayerControls() {
           max="1"
           step="0.1"
           value={isMuted ? 0 : volume}
-          onChange={(e) => setVolume(parseFloat(e.target.value))}
+          onChange={handleVolumeChange}
           disabled={isDisabled}
           className="w-20"
         />
