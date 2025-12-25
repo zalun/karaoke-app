@@ -140,9 +140,15 @@ export function VideoPlayer() {
         const nextVideoId = nextItem?.video.youtubeId;
         if (nextVideoId && prefetchTriggeredRef.current !== nextVideoId) {
           prefetchTriggeredRef.current = nextVideoId;
-          youtubeService.getStreamUrl(nextVideoId)
-            .then(info => usePlayerStore.getState().setPrefetchedStreamUrl(nextVideoId, info.url))
-            .catch((err) => console.debug("Prefetch failed for", nextVideoId, err));
+          const videoIdToFetch = nextVideoId; // Capture to avoid race condition
+          youtubeService.getStreamUrl(videoIdToFetch)
+            .then(info => {
+              // Only cache if this is still the next video in queue
+              if (useQueueStore.getState().queue[0]?.video.youtubeId === videoIdToFetch) {
+                usePlayerStore.getState().setPrefetchedStreamUrl(videoIdToFetch, info.url);
+              }
+            })
+            .catch((err) => console.debug("Prefetch failed for", videoIdToFetch, err));
         }
       }
     }
