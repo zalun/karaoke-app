@@ -220,7 +220,7 @@ export function DetachedPlayer() {
       // - During countdown (every second from 10 to 1)
       const shouldShowOverlay = timeRemaining <= OVERLAY_SHOW_THRESHOLD_SECONDS && timeRemaining > 0;
       setOverlayTimeRemaining((prev) => {
-        if (!shouldShowOverlay) return prev === null ? null : null;
+        if (!shouldShowOverlay) return null;
         if (prev !== timeRemaining) return timeRemaining;
         return prev;
       });

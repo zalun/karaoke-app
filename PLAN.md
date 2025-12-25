@@ -129,6 +129,71 @@ CREATE TABLE window_state (
 );
 ```
 
+### Table `singers`
+```sql
+CREATE TABLE singers (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL,          -- Hex color e.g., '#FF5733'
+    is_persistent INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Table `groups`
+```sql
+CREATE TABLE groups (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    is_persistent INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Table `singer_groups`
+```sql
+CREATE TABLE singer_groups (
+    singer_id INTEGER NOT NULL,
+    group_id INTEGER NOT NULL,
+    PRIMARY KEY (singer_id, group_id),
+    FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE,
+    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
+);
+```
+
+### Table `sessions`
+```sql
+CREATE TABLE sessions (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP,
+    is_active INTEGER DEFAULT 1
+);
+```
+
+### Table `session_singers`
+```sql
+CREATE TABLE session_singers (
+    session_id INTEGER NOT NULL,
+    singer_id INTEGER NOT NULL,
+    PRIMARY KEY (session_id, singer_id),
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE
+);
+```
+
+### Table `queue_singers`
+```sql
+CREATE TABLE queue_singers (
+    queue_item_id TEXT NOT NULL,  -- Frontend UUID from queueStore
+    singer_id INTEGER NOT NULL,
+    position INTEGER DEFAULT 0,   -- For ordering multiple singers (duets)
+    PRIMARY KEY (queue_item_id, singer_id),
+    FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE
+);
+```
+
 ## Key Rust Components
 
 ### yt-dlp Service (`services/ytdlp.rs`)
@@ -189,6 +254,30 @@ display_set_auto_apply(config_id, bool) -> ()      // Set auto_apply for configu
 display_update_description(config_id, desc) -> ()  // Change configuration description
 display_delete_config(config_id) -> ()             // Delete saved configuration
 display_apply_config(config_id) -> ()              // Manually apply configuration
+
+// Sessions
+session_start(name?) -> Session                    // Start karaoke session
+session_end(session_id) -> ()                      // End session
+session_get_active() -> Option<Session>            // Get current active session
+
+// Singers
+singer_create(name, color, is_persistent) -> Singer
+singer_update(id, name, color, is_persistent) -> Singer
+singer_delete(id) -> ()                            // Cascades to queue_singers
+singer_list(include_temporary) -> Vec<Singer>
+singer_add_to_session(singer_id, session_id) -> ()
+
+// Groups
+group_create(name, is_persistent, singer_ids) -> Group
+group_update(id, name, is_persistent, singer_ids) -> Group
+group_delete(id) -> ()
+group_list(include_temporary) -> Vec<Group>
+
+// Queue Singer Assignment
+queue_assign_singers(queue_item_id, singer_ids) -> ()
+queue_get_singers(queue_item_id) -> Vec<Singer>
+queue_get_all_assignments() -> Vec<QueueSingerAssignment>
+cleanup_temporary() -> ()                          // Delete non-persistent singers/groups
 ```
 
 ## Implementation Phases
@@ -211,6 +300,10 @@ display_apply_config(config_id) -> ()              // Manually apply configurati
 - [x] VideoPlayer component (HTML5 video)
 - [x] SearchBar + SearchResults
 - [x] Click on result → play video
+- [x] Queue UI with drag-and-drop (in-memory)
+- [x] Integration with player (auto-advance)
+- [x] NextSongOverlay with countdown
+- [x] Detached player with window sync
 - [ ] yt-dlp dependency check:
   - On app startup, verify yt-dlp is installed
   - If missing, show user-friendly error with install options
@@ -218,19 +311,37 @@ display_apply_config(config_id) -> ()              // Manually apply configurati
   - Manual install instructions as fallback
   - Re-check button after installation
 
-### Phase 3: Queue System
-**Result:** Can add videos to queue, queue automatically advances to next
-- [ ] Queue database operations
-- [ ] Tauri commands for queue
-- [ ] QueuePanel with drag-and-drop
-- [ ] Integration with player (auto-advance)
+### Phase 3: Sessions and Singers
+**Result:** Can start karaoke sessions, add singers, assign singers to queue items
+**Dependencies:** Phase 1 (SQLite), Phase 2 (Queue UI, NextSongOverlay, window sync) - all complete
+
+- [ ] Database migration 2: singers, groups, sessions, queue_singers tables
+- [ ] Rust commands: session_*, singer_*, group_*, queue_assign_singers
+- [ ] Frontend sessionStore.ts with singer/group/assignment state
+- [ ] SingerAvatar component (circle with first letter + auto-assigned color)
+- [ ] SingerChip component (avatar + name in pill)
+- [ ] SessionStartPanel ("Start Karaoke Night" button)
+- [ ] SessionBar (shows active session + singer avatars)
+- [ ] SingerPicker dropdown (select/create singers for queue item)
+- [ ] DraggableQueueItem enhancement (show singer chips, click-to-assign)
+- [ ] Drag-drop singer assignment (drag avatar onto queue item)
+- [ ] NextSongOverlay enhancement (show singer avatars with colors)
+- [ ] Sync singer data to detached player via PlayerState.nextSong
+- [ ] Group management UI (optional singer collections)
+- [ ] Persistent vs temporary toggle for singers/groups
+- [ ] Session end with cleanup prompt
+
+### Phase 4: Queue Persistence
+**Result:** Queue survives app restart, can add local files
+- [ ] Queue database operations (persist to SQLite)
+- [ ] Tauri commands for queue persistence
 - [ ] "Play Now" vs "Add to Queue" actions
 - [ ] Add file from disk to queue:
   - "Add file..." button (file picker dialog)
   - Drag & drop file directly to queue
   - Handle files outside library (temporary, without import)
 
-### Phase 4: Downloads and Library
+### Phase 5: Downloads and Library
 **Result:** Can download videos from YT, browse and play from local library
 - [ ] Download command with progress events
 - [ ] Download progress UI
@@ -238,7 +349,7 @@ display_apply_config(config_id) -> ()              // Manually apply configurati
 - [ ] Library filtering and search
 - [ ] Delete video
 
-### Phase 5: USB Drive Support
+### Phase 6: USB Drive Support
 **Result:** Connecting USB drive shows import dialog, can import videos
 - [ ] Volume watcher on `/Volumes/`
 - [ ] Mount/unmount events
@@ -246,7 +357,7 @@ display_apply_config(config_id) -> ()              // Manually apply configurati
 - [ ] Import modal with checkboxes
 - [ ] Selective or full import
 
-### Phase 6: Multi-window and Display Detection
+### Phase 7: Multi-window and Display Detection
 **Result:** Can detach video to projector, application remembers display configurations
 - [ ] Detachable video window (Tauri WebviewWindow)
 - [ ] Display Watcher - listen for display hotplug (CGDisplayRegisterReconfigurationCallback)
@@ -257,7 +368,7 @@ display_apply_config(config_id) -> ()              // Manually apply configurati
 - [ ] Menu: "Manage display configurations..." (list, edit description, toggle auto_apply, delete)
 - [ ] Menu: "Detach video to display...", "Reset to single window"
 
-### Phase 7: Polish
+### Phase 8: Polish
 **Result:** Application ready for daily use
 - [ ] Fullscreen video mode:
   - Toggle fullscreen ↔ windowed without interrupting playback
@@ -300,6 +411,8 @@ display_apply_config(config_id) -> ()              // Manually apply configurati
 | UI blocking during download | Async Tokio tasks + Tauri events for progress |
 | External drive detection | notify crate (kqueue) + fallback polling /Volumes/ every 5s |
 | Video formats from USB drive | HTML5 video supports MP4/WebM, warning for others |
+| Singer assignment to queue | queue_singers table links frontend UUIDs to singers; cascade delete on singer removal |
+| Singer colors | 16-color palette with auto-assignment; fallback to random if all used |
 
 ## Key Files to Create
 
@@ -309,6 +422,14 @@ display_apply_config(config_id) -> ()              // Manually apply configurati
 4. `src-tauri/src/services/display_watcher.rs` - display detection + hotplug
 5. `src/stores/queueStore.ts` - queue management
 6. `src/components/player/VideoPlayer.tsx` - video player
+7. `src-tauri/src/commands/session.rs` - session/singer/group commands
+8. `src/stores/sessionStore.ts` - session/singer state management
+9. `src/constants/colors.ts` - singer color palette
+10. `src/components/singers/SingerAvatar.tsx` - avatar component
+11. `src/components/singers/SingerChip.tsx` - avatar + name pill
+12. `src/components/singers/SingerPicker.tsx` - singer selection dropdown
+13. `src/components/session/SessionBar.tsx` - active session header
+14. `src/components/session/SessionStartPanel.tsx` - start session UI
 
 ## Rust Dependencies (Cargo.toml)
 
