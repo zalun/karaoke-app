@@ -113,23 +113,25 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .targets([
-                    // Log to file - captures all levels including debug
+                    // Log to file - captures all levels including debug for issue reporting
                     Target::new(TargetKind::LogDir { file_name: Some("karaoke".into()) }),
-                    // Log to stdout for dev mode
-                    Target::new(TargetKind::Stdout),
-                    // Log to webview console (controlled by attachConsole)
-                    Target::new(TargetKind::Webview),
+                    // Log to stdout - info level for cleaner terminal output
+                    Target::new(TargetKind::Stdout)
+                        .filter(|metadata| metadata.level() <= log::Level::Info),
+                    // Log to webview console - info level (debug controlled by frontend)
+                    Target::new(TargetKind::Webview)
+                        .filter(|metadata| metadata.level() <= log::Level::Info),
                 ])
-                // Always log debug level to file for issue reporting
+                // Allow debug level globally (file will capture it, others filter it out)
                 .level(log::LevelFilter::Debug)
                 // Reduce noise from some verbose crates
                 .level_for("tao", log::LevelFilter::Warn)
                 .level_for("wry", log::LevelFilter::Warn)
                 .level_for("hyper", log::LevelFilter::Warn)
                 .level_for("reqwest", log::LevelFilter::Warn)
-                // Max 5MB per log file, keep last 3 files
+                // Max 5MB per log file, keep last 3 rotated files
                 .max_file_size(5_000_000)
-                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(3))
                 .build(),
         )
         .invoke_handler(tauri::generate_handler![
