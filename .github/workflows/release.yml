@@ -60,19 +60,17 @@ jobs:
             ## Downloads
             - **Apple Silicon (M1/M2/M3)**: Download the `arm64` version
             - **Intel Macs**: Download the `x64` version
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}
 
-  # Optional: Create universal binary (runs after both arch builds complete)
-  # Uncomment if you want a single binary that works on both architectures
-  # create-universal:
-  #   needs: build-macos
-  #   runs-on: macos-latest
-  #   steps:
-  #     - name: Download artifacts
-  #       uses: actions/download-artifact@v4
-  #     - name: Create universal binary
-  #       run: |
-  #         # Use lipo to create universal binary
-  #         # lipo -create -output Karaoke-universal.app arm64/Karaoke.app x64/Karaoke.app
+  # Publish the draft release after all builds complete
+  publish-release:
+    needs: build-macos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit ${{ github.ref_name }} --draft=false --repo=${{ github.repository }}
