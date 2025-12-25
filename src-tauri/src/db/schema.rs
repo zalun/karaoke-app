@@ -89,6 +89,12 @@ const MIGRATIONS: &[&str] = &[
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
+    // Ensure schema_version table exists for fresh databases
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)",
+        [],
+    )?;
+
     // Get current version
     let current_version: i32 = conn
         .query_row(
@@ -103,6 +109,11 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         let migration_version = (i + 1) as i32;
         if migration_version > current_version {
             conn.execute_batch(migration)?;
+            // Update schema version after each successful migration
+            conn.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?1)",
+                [migration_version],
+            )?;
         }
     }
 
