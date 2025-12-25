@@ -8,14 +8,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
+use tauri_plugin_log::{Target, TargetKind};
 
 pub struct AppState {
     pub db: Mutex<Database>,
     pub keep_awake: Mutex<Option<keepawake::KeepAwake>>,
     pub debug_mode: AtomicBool,
+    pub log_dir: std::path::PathBuf,
 }
 
 const DEBUG_MODE_MENU_ID: &str = "debug-mode";
+const OPEN_LOGS_MENU_ID: &str = "open-logs";
 
 fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>, tauri::Error> {
     // Standard app menu items
@@ -52,9 +55,11 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
         ],
     )?;
 
-    // View menu with Debug Mode toggle
+    // View menu with Debug Mode toggle and Open Logs
     let debug_item =
         CheckMenuItem::with_id(app, DEBUG_MODE_MENU_ID, "Debug Mode", true, debug_enabled, None::<&str>)?;
+    let open_logs_item =
+        MenuItem::with_id(app, OPEN_LOGS_MENU_ID, "Open Log Folder...", true, None::<&str>)?;
 
     let view_menu = Submenu::with_items(
         app,
@@ -66,6 +71,7 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
             &PredefinedMenuItem::fullscreen(app, None)?,
             &PredefinedMenuItem::separator(app)?,
             &debug_item,
+            &open_logs_item,
         ],
     )?;
 
@@ -99,17 +105,33 @@ fn save_debug_preference(db: &Database, enabled: bool) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize logger with env_logger
-    // In dev: RUST_LOG=debug cargo tauri dev
-    // Default to info level
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp_millis()
-        .init();
-
-    info!("Starting Karaoke application");
-
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        // Configure logging with file + stdout + webview targets
+        // File logs capture everything (debug level) for issue reporting
+        // Stdout uses info level by default
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    // Log to file - captures all levels including debug
+                    Target::new(TargetKind::LogDir { file_name: Some("karaoke".into()) }),
+                    // Log to stdout for dev mode
+                    Target::new(TargetKind::Stdout),
+                    // Log to webview console (controlled by attachConsole)
+                    Target::new(TargetKind::Webview),
+                ])
+                // Always log debug level to file for issue reporting
+                .level(log::LevelFilter::Debug)
+                // Reduce noise from some verbose crates
+                .level_for("tao", log::LevelFilter::Warn)
+                .level_for("wry", log::LevelFilter::Warn)
+                .level_for("hyper", log::LevelFilter::Warn)
+                .level_for("reqwest", log::LevelFilter::Warn)
+                // Max 5MB per log file, keep last 3 files
+                .max_file_size(5_000_000)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             commands::youtube_search,
             commands::youtube_get_stream_url,
@@ -120,15 +142,24 @@ pub fn run() {
             commands::keep_awake_disable,
             commands::get_debug_mode,
             commands::set_debug_mode,
+            commands::get_log_path,
         ])
         .setup(|app| {
+            info!("Starting Karaoke application");
+
             let app_data_dir = app
                 .path()
                 .app_data_dir()
                 .expect("Failed to get app data directory");
 
+            let log_dir = app
+                .path()
+                .app_log_dir()
+                .expect("Failed to get log directory");
+
             std::fs::create_dir_all(&app_data_dir)?;
             debug!("App data directory: {:?}", app_data_dir);
+            info!("Log directory: {:?}", log_dir);
 
             let db_path = app_data_dir.join("karaoke.db");
             let db = Database::new(&db_path)?;
@@ -142,6 +173,7 @@ pub fn run() {
                 db: Mutex::new(db),
                 keep_awake: Mutex::new(None),
                 debug_mode: AtomicBool::new(debug_enabled),
+                log_dir: log_dir.clone(),
             });
 
             // Create the application menu
@@ -175,6 +207,29 @@ pub fn run() {
                     // Emit event to frontend
                     let _ = app.emit("debug-mode-changed", new_value);
                     info!("Debug mode toggled: {}", new_value);
+                }
+                OPEN_LOGS_MENU_ID => {
+                    let state = app.state::<AppState>();
+                    let log_dir = &state.log_dir;
+                    info!("Opening log directory: {:?}", log_dir);
+                    #[cfg(target_os = "macos")]
+                    {
+                        let _ = std::process::Command::new("open")
+                            .arg(log_dir)
+                            .spawn();
+                    }
+                    #[cfg(target_os = "windows")]
+                    {
+                        let _ = std::process::Command::new("explorer")
+                            .arg(log_dir)
+                            .spawn();
+                    }
+                    #[cfg(target_os = "linux")]
+                    {
+                        let _ = std::process::Command::new("xdg-open")
+                            .arg(log_dir)
+                            .spawn();
+                    }
                 }
                 _ => {}
             }

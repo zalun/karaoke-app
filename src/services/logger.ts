@@ -1,20 +1,30 @@
+/**
+ * Frontend logging service using @tauri-apps/plugin-log
+ *
+ * This integrates with the Rust backend logging so all logs go to:
+ * - Log file (~/Library/Logs/{app}/karaoke.log on macOS)
+ * - Stdout (in dev mode)
+ * - Webview console (when attachConsole is called)
+ *
+ * The debug mode toggle controls whether debug-level logs are shown
+ * in the webview console, but they always go to the log file.
+ */
+
+import {
+  trace as tauriTrace,
+  debug as tauriDebug,
+  info as tauriInfo,
+  warn as tauriWarn,
+  error as tauriError,
+  attachConsole,
+} from "@tauri-apps/plugin-log";
 import { listen } from "@tauri-apps/api/event";
-
-type LogLevel = "debug" | "info" | "warn" | "error";
-
-interface LogEntry {
-  timestamp: string;
-  level: LogLevel;
-  context: string;
-  message: string;
-  data?: unknown;
-}
 
 const STORAGE_KEY = "karaoke:debug-mode";
 
 class Logger {
   private debugEnabled: boolean;
-  private contexts: Set<string> = new Set();
+  private consoleAttached = false;
 
   constructor() {
     // Load persisted preference
@@ -22,6 +32,9 @@ class Logger {
 
     // Listen for menu toggle events from Tauri
     this.setupMenuListener();
+
+    // Attach console to see Rust logs in browser console
+    this.attachConsoleIfDebug();
   }
 
   private async setupMenuListener(): Promise<void> {
@@ -34,6 +47,17 @@ class Logger {
     }
   }
 
+  private async attachConsoleIfDebug(): Promise<void> {
+    if (this.debugEnabled && !this.consoleAttached) {
+      try {
+        await attachConsole();
+        this.consoleAttached = true;
+      } catch {
+        // May fail if not in Tauri context
+      }
+    }
+  }
+
   get isDebugEnabled(): boolean {
     return this.debugEnabled;
   }
@@ -41,92 +65,12 @@ class Logger {
   setDebugEnabled(enabled: boolean): void {
     this.debugEnabled = enabled;
     localStorage.setItem(STORAGE_KEY, String(enabled));
+
     if (enabled) {
-      console.log(
-        "%c[Debug Mode Enabled]",
-        "color: #22c55e; font-weight: bold",
-        "Verbose logging is now active"
-      );
+      tauriInfo("[Debug Mode Enabled] Verbose logging is now active");
+      this.attachConsoleIfDebug();
     } else {
-      console.log(
-        "%c[Debug Mode Disabled]",
-        "color: #6b7280; font-weight: bold",
-        "Verbose logging is now off"
-      );
-    }
-  }
-
-  private formatTimestamp(): string {
-    const now = new Date();
-    return now.toISOString().slice(11, 23); // HH:mm:ss.SSS
-  }
-
-  private formatEntry(entry: LogEntry): string {
-    return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.context}] ${entry.message}`;
-  }
-
-  private log(level: LogLevel, context: string, message: string, data?: unknown): void {
-    // Always log errors and warnings
-    // Only log debug/info when debug mode is enabled
-    if (level !== "error" && level !== "warn" && !this.debugEnabled) {
-      return;
-    }
-
-    this.contexts.add(context);
-
-    const entry: LogEntry = {
-      timestamp: this.formatTimestamp(),
-      level,
-      context,
-      message,
-      data,
-    };
-
-    const formatted = this.formatEntry(entry);
-    const styles = this.getStyles(level);
-
-    switch (level) {
-      case "debug":
-        if (data !== undefined) {
-          console.debug(`%c${formatted}`, styles, data);
-        } else {
-          console.debug(`%c${formatted}`, styles);
-        }
-        break;
-      case "info":
-        if (data !== undefined) {
-          console.info(`%c${formatted}`, styles, data);
-        } else {
-          console.info(`%c${formatted}`, styles);
-        }
-        break;
-      case "warn":
-        if (data !== undefined) {
-          console.warn(`%c${formatted}`, styles, data);
-        } else {
-          console.warn(`%c${formatted}`, styles);
-        }
-        break;
-      case "error":
-        if (data !== undefined) {
-          console.error(`%c${formatted}`, styles, data);
-        } else {
-          console.error(`%c${formatted}`, styles);
-        }
-        break;
-    }
-  }
-
-  private getStyles(level: LogLevel): string {
-    switch (level) {
-      case "debug":
-        return "color: #94a3b8"; // gray
-      case "info":
-        return "color: #3b82f6"; // blue
-      case "warn":
-        return "color: #f59e0b"; // amber
-      case "error":
-        return "color: #ef4444"; // red
+      tauriInfo("[Debug Mode Disabled] Verbose logging is now off");
     }
   }
 
@@ -134,56 +78,66 @@ class Logger {
    * Create a scoped logger for a specific context
    */
   scope(context: string): ScopedLogger {
-    return new ScopedLogger(this, context);
-  }
-
-  debug(context: string, message: string, data?: unknown): void {
-    this.log("debug", context, message, data);
-  }
-
-  info(context: string, message: string, data?: unknown): void {
-    this.log("info", context, message, data);
-  }
-
-  warn(context: string, message: string, data?: unknown): void {
-    this.log("warn", context, message, data);
-  }
-
-  error(context: string, message: string, data?: unknown): void {
-    this.log("error", context, message, data);
-  }
-
-  /**
-   * Get all contexts that have been used for logging
-   */
-  getContexts(): string[] {
-    return Array.from(this.contexts).sort();
+    return new ScopedLogger(context);
   }
 }
 
 /**
  * Scoped logger for a specific context - avoids repeating context name
+ *
+ * Logs always go to the log file (via tauri-plugin-log).
+ * Debug-level logs are filtered in the console based on debug mode.
  */
 class ScopedLogger {
-  constructor(
-    private logger: Logger,
-    private context: string
-  ) {}
+  constructor(private context: string) {}
+
+  private formatMessage(message: string): string {
+    return `[${this.context}] ${message}`;
+  }
+
+  trace(message: string, data?: unknown): void {
+    const formatted = this.formatMessage(message);
+    if (data !== undefined) {
+      tauriTrace(`${formatted} ${JSON.stringify(data)}`);
+    } else {
+      tauriTrace(formatted);
+    }
+  }
 
   debug(message: string, data?: unknown): void {
-    this.logger.debug(this.context, message, data);
+    const formatted = this.formatMessage(message);
+    if (data !== undefined) {
+      tauriDebug(`${formatted} ${JSON.stringify(data)}`);
+    } else {
+      tauriDebug(formatted);
+    }
   }
 
   info(message: string, data?: unknown): void {
-    this.logger.info(this.context, message, data);
+    const formatted = this.formatMessage(message);
+    if (data !== undefined) {
+      tauriInfo(`${formatted} ${JSON.stringify(data)}`);
+    } else {
+      tauriInfo(formatted);
+    }
   }
 
   warn(message: string, data?: unknown): void {
-    this.logger.warn(this.context, message, data);
+    const formatted = this.formatMessage(message);
+    if (data !== undefined) {
+      tauriWarn(`${formatted} ${JSON.stringify(data)}`);
+    } else {
+      tauriWarn(formatted);
+    }
   }
 
   error(message: string, data?: unknown): void {
-    this.logger.error(this.context, message, data);
+    const formatted = this.formatMessage(message);
+    if (data !== undefined) {
+      tauriError(`${formatted} ${JSON.stringify(data)}`);
+    } else {
+      tauriError(formatted);
+    }
   }
 }
 

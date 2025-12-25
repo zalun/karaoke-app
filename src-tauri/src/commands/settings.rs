@@ -22,3 +22,9 @@ pub fn set_debug_mode(state: State<'_, AppState>, enabled: bool) {
         let _ = db.set_setting("debug_mode", if enabled { "true" } else { "false" });
     }
 }
+
+/// Get the log directory path
+#[tauri::command]
+pub fn get_log_path(state: State<'_, AppState>) -> String {
+    state.log_dir.to_string_lossy().to_string()
+}
