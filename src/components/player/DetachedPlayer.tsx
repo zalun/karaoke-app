@@ -11,7 +11,7 @@ import {
 const TIME_UPDATE_THROTTLE_MS = 500;
 
 // Minimum position (in seconds) to restore when reattaching - avoids seeking to near-zero
-const MIN_RESTORE_POSITION_SECONDS = 1;
+export const MIN_RESTORE_POSITION_SECONDS = 1;
 
 // Validate stream URL to prevent XSS - only allow http/https schemes
 function isValidStreamUrl(url: string): boolean {
@@ -198,6 +198,8 @@ export function DetachedPlayer() {
 
   // Handle play state changes (only after video is ready)
   // Only PLAYS video when needed - pause is handled by commands listener
+  // Note: state.isPlaying is in deps to trigger effect when state changes, but we use
+  // intendedPlayStateRef.current to avoid closure timing issues with React's batching
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !state.streamUrl || !isReady) return;

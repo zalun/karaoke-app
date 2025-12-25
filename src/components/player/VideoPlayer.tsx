@@ -13,6 +13,7 @@ import {
   OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
+import { MIN_RESTORE_POSITION_SECONDS } from "./DetachedPlayer";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -104,7 +105,7 @@ export function VideoPlayer() {
   useEffect(() => {
     const video = videoRef.current;
     // Detect reattachment: was detached, now not detached
-    if (wasDetachedRef.current && !isDetached && video && currentTime > 1) {
+    if (wasDetachedRef.current && !isDetached && video && currentTime > MIN_RESTORE_POSITION_SECONDS) {
       video.currentTime = currentTime;
     }
     // Update ref for next render

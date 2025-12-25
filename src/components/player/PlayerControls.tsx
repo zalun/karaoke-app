@@ -175,9 +175,12 @@ export function PlayerControls() {
     if (!currentVideo?.streamUrl) return;
 
     // Pause before detaching - detached window will start paused
+    // Explicitly set isPlaying: false since setIsPlaying is async and buildPlayerState
+    // might capture the old value before React processes the state update
     setIsPlaying(false);
+    const stateToDetach = { ...buildPlayerState(), isPlaying: false };
 
-    const success = await windowManager.detachPlayer(buildPlayerState());
+    const success = await windowManager.detachPlayer(stateToDetach);
 
     if (success) {
       setIsDetached(true);
