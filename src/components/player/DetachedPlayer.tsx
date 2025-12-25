@@ -10,6 +10,9 @@ import {
 // Throttle time updates to reduce event frequency (500ms interval)
 const TIME_UPDATE_THROTTLE_MS = 500;
 
+// Minimum position (in seconds) to restore when reattaching - avoids seeking to near-zero
+const MIN_RESTORE_POSITION_SECONDS = 1;
+
 // Validate stream URL to prevent XSS - only allow http/https schemes
 function isValidStreamUrl(url: string): boolean {
   try {
@@ -158,7 +161,7 @@ export function DetachedPlayer() {
     setIsReady(true);
 
     // Restore position only on initial detach, not when switching videos
-    if (shouldRestorePosition && state.currentTime > 1) {
+    if (shouldRestorePosition && state.currentTime > MIN_RESTORE_POSITION_SECONDS) {
       video.currentTime = state.currentTime;
     }
 
