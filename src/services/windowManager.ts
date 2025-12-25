@@ -8,6 +8,7 @@ export interface PlayerState {
   duration: number;
   volume: number;
   isMuted: boolean;
+  nextSong?: { title: string; artist?: string };
 }
 
 class WindowManager {

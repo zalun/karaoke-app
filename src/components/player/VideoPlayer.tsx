@@ -8,6 +8,11 @@ import {
 } from "../../stores";
 import { youtubeService } from "../../services";
 import { useWakeLock } from "../../hooks";
+import {
+  NextSongOverlay,
+  OVERLAY_SHOW_THRESHOLD_SECONDS,
+  COUNTDOWN_START_THRESHOLD_SECONDS,
+} from "./NextSongOverlay";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -21,6 +26,8 @@ export function VideoPlayer() {
     volume,
     isMuted,
     seekTime,
+    currentTime,
+    duration,
     setCurrentVideo,
     setIsPlaying,
     setCurrentTime,
@@ -38,9 +45,9 @@ export function VideoPlayer() {
     prefetchTriggeredRef.current = null;
   }, [currentVideo?.id]);
 
-  // Invalidate prefetch cache when first queue item changes (e.g., user reorders or removes items)
-  // Only subscribe to queue[0] to avoid re-renders when other queue items change
-  const nextQueueVideoId = useQueueStore((state) => state.queue[0]?.video.youtubeId);
+  // Subscribe to first queue item for overlay and prefetch cache invalidation
+  const nextQueueItem = useQueueStore((state) => state.queue[0]);
+  const nextQueueVideoId = nextQueueItem?.video.youtubeId;
   useEffect(() => {
     invalidatePrefetchIfStale(nextQueueVideoId);
     // Also reset prefetch trigger if queue's first item changed
@@ -253,6 +260,18 @@ export function VideoPlayer() {
           <div className="text-white">Loading...</div>
         </div>
       )}
+      {(() => {
+        if (!nextQueueItem || duration <= 0) return null;
+        const timeRemaining = Math.ceil(duration - currentTime);
+        if (timeRemaining > OVERLAY_SHOW_THRESHOLD_SECONDS) return null;
+        return (
+          <NextSongOverlay
+            title={nextQueueItem.video.title}
+            artist={nextQueueItem.video.artist}
+            countdown={timeRemaining <= COUNTDOWN_START_THRESHOLD_SECONDS ? timeRemaining : undefined}
+          />
+        );
+      })()}
     </div>
   );
 }
