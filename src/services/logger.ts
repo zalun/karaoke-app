@@ -19,6 +19,7 @@ import {
   attachConsole,
 } from "@tauri-apps/plugin-log";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 
 const STORAGE_KEY = "karaoke:debug-mode";
 
@@ -27,14 +28,28 @@ class Logger {
   private consoleAttached = false;
 
   constructor() {
-    // Load persisted preference
+    // Load persisted preference from localStorage as initial value
     this.debugEnabled = localStorage.getItem(STORAGE_KEY) === "true";
+
+    // Sync with backend state (source of truth)
+    this.syncWithBackend();
 
     // Listen for menu toggle events from Tauri
     this.setupMenuListener();
 
     // Attach console to see Rust logs in browser console
     this.attachConsoleIfDebug();
+  }
+
+  private async syncWithBackend(): Promise<void> {
+    try {
+      const backendDebug = await invoke<boolean>("get_debug_mode");
+      if (backendDebug !== this.debugEnabled) {
+        this.setDebugEnabled(backendDebug);
+      }
+    } catch {
+      // Fallback to localStorage if not in Tauri context (e.g., during tests)
+    }
   }
 
   private async setupMenuListener(): Promise<void> {

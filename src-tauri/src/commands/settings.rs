@@ -18,8 +18,15 @@ pub fn set_debug_mode(state: State<'_, AppState>, enabled: bool) {
     state.debug_mode.store(enabled, Ordering::SeqCst);
 
     // Save to database
-    if let Ok(db) = state.db.lock() {
-        let _ = db.set_setting("debug_mode", if enabled { "true" } else { "false" });
+    match state.db.lock() {
+        Ok(db) => {
+            if let Err(e) = db.set_setting("debug_mode", if enabled { "true" } else { "false" }) {
+                log::error!("Failed to save debug mode preference: {}", e);
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to acquire database lock when saving debug mode: {}", e);
+        }
     }
 }
 

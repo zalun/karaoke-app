@@ -100,7 +100,9 @@ fn load_debug_preference(db: &Database) -> bool {
 }
 
 fn save_debug_preference(db: &Database, enabled: bool) {
-    let _ = db.set_setting("debug_mode", if enabled { "true" } else { "false" });
+    if let Err(e) = db.set_setting("debug_mode", if enabled { "true" } else { "false" }) {
+        log::error!("Failed to save debug mode preference: {}", e);
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -202,8 +204,9 @@ pub fn run() {
                     state.debug_mode.store(new_value, Ordering::SeqCst);
 
                     // Save to database
-                    if let Ok(db) = state.db.lock() {
-                        save_debug_preference(&db, new_value);
+                    match state.db.lock() {
+                        Ok(db) => save_debug_preference(&db, new_value),
+                        Err(e) => log::error!("Failed to acquire database lock: {}", e),
                     }
 
                     // Emit event to frontend
