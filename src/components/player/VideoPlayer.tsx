@@ -1,7 +1,8 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useMemo } from "react";
 import {
   usePlayerStore,
   useQueueStore,
+  useSessionStore,
   getStreamUrlWithCache,
   invalidatePrefetchIfStale,
   PREFETCH_THRESHOLD_SECONDS,
@@ -282,18 +283,46 @@ export function VideoPlayer() {
           <div className="text-white">Loading...</div>
         </div>
       )}
-      {(() => {
-        if (!nextQueueItem || duration <= 0) return null;
-        const timeRemaining = Math.ceil(duration - currentTime);
-        if (timeRemaining > OVERLAY_SHOW_THRESHOLD_SECONDS) return null;
-        return (
-          <NextSongOverlay
-            title={nextQueueItem.video.title}
-            artist={nextQueueItem.video.artist}
-            countdown={timeRemaining <= COUNTDOWN_START_THRESHOLD_SECONDS ? timeRemaining : undefined}
-          />
-        );
-      })()}
+      <NextSongOverlayWithSingers
+        nextQueueItem={nextQueueItem}
+        duration={duration}
+        currentTime={currentTime}
+      />
     </div>
+  );
+}
+
+// Separate component to handle singer loading for next song overlay
+function NextSongOverlayWithSingers({
+  nextQueueItem,
+  duration,
+  currentTime,
+}: {
+  nextQueueItem: ReturnType<typeof useQueueStore.getState>["queue"][0] | undefined;
+  duration: number;
+  currentTime: number;
+}) {
+  const { session, getQueueItemSingerIds, getSingerById } = useSessionStore();
+
+  // Get singers for next queue item
+  const nextSingers = useMemo(() => {
+    if (!session || !nextQueueItem) return undefined;
+    const singerIds = getQueueItemSingerIds(nextQueueItem.id);
+    return singerIds.map((id) => getSingerById(id)).filter(Boolean) as NonNullable<
+      ReturnType<typeof getSingerById>
+    >[];
+  }, [session, nextQueueItem, getQueueItemSingerIds, getSingerById]);
+
+  if (!nextQueueItem || duration <= 0) return null;
+  const timeRemaining = Math.ceil(duration - currentTime);
+  if (timeRemaining > OVERLAY_SHOW_THRESHOLD_SECONDS) return null;
+
+  return (
+    <NextSongOverlay
+      title={nextQueueItem.video.title}
+      artist={nextQueueItem.video.artist}
+      countdown={timeRemaining <= COUNTDOWN_START_THRESHOLD_SECONDS ? timeRemaining : undefined}
+      singers={nextSingers}
+    />
   );
 }

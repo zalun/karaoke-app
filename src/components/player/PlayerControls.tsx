@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect } from "react";
-import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "../../stores";
+import { usePlayerStore, useQueueStore, useSessionStore, getStreamUrlWithCache } from "../../stores";
 import { windowManager, createLogger } from "../../services";
 
 const log = createLogger("PlayerControls");
@@ -39,6 +39,18 @@ export function PlayerControls() {
   const buildPlayerState = useCallback(() => {
     const state = usePlayerStore.getState();
     const next = useQueueStore.getState().queue[0];
+    const sessionState = useSessionStore.getState();
+
+    // Get singers for next queue item
+    let nextSingers: Array<{ id: number; name: string; color: string }> | undefined;
+    if (next && sessionState.session) {
+      const singerIds = sessionState.getQueueItemSingerIds(next.id);
+      nextSingers = singerIds
+        .map((id) => sessionState.getSingerById(id))
+        .filter(Boolean)
+        .map((s) => ({ id: s!.id, name: s!.name, color: s!.color }));
+    }
+
     return {
       streamUrl: state.currentVideo?.streamUrl ?? null,
       isPlaying: state.isPlaying,
@@ -46,7 +58,9 @@ export function PlayerControls() {
       duration: state.duration,
       volume: state.volume,
       isMuted: state.isMuted,
-      nextSong: next ? { title: next.video.title, artist: next.video.artist } : undefined,
+      nextSong: next
+        ? { title: next.video.title, artist: next.video.artist, singers: nextSingers }
+        : undefined,
     };
   }, []);
 

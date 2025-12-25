@@ -14,6 +14,12 @@ const PLAYER_EVENTS = {
   FINAL_STATE: "player:final-state",
 } as const;
 
+export interface NextSongInfo {
+  title: string;
+  artist?: string;
+  singers?: Array<{ id: number; name: string; color: string }>;
+}
+
 export interface PlayerState {
   streamUrl: string | null;
   isPlaying: boolean;
@@ -21,7 +27,7 @@ export interface PlayerState {
   duration: number;
   volume: number;
   isMuted: boolean;
-  nextSong?: { title: string; artist?: string };
+  nextSong?: NextSongInfo;
 }
 
 class WindowManager {

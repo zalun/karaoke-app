@@ -7,3 +7,4 @@ export {
 } from "./playerStore";
 export { useQueueStore, type QueueItem } from "./queueStore";
 export { useAppStore } from "./appStore";
+export { useSessionStore } from "./sessionStore";
