@@ -54,6 +54,35 @@ export const useXxxStore = create<XxxState>((set, get) => ({
 
 **Queue item status:** `"pending" | "playing" | "completed" | "skipped"`
 
+## Logging
+
+- Uses `tauri-plugin-log` with file + stdout + webview targets
+- Debug mode toggle in View menu (persisted to SQLite)
+- Log location: `~/Library/Logs/app.karaoke.home/karaoke.log` (macOS)
+- Frontend: Use `createLogger("Context")` from `src/services/logger`
+- Backend: Use `log::debug!()`, `log::info!()`, etc.
+
+## Changelog & Versioning
+
+- Follow [Keep a Changelog](https://keepachangelog.com/) format in `CHANGELOG.md`
+- Use [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
+- Update version in three places: `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`
+- Add changelog entry with each PR that adds features or fixes bugs
+
+## Releases
+
+Releases are automated via GitHub Actions (`.github/workflows/release.yml`):
+
+1. Update version and CHANGELOG.md
+2. Merge PR to main
+3. Create and push a version tag:
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+4. GitHub Actions builds for Apple Silicon (arm64) and Intel (x86_64)
+5. Release appears at https://github.com/zalun/karaoke-app/releases with .dmg files
+
 ## Implementation Roadmap
 
-See `PLAN.md` for detailed phases. Currently at Phase 1 (Foundation). Next: Phase 2 (YouTube Integration) requires implementing yt-dlp service in Rust.
+See `PLAN.md` for detailed phases. Currently completed through Phase 2 (YouTube Integration) with yt-dlp service, search, streaming, queue/history, and detachable player.
