@@ -13,11 +13,14 @@ import {
   OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
+import { MIN_RESTORE_POSITION_SECONDS } from "./DetachedPlayer";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const prefetchTriggeredRef = useRef<string | null>(null);
   const usedCachedUrlRef = useRef<boolean>(false);
+  // Track previous detached state to detect reattachment
+  const wasDetachedRef = useRef(false);
   const {
     currentVideo,
     isPlaying,
@@ -97,6 +100,17 @@ export function VideoPlayer() {
     video.currentTime = seekTime;
     clearSeek();
   }, [seekTime, clearSeek]);
+
+  // Seek to stored currentTime when reattaching from detached window
+  useEffect(() => {
+    const video = videoRef.current;
+    // Detect reattachment: was detached, now not detached
+    if (wasDetachedRef.current && !isDetached && video && currentTime > MIN_RESTORE_POSITION_SECONDS) {
+      video.currentTime = currentTime;
+    }
+    // Update ref for next render
+    wasDetachedRef.current = isDetached;
+  }, [isDetached, currentTime]);
 
   // Keyboard shortcuts for seeking
   useEffect(() => {

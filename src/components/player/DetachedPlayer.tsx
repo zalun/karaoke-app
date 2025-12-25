@@ -10,11 +10,25 @@ import {
 // Throttle time updates to reduce event frequency (500ms interval)
 const TIME_UPDATE_THROTTLE_MS = 500;
 
+// Minimum position (in seconds) to restore when reattaching - avoids seeking to near-zero
+export const MIN_RESTORE_POSITION_SECONDS = 1;
+
+// Validate stream URL to prevent XSS - only allow http/https schemes
+function isValidStreamUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function DetachedPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastTimeUpdateRef = useRef<number>(0);
   const pendingCommandRef = useRef<{ command: "play" | "pause" | "seek"; value?: number } | null>(null);
-  const isMutedForAutoplayRef = useRef(false);
+  // Track intended play state via ref to avoid closure timing issues
+  const intendedPlayStateRef = useRef(false); // Start paused - user can click play
   const [isReady, setIsReady] = useState(false);
   const [shouldRestorePosition, setShouldRestorePosition] = useState(true);
   const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
@@ -44,7 +58,11 @@ export function DetachedPlayer() {
     const setupListeners = async () => {
       const stateListener = await windowManager.listenForStateSync((newState) => {
         stateReceived = true;
-        if (isMounted) setState(newState);
+        if (isMounted) {
+          // Update ref immediately (no async batching)
+          intendedPlayStateRef.current = newState.isPlaying;
+          setState(newState);
+        }
       });
 
       if (isMounted) {
@@ -58,6 +76,10 @@ export function DetachedPlayer() {
         if (!isMounted) return;
         const video = videoRef.current;
         if (!video) return;
+
+        // Update ref for play/pause commands
+        if (cmd.command === "play") intendedPlayStateRef.current = true;
+        if (cmd.command === "pause") intendedPlayStateRef.current = false;
 
         // If video isn't ready, queue the command for later
         if (video.readyState < 3) {
@@ -119,6 +141,12 @@ export function DetachedPlayer() {
     if (!video) return;
 
     if (state.streamUrl && state.streamUrl !== currentStreamUrl) {
+      // Validate URL before assignment to prevent XSS
+      if (!isValidStreamUrl(state.streamUrl)) {
+        console.error("Invalid stream URL rejected:", state.streamUrl);
+        return;
+      }
+
       const isNewVideo = currentStreamUrl !== null && state.streamUrl !== currentStreamUrl;
 
       setIsReady(false);
@@ -142,64 +170,52 @@ export function DetachedPlayer() {
     setIsReady(true);
 
     // Restore position only on initial detach, not when switching videos
-    if (shouldRestorePosition && state.currentTime > 1) {
+    if (shouldRestorePosition && state.currentTime > MIN_RESTORE_POSITION_SECONDS) {
       video.currentTime = state.currentTime;
     }
 
     // Process any pending command that arrived before video was ready
     const pendingCmd = pendingCommandRef.current;
-    const shouldPlay = pendingCmd?.command === "play" || (!pendingCmd && state.isPlaying);
-
     if (pendingCmd) {
       pendingCommandRef.current = null;
       if (pendingCmd.command === "pause") {
-        video.pause();
+        intendedPlayStateRef.current = false;
+      } else if (pendingCmd.command === "play") {
+        intendedPlayStateRef.current = true;
       } else if (pendingCmd.command === "seek" && pendingCmd.value !== undefined) {
         video.currentTime = pendingCmd.value;
       }
     }
 
-    if (shouldPlay) {
-      // Use muted autoplay to bypass browser restrictions, then restore volume
-      isMutedForAutoplayRef.current = true;
-      video.muted = true;
-      video.play()
-        .then(() => {
-          isMutedForAutoplayRef.current = false;
-          video.muted = state.isMuted;
-        })
-        .catch((err) => {
-          isMutedForAutoplayRef.current = false;
-          console.error("Autoplay failed:", err);
-        });
+    // Try to play if we should be playing
+    if (intendedPlayStateRef.current) {
+      video.play().catch((err) => console.error("Play failed:", err));
     }
 
     // After first video loads, don't restore position for subsequent videos
     setShouldRestorePosition(false);
-  }, [isReady, state.currentTime, state.isPlaying, state.isMuted, shouldRestorePosition]);
+  }, [isReady, state.currentTime, shouldRestorePosition]);
 
-  // Handle play/pause state changes (only after video is ready)
+  // Handle play state changes (only after video is ready)
+  // Only PLAYS video when needed - pause is handled by commands listener
+  // Note: state.isPlaying is in deps to trigger effect when state changes, but we use
+  // intendedPlayStateRef.current to avoid closure timing issues with React's batching
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !state.streamUrl || !isReady) return;
 
-    if (state.isPlaying && video.paused) {
-      video.play().catch(console.error);
-    } else if (!state.isPlaying && !video.paused) {
-      video.pause();
+    if (intendedPlayStateRef.current && video.paused) {
+      video.play().catch((err) => console.error("Play failed:", err));
     }
   }, [state.isPlaying, state.streamUrl, isReady]);
 
-  // Handle volume
+  // Handle volume changes from main window
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     video.volume = state.volume;
-    // Don't change muted state if we're in the middle of muted autoplay
-    if (!isMutedForAutoplayRef.current) {
-      video.muted = state.isMuted;
-    }
+    video.muted = state.isMuted;
   }, [state.volume, state.isMuted]);
 
   // Send time updates back to main window (throttled to reduce event frequency)
@@ -275,8 +291,6 @@ export function DetachedPlayer() {
         onCanPlay={handleCanPlay}
         onDoubleClick={handleDoubleClick}
         playsInline
-        autoPlay
-        muted
       />
       {(!state.streamUrl || !isReady) && (
         <div className="absolute inset-0 flex items-center justify-center text-gray-500">
