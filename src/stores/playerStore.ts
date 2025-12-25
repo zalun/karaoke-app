@@ -4,6 +4,9 @@ import { youtubeService } from "../services";
 // Cache expiration: 5 hours (YouTube URLs typically expire after 6 hours)
 const PREFETCH_CACHE_EXPIRY_MS = 5 * 60 * 60 * 1000;
 
+// Prefetch threshold: start prefetching this many seconds before video ends
+export const PREFETCH_THRESHOLD_SECONDS = 20;
+
 export interface Video {
   id: string;
   title: string;
@@ -96,15 +99,41 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   clearPrefetchedStreamUrl: () => set({ prefetchedStreamUrl: null }),
 }));
 
-// Helper function to get stream URL, using cache if available
-export async function getStreamUrlWithCache(videoId: string): Promise<string> {
+/**
+ * Get stream URL for a video, using prefetched cache if available.
+ * Falls back to fetching fresh URL if cache miss or on error.
+ *
+ * @param videoId - YouTube video ID
+ * @param clearCache - Whether to clear cache after retrieving (default: true)
+ * @returns Promise resolving to the stream URL
+ */
+export async function getStreamUrlWithCache(
+  videoId: string,
+  clearCache = true
+): Promise<string> {
   const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(videoId);
 
   if (cachedUrl) {
-    usePlayerStore.getState().clearPrefetchedStreamUrl();
+    if (clearCache) {
+      usePlayerStore.getState().clearPrefetchedStreamUrl();
+    }
     return cachedUrl;
   }
 
   const streamInfo = await youtubeService.getStreamUrl(videoId);
   return streamInfo.url;
+
+}
+
+/**
+ * Invalidate prefetch cache if it doesn't match the expected video ID.
+ * Call this when the queue changes to ensure stale prefetches are cleared.
+ *
+ * @param expectedVideoId - The video ID that should be prefetched (queue[0])
+ */
+export function invalidatePrefetchIfStale(expectedVideoId: string | undefined): void {
+  const cached = usePlayerStore.getState().prefetchedStreamUrl;
+  if (cached && cached.videoId !== expectedVideoId) {
+    usePlayerStore.getState().clearPrefetchedStreamUrl();
+  }
 }

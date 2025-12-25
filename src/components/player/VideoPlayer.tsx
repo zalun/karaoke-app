@@ -1,11 +1,18 @@
 import { useRef, useEffect, useCallback } from "react";
-import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "../../stores";
+import {
+  usePlayerStore,
+  useQueueStore,
+  getStreamUrlWithCache,
+  invalidatePrefetchIfStale,
+  PREFETCH_THRESHOLD_SECONDS,
+} from "../../stores";
 import { youtubeService } from "../../services";
 import { useWakeLock } from "../../hooks";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const prefetchTriggeredRef = useRef<string | null>(null);
+  const usedCachedUrlRef = useRef<boolean>(false);
   const {
     currentVideo,
     isPlaying,
@@ -30,6 +37,17 @@ export function VideoPlayer() {
   useEffect(() => {
     prefetchTriggeredRef.current = null;
   }, [currentVideo?.id]);
+
+  // Invalidate prefetch cache when queue changes (e.g., user reorders or removes items)
+  const queue = useQueueStore((state) => state.queue);
+  useEffect(() => {
+    const nextVideoId = queue[0]?.video.youtubeId;
+    invalidatePrefetchIfStale(nextVideoId);
+    // Also reset prefetch trigger if queue's first item changed
+    if (prefetchTriggeredRef.current && prefetchTriggeredRef.current !== nextVideoId) {
+      prefetchTriggeredRef.current = null;
+    }
+  }, [queue]);
 
   const tryPlay = useCallback(() => {
     const video = videoRef.current;
@@ -112,10 +130,10 @@ export function VideoPlayer() {
     const duration = video.duration;
     setCurrentTime(currentTime);
 
-    // Prefetch next video 20s before end (or immediately if video <= 20s)
+    // Prefetch next video before end (or immediately if video is short)
     if (duration > 0) {
       const timeRemaining = duration - currentTime;
-      const shouldPrefetch = timeRemaining <= 20 || duration <= 20;
+      const shouldPrefetch = timeRemaining <= PREFETCH_THRESHOLD_SECONDS || duration <= PREFETCH_THRESHOLD_SECONDS;
 
       if (shouldPrefetch) {
         const nextItem = useQueueStore.getState().queue[0];
@@ -138,6 +156,7 @@ export function VideoPlayer() {
 
   const handleCanPlay = () => {
     setIsLoading(false);
+    usedCachedUrlRef.current = false; // Reset on successful load
     // Auto-play when video is ready and isPlaying is true
     if (isPlaying) {
       tryPlay();
@@ -152,6 +171,10 @@ export function VideoPlayer() {
       // Play next from queue
       setIsLoading(true);
       try {
+        // Check if we have a cached URL
+        const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId);
+        usedCachedUrlRef.current = !!cachedUrl;
+
         const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
         setCurrentVideo({ ...nextItem.video, streamUrl });
         setIsPlaying(true);
@@ -165,10 +188,23 @@ export function VideoPlayer() {
     }
   }, [setCurrentVideo, setIsPlaying, setIsLoading, setError]);
 
-  const handleError = () => {
+  const handleError = useCallback(async () => {
+    // If we used a cached URL that might be stale, retry with fresh fetch
+    if (usedCachedUrlRef.current && currentVideo?.youtubeId) {
+      console.debug("Cached URL failed, retrying with fresh fetch");
+      usedCachedUrlRef.current = false;
+      setIsLoading(true);
+      try {
+        const streamInfo = await youtubeService.getStreamUrl(currentVideo.youtubeId);
+        setCurrentVideo({ ...currentVideo, streamUrl: streamInfo.url });
+        return; // Don't show error, we're retrying
+      } catch (err) {
+        console.error("Fresh fetch also failed:", err);
+      }
+    }
     setError("Failed to load video");
     setIsLoading(false);
-  };
+  }, [currentVideo, setCurrentVideo, setError, setIsLoading]);
 
   const handleLoadStart = () => {
     setIsLoading(true);
