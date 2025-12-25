@@ -137,9 +137,19 @@ impl YtDlpService {
         Self
     }
 
-    /// Check if yt-dlp is available by checking known installation locations
+    /// Check if yt-dlp is available by verifying it can be executed
     pub async fn is_available(&self) -> bool {
-        find_ytdlp_path().is_some()
+        if let Some(path) = find_ytdlp_path() {
+            // Verify it's executable by running --version
+            Command::new(path)
+                .arg("--version")
+                .output()
+                .await
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        } else {
+            false
+        }
     }
 
     /// Validate YouTube video ID format (alphanumeric, dash, underscore, 11 chars)
