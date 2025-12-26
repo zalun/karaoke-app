@@ -90,13 +90,26 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         const history = state.history.map(fromQueueItemData);
         // Validate historyIndex is within bounds
         let historyIndex = state.history_index;
+        let indexCorrected = false;
         if (history.length === 0) {
+          if (historyIndex !== -1) indexCorrected = true;
           historyIndex = -1;
         } else if (historyIndex >= history.length) {
+          indexCorrected = true;
           historyIndex = history.length - 1;
         } else if (historyIndex < -1) {
+          indexCorrected = true;
           historyIndex = -1;
         }
+
+        // Persist corrected index back to database
+        if (indexCorrected) {
+          log.info(`Correcting out-of-bounds historyIndex: ${state.history_index} -> ${historyIndex}`);
+          queueService.setHistoryIndex(historyIndex).catch((error) => {
+            log.error("Failed to persist corrected history index:", error);
+          });
+        }
+
         set({
           queue,
           history,

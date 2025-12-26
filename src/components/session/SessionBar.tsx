@@ -61,25 +61,49 @@ export function SessionBar() {
 
   // Listen for menu event to show rename dialog
   useEffect(() => {
-    const unlisten = listen("show-rename-session-dialog", () => {
-      if (session) {
+    let mounted = true;
+    let unlistenFn: (() => void) | null = null;
+
+    listen("show-rename-session-dialog", () => {
+      if (mounted && session) {
         setRenameValue(session.name || "");
         setRenameError(null);
         openRenameDialog();
       }
+    }).then((fn) => {
+      if (mounted) {
+        unlistenFn = fn;
+      } else {
+        fn(); // Component already unmounted, clean up immediately
+      }
     });
+
     return () => {
-      unlisten.then((fn) => fn());
+      mounted = false;
+      if (unlistenFn) unlistenFn();
     };
   }, [session, openRenameDialog]);
 
   // Listen for menu event to show load session dialog
   useEffect(() => {
-    const unlisten = listen("show-load-session-dialog", () => {
-      openLoadDialog();
+    let mounted = true;
+    let unlistenFn: (() => void) | null = null;
+
+    listen("show-load-session-dialog", () => {
+      if (mounted) {
+        openLoadDialog();
+      }
+    }).then((fn) => {
+      if (mounted) {
+        unlistenFn = fn;
+      } else {
+        fn(); // Component already unmounted, clean up immediately
+      }
     });
+
     return () => {
-      unlisten.then((fn) => fn());
+      mounted = false;
+      if (unlistenFn) unlistenFn();
     };
   }, [openLoadDialog]);
 
