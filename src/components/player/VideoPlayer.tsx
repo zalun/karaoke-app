@@ -322,13 +322,19 @@ export function VideoPlayer() {
     setIsLoading(true);
   };
 
-  if (!currentVideo?.streamUrl) {
+  // Show placeholder when no video or when detached (video plays in separate window)
+  if (!currentVideo?.streamUrl || isDetached) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
         {isLoading ? (
           <div className="text-center text-white">
             <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
             <p>Loading video...</p>
+          </div>
+        ) : isDetached ? (
+          <div className="text-center text-gray-400">
+            <DetachIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+            <p>Video playing in separate window</p>
           </div>
         ) : (
           <div className="text-center text-gray-400">
