@@ -22,6 +22,8 @@ pub struct Session {
 
 // ============ Singer Commands ============
 
+const MAX_NAME_LENGTH: usize = 100;
+
 #[tauri::command]
 pub fn create_singer(
     state: State<'_, AppState>,
@@ -29,6 +31,15 @@ pub fn create_singer(
     color: String,
     is_persistent: bool,
 ) -> Result<Singer, String> {
+    // Input validation
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("Singer name cannot be empty".to_string());
+    }
+    if name.len() > MAX_NAME_LENGTH {
+        return Err(format!("Singer name cannot exceed {} characters", MAX_NAME_LENGTH));
+    }
+
     debug!("Creating singer: {} with color {}", name, color);
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
@@ -92,6 +103,14 @@ pub fn delete_singer(state: State<'_, AppState>, singer_id: i64) -> Result<(), S
 
 #[tauri::command]
 pub fn start_session(state: State<'_, AppState>, name: Option<String>) -> Result<Session, String> {
+    // Input validation - trim and validate name if provided
+    let name = name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
+    if let Some(ref n) = name {
+        if n.len() > MAX_NAME_LENGTH {
+            return Err(format!("Session name cannot exceed {} characters", MAX_NAME_LENGTH));
+        }
+    }
+
     info!("Starting new session: {:?}", name);
     let db = state.db.lock().map_err(|e| e.to_string())?;
 

@@ -4,6 +4,8 @@ import { Users, Check, UserPlus } from "lucide-react";
 import { useSessionStore } from "../../stores";
 import { SingerAvatar } from "./SingerAvatar";
 
+const DROPDOWN_WIDTH = 200;
+
 interface SingerPickerProps {
   queueItemId: string;
   className?: string;
@@ -35,7 +37,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
       const rect = buttonRef.current.getBoundingClientRect();
       setDropdownPosition({
         top: rect.top - 8, // Position above the button
-        left: rect.right - 200, // Align right edge with button
+        left: rect.right - DROPDOWN_WIDTH, // Align right edge with button
       });
     }
   }, [isOpen]);

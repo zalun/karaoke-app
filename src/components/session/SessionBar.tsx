@@ -3,6 +3,8 @@ import { Play, Square, Users, UserPlus } from "lucide-react";
 import { useSessionStore } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
 
+const MAX_VISIBLE_SINGERS = 10;
+
 export function SessionBar() {
   const {
     session,
@@ -42,10 +44,15 @@ export function SessionBar() {
   }, [showNewSinger]);
 
   const handleCreateSinger = async () => {
-    if (!newSingerName.trim()) return;
-    await createSinger(newSingerName.trim());
-    setNewSingerName("");
-    setShowNewSinger(false);
+    const name = newSingerName.trim();
+    if (!name) return;
+    try {
+      await createSinger(name);
+      setNewSingerName("");
+      setShowNewSinger(false);
+    } catch (error) {
+      console.error("Failed to create singer:", error);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -100,7 +107,7 @@ export function SessionBar() {
             <Users size={14} className="text-gray-400" />
             {singers.length > 0 ? (
               <div className="flex -space-x-1">
-                {singers.slice(0, 4).map((singer) => (
+                {singers.slice(0, MAX_VISIBLE_SINGERS).map((singer) => (
                   <SingerAvatar
                     key={singer.id}
                     name={singer.name}
@@ -109,9 +116,9 @@ export function SessionBar() {
                     className={`ring-1 ring-gray-800 ${!isSingerAssigned(singer.id) ? "opacity-50" : ""}`}
                   />
                 ))}
-                {singers.length > 4 && (
+                {singers.length > MAX_VISIBLE_SINGERS && (
                   <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-xs text-gray-300 ring-1 ring-gray-800">
-                    +{singers.length - 4}
+                    +{singers.length - MAX_VISIBLE_SINGERS}
                   </div>
                 )}
               </div>

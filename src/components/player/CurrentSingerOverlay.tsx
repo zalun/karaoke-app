@@ -26,13 +26,15 @@ export function CurrentSingerOverlay() {
   }, [session, currentItemId, loadQueueItemSingers]);
 
   // Get singers for current item
+  // Note: queueSingerAssignments and singers are included to trigger re-render when assignments change
   const currentSingers = useMemo(() => {
     if (!session || !currentItemId) return [];
     const singerIds = getQueueItemSingerIds(currentItemId);
     return singerIds
       .map((id) => getSingerById(id))
       .filter(Boolean) as NonNullable<ReturnType<typeof getSingerById>>[];
-  }, [session, currentItemId, queueSingerAssignments, singers, getQueueItemSingerIds, getSingerById]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, currentItemId, queueSingerAssignments.size, singers.length]);
 
   // Hide overlay after 5 seconds
   useEffect(() => {
