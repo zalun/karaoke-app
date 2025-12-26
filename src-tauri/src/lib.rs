@@ -47,6 +47,7 @@ const DEBUG_MODE_MENU_ID: &str = "debug-mode";
 const OPEN_LOGS_MENU_ID: &str = "open-logs";
 const SAVE_SESSION_AS_MENU_ID: &str = "save-session-as";
 const LOAD_SESSION_MENU_ID: &str = "load-session";
+const SAVE_DISPLAY_LAYOUT_MENU_ID: &str = "save-display-layout";
 
 fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>, tauri::Error> {
     // Standard app menu items
@@ -120,6 +121,9 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
     )?;
 
     // Window menu
+    let save_display_layout_item =
+        MenuItem::with_id(app, SAVE_DISPLAY_LAYOUT_MENU_ID, "Save Display Layout...", true, None::<&str>)?;
+
     let window_menu = Submenu::with_items(
         app,
         "Window",
@@ -127,6 +131,8 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
         &[
             &PredefinedMenuItem::minimize(app, None)?,
             &PredefinedMenuItem::maximize(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &save_display_layout_item,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::close_window(app, None)?,
         ],
@@ -479,6 +485,11 @@ pub fn run() {
                     info!("Load Session... menu clicked");
                     // Emit event to frontend to show load session dialog
                     let _ = app.emit("show-load-session-dialog", ());
+                }
+                SAVE_DISPLAY_LAYOUT_MENU_ID => {
+                    info!("Save Display Layout... menu clicked");
+                    // Emit event to frontend to save current display layout
+                    let _ = app.emit("save-display-layout", ());
                 }
                 _ => {}
             }
