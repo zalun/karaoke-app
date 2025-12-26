@@ -7,7 +7,7 @@ import {
   OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
-import { SingerAvatar } from "../singers";
+import { SingerOverlayDisplay } from "./SingerOverlayDisplay";
 import { CURRENT_SINGER_OVERLAY_DURATION_MS } from "./CurrentSingerOverlay";
 
 const log = createLogger("DetachedPlayer");
@@ -346,28 +346,7 @@ export function DetachedPlayer() {
       )}
       {/* Current singer overlay - shows when video changes */}
       {showCurrentSingerOverlay && state.currentSong?.singers && state.currentSong.singers.length > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="bg-black/70 backdrop-blur-sm text-white px-6 py-4 rounded-xl animate-fade-in">
-            <div className="flex flex-col items-center gap-3">
-              {/* Singer avatars */}
-              <div className="flex -space-x-2">
-                {state.currentSong.singers.map((singer) => (
-                  <SingerAvatar
-                    key={singer.id}
-                    name={singer.name}
-                    color={singer.color}
-                    size="lg"
-                    className="ring-2 ring-black/50"
-                  />
-                ))}
-              </div>
-              {/* Singer names */}
-              <p className="text-lg font-medium">
-                {state.currentSong.singers.map((s) => s.name).join(" & ")}
-              </p>
-            </div>
-          </div>
-        </div>
+        <SingerOverlayDisplay singers={state.currentSong.singers} />
       )}
     </div>
   );
