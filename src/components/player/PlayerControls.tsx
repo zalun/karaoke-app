@@ -39,15 +39,16 @@ export function PlayerControls() {
   const { session, queueSingerAssignments, singers, loadQueueItemSingers } = useSessionStore();
 
   // Load singers for current and next queue items when detached
+  // Only load if singers aren't already loaded to avoid redundant queries
   useEffect(() => {
     if (!isDetached || !session) return;
-    if (currentQueueItem) {
+    if (currentQueueItem && !queueSingerAssignments.has(currentQueueItem.id)) {
       loadQueueItemSingers(currentQueueItem.id);
     }
-    if (nextQueueItem) {
+    if (nextQueueItem && !queueSingerAssignments.has(nextQueueItem.id)) {
       loadQueueItemSingers(nextQueueItem.id);
     }
-  }, [isDetached, session, currentQueueItem?.id, nextQueueItem?.id, loadQueueItemSingers]);
+  }, [isDetached, session, currentQueueItem?.id, nextQueueItem?.id, queueSingerAssignments, loadQueueItemSingers]);
 
   // Build player state object for syncing to detached window
   // Uses fresh values from store to avoid stale closures
@@ -192,10 +193,12 @@ export function PlayerControls() {
   // Note: currentTime is intentionally excluded from dependencies to prevent sync loops.
   // Time updates flow one-way: detached window → main window via listenForTimeUpdate.
   // queueSingerAssignments.size and singers.length are included to trigger re-sync when singers load.
+  // buildPlayerState is called inline (not in deps) since it reads fresh state via getState().
   useEffect(() => {
     if (!isDetached || !currentVideo?.streamUrl) return;
     windowManager.syncState(buildPlayerState());
-  }, [isDetached, currentVideo?.streamUrl, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length, buildPlayerState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDetached, currentVideo?.streamUrl, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length]);
 
   // Send play/pause commands to detached window
   useEffect(() => {
