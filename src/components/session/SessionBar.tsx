@@ -20,6 +20,7 @@ export function SessionBar() {
     showRenameDialog,
     showLoadDialog,
     recentSessions,
+    recentSessionSingers,
     startSession,
     endSession,
     loadSession,
@@ -272,12 +273,32 @@ export function SessionBar() {
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-gray-400 mt-1">
-                            {new Date(s.started_at).toLocaleDateString()} at{" "}
-                            {new Date(s.started_at).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-gray-400">
+                              {new Date(s.started_at).toLocaleDateString()} at{" "}
+                              {new Date(s.started_at).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {recentSessionSingers.get(s.id)?.length ? (
+                              <div className="flex -space-x-1">
+                                {recentSessionSingers.get(s.id)!.slice(0, 5).map((singer) => (
+                                  <SingerAvatar
+                                    key={singer.id}
+                                    name={singer.name}
+                                    color={singer.color}
+                                    size="sm"
+                                    className="ring-1 ring-gray-700"
+                                  />
+                                ))}
+                                {recentSessionSingers.get(s.id)!.length > 5 && (
+                                  <div className="w-5 h-5 rounded-full bg-gray-600 flex items-center justify-center text-[10px] text-gray-300 ring-1 ring-gray-700">
+                                    +{recentSessionSingers.get(s.id)!.length - 5}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         </button>
                         <button

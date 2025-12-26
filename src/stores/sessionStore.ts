@@ -12,6 +12,7 @@ interface SessionState {
   showRenameDialog: boolean;
   showLoadDialog: boolean;
   recentSessions: Session[];
+  recentSessionSingers: Map<number, Singer[]>;
 
   // Singers state
   singers: Singer[];
@@ -55,6 +56,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   showRenameDialog: false,
   showLoadDialog: false,
   recentSessions: [],
+  recentSessionSingers: new Map(),
   singers: [],
   queueSingerAssignments: new Map(),
 
@@ -168,9 +170,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       const recentSessions = await sessionService.getRecentSessions(10);
       set({ showLoadDialog: true, recentSessions });
+
+      // Fetch singers for each session in parallel
+      const singersMap = new Map<number, Singer[]>();
+      await Promise.all(
+        recentSessions.map(async (session) => {
+          try {
+            const singers = await sessionService.getSessionSingers(session.id);
+            singersMap.set(session.id, singers);
+          } catch (error) {
+            log.error(`Failed to load singers for session ${session.id}:`, error);
+            singersMap.set(session.id, []);
+          }
+        })
+      );
+      set({ recentSessionSingers: singersMap });
     } catch (error) {
       log.error("Failed to load recent sessions:", error);
-      set({ showLoadDialog: true, recentSessions: [] });
+      set({ showLoadDialog: true, recentSessions: [], recentSessionSingers: new Map() });
     }
   },
 
