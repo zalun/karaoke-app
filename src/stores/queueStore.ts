@@ -88,14 +88,23 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       if (state) {
         const queue = state.queue.map(fromQueueItemData);
         const history = state.history.map(fromQueueItemData);
+        // Validate historyIndex is within bounds
+        let historyIndex = state.history_index;
+        if (history.length === 0) {
+          historyIndex = -1;
+        } else if (historyIndex >= history.length) {
+          historyIndex = history.length - 1;
+        } else if (historyIndex < -1) {
+          historyIndex = -1;
+        }
         set({
           queue,
           history,
-          historyIndex: state.history_index,
+          historyIndex,
           isInitialized: true,
         });
         log.info(
-          `Loaded ${queue.length} queue items, ${history.length} history items`
+          `Loaded ${queue.length} queue items, ${history.length} history items (index: ${historyIndex})`
         );
       } else {
         set({ isInitialized: true });
