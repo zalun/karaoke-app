@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2025-12-26
+
+### Added
+- Display hotplug detection and window layout restore (#48)
+  - Automatically detects when displays are connected/disconnected
+  - Save current window layout via View → Save Display Layout menu
+  - Restore dialog appears when a saved display configuration is detected
+  - "Remember my choice" option for automatic restore without dialog
+  - Auto-restore saved layouts on app startup
+  - Detach button appears on hover over video player
+  - Database storage for display configs and window states with proper migrations
+
 ### Changed
 - Refactor: Extracted shared video playback logic into `playVideo` helper (#42)
   - Consolidated duplicate code from PlayerControls and useMediaControls
@@ -16,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Media controls event polling thread now shuts down gracefully on app exit (#40)
   - Added shutdown flag mechanism with `recv_timeout` for responsive termination
   - Thread handle stored in AppState for proper cleanup
+- Video loading indicator now works correctly when player is detached
+- Fixed double audio issue when starting with detached player window
 
 ## [0.3.1] - 2025-12-26
 
@@ -86,6 +100,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Queue and history management
 - Basic video player controls
 
+[0.3.3]: https://github.com/zalun/karaoke-app/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/zalun/karaoke-app/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/zalun/karaoke-app/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/zalun/karaoke-app/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/zalun/karaoke-app/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/zalun/karaoke-app/compare/v0.1.0...v0.2.0
