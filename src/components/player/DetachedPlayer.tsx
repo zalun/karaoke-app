@@ -270,6 +270,11 @@ export function DetachedPlayer() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [state.streamUrl, state.duration, state.volume, state.isMuted]);
 
+  // Handle video ended - notify main window to advance queue
+  const handleEnded = useCallback(() => {
+    windowManager.emitVideoEnded();
+  }, []);
+
   // Double-click for fullscreen
   const handleDoubleClick = useCallback(() => {
     const video = videoRef.current;
@@ -289,6 +294,7 @@ export function DetachedPlayer() {
         className="w-full h-full object-contain"
         onTimeUpdate={handleTimeUpdate}
         onCanPlay={handleCanPlay}
+        onEnded={handleEnded}
         onDoubleClick={handleDoubleClick}
         playsInline
       />

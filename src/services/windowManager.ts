@@ -12,6 +12,7 @@ const PLAYER_EVENTS = {
   TIME_UPDATE: "player:time-update",
   REQUEST_STATE: "player:request-state",
   FINAL_STATE: "player:final-state",
+  VIDEO_ENDED: "player:video-ended",
 } as const;
 
 export interface NextSongInfo {
@@ -211,6 +212,19 @@ class WindowManager {
     return listen<PlayerState>(PLAYER_EVENTS.FINAL_STATE, (event) => {
       callback(event.payload);
     });
+  }
+
+  async emitVideoEnded(): Promise<void> {
+    log.debug("emitVideoEnded: video ended in detached player");
+    try {
+      await emit(PLAYER_EVENTS.VIDEO_ENDED);
+    } catch {
+      // Window might not exist anymore, ignore
+    }
+  }
+
+  async listenForVideoEnded(callback: () => void): Promise<UnlistenFn> {
+    return listen(PLAYER_EVENTS.VIDEO_ENDED, callback);
   }
 }
 

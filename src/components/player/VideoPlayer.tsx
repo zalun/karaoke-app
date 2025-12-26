@@ -7,7 +7,7 @@ import {
   invalidatePrefetchIfStale,
   PREFETCH_THRESHOLD_SECONDS,
 } from "../../stores";
-import { youtubeService, createLogger } from "../../services";
+import { youtubeService, createLogger, windowManager } from "../../services";
 import { useWakeLock } from "../../hooks";
 import {
   NextSongOverlay,
@@ -223,6 +223,24 @@ export function VideoPlayer() {
       setIsPlaying(false);
     }
   }, [setCurrentVideo, setIsPlaying, setIsLoading, setError]);
+
+  // Listen for video ended event from detached player
+  useEffect(() => {
+    if (!isDetached) return;
+
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForVideoEnded(() => {
+      log.info("Video ended in detached player, advancing queue");
+      handleEnded();
+    }).then((unlisten) => {
+      unlistenFn = unlisten;
+    });
+
+    return () => {
+      unlistenFn?.();
+    };
+  }, [isDetached, handleEnded]);
 
   const handleError = useCallback(async () => {
     // If we used a cached URL that might be stale, retry with fresh fetch
