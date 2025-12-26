@@ -233,15 +233,22 @@ export function VideoPlayer() {
     if (!isDetached) return;
 
     let unlistenFn: (() => void) | undefined;
+    let cancelled = false;
 
     windowManager.listenForVideoEnded(() => {
       log.info("Video ended in detached player, advancing queue");
       handleEndedRef.current();
     }).then((unlisten) => {
-      unlistenFn = unlisten;
+      if (!cancelled) {
+        unlistenFn = unlisten;
+      } else {
+        // Cleanup immediately if effect was already cancelled
+        unlisten();
+      }
     });
 
     return () => {
+      cancelled = true;
       unlistenFn?.();
     };
   }, [isDetached]);

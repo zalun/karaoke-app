@@ -1,11 +1,14 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { windowManager, type PlayerState } from "../../services/windowManager";
+import { createLogger } from "../../services";
 import { useWakeLock } from "../../hooks";
 import {
   NextSongOverlay,
   OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
+
+const log = createLogger("DetachedPlayer");
 
 // Throttle time updates to reduce event frequency (500ms interval)
 const TIME_UPDATE_THROTTLE_MS = 500;
@@ -272,6 +275,7 @@ export function DetachedPlayer() {
 
   // Handle video ended - notify main window to advance queue
   const handleEnded = useCallback(() => {
+    log.info("Video ended, notifying main window");
     windowManager.emitVideoEnded();
   }, []);
 

@@ -315,6 +315,15 @@ cleanup_temporary() -> ()                          // Delete non-persistent sing
 **Result:** Can start karaoke sessions, add singers, assign singers to queue items
 **Dependencies:** Phase 1 (SQLite), Phase 2 (Queue UI, NextSongOverlay, window sync) - all complete
 
+#### Queue & History Session Persistence (Priority) - Issue #31
+- [ ] Link queue items to active session (session_id foreign key or junction table)
+- [ ] Queue database operations (persist to SQLite on every change)
+- [ ] Tauri commands for queue persistence (load/save)
+- [ ] History entries stored with session association
+- [ ] Session resume: restore queue and history state on app reopen
+- [ ] Sync queueStore with backend persistence
+
+#### Singers and Groups
 - [ ] Database migration 2: singers, groups, sessions, queue_singers tables
 - [ ] Rust commands: session_*, singer_*, group_*, queue_assign_singers
 - [ ] Frontend sessionStore.ts with singer/group/assignment state
@@ -331,10 +340,8 @@ cleanup_temporary() -> ()                          // Delete non-persistent sing
 - [ ] Persistent vs temporary toggle for singers/groups
 - [ ] Session end with cleanup prompt
 
-### Phase 4: Queue Persistence
-**Result:** Queue survives app restart, can add local files
-- [ ] Queue database operations (persist to SQLite)
-- [ ] Tauri commands for queue persistence
+### Phase 4: Local File Queue Support
+**Result:** Can add local files to queue without importing to library
 - [ ] "Play Now" vs "Add to Queue" actions
 - [ ] Add file from disk to queue:
   - "Add file..." button (file picker dialog)
