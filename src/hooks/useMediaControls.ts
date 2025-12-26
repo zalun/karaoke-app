@@ -70,26 +70,29 @@ export function useMediaControls() {
     }
   }, [playPrevious, hasPrevious, setCurrentVideo, setIsPlaying, setIsLoading, setError]);
 
-  // Update metadata when video changes
+  // Update metadata and playback state when video changes or playback state changes
   useEffect(() => {
     if (currentVideo) {
+      // Use a clean thumbnail URL without query params (macOS NSImage handles it better)
+      // YouTube thumbnail format: https://i.ytimg.com/vi/{videoId}/hqdefault.jpg
+      let thumbnailUrl = currentVideo.thumbnailUrl;
+      if (currentVideo.youtubeId) {
+        thumbnailUrl = `https://i.ytimg.com/vi/${currentVideo.youtubeId}/hqdefault.jpg`;
+      }
+
+      // Update metadata first
       mediaControlsService.updateMetadata({
         title: currentVideo.title,
         artist: currentVideo.artist,
         durationSecs: currentVideo.duration ?? duration,
-        thumbnailUrl: currentVideo.thumbnailUrl,
+        thumbnailUrl,
       });
+      // Then update playback state - this is needed for Now Playing to show
+      mediaControlsService.updatePlayback(isPlaying, currentTime);
     } else {
       mediaControlsService.stop();
     }
-  }, [currentVideo?.id, currentVideo?.title, currentVideo?.artist, currentVideo?.thumbnailUrl, duration]);
-
-  // Update playback state when playing/paused changes
-  useEffect(() => {
-    if (currentVideo) {
-      mediaControlsService.updatePlayback(isPlaying, currentTime);
-    }
-  }, [isPlaying, currentVideo?.id]);
+  }, [currentVideo?.id, currentVideo?.title, currentVideo?.artist, currentVideo?.youtubeId, duration, isPlaying]);
 
   // Throttled position updates while playing
   useEffect(() => {

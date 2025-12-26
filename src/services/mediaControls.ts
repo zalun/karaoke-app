@@ -14,13 +14,16 @@ export interface MediaControlsMetadata {
 export const mediaControlsService = {
   async updateMetadata(metadata: MediaControlsMetadata): Promise<void> {
     try {
+      log.info(
+        `Updating metadata: title="${metadata.title}", artist="${metadata.artist}", thumbnail="${metadata.thumbnailUrl}"`
+      );
       await invoke("media_controls_update_metadata", {
         title: metadata.title,
         artist: metadata.artist ?? null,
         durationSecs: metadata.durationSecs ?? null,
         thumbnailUrl: metadata.thumbnailUrl ?? null,
       });
-      log.debug(`Updated metadata: ${metadata.title}`);
+      log.info(`Metadata updated successfully`);
     } catch (err) {
       log.error("Failed to update metadata", err);
     }

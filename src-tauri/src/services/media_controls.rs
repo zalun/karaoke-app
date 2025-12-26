@@ -40,9 +40,9 @@ impl MediaControlsService {
         duration_secs: Option<f64>,
         cover_url: Option<&str>,
     ) -> Result<(), String> {
-        debug!(
-            "Setting media metadata: title={}, artist={:?}, duration={:?}",
-            title, artist, duration_secs
+        info!(
+            "Setting media metadata: title={}, artist={:?}, duration={:?}, cover_url={:?}",
+            title, artist, duration_secs, cover_url
         );
 
         let metadata = MediaMetadata {
@@ -57,6 +57,7 @@ impl MediaControlsService {
             .set_metadata(metadata)
             .map_err(|e| format!("Failed to set media metadata: {}", e))?;
 
+        info!("Media metadata set successfully");
         Ok(())
     }
 
