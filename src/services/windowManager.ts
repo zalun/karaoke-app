@@ -15,7 +15,7 @@ const PLAYER_EVENTS = {
   VIDEO_ENDED: "player:video-ended",
 } as const;
 
-export interface NextSongInfo {
+export interface SongInfo {
   title: string;
   artist?: string;
   singers?: Array<{ id: number; name: string; color: string }>;
@@ -28,7 +28,8 @@ export interface PlayerState {
   duration: number;
   volume: number;
   isMuted: boolean;
-  nextSong?: NextSongInfo;
+  currentSong?: SongInfo;
+  nextSong?: SongInfo;
 }
 
 class WindowManager {
