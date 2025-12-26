@@ -20,6 +20,8 @@ pub struct AppState {
 
 const DEBUG_MODE_MENU_ID: &str = "debug-mode";
 const OPEN_LOGS_MENU_ID: &str = "open-logs";
+const SAVE_SESSION_AS_MENU_ID: &str = "save-session-as";
+const LOAD_SESSION_MENU_ID: &str = "load-session";
 
 fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>, tauri::Error> {
     // Standard app menu items
@@ -76,6 +78,22 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
         ],
     )?;
 
+    // Sessions menu
+    let save_session_item =
+        MenuItem::with_id(app, SAVE_SESSION_AS_MENU_ID, "Save Session As...", true, None::<&str>)?;
+    let load_session_item =
+        MenuItem::with_id(app, LOAD_SESSION_MENU_ID, "Stored Sessions...", true, None::<&str>)?;
+
+    let sessions_menu = Submenu::with_items(
+        app,
+        "Sessions",
+        true,
+        &[
+            &save_session_item,
+            &load_session_item,
+        ],
+    )?;
+
     // Window menu
     let window_menu = Submenu::with_items(
         app,
@@ -89,7 +107,7 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
         ],
     )?;
 
-    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &window_menu])
+    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &sessions_menu, &window_menu])
 }
 
 fn load_debug_preference(db: &Database) -> bool {
@@ -161,6 +179,21 @@ pub fn run() {
             commands::remove_singer_from_queue_item,
             commands::get_queue_item_singers,
             commands::clear_queue_item_singers,
+            // Queue persistence commands
+            commands::queue_add_item,
+            commands::queue_remove_item,
+            commands::queue_reorder,
+            commands::queue_clear,
+            commands::queue_move_to_history,
+            commands::queue_add_to_history,
+            commands::queue_clear_history,
+            commands::queue_set_history_index,
+            commands::queue_get_state,
+            // Session management commands
+            commands::get_recent_sessions,
+            commands::rename_session,
+            commands::load_session,
+            commands::delete_session,
         ])
         .setup(|app| {
             info!("Starting Karaoke application");
@@ -245,6 +278,16 @@ pub fn run() {
                     if let Err(e) = app.shell().open(log_dir.to_string_lossy(), None) {
                         log::error!("Failed to open log directory: {}", e);
                     }
+                }
+                SAVE_SESSION_AS_MENU_ID => {
+                    info!("Save Session As... menu clicked");
+                    // Emit event to frontend to show rename dialog
+                    let _ = app.emit("show-rename-session-dialog", ());
+                }
+                LOAD_SESSION_MENU_ID => {
+                    info!("Load Session... menu clicked");
+                    // Emit event to frontend to show load session dialog
+                    let _ = app.emit("show-load-session-dialog", ());
                 }
                 _ => {}
             }

@@ -146,6 +146,43 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX IF NOT EXISTS idx_queue_singers_queue_item ON queue_singers(queue_item_id);
     CREATE INDEX IF NOT EXISTS idx_session_singers_session ON session_singers(session_id);
     "#,
+    // Migration 3: Queue/History Persistence (Issue #31)
+    r#"
+    -- Drop unused legacy queue table
+    DROP TABLE IF EXISTS queue;
+
+    -- New session-scoped queue_items table
+    CREATE TABLE IF NOT EXISTS queue_items (
+        id TEXT PRIMARY KEY,                    -- UUID from frontend (preserves queue_singers FK)
+        session_id INTEGER NOT NULL,
+        item_type TEXT NOT NULL CHECK(item_type IN ('queue', 'history')),
+
+        -- Video data (denormalized)
+        video_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        artist TEXT,
+        duration INTEGER,
+        thumbnail_url TEXT,
+        source TEXT NOT NULL CHECK(source IN ('youtube', 'local', 'external')),
+        youtube_id TEXT,
+        file_path TEXT,
+
+        -- Ordering & timestamps
+        position INTEGER NOT NULL,
+        added_at TEXT NOT NULL,
+        played_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    );
+
+    -- Indexes for efficient queries
+    CREATE INDEX IF NOT EXISTS idx_queue_items_session_type ON queue_items(session_id, item_type);
+    CREATE INDEX IF NOT EXISTS idx_queue_items_position ON queue_items(session_id, item_type, position);
+
+    -- Add history_index to sessions for state restoration
+    ALTER TABLE sessions ADD COLUMN history_index INTEGER DEFAULT -1;
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
