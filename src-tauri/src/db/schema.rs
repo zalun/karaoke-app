@@ -183,6 +183,42 @@ const MIGRATIONS: &[&str] = &[
     -- Add history_index to sessions for state restoration
     ALTER TABLE sessions ADD COLUMN history_index INTEGER DEFAULT -1;
     "#,
+    // Migration 4: Display config improvements (Issue #48)
+    r#"
+    -- Recreate window_state with UNIQUE constraint and ON DELETE CASCADE
+    -- SQLite doesn't support ALTER TABLE ADD CONSTRAINT, so we need to recreate
+    CREATE TABLE IF NOT EXISTS window_state_new (
+        id INTEGER PRIMARY KEY,
+        display_config_id INTEGER NOT NULL,
+        window_type TEXT NOT NULL,
+        target_display_id TEXT,
+        x INTEGER,
+        y INTEGER,
+        width INTEGER,
+        height INTEGER,
+        is_detached INTEGER DEFAULT 0,
+        is_fullscreen INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (display_config_id) REFERENCES display_configs(id) ON DELETE CASCADE,
+        UNIQUE(display_config_id, window_type)
+    );
+
+    -- Copy existing data
+    INSERT OR IGNORE INTO window_state_new
+        (id, display_config_id, window_type, target_display_id, x, y, width, height, is_detached, is_fullscreen, updated_at)
+    SELECT id, display_config_id, window_type, target_display_id, x, y, width, height, is_detached, is_fullscreen, updated_at
+    FROM window_state;
+
+    -- Drop old table and rename new one
+    DROP TABLE IF EXISTS window_state;
+    ALTER TABLE window_state_new RENAME TO window_state;
+
+    -- Add index on display_configs for faster hash lookups
+    CREATE INDEX IF NOT EXISTS idx_display_configs_hash ON display_configs(config_hash);
+
+    -- Add index on window_state for faster lookups
+    CREATE INDEX IF NOT EXISTS idx_window_state_config ON window_state(display_config_id);
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

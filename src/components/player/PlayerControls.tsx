@@ -158,6 +158,31 @@ export function PlayerControls() {
     };
   }, [isDetached]);
 
+  // Listen for video loaded event from detached window to clear loading state
+  useEffect(() => {
+    if (!isDetached) return;
+
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForVideoLoaded(() => {
+      if (isMounted) {
+        usePlayerStore.setState({ isLoading: false });
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unlistenFn?.();
+    };
+  }, [isDetached]);
+
   // Listen for state requests from detached window and respond with current state
   useEffect(() => {
     if (!isDetached) return;

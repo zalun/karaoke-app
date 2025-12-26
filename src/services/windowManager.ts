@@ -1,4 +1,8 @@
-import { WebviewWindow, getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
+import {
+  WebviewWindow,
+  getAllWebviewWindows,
+} from "@tauri-apps/api/webviewWindow";
+import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/dpi";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createLogger } from "./logger";
 
@@ -13,6 +17,7 @@ const PLAYER_EVENTS = {
   REQUEST_STATE: "player:request-state",
   FINAL_STATE: "player:final-state",
   VIDEO_ENDED: "player:video-ended",
+  VIDEO_LOADED: "player:video-loaded",
 } as const;
 
 export interface SongInfo {
@@ -226,6 +231,96 @@ class WindowManager {
 
   async listenForVideoEnded(callback: () => void): Promise<UnlistenFn> {
     return listen(PLAYER_EVENTS.VIDEO_ENDED, callback);
+  }
+
+  async emitVideoLoaded(): Promise<void> {
+    log.debug("emitVideoLoaded: video loaded in detached player");
+    try {
+      await emit(PLAYER_EVENTS.VIDEO_LOADED);
+    } catch {
+      // Window might not exist anymore, ignore
+    }
+  }
+
+  async listenForVideoLoaded(callback: () => void): Promise<UnlistenFn> {
+    return listen(PLAYER_EVENTS.VIDEO_LOADED, callback);
+  }
+
+  /**
+   * Capture the current position and size of a window
+   */
+  async captureWindowState(
+    windowLabel: string
+  ): Promise<{ x: number; y: number; width: number; height: number } | null> {
+    try {
+      const allWindows = await getAllWebviewWindows();
+      const window = allWindows.find((w) => w.label === windowLabel);
+      if (!window) {
+        log.debug(`captureWindowState: window "${windowLabel}" not found`);
+        return null;
+      }
+
+      const position = await window.outerPosition();
+      const size = await window.outerSize();
+
+      log.debug(
+        `captureWindowState: ${windowLabel} at (${position.x}, ${position.y}) ${size.width}x${size.height}`
+      );
+
+      return {
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height,
+      };
+    } catch (err) {
+      log.error(`captureWindowState: failed for "${windowLabel}"`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Restore a window to a specific position and size
+   */
+  async restoreWindowState(
+    windowLabel: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): Promise<boolean> {
+    try {
+      const allWindows = await getAllWebviewWindows();
+      const window = allWindows.find((w) => w.label === windowLabel);
+      if (!window) {
+        log.debug(`restoreWindowState: window "${windowLabel}" not found`);
+        return false;
+      }
+
+      log.info(
+        `restoreWindowState: ${windowLabel} to (${x}, ${y}) ${width}x${height}`
+      );
+
+      await window.setPosition(new PhysicalPosition(x, y));
+      await window.setSize(new PhysicalSize(width, height));
+
+      return true;
+    } catch (err) {
+      log.error(`restoreWindowState: failed for "${windowLabel}"`, err);
+      return false;
+    }
+  }
+
+  /**
+   * Get the main window
+   */
+  async getMainWindow(): Promise<WebviewWindow | null> {
+    try {
+      const allWindows = await getAllWebviewWindows();
+      return allWindows.find((w) => w.label === "main") || null;
+    } catch {
+      return null;
+    }
   }
 }
 
