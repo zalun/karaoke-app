@@ -41,9 +41,9 @@ export function useDisplayWatcher() {
             // On startup: always restore saved layout silently
             // On display change with auto_apply: restore silently
             log.info(`Restoring saved window layout (${context}, auto_apply=${saved.auto_apply})`);
-            setPendingRestore(saved, states);
+            // Pass data directly to avoid race condition with batched Zustand updates
             const { restoreLayout } = useDisplayStore.getState();
-            await restoreLayout();
+            await restoreLayout({ savedConfig: saved, windowStates: states });
           } else {
             // On display change without auto_apply: show dialog
             setPendingRestore(saved, states);

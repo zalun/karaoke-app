@@ -80,7 +80,7 @@ export function DisplayRestoreDialog() {
             Not Now
           </button>
           <button
-            onClick={restoreLayout}
+            onClick={() => restoreLayout()}
             disabled={isLoading}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 text-white rounded transition-colors"
           >

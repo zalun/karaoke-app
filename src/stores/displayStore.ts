@@ -11,6 +11,11 @@ import { usePlayerStore } from "./playerStore";
 
 const log = createLogger("DisplayStore");
 
+// Delay after detaching player window before restoring its position
+// This allows the window to be created before we try to move it
+// TODO: Replace with proper window ready detection/polling
+const WINDOW_CREATION_DELAY_MS = 300;
+
 interface PendingRestore {
   savedConfig: SavedDisplayConfig;
   windowStates: WindowState[];
@@ -39,7 +44,9 @@ interface DisplayState {
   setRememberChoice: (remember: boolean) => void;
 
   // Async actions
-  restoreLayout: () => Promise<void>;
+  // restoreLayout can optionally accept direct parameters to avoid race conditions
+  // when called immediately after setPendingRestore (Zustand batches state updates)
+  restoreLayout: (directRestore?: PendingRestore) => Promise<void>;
   dismissRestore: () => Promise<void>;
   saveCurrentLayout: (description?: string) => Promise<void>;
 }
@@ -69,9 +76,13 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
 
   setRememberChoice: (rememberChoice) => set({ rememberChoice }),
 
-  restoreLayout: async () => {
-    const { pendingRestore, rememberChoice } = get();
-    if (!pendingRestore) {
+  restoreLayout: async (directRestore?: PendingRestore) => {
+    // Use directRestore if provided (avoids race condition with batched state updates)
+    // Otherwise fall back to reading from store state
+    const restoreData = directRestore || get().pendingRestore;
+    const { rememberChoice } = get();
+
+    if (!restoreData) {
       log.warn("No pending restore to apply");
       return;
     }
@@ -79,7 +90,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const { savedConfig, windowStates } = pendingRestore;
+      const { savedConfig, windowStates } = restoreData;
 
       // If user checked "Remember my choice", update auto_apply
       if (rememberChoice) {
@@ -120,8 +131,8 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
           // Clear loading state - loading now happens in detached window
           playerStore.setIsLoading(false);
 
-          // Wait a bit for window to be created
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          // Wait for window to be created before restoring position
+          await new Promise((resolve) => setTimeout(resolve, WINDOW_CREATION_DELAY_MS));
         }
 
         // Restore video window position

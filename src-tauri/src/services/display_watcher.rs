@@ -67,6 +67,14 @@ struct CallbackState {
 }
 
 /// Global callback state (required for C callback)
+///
+/// SAFETY: Only one `DisplayWatcherService` instance should exist per process.
+/// This is enforced by `AppState` holding a single instance via `Mutex<Option<>>`.
+/// If multiple instances are created, the second will overwrite the first's state,
+/// causing the first instance's callbacks to route to the second's channel.
+///
+/// The mutex may become poisoned if a panic occurs while holding the lock.
+/// In that case, callbacks will silently skip processing (acceptable for display events).
 static CALLBACK_STATE: Mutex<Option<Arc<CallbackState>>> = Mutex::new(None);
 
 /// The callback function called by CoreGraphics when display configuration changes
@@ -87,12 +95,13 @@ extern "C" fn display_reconfiguration_callback(
         display, flags_desc
     );
 
-    // Only emit events for significant changes
+    // Only emit events for significant changes (including resolution/mode changes)
     let significant_change = flags
         & (K_CG_DISPLAY_ADD_FLAG
             | K_CG_DISPLAY_REMOVE_FLAG
             | K_CG_DISPLAY_MOVED_FLAG
             | K_CG_DISPLAY_SET_MAIN_FLAG
+            | K_CG_DISPLAY_SET_MODE_FLAG
             | K_CG_DISPLAY_ENABLED_FLAG
             | K_CG_DISPLAY_DISABLED_FLAG)
         != 0;
@@ -103,32 +112,38 @@ extern "C" fn display_reconfiguration_callback(
     }
 
     // Get the callback state and emit event
-    if let Ok(guard) = CALLBACK_STATE.lock() {
-        if let Some(ref state) = *guard {
-            match get_display_configuration() {
-                Ok(config) => {
-                    // Check if configuration actually changed
-                    if let Ok(mut last_hash) = state.last_config_hash.lock() {
-                        if *last_hash == config.config_hash {
-                            debug!("Configuration hash unchanged, skipping event");
-                            return;
-                        }
-                        *last_hash = config.config_hash.clone();
+    // Use unwrap_or_else to recover from poisoned mutex (panic in another thread)
+    let guard = match CALLBACK_STATE.lock() {
+        Ok(g) => g,
+        Err(poisoned) => {
+            warn!("Callback state mutex poisoned, recovering");
+            poisoned.into_inner()
+        }
+    };
+    if let Some(ref state) = *guard {
+        match get_display_configuration() {
+            Ok(config) => {
+                // Check if configuration actually changed
+                if let Ok(mut last_hash) = state.last_config_hash.lock() {
+                    if *last_hash == config.config_hash {
+                        debug!("Configuration hash unchanged, skipping event");
+                        return;
                     }
-
-                    info!(
-                        "Display configuration changed: {} display(s), hash={}",
-                        config.displays.len(),
-                        &config.config_hash[..8]
-                    );
-
-                    if let Err(e) = state.event_tx.send(DisplayEvent::ConfigurationChanged(config)) {
-                        error!("Failed to send display event: {}", e);
-                    }
+                    *last_hash = config.config_hash.clone();
                 }
-                Err(e) => {
-                    error!("Failed to get display configuration: {}", e);
+
+                info!(
+                    "Display configuration changed: {} display(s), hash={}",
+                    config.displays.len(),
+                    &config.config_hash[..8]
+                );
+
+                if let Err(e) = state.event_tx.send(DisplayEvent::ConfigurationChanged(config)) {
+                    error!("Failed to send display event: {}", e);
                 }
+            }
+            Err(e) => {
+                error!("Failed to get display configuration: {}", e);
             }
         }
     }
@@ -328,15 +343,24 @@ fn get_display_name(display_id: CGDirectDisplayID) -> String {
 }
 
 /// Compute a hash of the display configuration for identification
+///
+/// Includes display IDs, positions, sizes, and is_main flag to ensure
+/// different arrangements of the same displays produce different hashes.
 pub fn compute_config_hash(displays: &[DisplayInfo]) -> String {
     let mut hasher = Sha256::new();
 
-    // Hash sorted display IDs to create a stable configuration identifier
-    let mut ids: Vec<u32> = displays.iter().map(|d| d.display_id).collect();
-    ids.sort();
+    // Clone and sort by display ID for consistent hashing
+    let mut sorted_displays = displays.to_vec();
+    sorted_displays.sort_by_key(|d| d.display_id);
 
-    for id in ids {
-        hasher.update(id.to_le_bytes());
+    for display in sorted_displays {
+        // Include all properties that define a unique configuration
+        hasher.update(display.display_id.to_le_bytes());
+        hasher.update(display.x.to_le_bytes());
+        hasher.update(display.y.to_le_bytes());
+        hasher.update(display.width.to_le_bytes());
+        hasher.update(display.height.to_le_bytes());
+        hasher.update(&[display.is_main as u8]);
     }
 
     let result = hasher.finalize();
@@ -444,5 +468,80 @@ mod tests {
         ];
 
         assert_eq!(compute_config_hash(&displays1), compute_config_hash(&displays2));
+    }
+
+    #[test]
+    fn test_hash_changes_with_position() {
+        // Same displays but in different positions should produce different hashes
+        let displays1 = vec![
+            DisplayInfo {
+                display_id: 1,
+                name: "Display 1".to_string(),
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+                is_main: true,
+            },
+            DisplayInfo {
+                display_id: 2,
+                name: "Display 2".to_string(),
+                x: 1920, // Display 2 on the right
+                y: 0,
+                width: 1920,
+                height: 1080,
+                is_main: false,
+            },
+        ];
+
+        let displays2 = vec![
+            DisplayInfo {
+                display_id: 1,
+                name: "Display 1".to_string(),
+                x: 1920, // Display 1 on the right (swapped positions)
+                y: 0,
+                width: 1920,
+                height: 1080,
+                is_main: true,
+            },
+            DisplayInfo {
+                display_id: 2,
+                name: "Display 2".to_string(),
+                x: 0, // Display 2 on the left
+                y: 0,
+                width: 1920,
+                height: 1080,
+                is_main: false,
+            },
+        ];
+
+        // Hashes should be different because positions changed
+        assert_ne!(compute_config_hash(&displays1), compute_config_hash(&displays2));
+    }
+
+    #[test]
+    fn test_hash_changes_with_resolution() {
+        let displays1 = vec![DisplayInfo {
+            display_id: 1,
+            name: "Display 1".to_string(),
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            is_main: true,
+        }];
+
+        let displays2 = vec![DisplayInfo {
+            display_id: 1,
+            name: "Display 1".to_string(),
+            x: 0,
+            y: 0,
+            width: 2560, // Different resolution
+            height: 1440,
+            is_main: true,
+        }];
+
+        // Hashes should be different because resolution changed
+        assert_ne!(compute_config_hash(&displays1), compute_config_hash(&displays2));
     }
 }
