@@ -352,31 +352,7 @@ cleanup_temporary() -> ()                          // Delete non-persistent sing
 - [x] Playback position and progress tracking
 - [x] Graceful shutdown of media controls thread (#40)
 
-### Phase 4: Local File Queue Support
-**Result:** Can add local files to queue without importing to library
-- [ ] "Play Now" vs "Add to Queue" actions
-- [ ] Add file from disk to queue:
-  - "Add file..." button (file picker dialog)
-  - Drag & drop file directly to queue
-  - Handle files outside library (temporary, without import)
-
-### Phase 5: Downloads and Library
-**Result:** Can download videos from YT, browse and play from local library
-- [ ] Download command with progress events
-- [ ] Download progress UI
-- [ ] LibraryView with thumbnail grid
-- [ ] Library filtering and search
-- [ ] Delete video
-
-### Phase 6: USB Drive Support
-**Result:** Connecting USB drive shows import dialog, can import videos
-- [ ] Volume watcher on `/Volumes/`
-- [ ] Mount/unmount events
-- [ ] Video file scanning
-- [ ] Import modal with checkboxes
-- [ ] Selective or full import
-
-### Phase 7: Multi-window and Display Detection
+### Phase 4: Multi-window and Display Detection
 **Result:** Can detach video to projector, application remembers display configurations
 - [ ] Detachable video window (Tauri WebviewWindow)
 - [ ] Display Watcher - listen for display hotplug (CGDisplayRegisterReconfigurationCallback)
@@ -386,6 +362,30 @@ cleanup_temporary() -> ()                          // Delete non-persistent sing
 - [ ] Automatic layout restoration when `auto_apply=true`
 - [ ] Menu: "Manage display configurations..." (list, edit description, toggle auto_apply, delete)
 - [ ] Menu: "Detach video to display...", "Reset to single window"
+
+### Phase 5: Local File Queue Support
+**Result:** Can add local files to queue without importing to library
+- [ ] "Play Now" vs "Add to Queue" actions
+- [ ] Add file from disk to queue:
+  - "Add file..." button (file picker dialog)
+  - Drag & drop file directly to queue
+  - Handle files outside library (temporary, without import)
+
+### Phase 6: Downloads and Library
+**Result:** Can download videos from YT, browse and play from local library
+- [ ] Download command with progress events
+- [ ] Download progress UI
+- [ ] LibraryView with thumbnail grid
+- [ ] Library filtering and search
+- [ ] Delete video
+
+### Phase 7: USB Drive Support
+**Result:** Connecting USB drive shows import dialog, can import videos
+- [ ] Volume watcher on `/Volumes/`
+- [ ] Mount/unmount events
+- [ ] Video file scanning
+- [ ] Import modal with checkboxes
+- [ ] Selective or full import
 
 ### Phase 8: Polish
 **Result:** Application ready for daily use
