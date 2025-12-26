@@ -13,6 +13,7 @@ interface DropdownPosition {
   top: number;
   left: number;
   openAbove: boolean;
+  maxHeight: number;
 }
 
 interface SingerPickerProps {
@@ -24,7 +25,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   const [isOpen, setIsOpen] = useState(false);
   const [showNewSinger, setShowNewSinger] = useState(false);
   const [newSingerName, setNewSingerName] = useState("");
-  const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition>({ top: 0, left: 0, openAbove: true });
+  const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition>({ top: 0, left: 0, openAbove: true, maxHeight: DROPDOWN_MAX_HEIGHT });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,16 +46,26 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
     if (!buttonRef.current) return;
 
     const rect = buttonRef.current.getBoundingClientRect();
-    const spaceAbove = rect.top;
-    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top - DROPDOWN_MARGIN;
+    const spaceBelow = window.innerHeight - rect.bottom - DROPDOWN_MARGIN;
 
-    // Prefer opening above, but open below if not enough space above
-    const openAbove = spaceAbove > DROPDOWN_MAX_HEIGHT || spaceAbove > spaceBelow;
+    // Check if dropdown can fit in each direction
+    const canFitAbove = spaceAbove >= DROPDOWN_MAX_HEIGHT;
+    const canFitBelow = spaceBelow >= DROPDOWN_MAX_HEIGHT;
+
+    // Prefer opening above if it fits, otherwise open below if it fits,
+    // otherwise open where there's more space
+    const openAbove = canFitAbove || (!canFitBelow && spaceAbove > spaceBelow);
+
+    // Calculate actual max height based on available space
+    const availableSpace = openAbove ? spaceAbove : spaceBelow;
+    const maxHeight = Math.min(DROPDOWN_MAX_HEIGHT, availableSpace - DROPDOWN_OFFSET_Y);
 
     setDropdownPosition({
       top: openAbove ? rect.top - DROPDOWN_OFFSET_Y : rect.bottom + DROPDOWN_OFFSET_Y,
       left: Math.max(DROPDOWN_MARGIN, Math.min(rect.right - DROPDOWN_WIDTH, window.innerWidth - DROPDOWN_WIDTH - DROPDOWN_MARGIN)),
       openAbove,
+      maxHeight: Math.max(100, maxHeight), // Ensure minimum usable height
     });
   }, []);
 
@@ -138,7 +149,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
         top: dropdownPosition.top,
         left: dropdownPosition.left,
         transform: dropdownPosition.openAbove ? "translateY(-100%)" : "translateY(0)",
-        maxHeight: `${DROPDOWN_MAX_HEIGHT}px`,
+        maxHeight: `${dropdownPosition.maxHeight}px`,
         zIndex: 9999,
       }}
       onClick={(e) => e.stopPropagation()}
