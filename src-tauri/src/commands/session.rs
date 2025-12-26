@@ -512,40 +512,55 @@ pub fn load_session(
 ) -> Result<Session, String> {
     info!("Loading session: {}", session_id);
     let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.connection();
 
-    // End any active session first
-    db.connection()
-        .execute(
+    // Use transaction for atomicity
+    conn.execute("BEGIN IMMEDIATE", [])
+        .map_err(|e| e.to_string())?;
+
+    let result = (|| -> Result<Session, String> {
+        // End any active session first
+        conn.execute(
             "UPDATE sessions SET is_active = 0, ended_at = CURRENT_TIMESTAMP WHERE is_active = 1",
             [],
         )
         .map_err(|e| e.to_string())?;
 
-    // Activate the selected session
-    db.connection()
-        .execute(
+        // Activate the selected session
+        conn.execute(
             "UPDATE sessions SET is_active = 1, ended_at = NULL WHERE id = ?1",
             [session_id],
         )
         .map_err(|e| e.to_string())?;
 
-    let session = db
-        .connection()
-        .query_row(
-            "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
-            [session_id],
-            |row| {
-                Ok(Session {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    started_at: row.get(2)?,
-                    ended_at: row.get(3)?,
-                    is_active: row.get::<_, i32>(4)? != 0,
-                })
-            },
-        )
-        .map_err(|e| e.to_string())?;
+        let session = conn
+            .query_row(
+                "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
+                [session_id],
+                |row| {
+                    Ok(Session {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        started_at: row.get(2)?,
+                        ended_at: row.get(3)?,
+                        is_active: row.get::<_, i32>(4)? != 0,
+                    })
+                },
+            )
+            .map_err(|e| e.to_string())?;
 
-    info!("Session {} loaded and activated", session_id);
-    Ok(session)
+        Ok(session)
+    })();
+
+    match result {
+        Ok(session) => {
+            conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+            info!("Session {} loaded and activated", session_id);
+            Ok(session)
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            Err(e)
+        }
+    }
 }

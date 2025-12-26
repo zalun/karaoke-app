@@ -66,21 +66,25 @@ fn reorder_positions(db: &crate::db::Database, session_id: i64, item_type: &str)
 pub fn queue_add_item(state: State<'_, AppState>, item: QueueItemData) -> Result<(), String> {
     debug!("Adding item to queue: {} - {}", item.id, item.title);
     let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.connection();
 
     let session_id = get_active_session_id(&db)?;
 
-    // Get next position
-    let position: i64 = db
-        .connection()
-        .query_row(
-            "SELECT COALESCE(MAX(position), -1) + 1 FROM queue_items WHERE session_id = ?1 AND item_type = 'queue'",
-            [session_id],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
+    // Use transaction for atomicity (prevent duplicate positions)
+    conn.execute("BEGIN IMMEDIATE", [])
+        .map_err(|e| e.to_string())?;
 
-    db.connection()
-        .execute(
+    let result = (|| -> Result<i64, String> {
+        // Get next position
+        let position: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(position), -1) + 1 FROM queue_items WHERE session_id = ?1 AND item_type = 'queue'",
+                [session_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+
+        conn.execute(
             "INSERT INTO queue_items (id, session_id, item_type, video_id, title, artist, duration, thumbnail_url, source, youtube_id, file_path, position, added_at)
              VALUES (?1, ?2, 'queue', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             rusqlite::params![
@@ -100,8 +104,20 @@ pub fn queue_add_item(state: State<'_, AppState>, item: QueueItemData) -> Result
         )
         .map_err(|e| e.to_string())?;
 
-    info!("Added item to queue: {} at position {}", item.id, position);
-    Ok(())
+        Ok(position)
+    })();
+
+    match result {
+        Ok(position) => {
+            conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+            info!("Added item to queue: {} at position {}", item.id, position);
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]
@@ -138,12 +154,12 @@ pub fn queue_reorder(
 
     debug!("Reordering queue item {} to position {}", item_id, new_position);
     let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.connection();
 
     let session_id = get_active_session_id(&db)?;
 
     // Get max position to validate bounds
-    let max_position: i64 = db
-        .connection()
+    let max_position: i64 = conn
         .query_row(
             "SELECT COALESCE(MAX(position), 0) FROM queue_items WHERE session_id = ?1 AND item_type = 'queue'",
             [session_id],
@@ -156,8 +172,7 @@ pub fn queue_reorder(
     }
 
     // Get current position
-    let current_position: i64 = db
-        .connection()
+    let current_position: i64 = conn
         .query_row(
             "SELECT position FROM queue_items WHERE id = ?1 AND session_id = ?2 AND item_type = 'queue'",
             rusqlite::params![item_id, session_id],
@@ -169,39 +184,53 @@ pub fn queue_reorder(
         return Ok(());
     }
 
-    // Shift items between old and new positions
-    if new_position < current_position {
-        // Moving up: shift items down
-        db.connection()
-            .execute(
+    // Use transaction for atomicity
+    conn.execute("BEGIN IMMEDIATE", [])
+        .map_err(|e| e.to_string())?;
+
+    let result = (|| -> Result<(), String> {
+        // Shift items between old and new positions
+        if new_position < current_position {
+            // Moving up: shift items down
+            conn.execute(
                 "UPDATE queue_items SET position = position + 1
                  WHERE session_id = ?1 AND item_type = 'queue'
                  AND position >= ?2 AND position < ?3",
                 rusqlite::params![session_id, new_position, current_position],
             )
             .map_err(|e| e.to_string())?;
-    } else {
-        // Moving down: shift items up
-        db.connection()
-            .execute(
+        } else {
+            // Moving down: shift items up
+            conn.execute(
                 "UPDATE queue_items SET position = position - 1
                  WHERE session_id = ?1 AND item_type = 'queue'
                  AND position > ?2 AND position <= ?3",
                 rusqlite::params![session_id, current_position, new_position],
             )
             .map_err(|e| e.to_string())?;
-    }
+        }
 
-    // Set new position for the item
-    db.connection()
-        .execute(
+        // Set new position for the item
+        conn.execute(
             "UPDATE queue_items SET position = ?1 WHERE id = ?2",
             rusqlite::params![new_position, item_id],
         )
         .map_err(|e| e.to_string())?;
 
-    info!("Reordered queue item {} to position {}", item_id, new_position);
-    Ok(())
+        Ok(())
+    })();
+
+    match result {
+        Ok(()) => {
+            conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+            info!("Reordered queue item {} to position {}", item_id, new_position);
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]
