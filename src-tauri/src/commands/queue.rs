@@ -44,6 +44,11 @@ fn get_active_session_id(db: &crate::db::Database) -> Result<i64, String> {
 }
 
 fn reorder_positions(db: &crate::db::Database, session_id: i64, item_type: &str) -> Result<(), String> {
+    // Validate item_type to prevent unexpected values
+    if item_type != "queue" && item_type != "history" {
+        return Err(format!("Invalid item_type: {}", item_type));
+    }
+
     // Re-number positions sequentially starting from 0
     db.connection()
         .execute(
@@ -256,54 +261,74 @@ pub fn queue_clear(state: State<'_, AppState>) -> Result<(), String> {
 pub fn queue_move_to_history(state: State<'_, AppState>, item_id: String) -> Result<(), String> {
     debug!("Moving item to history: {}", item_id);
     let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.connection();
 
     let session_id = get_active_session_id(&db)?;
 
-    // Get next history position
-    let history_position: i64 = db
-        .connection()
-        .query_row(
-            "SELECT COALESCE(MAX(position), -1) + 1 FROM queue_items WHERE session_id = ?1 AND item_type = 'history'",
-            [session_id],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
+    // Use transaction for atomicity
+    conn.execute("BEGIN IMMEDIATE", [])
+        .map_err(|e| e.to_string())?;
 
-    // Update item type and set played_at
-    db.connection()
-        .execute(
+    let result = (|| -> Result<(), String> {
+        // Get next history position
+        let history_position: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(position), -1) + 1 FROM queue_items WHERE session_id = ?1 AND item_type = 'history'",
+                [session_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+
+        // Update item type and set played_at
+        conn.execute(
             "UPDATE queue_items SET item_type = 'history', position = ?1, played_at = datetime('now')
              WHERE id = ?2 AND session_id = ?3",
             rusqlite::params![history_position, item_id, session_id],
         )
         .map_err(|e| e.to_string())?;
 
-    // Reorder remaining queue items
-    reorder_positions(&db, session_id, "queue")?;
+        // Reorder remaining queue items
+        reorder_positions(&db, session_id, "queue")?;
 
-    info!("Moved item to history: {}", item_id);
-    Ok(())
+        Ok(())
+    })();
+
+    match result {
+        Ok(()) => {
+            conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+            info!("Moved item to history: {}", item_id);
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]
 pub fn queue_add_to_history(state: State<'_, AppState>, item: QueueItemData) -> Result<(), String> {
     debug!("Adding item directly to history: {} - {}", item.id, item.title);
     let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.connection();
 
     let session_id = get_active_session_id(&db)?;
 
-    // Get next history position
-    let position: i64 = db
-        .connection()
-        .query_row(
-            "SELECT COALESCE(MAX(position), -1) + 1 FROM queue_items WHERE session_id = ?1 AND item_type = 'history'",
-            [session_id],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
+    // Use transaction for atomicity (prevent duplicate positions)
+    conn.execute("BEGIN IMMEDIATE", [])
+        .map_err(|e| e.to_string())?;
 
-    db.connection()
-        .execute(
+    let result = (|| -> Result<i64, String> {
+        // Get next history position
+        let position: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(position), -1) + 1 FROM queue_items WHERE session_id = ?1 AND item_type = 'history'",
+                [session_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+
+        conn.execute(
             "INSERT INTO queue_items (id, session_id, item_type, video_id, title, artist, duration, thumbnail_url, source, youtube_id, file_path, position, added_at, played_at)
              VALUES (?1, ?2, 'history', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime('now'))",
             rusqlite::params![
@@ -323,8 +348,20 @@ pub fn queue_add_to_history(state: State<'_, AppState>, item: QueueItemData) -> 
         )
         .map_err(|e| e.to_string())?;
 
-    info!("Added item directly to history: {} at position {}", item.id, position);
-    Ok(())
+        Ok(position)
+    })();
+
+    match result {
+        Ok(position) => {
+            conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+            info!("Added item directly to history: {} at position {}", item.id, position);
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]
