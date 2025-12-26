@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Infinite scroll pagination for search results (#35)
+  - Automatically loads more results when scrolling to bottom
+  - Fetches up to 50 results per search (displays 15 at a time)
+  - Shows "Loading more..." indicator while fetching
+  - Displays "End of results" when all results are shown
+
 ## [0.2.1] - 2025-12-26
 
 ### Fixed
