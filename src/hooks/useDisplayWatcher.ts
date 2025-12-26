@@ -67,19 +67,24 @@ export function useDisplayWatcher() {
                     `Found saved config for hash ${config.config_hash.slice(0, 8)}...`
                   );
 
+                  // Get window states
+                  const states = await displayManagerService.getWindowStates(
+                    saved.id
+                  );
+                  log.info(
+                    `Window states for config: ${states.map((s) => `${s.window_type}(detached=${s.is_detached})`).join(", ")}`
+                  );
+
                   if (saved.auto_apply) {
                     // Auto-apply without dialog
                     log.info("Auto-applying saved window layout");
-                    const states = await displayManagerService.getWindowStates(
-                      saved.id
-                    );
-                    // TODO: Actually apply window states via windowManager
-                    log.debug(`Would restore ${states.length} window states`);
+                    // Set pending restore and immediately trigger restore
+                    setPendingRestore(saved, states);
+                    // Get the restoreLayout function and call it
+                    const { restoreLayout } = useDisplayStore.getState();
+                    await restoreLayout();
                   } else {
                     // Show restore dialog
-                    const states = await displayManagerService.getWindowStates(
-                      saved.id
-                    );
                     setPendingRestore(saved, states);
                     setShowRestoreDialog(true);
                   }
