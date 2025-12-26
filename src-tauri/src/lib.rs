@@ -3,9 +3,16 @@ mod db;
 mod services;
 
 use db::Database;
-use log::{debug, info};
+use log::{debug, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+
+#[cfg(target_os = "macos")]
+use services::MediaControlsService;
+#[cfg(target_os = "macos")]
+use souvlaki::MediaControlEvent;
+#[cfg(target_os = "macos")]
+use std::sync::mpsc;
 use tauri::menu::{CheckMenuItem, Menu, MenuItemKind, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
@@ -16,6 +23,10 @@ pub struct AppState {
     pub keep_awake: Mutex<Option<keepawake::KeepAwake>>,
     pub debug_mode: AtomicBool,
     pub log_dir: std::path::PathBuf,
+    #[cfg(target_os = "macos")]
+    pub media_controls: Mutex<Option<MediaControlsService>>,
+    #[cfg(target_os = "macos")]
+    pub media_event_rx: Mutex<Option<mpsc::Receiver<MediaControlEvent>>>,
 }
 
 const DEBUG_MODE_MENU_ID: &str = "debug-mode";
@@ -194,6 +205,10 @@ pub fn run() {
             commands::rename_session,
             commands::load_session,
             commands::delete_session,
+            // Media controls commands
+            commands::media_controls_update_metadata,
+            commands::media_controls_update_playback,
+            commands::media_controls_stop,
         ])
         .setup(|app| {
             info!("Starting Karaoke application");
@@ -220,12 +235,80 @@ pub fn run() {
             let debug_enabled = load_debug_preference(&db);
             debug!("Debug mode loaded from preferences: {}", debug_enabled);
 
+            // Initialize media controls (macOS only)
+            #[cfg(target_os = "macos")]
+            let (media_controls, media_event_rx) = {
+                let (tx, rx) = mpsc::channel();
+                let controls = match MediaControlsService::new(tx) {
+                    Ok(c) => {
+                        info!("Media controls initialized");
+                        Some(c)
+                    }
+                    Err(e) => {
+                        warn!("Failed to initialize media controls: {}", e);
+                        None
+                    }
+                };
+                (controls, Some(rx))
+            };
+
             app.manage(AppState {
                 db: Mutex::new(db),
                 keep_awake: Mutex::new(None),
                 debug_mode: AtomicBool::new(debug_enabled),
                 log_dir: log_dir.clone(),
+                #[cfg(target_os = "macos")]
+                media_controls: Mutex::new(media_controls),
+                #[cfg(target_os = "macos")]
+                media_event_rx: Mutex::new(media_event_rx),
             });
+
+            // Spawn media event polling thread (macOS only)
+            #[cfg(target_os = "macos")]
+            {
+                let app_handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let state = app_handle.state::<AppState>();
+                    let rx = state.media_event_rx.lock().ok().and_then(|mut guard| guard.take());
+
+                    if let Some(receiver) = rx {
+                        loop {
+                            match receiver.recv() {
+                                Ok(event) => {
+                                    let event_name = match event {
+                                        MediaControlEvent::Play => "media-control:play",
+                                        MediaControlEvent::Pause => "media-control:pause",
+                                        MediaControlEvent::Toggle => "media-control:toggle",
+                                        MediaControlEvent::Next => "media-control:next",
+                                        MediaControlEvent::Previous => "media-control:previous",
+                                        MediaControlEvent::Stop => "media-control:stop",
+                                        MediaControlEvent::Seek(direction) => {
+                                            use souvlaki::SeekDirection;
+                                            let delta = match direction {
+                                                SeekDirection::Forward => 10.0,
+                                                SeekDirection::Backward => -10.0,
+                                            };
+                                            let _ = app_handle.emit("media-control:seek", delta);
+                                            continue;
+                                        }
+                                        MediaControlEvent::SetPosition(pos) => {
+                                            let _ = app_handle.emit(
+                                                "media-control:set-position",
+                                                pos.0.as_secs_f64(),
+                                            );
+                                            continue;
+                                        }
+                                        _ => continue, // Ignore other events
+                                    };
+                                    let _ = app_handle.emit(event_name, ());
+                                }
+                                Err(_) => break, // Channel closed
+                            }
+                        }
+                    }
+                    debug!("Media event polling thread exiting");
+                });
+            }
 
             // Create the application menu
             let menu = create_menu(app, debug_enabled)?;

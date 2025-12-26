@@ -22,6 +22,7 @@ import { DependencyCheck } from "./components/DependencyCheck";
 import { usePlayerStore, useQueueStore, useSessionStore, getStreamUrlWithCache } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { youtubeService, createLogger } from "./services";
+import { useMediaControls } from "./hooks";
 import type { SearchResult } from "./types";
 
 const log = createLogger("App");
@@ -43,6 +44,9 @@ function App() {
 
   const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { addToQueue, playDirect } = useQueueStore();
+
+  // Initialize macOS Now Playing media controls
+  useMediaControls();
 
   const handleSearch = useCallback(async (query: string) => {
     log.info(`Searching for: "${query}"`);
