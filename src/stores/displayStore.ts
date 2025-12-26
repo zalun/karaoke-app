@@ -5,7 +5,9 @@ import {
   type SavedDisplayConfig,
   type WindowState,
 } from "../services/displayManager";
+import { windowManager } from "../services/windowManager";
 import { createLogger } from "../services/logger";
+import { usePlayerStore } from "./playerStore";
 
 const log = createLogger("DisplayStore");
 
@@ -81,19 +83,62 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
 
       // If user checked "Remember my choice", update auto_apply
       if (rememberChoice) {
-        log.info(
-          `Setting auto_apply=true for config ${savedConfig.id}`
-        );
+        log.info(`Setting auto_apply=true for config ${savedConfig.id}`);
         await displayManagerService.updateAutoApply(savedConfig.id, true);
       }
 
-      // Apply window states
-      for (const state of windowStates) {
-        log.debug(
-          `Restoring window: ${state.window_type} to (${state.x}, ${state.y}) ${state.width}x${state.height}`
+      // Find video window state
+      const videoState = windowStates.find((s) => s.window_type === "video");
+      const mainState = windowStates.find((s) => s.window_type === "main");
+
+      // Check if we need to detach the player
+      if (videoState && videoState.is_detached) {
+        const playerStore = usePlayerStore.getState();
+
+        // If player is not already detached, detach it
+        if (!playerStore.isDetached) {
+          log.info("Detaching player window for restore");
+          // Build a minimal player state for detaching
+          const playerState = {
+            streamUrl: playerStore.currentVideo?.streamUrl || null,
+            isPlaying: playerStore.isPlaying,
+            currentTime: playerStore.currentTime,
+            duration: playerStore.duration,
+            volume: playerStore.volume,
+            isMuted: playerStore.isMuted,
+          };
+          await windowManager.detachPlayer(playerState);
+          playerStore.setIsDetached(true);
+
+          // Wait a bit for window to be created
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+
+        // Restore video window position
+        log.info(
+          `Restoring video window to (${videoState.x}, ${videoState.y}) ${videoState.width}x${videoState.height}`
         );
-        // Window restoration will be handled by windowManager
-        // For now, emit an event that the App can listen to
+        await windowManager.restoreWindowState(
+          "player",
+          videoState.x,
+          videoState.y,
+          videoState.width,
+          videoState.height
+        );
+      }
+
+      // Restore main window position
+      if (mainState) {
+        log.info(
+          `Restoring main window to (${mainState.x}, ${mainState.y}) ${mainState.width}x${mainState.height}`
+        );
+        await windowManager.restoreWindowState(
+          "main",
+          mainState.x,
+          mainState.y,
+          mainState.width,
+          mainState.height
+        );
       }
 
       log.info(
@@ -151,8 +196,48 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
         `Saved display config ${configId}: ${currentConfig.config_hash.slice(0, 8)}...`
       );
 
-      // TODO: Capture and save window states
-      // This will be implemented when we integrate with windowManager
+      // Capture and save main window state
+      const mainState = await windowManager.captureWindowState("main");
+      if (mainState) {
+        await displayManagerService.saveWindowState(
+          configId,
+          "main",
+          null, // target_display_id
+          mainState.x,
+          mainState.y,
+          mainState.width,
+          mainState.height,
+          false, // is_detached
+          false // is_fullscreen
+        );
+        log.info(
+          `Saved main window state: (${mainState.x}, ${mainState.y}) ${mainState.width}x${mainState.height}`
+        );
+      }
+
+      // Capture and save player window state if detached
+      const playerStore = usePlayerStore.getState();
+      if (playerStore.isDetached) {
+        const playerState = await windowManager.captureWindowState("player");
+        if (playerState) {
+          await displayManagerService.saveWindowState(
+            configId,
+            "video",
+            null, // target_display_id
+            playerState.x,
+            playerState.y,
+            playerState.width,
+            playerState.height,
+            true, // is_detached
+            false // is_fullscreen
+          );
+          log.info(
+            `Saved video window state: (${playerState.x}, ${playerState.y}) ${playerState.width}x${playerState.height}`
+          );
+        }
+      }
+
+      log.info("Display layout saved successfully");
     } catch (err) {
       log.error("Failed to save layout", err);
     } finally {
