@@ -7,6 +7,8 @@ import {
   OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
+import { SingerOverlayDisplay } from "./SingerOverlayDisplay";
+import { CURRENT_SINGER_OVERLAY_DURATION_MS } from "./CurrentSingerOverlay";
 
 const log = createLogger("DetachedPlayer");
 
@@ -38,6 +40,9 @@ export function DetachedPlayer() {
   // Track time remaining for overlay (only update state when crossing thresholds to reduce re-renders)
   const [overlayTimeRemaining, setOverlayTimeRemaining] = useState<number | null>(null);
   const videoTimeRef = useRef({ currentTime: 0, duration: 0 });
+  // Track current singer overlay visibility
+  const [showCurrentSingerOverlay, setShowCurrentSingerOverlay] = useState(false);
+  const previousStreamUrlRef = useRef<string | null>(null);
   const [state, setState] = useState<PlayerState>({
     streamUrl: null,
     isPlaying: false,
@@ -279,6 +284,25 @@ export function DetachedPlayer() {
     windowManager.emitVideoEnded();
   }, []);
 
+  // Show current singer overlay when video changes (new streamUrl)
+  useEffect(() => {
+    // Only show when we have a new video (not initial load)
+    if (
+      state.streamUrl &&
+      previousStreamUrlRef.current !== null &&
+      state.streamUrl !== previousStreamUrlRef.current &&
+      state.currentSong?.singers &&
+      state.currentSong.singers.length > 0
+    ) {
+      setShowCurrentSingerOverlay(true);
+      const timer = setTimeout(() => {
+        setShowCurrentSingerOverlay(false);
+      }, CURRENT_SINGER_OVERLAY_DURATION_MS);
+      return () => clearTimeout(timer);
+    }
+    previousStreamUrlRef.current = state.streamUrl;
+  }, [state.streamUrl, state.currentSong?.singers]);
+
   // Double-click for fullscreen
   const handleDoubleClick = useCallback(() => {
     const video = videoRef.current;
@@ -319,6 +343,10 @@ export function DetachedPlayer() {
             is_persistent: false,
           }))}
         />
+      )}
+      {/* Current singer overlay - shows when video changes */}
+      {showCurrentSingerOverlay && state.currentSong?.singers && state.currentSong.singers.length > 0 && (
+        <SingerOverlayDisplay singers={state.currentSong.singers} />
       )}
     </div>
   );

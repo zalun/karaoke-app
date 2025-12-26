@@ -10,3 +10,4 @@ export {
   CurrentSingerOverlay,
   CURRENT_SINGER_OVERLAY_DURATION_MS,
 } from "./CurrentSingerOverlay";
+export { SingerOverlayDisplay, type SingerDisplayInfo } from "./SingerOverlayDisplay";

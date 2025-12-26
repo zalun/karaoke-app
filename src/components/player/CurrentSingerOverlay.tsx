@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useQueueStore, useSessionStore } from "../../stores";
-import { SingerAvatar } from "../singers";
+import { SingerOverlayDisplay } from "./SingerOverlayDisplay";
 
 export const CURRENT_SINGER_OVERLAY_DURATION_MS = 5000;
 
@@ -50,28 +50,5 @@ export function CurrentSingerOverlay() {
     return null;
   }
 
-  return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-      <div className="bg-black/70 backdrop-blur-sm text-white px-6 py-4 rounded-xl animate-fade-in">
-        <div className="flex flex-col items-center gap-3">
-          {/* Singer avatars */}
-          <div className="flex -space-x-2">
-            {currentSingers.map((singer) => (
-              <SingerAvatar
-                key={singer.id}
-                name={singer.name}
-                color={singer.color}
-                size="lg"
-                className="ring-2 ring-black/50"
-              />
-            ))}
-          </div>
-          {/* Singer names */}
-          <p className="text-lg font-medium">
-            {currentSingers.map((s) => s.name).join(" & ")}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+  return <SingerOverlayDisplay singers={currentSingers} />;
 }

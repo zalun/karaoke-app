@@ -31,25 +31,44 @@ export function PlayerControls() {
     seekTo,
   } = usePlayerStore();
 
-  const { hasNext, hasPrevious, playNext, playPrevious } = useQueueStore();
+  const { hasNext, hasPrevious, playNext, playPrevious, getCurrentItem } = useQueueStore();
   const nextQueueItem = useQueueStore((state) => state.queue[0]);
+  const currentQueueItem = getCurrentItem();
+
+  // Subscribe to session singer state for reactive updates
+  const { session, queueSingerAssignments, singers, loadQueueItemSingers } = useSessionStore();
+
+  // Load singers for current and next queue items when detached
+  // Only load if singers aren't already loaded to avoid redundant queries
+  useEffect(() => {
+    if (!isDetached || !session) return;
+    if (currentQueueItem && !queueSingerAssignments.has(currentQueueItem.id)) {
+      loadQueueItemSingers(currentQueueItem.id);
+    }
+    if (nextQueueItem && !queueSingerAssignments.has(nextQueueItem.id)) {
+      loadQueueItemSingers(nextQueueItem.id);
+    }
+  }, [isDetached, session, currentQueueItem?.id, nextQueueItem?.id, queueSingerAssignments, loadQueueItemSingers]);
 
   // Build player state object for syncing to detached window
   // Uses fresh values from store to avoid stale closures
   const buildPlayerState = useCallback(() => {
     const state = usePlayerStore.getState();
-    const next = useQueueStore.getState().queue[0];
+    const queueState = useQueueStore.getState();
+    const next = queueState.queue[0];
+    const current = queueState.getCurrentItem();
     const sessionState = useSessionStore.getState();
 
-    // Get singers for next queue item
-    let nextSingers: Array<{ id: number; name: string; color: string }> | undefined;
-    if (next && sessionState.session) {
-      const singerIds = sessionState.getQueueItemSingerIds(next.id);
-      nextSingers = singerIds
+    // Helper to get singers for a queue item
+    const getSingers = (itemId: string | undefined) => {
+      if (!itemId || !sessionState.session) return undefined;
+      const singerIds = sessionState.getQueueItemSingerIds(itemId);
+      if (singerIds.length === 0) return undefined;
+      return singerIds
         .map((id) => sessionState.getSingerById(id))
         .filter(Boolean)
         .map((s) => ({ id: s!.id, name: s!.name, color: s!.color }));
-    }
+    };
 
     return {
       streamUrl: state.currentVideo?.streamUrl ?? null,
@@ -58,8 +77,11 @@ export function PlayerControls() {
       duration: state.duration,
       volume: state.volume,
       isMuted: state.isMuted,
+      currentSong: current
+        ? { title: current.video.title, artist: current.video.artist, singers: getSingers(current.id) }
+        : undefined,
       nextSong: next
-        ? { title: next.video.title, artist: next.video.artist, singers: nextSingers }
+        ? { title: next.video.title, artist: next.video.artist, singers: getSingers(next.id) }
         : undefined,
     };
   }, []);
@@ -170,10 +192,13 @@ export function PlayerControls() {
   // Sync state to detached window when relevant state changes
   // Note: currentTime is intentionally excluded from dependencies to prevent sync loops.
   // Time updates flow one-way: detached window → main window via listenForTimeUpdate.
+  // queueSingerAssignments.size and singers.length are included to trigger re-sync when singers load.
+  // buildPlayerState is called inline (not in deps) since it reads fresh state via getState().
   useEffect(() => {
     if (!isDetached || !currentVideo?.streamUrl) return;
     windowManager.syncState(buildPlayerState());
-  }, [isDetached, currentVideo?.streamUrl, isPlaying, volume, isMuted, nextQueueItem]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDetached, currentVideo?.streamUrl, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length]);
 
   // Send play/pause commands to detached window
   useEffect(() => {
