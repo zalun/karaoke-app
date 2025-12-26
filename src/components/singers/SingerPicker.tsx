@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Users, Check, UserPlus } from "lucide-react";
 import { useSessionStore } from "../../stores";
@@ -41,7 +41,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   const assignedSingerIds = getQueueItemSingerIds(queueItemId);
 
   // Calculate and update dropdown position
-  const updateDropdownPosition = () => {
+  const updateDropdownPosition = useCallback(() => {
     if (!buttonRef.current) return;
 
     const rect = buttonRef.current.getBoundingClientRect();
@@ -56,7 +56,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
       left: Math.max(DROPDOWN_MARGIN, Math.min(rect.right - DROPDOWN_WIDTH, window.innerWidth - DROPDOWN_WIDTH - DROPDOWN_MARGIN)),
       openAbove,
     });
-  };
+  }, []);
 
   // Update dropdown position when opened and on window resize
   useEffect(() => {
@@ -65,7 +65,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
     updateDropdownPosition();
     window.addEventListener("resize", updateDropdownPosition);
     return () => window.removeEventListener("resize", updateDropdownPosition);
-  }, [isOpen]);
+  }, [isOpen, updateDropdownPosition]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
