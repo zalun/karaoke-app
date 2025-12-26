@@ -5,7 +5,7 @@ mod services;
 use db::Database;
 use log::{debug, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[cfg(target_os = "macos")]
 use services::MediaControlsService;
@@ -13,6 +13,10 @@ use services::MediaControlsService;
 use souvlaki::MediaControlEvent;
 #[cfg(target_os = "macos")]
 use std::sync::mpsc;
+#[cfg(target_os = "macos")]
+use std::thread::JoinHandle;
+#[cfg(target_os = "macos")]
+use std::time::Duration;
 use tauri::menu::{CheckMenuItem, Menu, MenuItemKind, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
@@ -27,6 +31,10 @@ pub struct AppState {
     pub media_controls: Mutex<Option<MediaControlsService>>,
     #[cfg(target_os = "macos")]
     pub media_event_rx: Mutex<Option<mpsc::Receiver<MediaControlEvent>>>,
+    #[cfg(target_os = "macos")]
+    pub media_event_thread: Mutex<Option<JoinHandle<()>>>,
+    #[cfg(target_os = "macos")]
+    pub shutdown_flag: Arc<AtomicBool>,
 }
 
 const DEBUG_MODE_MENU_ID: &str = "debug-mode";
@@ -237,6 +245,9 @@ pub fn run() {
 
             // Initialize media controls (macOS only)
             #[cfg(target_os = "macos")]
+            let shutdown_flag = Arc::new(AtomicBool::new(false));
+
+            #[cfg(target_os = "macos")]
             let (media_controls, media_event_rx) = {
                 let (tx, rx) = mpsc::channel();
                 let controls = match MediaControlsService::new(tx) {
@@ -261,19 +272,25 @@ pub fn run() {
                 media_controls: Mutex::new(media_controls),
                 #[cfg(target_os = "macos")]
                 media_event_rx: Mutex::new(media_event_rx),
+                #[cfg(target_os = "macos")]
+                media_event_thread: Mutex::new(None),
+                #[cfg(target_os = "macos")]
+                shutdown_flag: shutdown_flag.clone(),
             });
 
             // Spawn media event polling thread (macOS only)
             #[cfg(target_os = "macos")]
             {
                 let app_handle = app.handle().clone();
-                std::thread::spawn(move || {
+                let shutdown_flag_clone = shutdown_flag.clone();
+                let thread_handle = std::thread::spawn(move || {
                     let state = app_handle.state::<AppState>();
                     let rx = state.media_event_rx.lock().ok().and_then(|mut guard| guard.take());
 
                     if let Some(receiver) = rx {
                         loop {
-                            match receiver.recv() {
+                            // Use recv_timeout to periodically check shutdown flag
+                            match receiver.recv_timeout(Duration::from_millis(100)) {
                                 Ok(event) => {
                                     let event_name = match event {
                                         MediaControlEvent::Play => "media-control:play",
@@ -302,12 +319,25 @@ pub fn run() {
                                     };
                                     let _ = app_handle.emit(event_name, ());
                                 }
-                                Err(_) => break, // Channel closed
+                                Err(mpsc::RecvTimeoutError::Timeout) => {
+                                    // Check shutdown flag on timeout
+                                    if shutdown_flag_clone.load(Ordering::SeqCst) {
+                                        debug!("Media event polling thread received shutdown signal");
+                                        break;
+                                    }
+                                }
+                                Err(mpsc::RecvTimeoutError::Disconnected) => break, // Channel closed
                             }
                         }
                     }
                     debug!("Media event polling thread exiting");
                 });
+
+                // Store the thread handle for graceful shutdown
+                let state = app.state::<AppState>();
+                if let Ok(mut guard) = state.media_event_thread.lock() {
+                    *guard = Some(thread_handle);
+                };
             }
 
             // Create the application menu
@@ -375,6 +405,31 @@ pub fn run() {
                 _ => {}
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                info!("Application exiting, initiating graceful shutdown");
+
+                #[cfg(target_os = "macos")]
+                {
+                    let state = app_handle.state::<AppState>();
+
+                    // Signal the media event thread to stop
+                    state.shutdown_flag.store(true, Ordering::SeqCst);
+                    debug!("Shutdown flag set");
+
+                    // Wait for the thread to finish
+                    if let Ok(mut guard) = state.media_event_thread.lock() {
+                        if let Some(handle) = guard.take() {
+                            debug!("Waiting for media event thread to finish...");
+                            match handle.join() {
+                                Ok(()) => info!("Media event thread shut down gracefully"),
+                                Err(_) => warn!("Media event thread panicked during shutdown"),
+                            }
+                        }
+                    };
+                }
+            }
+        });
 }
