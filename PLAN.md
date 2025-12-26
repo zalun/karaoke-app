@@ -354,8 +354,8 @@ cleanup_temporary() -> ()                          // Delete non-persistent sing
 
 ### Phase 4: Multi-window and Display Detection
 **Result:** Can detach video to projector, application remembers display configurations
-- [ ] Detachable video window (Tauri WebviewWindow)
-- [ ] Display Watcher - listen for display hotplug (CGDisplayRegisterReconfigurationCallback)
+- [x] Detachable video window (Tauri WebviewWindow)
+- [ ] Display Watcher - listen for display hotplug (CGDisplayRegisterReconfigurationCallback) - Issue #48
 - [ ] `display_configs` table - save display configurations
 - [ ] Logic for recognizing known configuration (config_hash)
 - [ ] Dialog "Detected [display]. Restore layout?" with "Remember" checkbox
