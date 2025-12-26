@@ -189,3 +189,33 @@ export function invalidatePrefetchIfStale(expectedVideoId: string | undefined): 
     usePlayerStore.getState().clearPrefetchedStreamUrl();
   }
 }
+
+/**
+ * Play a video by fetching its stream URL and updating player state.
+ * Shared helper for playback logic used by both PlayerControls and useMediaControls.
+ *
+ * @param video - The video to play (must have youtubeId)
+ * @returns Promise that resolves when playback starts, or rejects on error
+ */
+export async function playVideo(video: Video): Promise<void> {
+  if (!video.youtubeId) {
+    log.warn("playVideo: video has no youtubeId, cannot play");
+    return;
+  }
+
+  const { setIsLoading, setCurrentVideo, setIsPlaying, setError } =
+    usePlayerStore.getState();
+
+  setIsLoading(true);
+  try {
+    const streamUrl = await getStreamUrlWithCache(video.youtubeId);
+    setCurrentVideo({ ...video, streamUrl });
+    setIsPlaying(true);
+    log.info(`Now playing: ${video.title}`);
+  } catch (err) {
+    log.error("Failed to play video", err);
+    setError("Failed to play video");
+    setIsLoading(false);
+    throw err;
+  }
+}

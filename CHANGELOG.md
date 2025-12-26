@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Refactor: Extracted shared video playback logic into `playVideo` helper (#42)
+  - Consolidated duplicate code from PlayerControls and useMediaControls
+  - New `playVideo()` function in playerStore handles stream URL fetching, state updates, and error handling
+
 ### Fixed
 - Media controls event polling thread now shuts down gracefully on app exit (#40)
   - Added shutdown flag mechanism with `recv_timeout` for responsive termination

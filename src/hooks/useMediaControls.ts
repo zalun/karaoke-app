@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { mediaControlsService, createLogger } from "../services";
-import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "../stores";
+import { usePlayerStore, useQueueStore, playVideo } from "../stores";
 
 const log = createLogger("useMediaControls");
 
@@ -15,16 +15,13 @@ export function useMediaControls() {
     isPlaying,
     currentTime,
     duration,
-    setCurrentVideo,
     setIsPlaying,
-    setIsLoading,
-    setError,
     seekTo,
   } = usePlayerStore();
 
   const { playNext, playPrevious, hasNext, hasPrevious } = useQueueStore();
 
-  // Handle next track - similar logic to PlayerControls
+  // Handle next track
   const handleNext = useCallback(async () => {
     log.info("Media key: Next");
     if (!hasNext()) {
@@ -32,22 +29,16 @@ export function useMediaControls() {
       return;
     }
     const nextItem = playNext();
-    if (nextItem && nextItem.video.youtubeId) {
-      setIsLoading(true);
+    if (nextItem) {
       try {
-        const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
-        setCurrentVideo({ ...nextItem.video, streamUrl });
-        setIsPlaying(true);
-        log.info(`Now playing: ${nextItem.video.title}`);
-      } catch (err) {
-        log.error("Failed to play next", err);
-        setError("Failed to play next video");
-        setIsLoading(false);
+        await playVideo(nextItem.video);
+      } catch {
+        // Error already logged and state updated by playVideo
       }
     }
-  }, [playNext, hasNext, setCurrentVideo, setIsPlaying, setIsLoading, setError]);
+  }, [playNext, hasNext]);
 
-  // Handle previous track - similar logic to PlayerControls
+  // Handle previous track
   const handlePrevious = useCallback(async () => {
     log.info("Media key: Previous");
     if (!hasPrevious()) {
@@ -55,20 +46,14 @@ export function useMediaControls() {
       return;
     }
     const prevItem = playPrevious();
-    if (prevItem && prevItem.video.youtubeId) {
-      setIsLoading(true);
+    if (prevItem) {
       try {
-        const streamUrl = await getStreamUrlWithCache(prevItem.video.youtubeId);
-        setCurrentVideo({ ...prevItem.video, streamUrl });
-        setIsPlaying(true);
-        log.info(`Now playing: ${prevItem.video.title}`);
-      } catch (err) {
-        log.error("Failed to play previous", err);
-        setError("Failed to play previous video");
-        setIsLoading(false);
+        await playVideo(prevItem.video);
+      } catch {
+        // Error already logged and state updated by playVideo
       }
     }
-  }, [playPrevious, hasPrevious, setCurrentVideo, setIsPlaying, setIsLoading, setError]);
+  }, [playPrevious, hasPrevious]);
 
   // Update metadata and playback state when video changes or playback state changes
   useEffect(() => {
