@@ -315,30 +315,42 @@ cleanup_temporary() -> ()                          // Delete non-persistent sing
 **Result:** Can start karaoke sessions, add singers, assign singers to queue items
 **Dependencies:** Phase 1 (SQLite), Phase 2 (Queue UI, NextSongOverlay, window sync) - all complete
 
-#### Queue & History Session Persistence (Priority) - Issue #31
-- [ ] Link queue items to active session (session_id foreign key or junction table)
-- [ ] Queue database operations (persist to SQLite on every change)
-- [ ] Tauri commands for queue persistence (load/save)
-- [ ] History entries stored with session association
-- [ ] Session resume: restore queue and history state on app reopen
-- [ ] Sync queueStore with backend persistence
+#### Queue & History Session Persistence - Issue #31 ✅
+- [x] Link queue items to active session (session_id foreign key or junction table)
+- [x] Queue database operations (persist to SQLite on every change)
+- [x] Tauri commands for queue persistence (load/save)
+- [x] History entries stored with session association
+- [x] Session resume: restore queue and history state on app reopen
+- [x] Sync queueStore with backend persistence
+- [x] Sessions menu in macOS menu bar for managing stored sessions
+- [x] Load, rename, and delete stored sessions from dialog
+- [x] Empty sessions automatically cleaned up on end
 
 #### Singers and Groups
-- [ ] Database migration 2: singers, groups, sessions, queue_singers tables
-- [ ] Rust commands: session_*, singer_*, group_*, queue_assign_singers
-- [ ] Frontend sessionStore.ts with singer/group/assignment state
-- [ ] SingerAvatar component (circle with first letter + auto-assigned color)
-- [ ] SingerChip component (avatar + name in pill)
-- [ ] SessionStartPanel ("Start Karaoke Night" button)
-- [ ] SessionBar (shows active session + singer avatars)
-- [ ] SingerPicker dropdown (select/create singers for queue item)
-- [ ] DraggableQueueItem enhancement (show singer chips, click-to-assign)
+- [x] Database migration 2: singers, groups, sessions, queue_singers tables
+- [x] Rust commands: session_*, singer_*, group_*, queue_assign_singers
+- [x] Frontend sessionStore.ts with singer/group/assignment state
+- [x] SingerAvatar component (circle with first letter + auto-assigned color)
+- [x] SingerChip component (avatar + name in pill)
+- [x] SessionStartPanel ("Start Karaoke Night" button)
+- [x] SessionBar (shows active session + singer avatars)
+- [x] SingerPicker dropdown (select/create singers for queue item)
+- [x] DraggableQueueItem enhancement (show singer chips, click-to-assign)
+- [x] NextSongOverlay enhancement (show singer avatars with colors)
+- [x] Sync singer data to detached player via PlayerState.nextSong
+- [x] Singer avatars displayed in stored sessions list
 - [ ] Drag-drop singer assignment (drag avatar onto queue item)
-- [ ] NextSongOverlay enhancement (show singer avatars with colors)
-- [ ] Sync singer data to detached player via PlayerState.nextSong
 - [ ] Group management UI (optional singer collections)
 - [ ] Persistent vs temporary toggle for singers/groups
 - [ ] Session end with cleanup prompt
+
+#### macOS Media Controls - Issue #38 ✅
+- [x] Now Playing widget integration (Control Center, Touch Bar, AirPods)
+- [x] Display song title and artist
+- [x] Media key controls (play/pause, next, previous)
+- [x] Album artwork from YouTube thumbnails
+- [x] Playback position and progress tracking
+- [x] Graceful shutdown of media controls thread (#40)
 
 ### Phase 4: Local File Queue Support
 **Result:** Can add local files to queue without importing to library

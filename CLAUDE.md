@@ -85,4 +85,4 @@ Releases are automated via GitHub Actions (`.github/workflows/release.yml`):
 
 ## Implementation Roadmap
 
-See `PLAN.md` for detailed phases. Currently completed through Phase 2 (YouTube Integration) with yt-dlp service, search, streaming, queue/history, and detachable player.
+See `PLAN.md` for detailed phases. Currently completed through Phase 3 (Sessions and Singers) with queue/history persistence, singer assignments, macOS Now Playing integration, and media key controls.
