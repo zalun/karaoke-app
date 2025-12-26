@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect } from "react";
-import { usePlayerStore, useQueueStore, useSessionStore, getStreamUrlWithCache } from "../../stores";
+import { usePlayerStore, useQueueStore, useSessionStore, playVideo } from "../../stores";
 import { windowManager, createLogger } from "../../services";
 
 const log = createLogger("PlayerControls");
@@ -21,11 +21,8 @@ export function PlayerControls() {
     isMuted,
     isDetached,
     seekTime,
-    setCurrentVideo,
     setIsPlaying,
-    setIsLoading,
     setIsDetached,
-    setError,
     setVolume,
     toggleMute,
     seekTo,
@@ -256,38 +253,26 @@ export function PlayerControls() {
   const handlePrevious = useCallback(async () => {
     log.info("Playing previous");
     const prevItem = playPrevious();
-    if (prevItem && prevItem.video.youtubeId) {
-      setIsLoading(true);
+    if (prevItem) {
       try {
-        const streamUrl = await getStreamUrlWithCache(prevItem.video.youtubeId);
-        setCurrentVideo({ ...prevItem.video, streamUrl });
-        setIsPlaying(true);
-        log.info(`Now playing: ${prevItem.video.title}`);
-      } catch (err) {
-        log.error("Failed to play previous", err);
-        setError("Failed to play previous video");
-        setIsLoading(false);
+        await playVideo(prevItem.video);
+      } catch {
+        // Error already logged and state updated by playVideo
       }
     }
-  }, [playPrevious, setCurrentVideo, setIsPlaying, setIsLoading, setError]);
+  }, [playPrevious]);
 
   const handleNext = useCallback(async () => {
     log.info("Playing next");
     const nextItem = playNext();
-    if (nextItem && nextItem.video.youtubeId) {
-      setIsLoading(true);
+    if (nextItem) {
       try {
-        const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
-        setCurrentVideo({ ...nextItem.video, streamUrl });
-        setIsPlaying(true);
-        log.info(`Now playing: ${nextItem.video.title}`);
-      } catch (err) {
-        log.error("Failed to play next", err);
-        setError("Failed to play next video");
-        setIsLoading(false);
+        await playVideo(nextItem.video);
+      } catch {
+        // Error already logged and state updated by playVideo
       }
     }
-  }, [playNext, setCurrentVideo, setIsPlaying, setIsLoading, setError]);
+  }, [playNext]);
 
   const handlePlayPause = useCallback(() => {
     const newState = !isPlaying;

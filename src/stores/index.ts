@@ -2,6 +2,7 @@ export {
   usePlayerStore,
   getStreamUrlWithCache,
   invalidatePrefetchIfStale,
+  playVideo,
   PREFETCH_THRESHOLD_SECONDS,
   type Video,
 } from "./playerStore";
