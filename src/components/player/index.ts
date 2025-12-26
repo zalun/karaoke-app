@@ -6,3 +6,7 @@ export {
   OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
+export {
+  CurrentSingerOverlay,
+  CURRENT_SINGER_OVERLAY_DURATION_MS,
+} from "./CurrentSingerOverlay";

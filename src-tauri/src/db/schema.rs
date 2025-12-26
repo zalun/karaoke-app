@@ -86,6 +86,66 @@ const MIGRATIONS: &[&str] = &[
 
     INSERT OR IGNORE INTO schema_version (version) VALUES (1);
     "#,
+    // Migration 2: Sessions and Singers
+    r#"
+    -- Singers table
+    CREATE TABLE IF NOT EXISTS singers (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL,
+        is_persistent INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Groups table (optional collections of singers)
+    CREATE TABLE IF NOT EXISTS groups (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        is_persistent INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Singer-Group many-to-many relationship
+    CREATE TABLE IF NOT EXISTS singer_groups (
+        singer_id INTEGER NOT NULL,
+        group_id INTEGER NOT NULL,
+        PRIMARY KEY (singer_id, group_id),
+        FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE,
+        FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
+    );
+
+    -- Sessions table (karaoke nights)
+    CREATE TABLE IF NOT EXISTS sessions (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ended_at TIMESTAMP,
+        is_active INTEGER DEFAULT 1
+    );
+
+    -- Session-Singer relationship (singers participating in a session)
+    CREATE TABLE IF NOT EXISTS session_singers (
+        session_id INTEGER NOT NULL,
+        singer_id INTEGER NOT NULL,
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (session_id, singer_id),
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE
+    );
+
+    -- Queue-Singer relationship (singer assignments to queue items)
+    CREATE TABLE IF NOT EXISTS queue_singers (
+        id INTEGER PRIMARY KEY,
+        queue_item_id TEXT NOT NULL,
+        singer_id INTEGER NOT NULL,
+        position INTEGER DEFAULT 0,
+        FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE
+    );
+
+    -- Index for faster lookups
+    CREATE INDEX IF NOT EXISTS idx_queue_singers_queue_item ON queue_singers(queue_item_id);
+    CREATE INDEX IF NOT EXISTS idx_session_singers_session ON session_singers(session_id);
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

@@ -1,6 +1,9 @@
+import { useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { QueueItem } from "../../stores/queueStore";
+import { useSessionStore } from "../../stores";
+import { SingerAvatar, SingerPicker } from "../singers";
 
 interface DraggableQueueItemProps {
   item: QueueItem;
@@ -26,6 +29,21 @@ export function DraggableQueueItem({
     isDragging,
   } = useSortable({ id: item.id });
 
+  const { session, getQueueItemSingerIds, getSingerById, loadQueueItemSingers } =
+    useSessionStore();
+
+  const assignedSingerIds = getQueueItemSingerIds(item.id);
+  const assignedSingers = assignedSingerIds
+    .map((id) => getSingerById(id))
+    .filter(Boolean);
+
+  // Load singer assignments when component mounts
+  useEffect(() => {
+    if (session) {
+      loadQueueItemSingers(item.id);
+    }
+  }, [item.id, session, loadQueueItemSingers]);
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -50,12 +68,36 @@ export function DraggableQueueItem({
 
       {/* Video info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm truncate">{item.video.title}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm truncate flex-1">{item.video.title}</p>
+          {/* Assigned singers avatars */}
+          {assignedSingers.length > 0 && (
+            <div className="flex -space-x-1">
+              {assignedSingers.slice(0, 3).map((singer) => (
+                <SingerAvatar
+                  key={singer!.id}
+                  name={singer!.name}
+                  color={singer!.color}
+                  size="sm"
+                  className="ring-1 ring-gray-700"
+                />
+              ))}
+              {assignedSingers.length > 3 && (
+                <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-xs text-gray-300 ring-1 ring-gray-700">
+                  +{assignedSingers.length - 3}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <p className="text-xs text-gray-400 truncate">
           {item.video.artist}
           {item.video.duration && ` • ${formatDuration(item.video.duration)}`}
         </p>
       </div>
+
+      {/* Singer picker (only when session active) */}
+      {session && <SingerPicker queueItemId={item.id} />}
 
       {/* Remove button */}
       <button

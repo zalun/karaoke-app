@@ -302,6 +302,12 @@ export function DetachedPlayer() {
           title={state.nextSong.title}
           artist={state.nextSong.artist}
           countdown={overlayTimeRemaining <= COUNTDOWN_START_THRESHOLD_SECONDS ? overlayTimeRemaining : undefined}
+          singers={state.nextSong.singers?.map((s) => ({
+            id: s.id,
+            name: s.name,
+            color: s.color,
+            is_persistent: false,
+          }))}
         />
       )}
     </div>
