@@ -225,6 +225,10 @@ export function VideoPlayer() {
   }, [setCurrentVideo, setIsPlaying, setIsLoading, setError]);
 
   // Listen for video ended event from detached player
+  // Note: We use a ref pattern to avoid re-registering the listener when handleEnded changes
+  const handleEndedRef = useRef(handleEnded);
+  handleEndedRef.current = handleEnded;
+
   useEffect(() => {
     if (!isDetached) return;
 
@@ -232,7 +236,7 @@ export function VideoPlayer() {
 
     windowManager.listenForVideoEnded(() => {
       log.info("Video ended in detached player, advancing queue");
-      handleEnded();
+      handleEndedRef.current();
     }).then((unlisten) => {
       unlistenFn = unlisten;
     });
@@ -240,7 +244,7 @@ export function VideoPlayer() {
     return () => {
       unlistenFn?.();
     };
-  }, [isDetached, handleEnded]);
+  }, [isDetached]);
 
   const handleError = useCallback(async () => {
     // If we used a cached URL that might be stale, retry with fresh fetch
