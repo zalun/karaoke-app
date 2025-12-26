@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check } from "lucide-react";
+import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { useSessionStore } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
@@ -320,8 +320,14 @@ export function SessionBar() {
     return (
       <>
         <div className="bg-gray-800 rounded-lg px-4 py-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-400">No active session</span>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => openLoadDialog()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
+            >
+              <FolderOpen size={14} />
+              Stored Sessions
+            </button>
             <button
               onClick={handleStartSession}
               disabled={isLoading}
