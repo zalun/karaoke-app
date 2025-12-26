@@ -70,17 +70,49 @@ pub fn display_save_config(
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let display_names_json = serde_json::to_string(&display_names).map_err(|e| e.to_string())?;
 
-    // Use INSERT OR REPLACE to handle existing configs
-    db.connection()
-        .execute(
-            "INSERT OR REPLACE INTO display_configs (config_hash, display_names, description, auto_apply)
-             VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![config_hash, display_names_json, description, auto_apply as i32],
+    // First check if config already exists
+    let existing_id: Option<i64> = db
+        .connection()
+        .query_row(
+            "SELECT id FROM display_configs WHERE config_hash = ?1",
+            [&config_hash],
+            |row| row.get(0),
         )
+        .optional()
         .map_err(|e| e.to_string())?;
 
-    let id = db.connection().last_insert_rowid();
-    info!("Saved display config: id={}, hash={}", id, &config_hash[..8.min(config_hash.len())]);
+    let id = if let Some(existing) = existing_id {
+        // Update existing config (preserves ID so window_state FK references remain valid)
+        db.connection()
+            .execute(
+                "UPDATE display_configs SET display_names = ?1, description = ?2, auto_apply = ?3
+                 WHERE id = ?4",
+                rusqlite::params![display_names_json, description, auto_apply as i32, existing],
+            )
+            .map_err(|e| e.to_string())?;
+        info!(
+            "Updated existing display config: id={}, hash={}",
+            existing,
+            &config_hash[..8.min(config_hash.len())]
+        );
+        existing
+    } else {
+        // Insert new config
+        db.connection()
+            .execute(
+                "INSERT INTO display_configs (config_hash, display_names, description, auto_apply)
+                 VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![config_hash, display_names_json, description, auto_apply as i32],
+            )
+            .map_err(|e| e.to_string())?;
+        let new_id = db.connection().last_insert_rowid();
+        info!(
+            "Created new display config: id={}, hash={}",
+            new_id,
+            &config_hash[..8.min(config_hash.len())]
+        );
+        new_id
+    };
 
     Ok(id)
 }

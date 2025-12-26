@@ -87,9 +87,17 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
         await displayManagerService.updateAutoApply(savedConfig.id, true);
       }
 
+      // Log what window states we received
+      log.info(
+        `Restoring layout with ${windowStates.length} window states: ${windowStates.map((s) => `${s.window_type}(detached=${s.is_detached})`).join(", ")}`
+      );
+
       // Find video window state
       const videoState = windowStates.find((s) => s.window_type === "video");
       const mainState = windowStates.find((s) => s.window_type === "main");
+
+      log.debug(`Video state: ${videoState ? "found" : "not found"}`);
+      log.debug(`Main state: ${mainState ? "found" : "not found"}`);
 
       // Check if we need to detach the player
       if (videoState && videoState.is_detached) {
@@ -217,6 +225,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
 
       // Capture and save player window state if detached
       const playerStore = usePlayerStore.getState();
+      log.info(`Player isDetached: ${playerStore.isDetached}`);
       if (playerStore.isDetached) {
         const playerState = await windowManager.captureWindowState("player");
         if (playerState) {
@@ -232,9 +241,13 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
             false // is_fullscreen
           );
           log.info(
-            `Saved video window state: (${playerState.x}, ${playerState.y}) ${playerState.width}x${playerState.height}`
+            `Saved video window state (detached=true): (${playerState.x}, ${playerState.y}) ${playerState.width}x${playerState.height}`
           );
+        } else {
+          log.warn("Player is detached but could not capture window state");
         }
+      } else {
+        log.info("Player is not detached, skipping video window state");
       }
 
       log.info("Display layout saved successfully");
