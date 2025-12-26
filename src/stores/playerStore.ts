@@ -211,6 +211,7 @@ export async function playVideo(video: Video): Promise<void> {
     const streamUrl = await getStreamUrlWithCache(video.youtubeId);
     setCurrentVideo({ ...video, streamUrl });
     setIsPlaying(true);
+    setIsLoading(false);
     log.info(`Now playing: ${video.title}`);
   } catch (err) {
     log.error("Failed to play video", err);
