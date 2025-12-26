@@ -18,6 +18,48 @@ export function useDisplayWatcher() {
     let unlistenConfigChange: (() => void) | null = null;
     let unlistenSaveLayout: (() => void) | null = null;
 
+    // Helper to check and restore saved layout for a config
+    const checkAndRestoreSavedLayout = async (
+      configHash: string,
+      context: "startup" | "change"
+    ) => {
+      try {
+        const saved = await displayManagerService.getSavedConfig(configHash);
+
+        if (saved) {
+          log.info(
+            `Found saved config for hash ${configHash.slice(0, 8)}... (${context})`
+          );
+
+          // Get window states
+          const states = await displayManagerService.getWindowStates(saved.id);
+          log.info(
+            `Window states for config: ${states.map((s) => `${s.window_type}(detached=${s.is_detached})`).join(", ")}`
+          );
+
+          if (saved.auto_apply) {
+            // Auto-apply without dialog
+            log.info(`Auto-applying saved window layout (${context})`);
+            setPendingRestore(saved, states);
+            const { restoreLayout } = useDisplayStore.getState();
+            await restoreLayout();
+          } else if (context === "change") {
+            // Only show dialog on display change, not on startup
+            setPendingRestore(saved, states);
+            setShowRestoreDialog(true);
+          } else {
+            log.debug(
+              `Saved config exists but auto_apply=false, skipping on ${context}`
+            );
+          }
+        } else {
+          log.debug(`No saved config for hash ${configHash.slice(0, 8)}...`);
+        }
+      } catch (err) {
+        log.error("Failed to check for saved config", err);
+      }
+    };
+
     const init = async () => {
       // Get initial display configuration
       try {
@@ -27,6 +69,9 @@ export function useDisplayWatcher() {
             `Initial display configuration: ${config.displays.length} displays, hash=${config.config_hash.slice(0, 8)}...`
           );
           setCurrentConfig(config);
+
+          // Check for saved layout on startup
+          await checkAndRestoreSavedLayout(config.config_hash, "startup");
         }
       } catch (err) {
         // This will fail on non-macOS platforms, which is expected
@@ -56,46 +101,8 @@ export function useDisplayWatcher() {
               );
               setCurrentConfig(config);
 
-              // Check if we have a saved config for this hash
-              try {
-                const saved = await displayManagerService.getSavedConfig(
-                  config.config_hash
-                );
-
-                if (saved) {
-                  log.info(
-                    `Found saved config for hash ${config.config_hash.slice(0, 8)}...`
-                  );
-
-                  // Get window states
-                  const states = await displayManagerService.getWindowStates(
-                    saved.id
-                  );
-                  log.info(
-                    `Window states for config: ${states.map((s) => `${s.window_type}(detached=${s.is_detached})`).join(", ")}`
-                  );
-
-                  if (saved.auto_apply) {
-                    // Auto-apply without dialog
-                    log.info("Auto-applying saved window layout");
-                    // Set pending restore and immediately trigger restore
-                    setPendingRestore(saved, states);
-                    // Get the restoreLayout function and call it
-                    const { restoreLayout } = useDisplayStore.getState();
-                    await restoreLayout();
-                  } else {
-                    // Show restore dialog
-                    setPendingRestore(saved, states);
-                    setShowRestoreDialog(true);
-                  }
-                } else {
-                  log.debug(
-                    `No saved config for hash ${config.config_hash.slice(0, 8)}...`
-                  );
-                }
-              } catch (err) {
-                log.error("Failed to check for saved config", err);
-              }
+              // Check for saved layout on display change
+              await checkAndRestoreSavedLayout(config.config_hash, "change");
             }
           );
       } catch (err) {
