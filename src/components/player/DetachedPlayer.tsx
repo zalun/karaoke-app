@@ -1,11 +1,14 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { windowManager, type PlayerState } from "../../services/windowManager";
+import { createLogger } from "../../services";
 import { useWakeLock } from "../../hooks";
 import {
   NextSongOverlay,
   OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
+
+const log = createLogger("DetachedPlayer");
 
 // Throttle time updates to reduce event frequency (500ms interval)
 const TIME_UPDATE_THROTTLE_MS = 500;
@@ -270,6 +273,12 @@ export function DetachedPlayer() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [state.streamUrl, state.duration, state.volume, state.isMuted]);
 
+  // Handle video ended - notify main window to advance queue
+  const handleEnded = useCallback(() => {
+    log.info("Video ended, notifying main window");
+    windowManager.emitVideoEnded();
+  }, []);
+
   // Double-click for fullscreen
   const handleDoubleClick = useCallback(() => {
     const video = videoRef.current;
@@ -289,6 +298,7 @@ export function DetachedPlayer() {
         className="w-full h-full object-contain"
         onTimeUpdate={handleTimeUpdate}
         onCanPlay={handleCanPlay}
+        onEnded={handleEnded}
         onDoubleClick={handleDoubleClick}
         playsInline
       />
