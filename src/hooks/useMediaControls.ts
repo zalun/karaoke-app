@@ -128,8 +128,8 @@ export function useMediaControls() {
         unlistenFns.push(
           await mediaControlsService.onToggle(() => {
             log.debug("Media key: Toggle");
-            const current = usePlayerStore.getState().isPlaying;
-            setIsPlaying(!current);
+            const { isPlaying: current, setIsPlaying: setState } = usePlayerStore.getState();
+            setState(!current);
           })
         );
 

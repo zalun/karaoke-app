@@ -35,8 +35,9 @@ export const mediaControlsService = {
         isPlaying,
         positionSecs,
       });
-    } catch {
-      // Throttled updates may fail silently
+    } catch (err) {
+      // Log at debug level to aid troubleshooting without spamming logs
+      log.debug("Failed to update playback state", err);
     }
   },
 

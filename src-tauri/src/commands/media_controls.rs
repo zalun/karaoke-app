@@ -14,7 +14,10 @@ pub fn media_controls_update_metadata(
 ) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        let mut guard = state.media_controls.lock().map_err(|e| e.to_string())?;
+        let mut guard = state
+            .media_controls
+            .lock()
+            .map_err(|_| "Media controls mutex poisoned".to_string())?;
         if let Some(ref mut controls) = *guard {
             controls.set_metadata(
                 &title,
@@ -42,7 +45,10 @@ pub fn media_controls_update_playback(
 ) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        let mut guard = state.media_controls.lock().map_err(|e| e.to_string())?;
+        let mut guard = state
+            .media_controls
+            .lock()
+            .map_err(|_| "Media controls mutex poisoned".to_string())?;
         if let Some(ref mut controls) = *guard {
             controls.set_playback(is_playing, position_secs)?;
         }
@@ -60,7 +66,10 @@ pub fn media_controls_update_playback(
 pub fn media_controls_stop(state: State<AppState>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        let mut guard = state.media_controls.lock().map_err(|e| e.to_string())?;
+        let mut guard = state
+            .media_controls
+            .lock()
+            .map_err(|_| "Media controls mutex poisoned".to_string())?;
         if let Some(ref mut controls) = *guard {
             controls.stop()?;
         }

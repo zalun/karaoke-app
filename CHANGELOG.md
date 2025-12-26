@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- macOS Now Playing widget integration (#38)
+  - Display song title and artist in Control Center, Touch Bar, and AirPods controls
+  - Support for media key controls (play/pause, next, previous)
+  - Album artwork from YouTube thumbnails
+  - Playback position and progress tracking
+
 ## [0.3.0] - 2025-12-26
 
 ### Added
