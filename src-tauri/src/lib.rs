@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 #[cfg(target_os = "macos")]
-use services::MediaControlsService;
+use services::{DisplayEvent, DisplayWatcherService, MediaControlsService};
 #[cfg(target_os = "macos")]
 use souvlaki::MediaControlEvent;
 #[cfg(target_os = "macos")]
@@ -33,6 +33,12 @@ pub struct AppState {
     pub media_event_rx: Mutex<Option<mpsc::Receiver<MediaControlEvent>>>,
     #[cfg(target_os = "macos")]
     pub media_event_thread: Mutex<Option<JoinHandle<()>>>,
+    #[cfg(target_os = "macos")]
+    pub display_watcher: Mutex<Option<DisplayWatcherService>>,
+    #[cfg(target_os = "macos")]
+    pub display_event_rx: Mutex<Option<mpsc::Receiver<DisplayEvent>>>,
+    #[cfg(target_os = "macos")]
+    pub display_event_thread: Mutex<Option<JoinHandle<()>>>,
     #[cfg(target_os = "macos")]
     pub shutdown_flag: Arc<AtomicBool>,
 }
@@ -217,6 +223,15 @@ pub fn run() {
             commands::media_controls_update_metadata,
             commands::media_controls_update_playback,
             commands::media_controls_stop,
+            // Display commands
+            commands::display_get_configuration,
+            commands::display_save_config,
+            commands::display_get_saved_config,
+            commands::display_update_auto_apply,
+            commands::display_delete_config,
+            commands::window_save_state,
+            commands::window_get_states,
+            commands::window_clear_states,
         ])
         .setup(|app| {
             info!("Starting Karaoke application");
@@ -263,6 +278,23 @@ pub fn run() {
                 (controls, Some(rx))
             };
 
+            // Initialize display watcher (macOS only)
+            #[cfg(target_os = "macos")]
+            let (display_watcher, display_event_rx) = {
+                let (tx, rx) = mpsc::channel();
+                let watcher = match DisplayWatcherService::new(tx) {
+                    Ok(w) => {
+                        info!("Display watcher initialized");
+                        Some(w)
+                    }
+                    Err(e) => {
+                        warn!("Failed to initialize display watcher: {}", e);
+                        None
+                    }
+                };
+                (watcher, Some(rx))
+            };
+
             app.manage(AppState {
                 db: Mutex::new(db),
                 keep_awake: Mutex::new(None),
@@ -274,6 +306,12 @@ pub fn run() {
                 media_event_rx: Mutex::new(media_event_rx),
                 #[cfg(target_os = "macos")]
                 media_event_thread: Mutex::new(None),
+                #[cfg(target_os = "macos")]
+                display_watcher: Mutex::new(display_watcher),
+                #[cfg(target_os = "macos")]
+                display_event_rx: Mutex::new(display_event_rx),
+                #[cfg(target_os = "macos")]
+                display_event_thread: Mutex::new(None),
                 #[cfg(target_os = "macos")]
                 shutdown_flag: shutdown_flag.clone(),
             });
@@ -336,6 +374,46 @@ pub fn run() {
                 // Store the thread handle for graceful shutdown
                 let state = app.state::<AppState>();
                 if let Ok(mut guard) = state.media_event_thread.lock() {
+                    *guard = Some(thread_handle);
+                };
+            }
+
+            // Spawn display event polling thread (macOS only)
+            #[cfg(target_os = "macos")]
+            {
+                let app_handle = app.handle().clone();
+                let shutdown_flag_clone = shutdown_flag.clone();
+                let thread_handle = std::thread::spawn(move || {
+                    let state = app_handle.state::<AppState>();
+                    let rx = state.display_event_rx.lock().ok().and_then(|mut guard| guard.take());
+
+                    if let Some(receiver) = rx {
+                        loop {
+                            match receiver.recv_timeout(Duration::from_millis(100)) {
+                                Ok(DisplayEvent::ConfigurationChanged(config)) => {
+                                    info!(
+                                        "Display configuration changed: {} displays, hash={}",
+                                        config.displays.len(),
+                                        &config.config_hash[..8.min(config.config_hash.len())]
+                                    );
+                                    let _ = app_handle.emit("display:configuration-changed", &config);
+                                }
+                                Err(mpsc::RecvTimeoutError::Timeout) => {
+                                    if shutdown_flag_clone.load(Ordering::SeqCst) {
+                                        debug!("Display event polling thread received shutdown signal");
+                                        break;
+                                    }
+                                }
+                                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                            }
+                        }
+                    }
+                    debug!("Display event polling thread exiting");
+                });
+
+                // Store the thread handle for graceful shutdown
+                let state = app.state::<AppState>();
+                if let Ok(mut guard) = state.display_event_thread.lock() {
                     *guard = Some(thread_handle);
                 };
             }
@@ -419,13 +497,24 @@ pub fn run() {
                     state.shutdown_flag.store(true, Ordering::SeqCst);
                     debug!("Shutdown flag set");
 
-                    // Wait for the thread to finish
+                    // Wait for media event thread to finish
                     if let Ok(mut guard) = state.media_event_thread.lock() {
                         if let Some(handle) = guard.take() {
                             debug!("Waiting for media event thread to finish...");
                             match handle.join() {
                                 Ok(()) => info!("Media event thread shut down gracefully"),
                                 Err(_) => warn!("Media event thread panicked during shutdown"),
+                            }
+                        }
+                    };
+
+                    // Wait for display event thread to finish
+                    if let Ok(mut guard) = state.display_event_thread.lock() {
+                        if let Some(handle) = guard.take() {
+                            debug!("Waiting for display event thread to finish...");
+                            match handle.join() {
+                                Ok(()) => info!("Display event thread shut down gracefully"),
+                                Err(_) => warn!("Display event thread panicked during shutdown"),
                             }
                         }
                     };

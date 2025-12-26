@@ -19,10 +19,11 @@ import { SearchBar, SearchResults } from "./components/search";
 import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
+import { DisplayRestoreDialog } from "./components/display";
 import { usePlayerStore, useQueueStore, useSessionStore, getStreamUrlWithCache } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { youtubeService, createLogger } from "./services";
-import { useMediaControls } from "./hooks";
+import { useMediaControls, useDisplayWatcher } from "./hooks";
 import type { SearchResult } from "./types";
 
 const log = createLogger("App");
@@ -47,6 +48,9 @@ function App() {
 
   // Initialize macOS Now Playing media controls
   useMediaControls();
+
+  // Initialize display hotplug watcher (macOS only)
+  useDisplayWatcher();
 
   const handleSearch = useCallback(async (query: string) => {
     log.info(`Searching for: "${query}"`);
@@ -139,6 +143,9 @@ function App() {
 
   return (
     <AppLayout>
+      {/* Display configuration restore dialog */}
+      <DisplayRestoreDialog />
+
       <div className="h-full grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left: Main content area */}
         <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
