@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Queue and history persistence across app restarts (#31)
+  - Queue and history data saved to SQLite database per session
+  - Sessions menu in macOS menu bar for managing stored sessions
+  - Load, rename, and delete stored sessions from dialog
+  - Singer assignments preserved with queue items
+  - Empty sessions automatically cleaned up on end
+  - Singer avatars displayed in stored sessions list
 - Infinite scroll pagination for search results (#35)
   - Automatically loads more results when scrolling to bottom
   - Fetches up to 50 results per search (displays 15 at a time)
