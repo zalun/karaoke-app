@@ -289,12 +289,6 @@ pub fn run() {
 
                     if let Some(receiver) = rx {
                         loop {
-                            // Check shutdown flag before blocking on recv
-                            if shutdown_flag_clone.load(Ordering::SeqCst) {
-                                debug!("Media event polling thread received shutdown signal");
-                                break;
-                            }
-
                             // Use recv_timeout to periodically check shutdown flag
                             match receiver.recv_timeout(Duration::from_millis(100)) {
                                 Ok(event) => {
@@ -325,7 +319,13 @@ pub fn run() {
                                     };
                                     let _ = app_handle.emit(event_name, ());
                                 }
-                                Err(mpsc::RecvTimeoutError::Timeout) => continue, // Check shutdown flag again
+                                Err(mpsc::RecvTimeoutError::Timeout) => {
+                                    // Check shutdown flag on timeout
+                                    if shutdown_flag_clone.load(Ordering::SeqCst) {
+                                        debug!("Media event polling thread received shutdown signal");
+                                        break;
+                                    }
+                                }
                                 Err(mpsc::RecvTimeoutError::Disconnected) => break, // Channel closed
                             }
                         }
@@ -419,7 +419,7 @@ pub fn run() {
                     state.shutdown_flag.store(true, Ordering::SeqCst);
                     debug!("Shutdown flag set");
 
-                    // Wait for the thread to finish (with timeout)
+                    // Wait for the thread to finish
                     if let Ok(mut guard) = state.media_event_thread.lock() {
                         if let Some(handle) = guard.take() {
                             debug!("Waiting for media event thread to finish...");
