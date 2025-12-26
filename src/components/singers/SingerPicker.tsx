@@ -7,6 +7,13 @@ import { SingerAvatar } from "./SingerAvatar";
 const DROPDOWN_WIDTH = 200;
 const DROPDOWN_OFFSET_Y = 8;
 const DROPDOWN_MAX_HEIGHT = 300;
+const DROPDOWN_MARGIN = 8;
+
+interface DropdownPosition {
+  top: number;
+  left: number;
+  openAbove: boolean;
+}
 
 interface SingerPickerProps {
   queueItemId: string;
@@ -17,7 +24,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   const [isOpen, setIsOpen] = useState(false);
   const [showNewSinger, setShowNewSinger] = useState(false);
   const [newSingerName, setNewSingerName] = useState("");
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, openAbove: true });
+  const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition>({ top: 0, left: 0, openAbove: true });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -33,22 +40,31 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
 
   const assignedSingerIds = getQueueItemSingerIds(queueItemId);
 
-  // Update dropdown position when opened
+  // Calculate and update dropdown position
+  const updateDropdownPosition = () => {
+    if (!buttonRef.current) return;
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    // Prefer opening above, but open below if not enough space above
+    const openAbove = spaceAbove > DROPDOWN_MAX_HEIGHT || spaceAbove > spaceBelow;
+
+    setDropdownPosition({
+      top: openAbove ? rect.top - DROPDOWN_OFFSET_Y : rect.bottom + DROPDOWN_OFFSET_Y,
+      left: Math.max(DROPDOWN_MARGIN, Math.min(rect.right - DROPDOWN_WIDTH, window.innerWidth - DROPDOWN_WIDTH - DROPDOWN_MARGIN)),
+      openAbove,
+    });
+  };
+
+  // Update dropdown position when opened and on window resize
   useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      const spaceAbove = rect.top;
-      const spaceBelow = window.innerHeight - rect.bottom;
+    if (!isOpen) return;
 
-      // Prefer opening above, but open below if not enough space above
-      const openAbove = spaceAbove > DROPDOWN_MAX_HEIGHT || spaceAbove > spaceBelow;
-
-      setDropdownPosition({
-        top: openAbove ? rect.top - DROPDOWN_OFFSET_Y : rect.bottom + DROPDOWN_OFFSET_Y,
-        left: Math.max(8, Math.min(rect.right - DROPDOWN_WIDTH, window.innerWidth - DROPDOWN_WIDTH - 8)),
-        openAbove,
-      });
-    }
+    updateDropdownPosition();
+    window.addEventListener("resize", updateDropdownPosition);
+    return () => window.removeEventListener("resize", updateDropdownPosition);
   }, [isOpen]);
 
   // Close dropdown when clicking outside
