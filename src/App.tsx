@@ -19,7 +19,8 @@ import { SearchBar, SearchResults } from "./components/search";
 import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
-import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "./stores";
+import { usePlayerStore, useQueueStore, useSessionStore, getStreamUrlWithCache } from "./stores";
+import { SingerAvatar } from "./components/singers";
 import { youtubeService, createLogger } from "./services";
 import type { SearchResult } from "./types";
 
@@ -359,6 +360,7 @@ const historyLog = createLogger("HistoryPanel");
 function HistoryPanel() {
   const { history, historyIndex, playFromHistory, clearHistory } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
+  const { session, getQueueItemSingerIds, getSingerById } = useSessionStore();
 
   const handlePlayFromHistory = useCallback(
     async (index: number) => {
@@ -425,6 +427,28 @@ function HistoryPanel() {
                   {item.video.duration && ` • ${formatDuration(item.video.duration)}`}
                 </p>
               </div>
+              {/* Singer avatars */}
+              {session && (() => {
+                const singerIds = getQueueItemSingerIds(item.id);
+                if (singerIds.length === 0) return null;
+                const itemSingers = singerIds
+                  .map((id) => getSingerById(id))
+                  .filter(Boolean);
+                if (itemSingers.length === 0) return null;
+                return (
+                  <div className="flex -space-x-1 flex-shrink-0">
+                    {itemSingers.slice(0, 3).map((singer) => (
+                      <SingerAvatar
+                        key={singer!.id}
+                        name={singer!.name}
+                        color={singer!.color}
+                        size="sm"
+                        className="ring-1 ring-gray-800"
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

@@ -2,6 +2,8 @@
 
 A home karaoke application for macOS built with Tauri 2.0 and React.
 
+![Karaoke App Screenshot](screenshots/app-screenshot.png)
+
 ## Features
 
 - **YouTube Integration** - Search and stream karaoke videos directly from YouTube
