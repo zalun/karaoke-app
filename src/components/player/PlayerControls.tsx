@@ -158,6 +158,31 @@ export function PlayerControls() {
     };
   }, [isDetached]);
 
+  // Listen for video loaded event from detached window to clear loading state
+  useEffect(() => {
+    if (!isDetached) return;
+
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForVideoLoaded(() => {
+      if (isMounted) {
+        usePlayerStore.setState({ isLoading: false });
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unlistenFn?.();
+    };
+  }, [isDetached]);
+
   // Listen for state requests from detached window and respond with current state
   useEffect(() => {
     if (!isDetached) return;
@@ -297,8 +322,8 @@ export function PlayerControls() {
 
   return (
     <div className={`bg-gray-800 p-3 rounded-lg relative ${isDisabled ? "opacity-60" : ""}`}>
-      {/* Loading overlay - don't show when detached (detached window has its own) */}
-      {isLoading && !isDetached && (
+      {/* Loading overlay */}
+      {isLoading && (
         <div className="absolute inset-0 bg-gray-900/50 rounded-lg flex items-center justify-center z-10">
           <div className="w-8 h-8 border-4 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
         </div>
@@ -351,9 +376,9 @@ export function PlayerControls() {
             <span>{isDisabled ? "--:--" : formatTime(currentTime)}</span>
             <div
               ref={progressRef}
-              onClick={isDisabled || (isLoading && !isDetached) ? undefined : handleSeek}
+              onClick={isDisabled || isLoading ? undefined : handleSeek}
               className={`flex-1 h-2 bg-gray-700 rounded-full transition-all ${
-                isDisabled || (isLoading && !isDetached) ? "cursor-not-allowed" : "cursor-pointer hover:h-3"
+                isDisabled || isLoading ? "cursor-not-allowed" : "cursor-pointer hover:h-3"
               }`}
             >
               <div

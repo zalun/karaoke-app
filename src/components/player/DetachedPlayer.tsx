@@ -177,6 +177,9 @@ export function DetachedPlayer() {
 
     setIsReady(true);
 
+    // Notify main window that video is loaded
+    windowManager.emitVideoLoaded();
+
     // Restore position only on initial detach, not when switching videos
     if (shouldRestorePosition && state.currentTime > MIN_RESTORE_POSITION_SECONDS) {
       video.currentTime = state.currentTime;
