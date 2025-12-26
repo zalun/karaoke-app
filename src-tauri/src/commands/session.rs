@@ -501,6 +501,22 @@ pub fn delete_session(state: State<'_, AppState>, session_id: i64) -> Result<(),
         .execute("DELETE FROM sessions WHERE id = ?1", [session_id])
         .map_err(|e| e.to_string())?;
 
+    // Clean up non-persistent singers that are now orphaned
+    db.connection()
+        .execute(
+            "DELETE FROM singers WHERE is_persistent = 0 AND id NOT IN (SELECT singer_id FROM session_singers)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
+    // Clean up orphaned queue singer assignments
+    db.connection()
+        .execute(
+            "DELETE FROM queue_singers WHERE queue_item_id NOT IN (SELECT id FROM queue_items)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
     info!("Session {} deleted", session_id);
     Ok(())
 }
