@@ -37,20 +37,17 @@ export function useDisplayWatcher() {
             `Window states for config: ${states.map((s) => `${s.window_type}(detached=${s.is_detached})`).join(", ")}`
           );
 
-          if (saved.auto_apply) {
-            // Auto-apply without dialog
-            log.info(`Auto-applying saved window layout (${context})`);
+          if (context === "startup" || saved.auto_apply) {
+            // On startup: always restore saved layout silently
+            // On display change with auto_apply: restore silently
+            log.info(`Restoring saved window layout (${context}, auto_apply=${saved.auto_apply})`);
             setPendingRestore(saved, states);
             const { restoreLayout } = useDisplayStore.getState();
             await restoreLayout();
-          } else if (context === "change") {
-            // Only show dialog on display change, not on startup
+          } else {
+            // On display change without auto_apply: show dialog
             setPendingRestore(saved, states);
             setShowRestoreDialog(true);
-          } else {
-            log.debug(
-              `Saved config exists but auto_apply=false, skipping on ${context}`
-            );
           }
         } else {
           log.debug(`No saved config for hash ${configHash.slice(0, 8)}...`);
