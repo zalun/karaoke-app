@@ -29,6 +29,9 @@ const log = createLogger("App");
 type PanelTab = "queue" | "history";
 type MainTab = "player" | "search";
 
+const RESULTS_PER_PAGE = 15;
+const MAX_SEARCH_RESULTS = 50;
+
 function App() {
   const [dependenciesReady, setDependenciesReady] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -36,6 +39,7 @@ function App() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PanelTab>("queue");
   const [mainTab, setMainTab] = useState<MainTab>("search");
+  const [displayedCount, setDisplayedCount] = useState(RESULTS_PER_PAGE);
 
   const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { addToQueue, playDirect } = useQueueStore();
@@ -44,9 +48,10 @@ function App() {
     log.info(`Searching for: "${query}"`);
     setIsSearching(true);
     setSearchError(null);
+    setDisplayedCount(RESULTS_PER_PAGE); // Reset pagination on new search
 
     try {
-      const results = await youtubeService.search(query, 15);
+      const results = await youtubeService.search(query, MAX_SEARCH_RESULTS);
       log.info(`Search returned ${results.length} results`);
       setSearchResults(results);
     } catch (err) {
@@ -58,6 +63,14 @@ function App() {
     } finally {
       setIsSearching(false);
     }
+  }, []);
+
+  const handleLoadMore = useCallback(() => {
+    setDisplayedCount((prev) => {
+      const newCount = prev + RESULTS_PER_PAGE;
+      log.debug(`Showing more results: ${newCount}`);
+      return newCount;
+    });
   }, []);
 
   const handlePlay = useCallback(
@@ -174,6 +187,8 @@ function App() {
                 error={searchError}
                 onPlay={handlePlay}
                 onAddToQueue={handleAddToQueue}
+                displayedCount={displayedCount}
+                onLoadMore={handleLoadMore}
               />
             </div>
           </div>

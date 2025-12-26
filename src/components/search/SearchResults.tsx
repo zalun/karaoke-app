@@ -1,5 +1,8 @@
+import { useRef, useEffect, useMemo } from "react";
 import type { SearchResult } from "../../types";
 import { usePlayerStore } from "../../stores";
+
+const RESULTS_PER_PAGE = 15;
 
 interface SearchResultsProps {
   results: SearchResult[];
@@ -7,6 +10,8 @@ interface SearchResultsProps {
   error: string | null;
   onPlay: (result: SearchResult) => void;
   onAddToQueue: (result: SearchResult) => void;
+  displayedCount: number;
+  onLoadMore: () => void;
 }
 
 function formatDuration(seconds?: number): string {
@@ -29,8 +34,53 @@ export function SearchResults({
   error,
   onPlay,
   onAddToQueue,
+  displayedCount,
+  onLoadMore,
 }: SearchResultsProps) {
   const { currentVideo, isPlaying } = usePlayerStore();
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Filter out channels/playlists (memoized to avoid recomputing on every render)
+  const videoResults = useMemo(() => {
+    return results.filter((result) => {
+      // Must have a duration (videos have duration, channels/playlists don't)
+      if (!result.duration || result.duration === 0) return false;
+      // YouTube video IDs are exactly 11 characters
+      if (result.id.length !== 11) return false;
+      return true;
+    });
+  }, [results]);
+
+  const displayedResults = useMemo(
+    () => videoResults.slice(0, displayedCount),
+    [videoResults, displayedCount]
+  );
+  const hasMore = displayedCount < videoResults.length;
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (!hasMore || isLoading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMore, isLoading, onLoadMore]);
 
   if (isLoading) {
     return (
@@ -48,15 +98,6 @@ export function SearchResults({
     );
   }
 
-  // Filter out channels/playlists (they don't have duration and have IDs starting with UC/PL)
-  const videoResults = results.filter((result) => {
-    // Must have a duration (videos have duration, channels/playlists don't)
-    if (!result.duration || result.duration === 0) return false;
-    // YouTube video IDs are exactly 11 characters
-    if (result.id.length !== 11) return false;
-    return true;
-  });
-
   if (videoResults.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -67,7 +108,7 @@ export function SearchResults({
 
   return (
     <div className="space-y-2">
-      {videoResults.map((result) => {
+      {displayedResults.map((result) => {
         const isCurrentlyPlaying = currentVideo?.id === result.id;
 
         return (
@@ -140,6 +181,24 @@ export function SearchResults({
           </div>
         );
       })}
+
+      {/* Load more trigger / indicator */}
+      {hasMore && (
+        <div
+          ref={loadMoreRef}
+          className="flex items-center justify-center py-4"
+          aria-live="polite"
+        >
+          <div className="text-gray-400 text-sm">Scroll for more results...</div>
+        </div>
+      )}
+
+      {/* End of results indicator */}
+      {!hasMore && videoResults.length > 0 && displayedResults.length >= RESULTS_PER_PAGE && (
+        <div className="flex items-center justify-center py-4" aria-live="polite">
+          <div className="text-gray-500 text-sm">End of results</div>
+        </div>
+      )}
     </div>
   );
 }
