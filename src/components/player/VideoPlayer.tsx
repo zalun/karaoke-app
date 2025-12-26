@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo } from "react";
+import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import {
   usePlayerStore,
   useQueueStore,
@@ -19,12 +19,35 @@ import { MIN_RESTORE_POSITION_SECONDS } from "./DetachedPlayer";
 
 const log = createLogger("VideoPlayer");
 
+// Detach/pop-out icon - two overlapping rectangles
+function DetachIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {/* Back rectangle */}
+      <rect x="3" y="3" width="13" height="13" rx="2" />
+      {/* Front rectangle (offset) */}
+      <path d="M8 8h13v13H8z" />
+      <rect x="8" y="8" width="13" height="13" rx="2" fill="black" fillOpacity="0.5" />
+      <rect x="8" y="8" width="13" height="13" rx="2" fill="none" />
+    </svg>
+  );
+}
+
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const prefetchTriggeredRef = useRef<string | null>(null);
   const usedCachedUrlRef = useRef<boolean>(false);
   // Track previous detached state to detect reattachment
   const wasDetachedRef = useRef(false);
+  const [isHovered, setIsHovered] = useState(false);
   const {
     currentVideo,
     isPlaying,
@@ -42,7 +65,30 @@ export function VideoPlayer() {
     setIsLoading,
     setError,
     clearSeek,
+    setIsDetached,
   } = usePlayerStore();
+
+  // Handle detach button click
+  const handleDetach = useCallback(async () => {
+    if (isDetached) return;
+
+    log.info("Detaching player window");
+    const playerState = {
+      streamUrl: currentVideo?.streamUrl || null,
+      isPlaying,
+      currentTime,
+      duration,
+      volume,
+      isMuted,
+    };
+
+    try {
+      await windowManager.detachPlayer(playerState);
+      setIsDetached(true);
+    } catch (err) {
+      log.error("Failed to detach player", err);
+    }
+  }, [isDetached, currentVideo, isPlaying, currentTime, duration, volume, isMuted, setIsDetached]);
 
   // Prevent screen from sleeping while playing (only when not detached)
   useWakeLock(isPlaying && !isDetached);
@@ -295,7 +341,11 @@ export function VideoPlayer() {
   }
 
   return (
-    <div className="w-full h-full bg-black rounded-lg overflow-hidden relative">
+    <div
+      className="w-full h-full bg-black rounded-lg overflow-hidden relative group"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <video
         ref={videoRef}
         src={currentVideo.streamUrl}
@@ -312,6 +362,16 @@ export function VideoPlayer() {
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">
           <div className="text-white">Loading...</div>
         </div>
+      )}
+      {/* Detach button - appears on hover */}
+      {!isDetached && isHovered && (
+        <button
+          onClick={handleDetach}
+          className="absolute bottom-3 right-3 p-2 bg-black/70 hover:bg-black/90 rounded-lg transition-all duration-200 text-white"
+          title="Detach video to separate window"
+        >
+          <DetachIcon className="w-5 h-5" />
+        </button>
       )}
       <CurrentSingerOverlay key={currentVideo?.id} />
       <NextSongOverlayWithSingers
