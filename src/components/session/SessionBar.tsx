@@ -6,6 +6,7 @@ import { SingerAvatar, SingerChip } from "../singers";
 const MAX_VISIBLE_SINGERS = 10;
 
 export function SessionBar() {
+  const [createError, setCreateError] = useState<string | null>(null);
   const {
     session,
     singers,
@@ -46,12 +47,14 @@ export function SessionBar() {
   const handleCreateSinger = async () => {
     const name = newSingerName.trim();
     if (!name) return;
+    setCreateError(null);
     try {
       await createSinger(name);
       setNewSingerName("");
       setShowNewSinger(false);
     } catch (error) {
-      console.error("Failed to create singer:", error);
+      const message = error instanceof Error ? error.message : "Failed to create singer";
+      setCreateError(message);
     }
   };
 
@@ -152,32 +155,43 @@ export function SessionBar() {
               />
             ))}
             {showNewSinger ? (
-              <div className="flex items-center gap-2">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={newSingerName}
-                  onChange={(e) => setNewSingerName(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Singer name..."
-                  className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 w-32"
-                />
-                <button
-                  onClick={handleCreateSinger}
-                  disabled={!newSingerName.trim()}
-                  className="px-2 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:text-gray-400 rounded text-sm text-white transition-colors"
-                >
-                  Add
-                </button>
-                <button
-                  onClick={() => {
-                    setShowNewSinger(false);
-                    setNewSingerName("");
-                  }}
-                  className="text-gray-400 hover:text-gray-200 text-sm"
-                >
-                  Cancel
-                </button>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={newSingerName}
+                    onChange={(e) => {
+                      setNewSingerName(e.target.value);
+                      setCreateError(null);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Singer name..."
+                    className={`bg-gray-700 border rounded px-2 py-1 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 w-32 ${
+                      createError ? "border-red-500" : "border-gray-600"
+                    }`}
+                  />
+                  <button
+                    onClick={handleCreateSinger}
+                    disabled={!newSingerName.trim()}
+                    className="px-2 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:text-gray-400 rounded text-sm text-white transition-colors"
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowNewSinger(false);
+                      setCreateError(null);
+                      setNewSingerName("");
+                    }}
+                    className="text-gray-400 hover:text-gray-200 text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {createError && (
+                  <p className="text-xs text-red-400">{createError}</p>
+                )}
               </div>
             ) : (
               <button

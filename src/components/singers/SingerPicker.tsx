@@ -5,6 +5,7 @@ import { useSessionStore } from "../../stores";
 import { SingerAvatar } from "./SingerAvatar";
 
 const DROPDOWN_WIDTH = 200;
+const DROPDOWN_OFFSET_Y = 8;
 
 interface SingerPickerProps {
   queueItemId: string;
@@ -36,8 +37,8 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setDropdownPosition({
-        top: rect.top - 8, // Position above the button
-        left: rect.right - DROPDOWN_WIDTH, // Align right edge with button
+        top: rect.top - DROPDOWN_OFFSET_Y,
+        left: rect.right - DROPDOWN_WIDTH,
       });
     }
   }, [isOpen]);
