@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-12-26
+
 ### Fixed
 - Singer picker button now has better contrast against queue item tiles (#30)
 - Singer picker button has distinct hover state with blue highlight (#30)
@@ -49,5 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Queue and history management
 - Basic video player controls
 
+[0.2.1]: https://github.com/zalun/karaoke-app/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/zalun/karaoke-app/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/zalun/karaoke-app/releases/tag/v0.1.0
