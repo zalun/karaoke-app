@@ -1,6 +1,8 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import type { SearchResult } from "../../types";
 import { usePlayerStore } from "../../stores";
+
+const RESULTS_PER_PAGE = 15;
 
 interface SearchResultsProps {
   results: SearchResult[];
@@ -38,16 +40,21 @@ export function SearchResults({
   const { currentVideo, isPlaying } = usePlayerStore();
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  // Filter out channels/playlists (they don't have duration and have IDs starting with UC/PL)
-  const videoResults = results.filter((result) => {
-    // Must have a duration (videos have duration, channels/playlists don't)
-    if (!result.duration || result.duration === 0) return false;
-    // YouTube video IDs are exactly 11 characters
-    if (result.id.length !== 11) return false;
-    return true;
-  });
+  // Filter out channels/playlists (memoized to avoid recomputing on every render)
+  const videoResults = useMemo(() => {
+    return results.filter((result) => {
+      // Must have a duration (videos have duration, channels/playlists don't)
+      if (!result.duration || result.duration === 0) return false;
+      // YouTube video IDs are exactly 11 characters
+      if (result.id.length !== 11) return false;
+      return true;
+    });
+  }, [results]);
 
-  const displayedResults = videoResults.slice(0, displayedCount);
+  const displayedResults = useMemo(
+    () => videoResults.slice(0, displayedCount),
+    [videoResults, displayedCount]
+  );
   const hasMore = displayedCount < videoResults.length;
 
   // Intersection Observer for infinite scroll
@@ -180,14 +187,15 @@ export function SearchResults({
         <div
           ref={loadMoreRef}
           className="flex items-center justify-center py-4"
+          aria-live="polite"
         >
-          <div className="text-gray-400 text-sm">Loading more...</div>
+          <div className="text-gray-400 text-sm">Scroll for more results...</div>
         </div>
       )}
 
       {/* End of results indicator */}
-      {!hasMore && videoResults.length > 0 && displayedResults.length >= 15 && (
-        <div className="flex items-center justify-center py-4">
+      {!hasMore && videoResults.length > 0 && displayedResults.length >= RESULTS_PER_PAGE && (
+        <div className="flex items-center justify-center py-4" aria-live="polite">
           <div className="text-gray-500 text-sm">End of results</div>
         </div>
       )}

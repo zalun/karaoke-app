@@ -66,9 +66,12 @@ function App() {
   }, []);
 
   const handleLoadMore = useCallback(() => {
-    setDisplayedCount((prev) => prev + RESULTS_PER_PAGE);
-    log.debug(`Loading more results, now showing ${displayedCount + RESULTS_PER_PAGE}`);
-  }, [displayedCount]);
+    setDisplayedCount((prev) => {
+      const newCount = prev + RESULTS_PER_PAGE;
+      log.debug(`Showing more results: ${newCount}`);
+      return newCount;
+    });
+  }, []);
 
   const handlePlay = useCallback(
     async (result: SearchResult) => {
