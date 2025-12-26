@@ -1,6 +1,8 @@
 export { youtubeService } from "./youtube";
 export { windowManager } from "./windowManager";
 export { keepAwakeService } from "./keepAwake";
+export { mediaControlsService } from "./mediaControls";
+export type { MediaControlsMetadata } from "./mediaControls";
 export { logger, createLogger } from "./logger";
 export { sessionService } from "./session";
 export type { Singer, Session } from "./session";
