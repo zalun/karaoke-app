@@ -85,10 +85,12 @@ export function VideoPlayer() {
     try {
       await windowManager.detachPlayer(playerState);
       setIsDetached(true);
+      // Clear loading state - loading now happens in detached window
+      setIsLoading(false);
     } catch (err) {
       log.error("Failed to detach player", err);
     }
-  }, [isDetached, currentVideo, isPlaying, currentTime, duration, volume, isMuted, setIsDetached]);
+  }, [isDetached, currentVideo, isPlaying, currentTime, duration, volume, isMuted, setIsDetached, setIsLoading]);
 
   // Prevent screen from sleeping while playing (only when not detached)
   useWakeLock(isPlaying && !isDetached);

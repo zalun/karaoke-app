@@ -117,6 +117,8 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
           };
           await windowManager.detachPlayer(playerState);
           playerStore.setIsDetached(true);
+          // Clear loading state - loading now happens in detached window
+          playerStore.setIsLoading(false);
 
           // Wait a bit for window to be created
           await new Promise((resolve) => setTimeout(resolve, 300));
