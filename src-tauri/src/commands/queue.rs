@@ -131,10 +131,29 @@ pub fn queue_reorder(
     item_id: String,
     new_position: i64,
 ) -> Result<(), String> {
+    // Validate new_position is not negative
+    if new_position < 0 {
+        return Err("Position cannot be negative".to_string());
+    }
+
     debug!("Reordering queue item {} to position {}", item_id, new_position);
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let session_id = get_active_session_id(&db)?;
+
+    // Get max position to validate bounds
+    let max_position: i64 = db
+        .connection()
+        .query_row(
+            "SELECT COALESCE(MAX(position), 0) FROM queue_items WHERE session_id = ?1 AND item_type = 'queue'",
+            [session_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    if new_position > max_position {
+        return Err(format!("Position {} is out of bounds (max: {})", new_position, max_position));
+    }
 
     // Get current position
     let current_position: i64 = db

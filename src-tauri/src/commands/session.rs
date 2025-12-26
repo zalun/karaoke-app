@@ -179,7 +179,7 @@ pub fn end_session(state: State<'_, AppState>) -> Result<(), String> {
                 [session_id],
                 |row| row.get(0),
             )
-            .unwrap_or(false);
+            .map_err(|e| e.to_string())?;
 
         if has_content {
             // Session has content - just mark as inactive
