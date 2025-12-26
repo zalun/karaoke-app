@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Play, Square, Users } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Play, Square, Users, UserPlus } from "lucide-react";
 import { useSessionStore } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
 
@@ -8,32 +8,66 @@ export function SessionBar() {
     session,
     singers,
     isLoading,
+    queueSingerAssignments,
     startSession,
     endSession,
     loadSession,
+    createSinger,
     deleteSinger,
   } = useSessionStore();
 
+  // Check if a singer is assigned to any queue item
+  const isSingerAssigned = (singerId: number): boolean => {
+    for (const singerIds of queueSingerAssignments.values()) {
+      if (singerIds.includes(singerId)) return true;
+    }
+    return false;
+  };
+
   const [showSingers, setShowSingers] = useState(false);
+  const [showNewSinger, setShowNewSinger] = useState(false);
+  const [newSingerName, setNewSingerName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Load session on mount
   useEffect(() => {
     loadSession();
   }, [loadSession]);
 
+  // Focus input when showing new singer form
+  useEffect(() => {
+    if (showNewSinger && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [showNewSinger]);
+
+  const handleCreateSinger = async () => {
+    if (!newSingerName.trim()) return;
+    await createSinger(newSingerName.trim());
+    setNewSingerName("");
+    setShowNewSinger(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleCreateSinger();
+    } else if (e.key === "Escape") {
+      setShowNewSinger(false);
+      setNewSingerName("");
+    }
+  };
+
   const handleStartSession = async () => {
     await startSession();
   };
 
   const handleEndSession = async () => {
-    if (confirm("End the current session? Non-persistent singers will be removed.")) {
-      await endSession();
-    }
+    await endSession();
   };
 
   if (!session) {
     return (
-      <div className="bg-gray-800/50 border-b border-gray-700 px-4 py-2">
+      <div className="bg-gray-800 rounded-lg px-4 py-2">
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-400">No active session</span>
           <button
@@ -50,15 +84,12 @@ export function SessionBar() {
   }
 
   return (
-    <div className="bg-gray-800/50 border-b border-gray-700 px-4 py-2">
+    <div className="bg-gray-800 rounded-lg px-4 py-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-sm text-gray-200">
-              Session Active
-              {session.name && <span className="text-gray-400 ml-1">({session.name})</span>}
-            </span>
+            {session.name && <span className="text-sm text-gray-400">{session.name}</span>}
           </div>
 
           {/* Singers indicator */}
@@ -75,7 +106,7 @@ export function SessionBar() {
                     name={singer.name}
                     color={singer.color}
                     size="sm"
-                    className="ring-1 ring-gray-800"
+                    className={`ring-1 ring-gray-800 ${!isSingerAssigned(singer.id) ? "opacity-50" : ""}`}
                   />
                 ))}
                 {singers.length > 4 && (
@@ -93,29 +124,63 @@ export function SessionBar() {
         <button
           onClick={handleEndSession}
           disabled={isLoading}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/80 hover:bg-red-600 disabled:bg-gray-600 text-white text-sm rounded transition-colors"
+          className="p-1.5 bg-red-600/80 hover:bg-red-600 disabled:bg-gray-600 text-white rounded transition-colors"
+          title="End Session"
         >
-          <Square size={14} />
-          End Session
+          <Square size={16} />
         </button>
       </div>
 
       {/* Expandable singers panel */}
-      {showSingers && singers.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-gray-700">
-          <div className="flex flex-wrap gap-2">
+      {showSingers && (
+        <div className="mt-2 pt-2 border-t border-gray-600">
+          <div className="flex flex-wrap items-center gap-2">
             {singers.map((singer) => (
               <SingerChip
                 key={singer.id}
                 name={singer.name}
                 color={singer.color}
-                onRemove={
-                  singer.is_persistent
-                    ? undefined
-                    : () => deleteSinger(singer.id)
-                }
+                faded={!isSingerAssigned(singer.id)}
+                onRemove={() => deleteSinger(singer.id)}
               />
             ))}
+            {showNewSinger ? (
+              <div className="flex items-center gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={newSingerName}
+                  onChange={(e) => setNewSingerName(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Singer name..."
+                  className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 w-32"
+                />
+                <button
+                  onClick={handleCreateSinger}
+                  disabled={!newSingerName.trim()}
+                  className="px-2 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:text-gray-400 rounded text-sm text-white transition-colors"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => {
+                    setShowNewSinger(false);
+                    setNewSingerName("");
+                  }}
+                  className="text-gray-400 hover:text-gray-200 text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowNewSinger(true)}
+                className="flex items-center gap-1 px-2 py-1 text-blue-400 hover:bg-gray-700 rounded transition-colors text-sm"
+              >
+                <UserPlus size={14} />
+                Add singer
+              </button>
+            )}
           </div>
         </div>
       )}

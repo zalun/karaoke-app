@@ -17,6 +17,7 @@ import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
 import { SearchBar, SearchResults } from "./components/search";
 import { DraggableQueueItem } from "./components/queue";
+import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { usePlayerStore, useQueueStore, getStreamUrlWithCache } from "./stores";
 import { youtubeService, createLogger } from "./services";
@@ -120,66 +121,70 @@ function App() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-full gap-4">
-        {/* Search Bar */}
-        <SearchBar onSearch={handleSearch} isLoading={isSearching} />
+      <div className="h-full grid grid-cols-1 lg:grid-cols-5 gap-4">
+        {/* Left: Main content area */}
+        <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
+          {/* Search Bar */}
+          <SearchBar onSearch={handleSearch} isLoading={isSearching} />
 
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
-          {/* Left: Main content area */}
-          <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
-            {/* Player Controls - always visible, disabled when no video */}
-            <PlayerControls />
+          {/* Player Controls - always visible, disabled when no video */}
+          <PlayerControls />
 
-            {/* Tabs - only show when video is loaded */}
+          {/* Tabs - only show when video is loaded */}
+          {currentVideo && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMainTab("player")}
+                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                  mainTab === "player"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                }`}
+              >
+                Now Playing
+              </button>
+              <button
+                onClick={() => setMainTab("search")}
+                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                  mainTab === "search"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                }`}
+              >
+                Search Results
+              </button>
+            </div>
+          )}
+
+          {/* Content - both views stay mounted to avoid interrupting playback */}
+          <div className="flex-1 min-h-0 relative">
+            {/* Video Player - hidden but stays mounted when on search tab */}
             {currentVideo && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setMainTab("player")}
-                  className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                    mainTab === "player"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  }`}
-                >
-                  Now Playing
-                </button>
-                <button
-                  onClick={() => setMainTab("search")}
-                  className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                    mainTab === "search"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  }`}
-                >
-                  Search Results
-                </button>
+              <div className={`h-full ${mainTab === "player" ? "" : "hidden"}`}>
+                <VideoPlayerArea />
               </div>
             )}
-
-            {/* Content - both views stay mounted to avoid interrupting playback */}
-            <div className="flex-1 min-h-0 relative">
-              {/* Video Player - hidden but stays mounted when on search tab */}
-              {currentVideo && (
-                <div className={`h-full ${mainTab === "player" ? "" : "hidden"}`}>
-                  <VideoPlayerArea />
-                </div>
-              )}
-              {/* Search Results - hidden when on player tab */}
-              <div className={`h-full overflow-auto ${mainTab === "search" || !currentVideo ? "" : "hidden"}`}>
-                <h2 className="text-lg font-semibold mb-3">Search Results</h2>
-                <SearchResults
-                  results={searchResults}
-                  isLoading={isSearching}
-                  error={searchError}
-                  onPlay={handlePlay}
-                  onAddToQueue={handleAddToQueue}
-                />
-              </div>
+            {/* Search Results - hidden when on player tab */}
+            <div className={`h-full overflow-auto ${mainTab === "search" || !currentVideo ? "" : "hidden"}`}>
+              <h2 className="text-lg font-semibold mb-3">Search Results</h2>
+              <SearchResults
+                results={searchResults}
+                isLoading={isSearching}
+                error={searchError}
+                onPlay={handlePlay}
+                onAddToQueue={handleAddToQueue}
+              />
             </div>
           </div>
+        </div>
 
-          {/* Right: Queue/History Panel */}
-          <div className="bg-gray-800 rounded-lg p-4 overflow-auto flex flex-col">
+        {/* Right: Session + Queue/History Panel */}
+        <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
+          {/* Session Bar */}
+          <SessionBar />
+
+          {/* Queue/History Panel */}
+          <div className="bg-gray-800 rounded-lg p-4 flex-1 overflow-auto flex flex-col">
             {/* Tabs */}
             <div className="flex gap-2 mb-4">
               <button

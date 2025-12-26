@@ -14,6 +14,7 @@ import {
   OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
+import { CurrentSingerOverlay } from "./CurrentSingerOverlay";
 import { MIN_RESTORE_POSITION_SECONDS } from "./DetachedPlayer";
 
 const log = createLogger("VideoPlayer");
@@ -283,6 +284,7 @@ export function VideoPlayer() {
           <div className="text-white">Loading...</div>
         </div>
       )}
+      <CurrentSingerOverlay key={currentVideo?.id} />
       <NextSongOverlayWithSingers
         nextQueueItem={nextQueueItem}
         duration={duration}
@@ -302,16 +304,24 @@ function NextSongOverlayWithSingers({
   duration: number;
   currentTime: number;
 }) {
-  const { session, getQueueItemSingerIds, getSingerById } = useSessionStore();
+  const { session, singers, queueSingerAssignments, getQueueItemSingerIds, getSingerById, loadQueueItemSingers } = useSessionStore();
+
+  // Load singers for next queue item when it changes
+  useEffect(() => {
+    if (session && nextQueueItem) {
+      loadQueueItemSingers(nextQueueItem.id);
+    }
+  }, [session, nextQueueItem?.id, loadQueueItemSingers]);
 
   // Get singers for next queue item
+  // Include queueSingerAssignments and singers in deps to ensure reactivity
   const nextSingers = useMemo(() => {
     if (!session || !nextQueueItem) return undefined;
     const singerIds = getQueueItemSingerIds(nextQueueItem.id);
     return singerIds.map((id) => getSingerById(id)).filter(Boolean) as NonNullable<
       ReturnType<typeof getSingerById>
     >[];
-  }, [session, nextQueueItem, getQueueItemSingerIds, getSingerById]);
+  }, [session, nextQueueItem, queueSingerAssignments, singers, getQueueItemSingerIds, getSingerById]);
 
   if (!nextQueueItem || duration <= 0) return null;
   const timeRemaining = Math.ceil(duration - currentTime);

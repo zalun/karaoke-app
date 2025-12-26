@@ -119,11 +119,15 @@ class Logger {
 /**
  * Scoped logger for a specific context - avoids repeating context name
  *
- * Logs always go to the log file (via tauri-plugin-log).
- * Debug-level logs are filtered in the console based on debug mode.
+ * INFO/WARN/ERROR always go to the log file (via tauri-plugin-log).
+ * DEBUG/TRACE are only logged when debug mode is enabled.
  */
 class ScopedLogger {
   constructor(private context: string) {}
+
+  private get debugEnabled(): boolean {
+    return logger.isDebugEnabled;
+  }
 
   /**
    * Sanitize and format log message to prevent log injection attacks.
@@ -136,6 +140,7 @@ class ScopedLogger {
   }
 
   trace(message: string, data?: unknown): void {
+    if (!this.debugEnabled) return;
     const formatted = this.formatMessage(message);
     if (data !== undefined) {
       tauriTrace(`${formatted} ${JSON.stringify(data)}`);
@@ -145,6 +150,7 @@ class ScopedLogger {
   }
 
   debug(message: string, data?: unknown): void {
+    if (!this.debugEnabled) return;
     const formatted = this.formatMessage(message);
     if (data !== undefined) {
       tauriDebug(`${formatted} ${JSON.stringify(data)}`);
