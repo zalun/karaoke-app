@@ -158,21 +158,58 @@ pub fn end_session(state: State<'_, AppState>) -> Result<(), String> {
     info!("Ending active session");
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
+    // Get the active session ID first
+    let session_id: Option<i64> = db.connection()
+        .query_row(
+            "SELECT id FROM sessions WHERE is_active = 1",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
+
+    if let Some(session_id) = session_id {
+        // Check if session has any content (queue items, history, or singers)
+        let has_content: bool = db.connection()
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM queue_items WHERE session_id = ?1
+                    UNION
+                    SELECT 1 FROM session_singers WHERE session_id = ?1
+                )",
+                [session_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if has_content {
+            // Session has content - just mark as inactive
+            db.connection()
+                .execute(
+                    "UPDATE sessions SET is_active = 0, ended_at = CURRENT_TIMESTAMP WHERE id = ?1",
+                    [session_id],
+                )
+                .map_err(|e| e.to_string())?;
+            info!("Session {} archived (has content)", session_id);
+        } else {
+            // Session is empty - delete it entirely
+            db.connection()
+                .execute("DELETE FROM sessions WHERE id = ?1", [session_id])
+                .map_err(|e| e.to_string())?;
+            info!("Session {} deleted (was empty)", session_id);
+        }
+    }
+
+    // Clean up non-persistent singers that aren't associated with any session
     db.connection()
         .execute(
-            "UPDATE sessions SET is_active = 0, ended_at = CURRENT_TIMESTAMP WHERE is_active = 1",
+            "DELETE FROM singers WHERE is_persistent = 0 AND id NOT IN (SELECT singer_id FROM session_singers)",
             [],
         )
         .map_err(|e| e.to_string())?;
 
-    // Clean up non-persistent singers
+    // Clear queue singer assignments (for non-persistent data)
     db.connection()
-        .execute("DELETE FROM singers WHERE is_persistent = 0", [])
-        .map_err(|e| e.to_string())?;
-
-    // Clear queue singer assignments
-    db.connection()
-        .execute("DELETE FROM queue_singers", [])
+        .execute("DELETE FROM queue_singers WHERE queue_item_id NOT IN (SELECT id FROM queue_items)", [])
         .map_err(|e| e.to_string())?;
 
     Ok(())
@@ -358,4 +395,157 @@ pub fn clear_queue_item_singers(
         .map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+// ============ Session Management Commands ============
+
+#[tauri::command]
+pub fn get_recent_sessions(
+    state: State<'_, AppState>,
+    limit: Option<i32>,
+) -> Result<Vec<Session>, String> {
+    let limit = limit.unwrap_or(10);
+    debug!("Getting recent sessions (limit: {})", limit);
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .connection()
+        .prepare(
+            "SELECT id, name, started_at, ended_at, is_active FROM sessions
+             ORDER BY started_at DESC LIMIT ?1",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let sessions = stmt
+        .query_map([limit], |row| {
+            Ok(Session {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                started_at: row.get(2)?,
+                ended_at: row.get(3)?,
+                is_active: row.get::<_, i32>(4)? != 0,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(sessions)
+}
+
+#[tauri::command]
+pub fn rename_session(
+    state: State<'_, AppState>,
+    session_id: i64,
+    name: String,
+) -> Result<Session, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("Session name cannot be empty".to_string());
+    }
+    if name.len() > MAX_NAME_LENGTH {
+        return Err(format!("Session name cannot exceed {} characters", MAX_NAME_LENGTH));
+    }
+
+    info!("Renaming session {} to: {}", session_id, name);
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    db.connection()
+        .execute(
+            "UPDATE sessions SET name = ?1 WHERE id = ?2",
+            rusqlite::params![name, session_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let session = db
+        .connection()
+        .query_row(
+            "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
+            [session_id],
+            |row| {
+                Ok(Session {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    started_at: row.get(2)?,
+                    ended_at: row.get(3)?,
+                    is_active: row.get::<_, i32>(4)? != 0,
+                })
+            },
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(session)
+}
+
+#[tauri::command]
+pub fn delete_session(state: State<'_, AppState>, session_id: i64) -> Result<(), String> {
+    info!("Deleting session: {}", session_id);
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Don't allow deleting the active session
+    let is_active: bool = db
+        .connection()
+        .query_row(
+            "SELECT is_active FROM sessions WHERE id = ?1",
+            [session_id],
+            |row| row.get::<_, i32>(0).map(|v| v != 0),
+        )
+        .unwrap_or(false);
+
+    if is_active {
+        return Err("Cannot delete the active session".to_string());
+    }
+
+    // Delete session (cascade will handle queue_items and session_singers)
+    db.connection()
+        .execute("DELETE FROM sessions WHERE id = ?1", [session_id])
+        .map_err(|e| e.to_string())?;
+
+    info!("Session {} deleted", session_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_session(
+    state: State<'_, AppState>,
+    session_id: i64,
+) -> Result<Session, String> {
+    info!("Loading session: {}", session_id);
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // End any active session first
+    db.connection()
+        .execute(
+            "UPDATE sessions SET is_active = 0, ended_at = CURRENT_TIMESTAMP WHERE is_active = 1",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
+    // Activate the selected session
+    db.connection()
+        .execute(
+            "UPDATE sessions SET is_active = 1, ended_at = NULL WHERE id = ?1",
+            [session_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let session = db
+        .connection()
+        .query_row(
+            "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
+            [session_id],
+            |row| {
+                Ok(Session {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    started_at: row.get(2)?,
+                    ended_at: row.get(3)?,
+                    is_active: row.get::<_, i32>(4)? != 0,
+                })
+            },
+        )
+        .map_err(|e| e.to_string())?;
+
+    info!("Session {} loaded and activated", session_id);
+    Ok(session)
 }

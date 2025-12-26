@@ -99,4 +99,25 @@ export const sessionService = {
     log.debug(`Clearing singers from queue item ${queueItemId}`);
     await invoke("clear_queue_item_singers", { queueItemId });
   },
+
+  // Session management
+  async getRecentSessions(limit?: number): Promise<Session[]> {
+    log.debug(`Fetching recent sessions (limit: ${limit || 10})`);
+    return await invoke<Session[]>("get_recent_sessions", { limit: limit || null });
+  },
+
+  async renameSession(sessionId: number, name: string): Promise<Session> {
+    log.info(`Renaming session ${sessionId} to: ${name}`);
+    return await invoke<Session>("rename_session", { sessionId, name });
+  },
+
+  async loadSession(sessionId: number): Promise<Session> {
+    log.info(`Loading session: ${sessionId}`);
+    return await invoke<Session>("load_session", { sessionId });
+  },
+
+  async deleteSession(sessionId: number): Promise<void> {
+    log.info(`Deleting session: ${sessionId}`);
+    await invoke("delete_session", { sessionId });
+  },
 };

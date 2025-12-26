@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Square, Users, UserPlus } from "lucide-react";
+import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
 import { useSessionStore } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
 
@@ -7,16 +8,31 @@ const MAX_VISIBLE_SINGERS = 10;
 
 export function SessionBar() {
   const [createError, setCreateError] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
   const {
     session,
     singers,
     isLoading,
     queueSingerAssignments,
+    showRenameDialog,
+    showLoadDialog,
+    recentSessions,
     startSession,
     endSession,
     loadSession,
     createSinger,
     deleteSinger,
+    renameSession,
+    switchToSession,
+    openRenameDialog,
+    closeRenameDialog,
+    openLoadDialog,
+    closeLoadDialog,
+    deleteSession,
+    renameStoredSession,
   } = useSessionStore();
 
   // Check if a singer is assigned to any queue item
@@ -32,10 +48,47 @@ export function SessionBar() {
   const [newSingerName, setNewSingerName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // State for editing stored session names
+  const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
+  const [editingSessionName, setEditingSessionName] = useState("");
+  const editSessionInputRef = useRef<HTMLInputElement>(null);
+
   // Load session on mount
   useEffect(() => {
     loadSession();
   }, [loadSession]);
+
+  // Listen for menu event to show rename dialog
+  useEffect(() => {
+    const unlisten = listen("show-rename-session-dialog", () => {
+      if (session) {
+        setRenameValue(session.name || "");
+        setRenameError(null);
+        openRenameDialog();
+      }
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [session, openRenameDialog]);
+
+  // Listen for menu event to show load session dialog
+  useEffect(() => {
+    const unlisten = listen("show-load-session-dialog", () => {
+      openLoadDialog();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [openLoadDialog]);
+
+  // Focus rename input when dialog opens
+  useEffect(() => {
+    if (showRenameDialog && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [showRenameDialog]);
 
   // Focus input when showing new singer form
   useEffect(() => {
@@ -43,6 +96,14 @@ export function SessionBar() {
       inputRef.current.focus();
     }
   }, [showNewSinger]);
+
+  // Focus input when editing session name
+  useEffect(() => {
+    if (editingSessionId && editSessionInputRef.current) {
+      editSessionInputRef.current.focus();
+      editSessionInputRef.current.select();
+    }
+  }, [editingSessionId]);
 
   const handleCreateSinger = async () => {
     const name = newSingerName.trim();
@@ -75,21 +136,204 @@ export function SessionBar() {
     await endSession();
   };
 
-  if (!session) {
-    return (
-      <div className="bg-gray-800 rounded-lg px-4 py-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-400">No active session</span>
+  const handleRenameSession = async () => {
+    const name = renameValue.trim();
+    if (!name) return;
+    setRenameError(null);
+    try {
+      await renameSession(name);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to rename session";
+      setRenameError(message);
+    }
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleRenameSession();
+    } else if (e.key === "Escape") {
+      closeRenameDialog();
+      setRenameError(null);
+    }
+  };
+
+  const startEditingSession = (sessionId: number, currentName: string | null) => {
+    setEditingSessionId(sessionId);
+    setEditingSessionName(currentName || "");
+  };
+
+  const cancelEditingSession = () => {
+    setEditingSessionId(null);
+    setEditingSessionName("");
+  };
+
+  const saveEditingSession = async () => {
+    if (!editingSessionId) return;
+    const name = editingSessionName.trim();
+    if (!name) return;
+    try {
+      await renameStoredSession(editingSessionId, name);
+      setEditingSessionId(null);
+      setEditingSessionName("");
+    } catch (error) {
+      // Error is logged in the store
+    }
+  };
+
+  const handleEditSessionKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      saveEditingSession();
+    } else if (e.key === "Escape") {
+      cancelEditingSession();
+    }
+  };
+
+  // Render the Stored Sessions dialog (always available, even without active session)
+  const loadSessionDialog = showLoadDialog && (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-gray-800 rounded-lg p-4 w-96 shadow-xl max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-white">Stored Sessions</h3>
           <button
-            onClick={handleStartSession}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white text-sm rounded transition-colors"
+            onClick={() => {
+              closeLoadDialog();
+              cancelEditingSession();
+            }}
+            className="text-gray-400 hover:text-white"
           >
-            <Play size={14} />
-            Start Session
+            <X size={20} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {recentSessions.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-4">No saved sessions</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {recentSessions.map((s) => {
+                const isCurrentSession = s.id === session?.id;
+                return (
+                  <div
+                    key={s.id}
+                    className={`flex items-center gap-2 rounded transition-colors ${
+                      isCurrentSession
+                        ? "bg-gray-700 text-gray-500"
+                        : "bg-gray-700 hover:bg-gray-600 text-white"
+                    }`}
+                  >
+                    {editingSessionId === s.id ? (
+                      <div className="flex-1 flex items-center gap-2 px-3 py-2">
+                        <input
+                          ref={editSessionInputRef}
+                          type="text"
+                          value={editingSessionName}
+                          onChange={(e) => setEditingSessionName(e.target.value)}
+                          onKeyDown={handleEditSessionKeyDown}
+                          className="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                          placeholder="Session name..."
+                        />
+                        <button
+                          onClick={saveEditingSession}
+                          disabled={!editingSessionName.trim()}
+                          className="p-1 text-green-400 hover:text-green-300 disabled:text-gray-500 transition-colors"
+                          title="Save"
+                        >
+                          <Check size={16} />
+                        </button>
+                        <button
+                          onClick={cancelEditingSession}
+                          className="p-1 text-gray-400 hover:text-white transition-colors"
+                          title="Cancel"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={async () => {
+                            if (isCurrentSession) return;
+                            try {
+                              await switchToSession(s.id);
+                              closeLoadDialog();
+                            } catch (error) {
+                              // Error is logged in the store
+                            }
+                          }}
+                          disabled={isCurrentSession}
+                          className="flex-1 text-left px-3 py-2 disabled:cursor-not-allowed"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">
+                              {s.name || "Unnamed Session"}
+                            </span>
+                            {isCurrentSession && (
+                              <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            {new Date(s.started_at).toLocaleDateString()} at{" "}
+                            {new Date(s.started_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => startEditingSession(s.id, s.name)}
+                          className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded transition-colors"
+                          title="Rename session"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        {!isCurrentSession && (
+                          <button
+                            onClick={() => deleteSession(s.id)}
+                            className="p-2 mr-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded transition-colors"
+                            title="Delete session"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end mt-4 pt-2 border-t border-gray-700">
+          <button
+            onClick={closeLoadDialog}
+            className="px-3 py-1.5 text-gray-400 hover:text-white transition-colors"
+          >
+            Cancel
           </button>
         </div>
       </div>
+    </div>
+  );
+
+  if (!session) {
+    return (
+      <>
+        <div className="bg-gray-800 rounded-lg px-4 py-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-400">No active session</span>
+            <button
+              onClick={handleStartSession}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white text-sm rounded transition-colors"
+            >
+              <Play size={14} />
+              Start Session
+            </button>
+          </div>
+        </div>
+        {loadSessionDialog}
+      </>
     );
   }
 
@@ -205,6 +449,66 @@ export function SessionBar() {
           </div>
         </div>
       )}
+
+      {/* Rename session dialog */}
+      {showRenameDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-4 w-80 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-white">Save Session As</h3>
+              <button
+                onClick={() => {
+                  closeRenameDialog();
+                  setRenameError(null);
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <input
+                ref={renameInputRef}
+                type="text"
+                value={renameValue}
+                onChange={(e) => {
+                  setRenameValue(e.target.value);
+                  setRenameError(null);
+                }}
+                onKeyDown={handleRenameKeyDown}
+                placeholder="Session name..."
+                className={`w-full bg-gray-700 border rounded px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 ${
+                  renameError ? "border-red-500" : "border-gray-600"
+                }`}
+              />
+              {renameError && (
+                <p className="text-xs text-red-400">{renameError}</p>
+              )}
+              <div className="flex gap-2 justify-end mt-2">
+                <button
+                  onClick={() => {
+                    closeRenameDialog();
+                    setRenameError(null);
+                  }}
+                  className="px-3 py-1.5 text-gray-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRenameSession}
+                  disabled={!renameValue.trim()}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:text-gray-400 text-white rounded transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Load session dialog */}
+      {loadSessionDialog}
     </div>
   );
 }
