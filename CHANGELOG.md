@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-12-26
+
 ### Added
 - macOS Now Playing widget integration (#38)
   - Display song title and artist in Control Center, Touch Bar, and AirPods controls
