@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Singer picker button now has better contrast against queue item tiles (#30)
+- Singer picker button has distinct hover state with blue highlight (#30)
+- Singer assignment dropdown now fits within window bounds (#32)
+- Dropdown opens below button when insufficient space above
+- Dropdown is scrollable when list of singers exceeds available space
+
 ## [0.2.0] - 2025-12-25
 
 ### Added

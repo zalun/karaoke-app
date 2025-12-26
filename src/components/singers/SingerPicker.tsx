@@ -6,6 +6,7 @@ import { SingerAvatar } from "./SingerAvatar";
 
 const DROPDOWN_WIDTH = 200;
 const DROPDOWN_OFFSET_Y = 8;
+const DROPDOWN_MAX_HEIGHT = 300;
 
 interface SingerPickerProps {
   queueItemId: string;
@@ -16,7 +17,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   const [isOpen, setIsOpen] = useState(false);
   const [showNewSinger, setShowNewSinger] = useState(false);
   const [newSingerName, setNewSingerName] = useState("");
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, openAbove: true });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,9 +37,16 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   useEffect(() => {
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - rect.bottom;
+
+      // Prefer opening above, but open below if not enough space above
+      const openAbove = spaceAbove > DROPDOWN_MAX_HEIGHT || spaceAbove > spaceBelow;
+
       setDropdownPosition({
-        top: rect.top - DROPDOWN_OFFSET_Y,
-        left: rect.right - DROPDOWN_WIDTH,
+        top: openAbove ? rect.top - DROPDOWN_OFFSET_Y : rect.bottom + DROPDOWN_OFFSET_Y,
+        left: Math.max(8, Math.min(rect.right - DROPDOWN_WIDTH, window.innerWidth - DROPDOWN_WIDTH - 8)),
+        openAbove,
       });
     }
   }, [isOpen]);
@@ -109,17 +117,18 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   const dropdown = isOpen ? (
     <div
       ref={dropdownRef}
-      className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl min-w-[200px]"
+      className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl min-w-[200px] flex flex-col"
       style={{
         top: dropdownPosition.top,
         left: dropdownPosition.left,
-        transform: "translateY(-100%)",
+        transform: dropdownPosition.openAbove ? "translateY(-100%)" : "translateY(0)",
+        maxHeight: `${DROPDOWN_MAX_HEIGHT}px`,
         zIndex: 9999,
       }}
       onClick={(e) => e.stopPropagation()}
     >
       {singers.length > 0 && (
-        <div className="py-1">
+        <div className="py-1 overflow-y-auto flex-1">
           {singers.map((singer) => {
             const isAssigned = assignedSingerIds.includes(singer.id);
             return (
@@ -145,7 +154,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
         </div>
       )}
 
-      <div className={singers.length > 0 ? "border-t border-gray-700" : ""}>
+      <div className={`flex-shrink-0 ${singers.length > 0 ? "border-t border-gray-700" : ""}`}>
         {showNewSinger ? (
           <div className="p-2 flex gap-2">
             <input
@@ -186,7 +195,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
           e.stopPropagation();
           setIsOpen(!isOpen);
         }}
-        className="p-1.5 rounded-full bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition-colors"
+        className="p-1.5 rounded-full bg-gray-600 hover:bg-blue-600 text-gray-200 hover:text-white transition-colors ring-1 ring-gray-500 hover:ring-blue-500"
         title="Assign singers"
       >
         <Users size={14} />
