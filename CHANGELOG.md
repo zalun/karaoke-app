@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Media controls event polling thread now shuts down gracefully on app exit (#40)
+  - Added shutdown flag mechanism with `recv_timeout` for responsive termination
+  - Thread handle stored in AppState for proper cleanup
+
 ## [0.3.1] - 2025-12-26
 
 ### Added
