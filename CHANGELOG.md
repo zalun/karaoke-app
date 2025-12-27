@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2025-12-27
+
 ### Added
 - "Replay All" button in History panel to move all history items back to queue (#47)
   - Moves all played songs back to the queue in their original order
@@ -17,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validate window bounds before restoring position (#52)
   - Prevents windows from being positioned off-screen after display changes
   - Windows are centered on main display if saved position is no longer valid
+  - Constrains window size if larger than current display
 
 ## [0.3.3] - 2025-12-26
 
