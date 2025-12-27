@@ -82,6 +82,7 @@ function findMainDisplay(displays: DisplayInfo[]): DisplayInfo | null {
 
 /**
  * Calculate a centered position on a display for a window of given size.
+ * If window is larger than the display, positions at display origin to avoid negative offsets.
  */
 function getCenteredPosition(
   width: number,
@@ -89,8 +90,8 @@ function getCenteredPosition(
   display: DisplayInfo
 ): { x: number; y: number } {
   return {
-    x: display.x + Math.round((display.width - width) / 2),
-    y: display.y + Math.round((display.height - height) / 2),
+    x: display.x + Math.max(0, Math.round((display.width - width) / 2)),
+    y: display.y + Math.max(0, Math.round((display.height - height) / 2)),
   };
 }
 
