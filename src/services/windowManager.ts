@@ -2,13 +2,10 @@ import {
   WebviewWindow,
   getAllWebviewWindows,
 } from "@tauri-apps/api/webviewWindow";
-import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/dpi";
+import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
+import { availableMonitors, type Monitor } from "@tauri-apps/api/window";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createLogger } from "./logger";
-import {
-  displayManagerService,
-  type DisplayInfo,
-} from "./displayManager";
 
 const log = createLogger("WindowManager");
 
@@ -45,22 +42,38 @@ export interface PlayerState {
 const MIN_VISIBLE_PIXELS = 50;
 
 /**
- * Check if a window position falls within any of the current display bounds.
- * A window is considered visible if at least MIN_VISIBLE_PIXELS of it would be visible.
+ * Get monitor bounds in physical pixels (same coordinate system as window positions).
  */
-function isWindowWithinDisplayBounds(
+function getMonitorBounds(monitor: Monitor): { x: number; y: number; width: number; height: number } {
+  const pos = monitor.position;
+  const size = monitor.size;
+  return {
+    x: pos.x,
+    y: pos.y,
+    width: size.width,
+    height: size.height,
+  };
+}
+
+/**
+ * Check if a window position falls within any of the current monitor bounds.
+ * A window is considered visible if at least MIN_VISIBLE_PIXELS of it would be visible.
+ * Uses physical pixel coordinates (same as Tauri window positions).
+ */
+function isWindowWithinMonitorBounds(
   x: number,
   y: number,
   width: number,
   height: number,
-  displays: DisplayInfo[]
+  monitors: Monitor[]
 ): boolean {
-  for (const display of displays) {
-    // Calculate the overlap between the window and this display
-    const overlapLeft = Math.max(x, display.x);
-    const overlapRight = Math.min(x + width, display.x + display.width);
-    const overlapTop = Math.max(y, display.y);
-    const overlapBottom = Math.min(y + height, display.y + display.height);
+  for (const monitor of monitors) {
+    const bounds = getMonitorBounds(monitor);
+    // Calculate the overlap between the window and this monitor
+    const overlapLeft = Math.max(x, bounds.x);
+    const overlapRight = Math.min(x + width, bounds.x + bounds.width);
+    const overlapTop = Math.max(y, bounds.y);
+    const overlapBottom = Math.min(y + height, bounds.y + bounds.height);
 
     const overlapWidth = overlapRight - overlapLeft;
     const overlapHeight = overlapBottom - overlapTop;
@@ -74,26 +87,51 @@ function isWindowWithinDisplayBounds(
 }
 
 /**
- * Find the main display from the list of displays.
+ * Find the monitor that contains the given point (e.g., window's top-left corner).
+ * Uses physical pixel coordinates.
+ * Note: This checks if a point is within a monitor, not if an entire window is visible.
  */
-function findMainDisplay(displays: DisplayInfo[]): DisplayInfo | null {
-  return displays.find((d) => d.is_main) || displays[0] || null;
+function findMonitorContainingPoint(x: number, y: number, monitors: Monitor[]): Monitor | null {
+  for (const monitor of monitors) {
+    const bounds = getMonitorBounds(monitor);
+    if (x >= bounds.x && x < bounds.x + bounds.width &&
+        y >= bounds.y && y < bounds.y + bounds.height) {
+      return monitor;
+    }
+  }
+  return null;
 }
 
 /**
- * Calculate a centered position on a display for a window of given size.
- * If window is larger than the display, positions at display origin to avoid negative offsets.
+ * Find the primary monitor.
+ * Uses the monitor at origin (0, 0) as a reliable heuristic since Tauri
+ * doesn't expose an is_primary field. Falls back to first monitor if none at origin.
  */
-function getCenteredPosition(
+function findPrimaryMonitor(monitors: Monitor[]): Monitor | null {
+  // Primary monitor is typically at origin (0, 0)
+  const atOrigin = monitors.find((m) => {
+    const bounds = getMonitorBounds(m);
+    return bounds.x === 0 && bounds.y === 0;
+  });
+  return atOrigin || monitors[0] || null;
+}
+
+/**
+ * Calculate a centered position on a monitor for a window of given size.
+ * If window is larger than the monitor, positions at monitor origin to avoid negative offsets.
+ * Uses physical pixel coordinates.
+ */
+function getCenteredPositionOnMonitor(
   width: number,
   height: number,
-  display: DisplayInfo
+  monitor: Monitor
 ): { x: number; y: number } {
-  // Use Math.max with display origin to handle oversized windows correctly
-  // when display has non-zero coordinates (e.g., secondary monitor as main)
+  const bounds = getMonitorBounds(monitor);
+  // Use Math.max with monitor origin to handle oversized windows correctly
+  // when monitor has non-zero coordinates (e.g., secondary monitor)
   return {
-    x: Math.max(display.x, display.x + Math.round((display.width - width) / 2)),
-    y: Math.max(display.y, display.y + Math.round((display.height - height) / 2)),
+    x: Math.max(bounds.x, bounds.x + Math.round((bounds.width - width) / 2)),
+    y: Math.max(bounds.y, bounds.y + Math.round((bounds.height - height) / 2)),
   };
 }
 
@@ -341,8 +379,9 @@ class WindowManager {
 
   /**
    * Restore a window to a specific position and size.
-   * Validates that the target position is within current display bounds.
-   * If the position would result in an off-screen window, centers it on the main display.
+   * Validates that the target position is within current monitor bounds.
+   * If the position would result in an off-screen window, centers it on the primary monitor.
+   * Uses Tauri's monitor API for consistent physical pixel coordinates.
    */
   async restoreWindowState(
     windowLabel: string,
@@ -359,60 +398,131 @@ class WindowManager {
         return false;
       }
 
-      // Get current display configuration to validate bounds
+      // Get current monitor configuration to validate bounds
+      // Using Tauri's monitor API ensures coordinates are in the same system as window positions
       let finalX = x;
       let finalY = y;
       let finalWidth = width;
       let finalHeight = height;
 
       try {
-        const displayConfig = await displayManagerService.getConfiguration();
-        const displays = displayConfig.displays;
+        const monitors = await availableMonitors();
 
-        if (displays.length > 0) {
-          const mainDisplay = findMainDisplay(displays);
+        // Log all detected monitors (physical pixel coordinates)
+        log.info(
+          `restoreWindowState: Detected ${monitors.length} monitors: ${monitors
+            .map((m) => {
+              const b = getMonitorBounds(m);
+              return `${m.name}(${b.x},${b.y} ${b.width}x${b.height} scale=${m.scaleFactor})`;
+            })
+            .join(", ")}`
+        );
 
-          // Constrain window size to fit within main display if too large
-          if (mainDisplay) {
-            if (width > mainDisplay.width || height > mainDisplay.height) {
-              finalWidth = Math.min(width, mainDisplay.width);
-              finalHeight = Math.min(height, mainDisplay.height);
-              log.warn(
-                `restoreWindowState: ${windowLabel} size ${width}x${height} exceeds display, constraining to ${finalWidth}x${finalHeight}`
+        if (monitors.length > 0) {
+          // Find which monitor the target position belongs to
+          const targetMonitor = findMonitorContainingPoint(x, y, monitors);
+          const primaryMonitor = findPrimaryMonitor(monitors);
+
+          if (targetMonitor) {
+            const bounds = getMonitorBounds(targetMonitor);
+            log.info(
+              `restoreWindowState: Target position (${x}, ${y}) is on monitor "${targetMonitor.name}" bounds (${bounds.x},${bounds.y} ${bounds.width}x${bounds.height})`
+            );
+            // Constrain size to the TARGET monitor, not primary monitor
+            if (width > bounds.width || height > bounds.height) {
+              finalWidth = Math.min(width, bounds.width);
+              finalHeight = Math.min(height, bounds.height);
+              log.info(
+                `restoreWindowState: ${windowLabel} size ${width}x${height} exceeds target monitor, constraining to ${finalWidth}x${finalHeight}`
               );
             }
-          }
-
-          if (!isWindowWithinDisplayBounds(x, y, finalWidth, finalHeight, displays)) {
-            // Target position is off-screen, center on main display
-            if (mainDisplay) {
-              const centered = getCenteredPosition(finalWidth, finalHeight, mainDisplay);
-              finalX = centered.x;
-              finalY = centered.y;
-              log.warn(
-                `restoreWindowState: ${windowLabel} target (${x}, ${y}) is off-screen, centering on main display at (${finalX}, ${finalY})`
+            // Position is valid, use original coordinates
+          } else {
+            log.info(
+              `restoreWindowState: Target position (${x}, ${y}) not found on any monitor`
+            );
+            // Target monitor doesn't exist, check if window would be visible anywhere
+            if (!isWindowWithinMonitorBounds(x, y, width, height, monitors)) {
+              // Window is truly off-screen, center on primary monitor
+              if (primaryMonitor) {
+                const bounds = getMonitorBounds(primaryMonitor);
+                finalWidth = Math.min(width, bounds.width);
+                finalHeight = Math.min(height, bounds.height);
+                const centered = getCenteredPositionOnMonitor(finalWidth, finalHeight, primaryMonitor);
+                finalX = centered.x;
+                finalY = centered.y;
+                log.warn(
+                  `restoreWindowState: ${windowLabel} target (${x}, ${y}) is off-screen, centering on primary monitor "${primaryMonitor.name}" at (${finalX}, ${finalY})`
+                );
+              }
+            } else {
+              log.info(
+                `restoreWindowState: Target position (${x}, ${y}) is partially visible, using original`
               );
             }
           }
         } else {
           log.warn(
-            `restoreWindowState: No displays detected, using original position for "${windowLabel}"`
+            `restoreWindowState: No monitors detected, using original position for "${windowLabel}"`
           );
         }
-      } catch (displayErr) {
-        // If we can't get display info, log warning but proceed with original coordinates
+      } catch (monitorErr) {
+        // If we can't get monitor info, log warning but proceed with original coordinates
         log.warn(
           `restoreWindowState: Could not validate bounds for "${windowLabel}", using original position`,
-          displayErr
+          monitorErr
         );
       }
 
+      // Find the scale factor for the target monitor to convert physical to logical coordinates
+      // Tauri's setPosition/setSize work in logical coordinates on scaled displays
+      let scaleFactor = 1;
+      try {
+        const monitors = await availableMonitors();
+        const targetMon = findMonitorContainingPoint(finalX, finalY, monitors);
+        if (targetMon) {
+          scaleFactor = targetMon.scaleFactor;
+        }
+      } catch {
+        // Use default scale factor of 1
+      }
+
+      // Convert physical pixels to logical pixels
+      const logicalX = Math.round(finalX / scaleFactor);
+      const logicalY = Math.round(finalY / scaleFactor);
+      const logicalWidth = Math.round(finalWidth / scaleFactor);
+      const logicalHeight = Math.round(finalHeight / scaleFactor);
+
       log.info(
-        `restoreWindowState: ${windowLabel} to (${finalX}, ${finalY}) ${finalWidth}x${finalHeight}`
+        `restoreWindowState: ${windowLabel} to (${finalX}, ${finalY}) ${finalWidth}x${finalHeight} physical, (${logicalX}, ${logicalY}) ${logicalWidth}x${logicalHeight} logical (scale=${scaleFactor})`
       );
 
-      await window.setPosition(new PhysicalPosition(finalX, finalY));
-      await window.setSize(new PhysicalSize(finalWidth, finalHeight));
+      await window.setPosition(new LogicalPosition(logicalX, logicalY));
+      await window.setSize(new LogicalSize(logicalWidth, logicalHeight));
+
+      // Verify the window actually moved to the correct position
+      // Allow small tolerance for window decorations, snapping, and rounding
+      const POSITION_TOLERANCE = 10;
+      const SIZE_TOLERANCE = 10;
+      const actualPos = await window.outerPosition();
+      const actualSize = await window.outerSize();
+
+      const positionDiff = Math.abs(actualPos.x - finalX) + Math.abs(actualPos.y - finalY);
+      const sizeDiff = Math.abs(actualSize.width - finalWidth) + Math.abs(actualSize.height - finalHeight);
+
+      if (positionDiff > POSITION_TOLERANCE) {
+        log.warn(
+          `restoreWindowState: ${windowLabel} position mismatch! Expected (${finalX}, ${finalY}), got (${actualPos.x}, ${actualPos.y})`
+        );
+      }
+      if (sizeDiff > SIZE_TOLERANCE) {
+        log.warn(
+          `restoreWindowState: ${windowLabel} size mismatch! Expected ${finalWidth}x${finalHeight}, got ${actualSize.width}x${actualSize.height}`
+        );
+      }
+      log.info(
+        `restoreWindowState: ${windowLabel} actual position: (${actualPos.x}, ${actualPos.y}) ${actualSize.width}x${actualSize.height}`
+      );
 
       return true;
     } catch (err) {

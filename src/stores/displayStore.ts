@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
 import {
   displayManagerService,
   type DisplayConfiguration,
@@ -11,10 +12,27 @@ import { usePlayerStore } from "./playerStore";
 
 const log = createLogger("DisplayStore");
 
-// Delay after detaching player window before restoring its position
-// This allows the window to be created before we try to move it
-// TODO: Replace with proper window ready detection/polling
-const WINDOW_CREATION_DELAY_MS = 300;
+// Maximum time to wait for a window to be created
+const WINDOW_READY_TIMEOUT_MS = 2000;
+const WINDOW_READY_POLL_INTERVAL_MS = 100;
+
+/**
+ * Wait for a window with the given label to be ready.
+ * Polls for window existence instead of using a fixed delay.
+ */
+async function waitForWindow(windowLabel: string): Promise<boolean> {
+  const maxAttempts = WINDOW_READY_TIMEOUT_MS / WINDOW_READY_POLL_INTERVAL_MS;
+  for (let i = 0; i < maxAttempts; i++) {
+    const windows = await getAllWebviewWindows();
+    if (windows.find((w) => w.label === windowLabel)) {
+      log.debug(`waitForWindow: "${windowLabel}" ready after ${i * WINDOW_READY_POLL_INTERVAL_MS}ms`);
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, WINDOW_READY_POLL_INTERVAL_MS));
+  }
+  log.warn(`waitForWindow: "${windowLabel}" not ready after ${WINDOW_READY_TIMEOUT_MS}ms`);
+  return false;
+}
 
 interface PendingRestore {
   savedConfig: SavedDisplayConfig;
@@ -98,17 +116,29 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
         await displayManagerService.updateAutoApply(savedConfig.id, true);
       }
 
-      // Log what window states we received
+      // Log current display configuration
+      const currentDisplays = get().currentConfig;
+      if (currentDisplays) {
+        log.debug(
+          `restoreLayout: Current displays: ${currentDisplays.displays
+            .map((d) => `${d.name}(${d.x},${d.y} ${d.width}x${d.height}${d.is_main ? " MAIN" : ""})`)
+            .join(", ")}`
+        );
+      }
+
+      // Log what window states we received with full coordinates
       log.info(
-        `Restoring layout with ${windowStates.length} window states: ${windowStates.map((s) => `${s.window_type}(detached=${s.is_detached})`).join(", ")}`
+        `Restoring layout with ${windowStates.length} window states:`
       );
+      for (const state of windowStates) {
+        log.info(
+          `  - ${state.window_type}: (${state.x}, ${state.y}) ${state.width}x${state.height} detached=${state.is_detached}`
+        );
+      }
 
       // Find video window state
       const videoState = windowStates.find((s) => s.window_type === "video");
       const mainState = windowStates.find((s) => s.window_type === "main");
-
-      log.debug(`Video state: ${videoState ? "found" : "not found"}`);
-      log.debug(`Main state: ${mainState ? "found" : "not found"}`);
 
       // Check if we need to detach the player
       if (videoState && videoState.is_detached) {
@@ -131,8 +161,8 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
           // Clear loading state - loading now happens in detached window
           playerStore.setIsLoading(false);
 
-          // Wait for window to be created before restoring position
-          await new Promise((resolve) => setTimeout(resolve, WINDOW_CREATION_DELAY_MS));
+          // Wait for player window to be ready before restoring position
+          await waitForWindow("player");
         }
 
         // Restore video window position
@@ -203,6 +233,13 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     set({ isLoading: true });
 
     try {
+      // Log current display configuration for debugging
+      log.debug(
+        `saveCurrentLayout: Current displays: ${currentConfig.displays
+          .map((d) => `${d.name}(${d.x},${d.y} ${d.width}x${d.height}${d.is_main ? " MAIN" : ""})`)
+          .join(", ")}`
+      );
+
       const displayNames = currentConfig.displays.map((d) => d.name);
 
       // Save or update the config

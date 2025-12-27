@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fix window restoring to wrong display and size (#60)
+  - Use Tauri's monitor API for consistent physical pixel coordinates
+  - Previously used CoreGraphics logical points which don't match window positions on Retina displays
+  - Windows now correctly restore to their saved position on the correct monitor
+
 ## [0.3.5] - 2025-12-27
 
 ### Fixed
