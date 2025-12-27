@@ -5,6 +5,10 @@ import {
 import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/dpi";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createLogger } from "./logger";
+import {
+  displayManagerService,
+  type DisplayInfo,
+} from "./displayManager";
 
 const log = createLogger("WindowManager");
 
@@ -35,6 +39,59 @@ export interface PlayerState {
   isMuted: boolean;
   currentSong?: SongInfo;
   nextSong?: SongInfo;
+}
+
+// Minimum number of pixels that must be visible on a display for a window to be considered "on screen"
+const MIN_VISIBLE_PIXELS = 50;
+
+/**
+ * Check if a window position falls within any of the current display bounds.
+ * A window is considered visible if at least MIN_VISIBLE_PIXELS of it would be visible.
+ */
+function isWindowWithinDisplayBounds(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  displays: DisplayInfo[]
+): boolean {
+  for (const display of displays) {
+    // Calculate the overlap between the window and this display
+    const overlapLeft = Math.max(x, display.x);
+    const overlapRight = Math.min(x + width, display.x + display.width);
+    const overlapTop = Math.max(y, display.y);
+    const overlapBottom = Math.min(y + height, display.y + display.height);
+
+    const overlapWidth = overlapRight - overlapLeft;
+    const overlapHeight = overlapBottom - overlapTop;
+
+    // If there's enough overlap in both dimensions, window is visible
+    if (overlapWidth >= MIN_VISIBLE_PIXELS && overlapHeight >= MIN_VISIBLE_PIXELS) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Find the main display from the list of displays.
+ */
+function findMainDisplay(displays: DisplayInfo[]): DisplayInfo | null {
+  return displays.find((d) => d.is_main) || displays[0] || null;
+}
+
+/**
+ * Calculate a centered position on a display for a window of given size.
+ */
+function getCenteredPosition(
+  width: number,
+  height: number,
+  display: DisplayInfo
+): { x: number; y: number } {
+  return {
+    x: display.x + Math.round((display.width - width) / 2),
+    y: display.y + Math.round((display.height - height) / 2),
+  };
 }
 
 class WindowManager {
@@ -280,7 +337,9 @@ class WindowManager {
   }
 
   /**
-   * Restore a window to a specific position and size
+   * Restore a window to a specific position and size.
+   * Validates that the target position is within current display bounds.
+   * If the position would result in an off-screen window, centers it on the main display.
    */
   async restoreWindowState(
     windowLabel: string,
@@ -297,11 +356,41 @@ class WindowManager {
         return false;
       }
 
+      // Get current display configuration to validate bounds
+      let finalX = x;
+      let finalY = y;
+
+      try {
+        const displayConfig = await displayManagerService.getConfiguration();
+        const displays = displayConfig.displays;
+
+        if (displays.length > 0) {
+          if (!isWindowWithinDisplayBounds(x, y, width, height, displays)) {
+            // Target position is off-screen, center on main display
+            const mainDisplay = findMainDisplay(displays);
+            if (mainDisplay) {
+              const centered = getCenteredPosition(width, height, mainDisplay);
+              finalX = centered.x;
+              finalY = centered.y;
+              log.warn(
+                `restoreWindowState: ${windowLabel} target (${x}, ${y}) is off-screen, centering on main display at (${finalX}, ${finalY})`
+              );
+            }
+          }
+        }
+      } catch (displayErr) {
+        // If we can't get display info, log warning but proceed with original coordinates
+        log.warn(
+          `restoreWindowState: Could not validate bounds for "${windowLabel}", using original position`,
+          displayErr
+        );
+      }
+
       log.info(
-        `restoreWindowState: ${windowLabel} to (${x}, ${y}) ${width}x${height}`
+        `restoreWindowState: ${windowLabel} to (${finalX}, ${finalY}) ${width}x${height}`
       );
 
-      await window.setPosition(new PhysicalPosition(x, y));
+      await window.setPosition(new PhysicalPosition(finalX, finalY));
       await window.setSize(new PhysicalSize(width, height));
 
       return true;
