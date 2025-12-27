@@ -207,5 +207,15 @@ CREATE TABLE queue_singers (
 CREATE TABLE schema_version (
     version INTEGER PRIMARY KEY
 );
--- Currently at version 2
 ```
+
+## Migration History
+
+| Version | Description | Related Issue |
+|---------|-------------|---------------|
+| 1 | Initial schema: settings, videos, queue, external_drives, download_queue, display_configs, window_state | - |
+| 2 | Sessions and Singers: singers, groups, singer_groups, sessions, session_singers, queue_singers | - |
+| 3 | Queue/History Persistence: queue_items table, session history_index | [#31](https://github.com/zalun/karaoke-app/issues/31) |
+| 4 | Display config improvements: window_state constraints, indexes | [#48](https://github.com/zalun/karaoke-app/issues/48) |
+
+Current version: **4**

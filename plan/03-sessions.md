@@ -4,7 +4,7 @@
 
 **Result:** Can start karaoke sessions, add singers, assign singers to queue items
 
-## Queue & History Persistence (Issue #31)
+## Queue & History Persistence ([#31](https://github.com/zalun/karaoke-app/issues/31))
 
 - [x] Link queue items to active session
 - [x] Queue database operations (persist to SQLite on every change)
@@ -40,14 +40,14 @@
 - [ ] Persistent vs temporary toggle for singers/groups
 - [ ] Session end with cleanup prompt
 
-## macOS Media Controls (Issue #38)
+## macOS Media Controls ([#38](https://github.com/zalun/karaoke-app/issues/38))
 
 - [x] Now Playing widget integration (Control Center, Touch Bar, AirPods)
 - [x] Display song title and artist
 - [x] Media key controls (play/pause, next, previous)
 - [x] Album artwork from YouTube thumbnails
 - [x] Playback position and progress tracking
-- [x] Graceful shutdown of media controls thread (#40)
+- [x] Graceful shutdown of media controls thread ([#40](https://github.com/zalun/karaoke-app/issues/40))
 
 ## Tauri Commands
 
