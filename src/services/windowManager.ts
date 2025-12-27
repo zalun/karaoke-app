@@ -408,9 +408,9 @@ class WindowManager {
       try {
         const monitors = await availableMonitors();
 
-        // Log all detected monitors for debugging (physical pixel coordinates)
-        log.debug(
-          `restoreWindowState: Detected ${monitors.length} monitors (physical pixels): ${monitors
+        // Log all detected monitors (physical pixel coordinates)
+        log.info(
+          `restoreWindowState: Detected ${monitors.length} monitors: ${monitors
             .map((m) => {
               const b = getMonitorBounds(m);
               return `${m.name}(${b.x},${b.y} ${b.width}x${b.height} scale=${m.scaleFactor})`;
@@ -425,8 +425,8 @@ class WindowManager {
 
           if (targetMonitor) {
             const bounds = getMonitorBounds(targetMonitor);
-            log.debug(
-              `restoreWindowState: Target position (${x}, ${y}) is on monitor "${targetMonitor.name}"`
+            log.info(
+              `restoreWindowState: Target position (${x}, ${y}) is on monitor "${targetMonitor.name}" bounds (${bounds.x},${bounds.y} ${bounds.width}x${bounds.height})`
             );
             // Constrain size to the TARGET monitor, not primary monitor
             if (width > bounds.width || height > bounds.height) {
@@ -438,7 +438,7 @@ class WindowManager {
             }
             // Position is valid, use original coordinates
           } else {
-            log.debug(
+            log.info(
               `restoreWindowState: Target position (${x}, ${y}) not found on any monitor`
             );
             // Target monitor doesn't exist, check if window would be visible anywhere
@@ -456,7 +456,7 @@ class WindowManager {
                 );
               }
             } else {
-              log.debug(
+              log.info(
                 `restoreWindowState: Target position (${x}, ${y}) is partially visible, using original`
               );
             }
@@ -480,6 +480,23 @@ class WindowManager {
 
       await window.setPosition(new PhysicalPosition(finalX, finalY));
       await window.setSize(new PhysicalSize(finalWidth, finalHeight));
+
+      // Verify the window actually moved to the correct position
+      const actualPos = await window.outerPosition();
+      const actualSize = await window.outerSize();
+      if (actualPos.x !== finalX || actualPos.y !== finalY) {
+        log.warn(
+          `restoreWindowState: ${windowLabel} position mismatch! Expected (${finalX}, ${finalY}), got (${actualPos.x}, ${actualPos.y})`
+        );
+      }
+      if (actualSize.width !== finalWidth || actualSize.height !== finalHeight) {
+        log.warn(
+          `restoreWindowState: ${windowLabel} size mismatch! Expected ${finalWidth}x${finalHeight}, got ${actualSize.width}x${actualSize.height}`
+        );
+      }
+      log.info(
+        `restoreWindowState: ${windowLabel} actual position: (${actualPos.x}, ${actualPos.y}) ${actualSize.width}x${actualSize.height}`
+      );
 
       return true;
     } catch (err) {
