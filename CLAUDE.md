@@ -85,4 +85,7 @@ Releases are automated via GitHub Actions (`.github/workflows/release.yml`):
 
 ## Implementation Roadmap
 
-See `PLAN.md` for detailed phases. Currently completed through Phase 3 (Sessions and Singers) with queue/history persistence, singer assignments, macOS Now Playing integration, and media key controls.
+See [`plan/`](./plan/) for detailed documentation:
+- **Phases 1-4** (Complete): Foundation, YouTube, Sessions/Singers, Multi-display
+- **Phases 5-8** (Planned): Local files, Downloads, USB drives, Polish
+- **Future features**: See [`plan/future/`](./plan/future/) for detailed plans
