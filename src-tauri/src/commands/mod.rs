@@ -1,4 +1,5 @@
 pub mod display;
+pub mod errors;
 pub mod keep_awake;
 pub mod media_controls;
 pub mod queue;

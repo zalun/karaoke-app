@@ -139,7 +139,13 @@ export function SessionBar() {
       setNewSingerName("");
       setShowNewSinger(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create singer";
+      // Handle both Error objects and Tauri command errors ({type, message})
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? (error as { message: string }).message
+            : "Failed to create singer";
       setCreateError(message);
     }
   };
@@ -168,7 +174,13 @@ export function SessionBar() {
     try {
       await renameSession(name);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to rename session";
+      // Handle both Error objects and Tauri command errors ({type, message})
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? (error as { message: string }).message
+            : "Failed to rename session";
       setRenameError(message);
     }
   };

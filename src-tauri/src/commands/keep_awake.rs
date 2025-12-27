@@ -1,9 +1,13 @@
+use super::errors::CommandError;
 use crate::AppState;
 use tauri::State;
 
 #[tauri::command]
-pub fn keep_awake_enable(state: State<AppState>) -> Result<(), String> {
-    let mut guard = state.keep_awake.lock().map_err(|e| e.to_string())?;
+pub fn keep_awake_enable(state: State<AppState>) -> Result<(), CommandError> {
+    let mut guard = state
+        .keep_awake
+        .lock()
+        .map_err(|_| CommandError::MutexPoisoned("Keep awake"))?;
 
     if guard.is_none() {
         let awake = keepawake::Builder::default()
@@ -13,7 +17,7 @@ pub fn keep_awake_enable(state: State<AppState>) -> Result<(), String> {
             .app_name("Karaoke")
             .app_reverse_domain("com.karaoke.app")
             .create()
-            .map_err(|e| format!("Failed to enable keep awake: {}", e))?;
+            .map_err(|e| CommandError::External(format!("Failed to enable keep awake: {}", e)))?;
 
         *guard = Some(awake);
         log::info!("Keep awake enabled");
@@ -23,8 +27,11 @@ pub fn keep_awake_enable(state: State<AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn keep_awake_disable(state: State<AppState>) -> Result<(), String> {
-    let mut guard = state.keep_awake.lock().map_err(|e| e.to_string())?;
+pub fn keep_awake_disable(state: State<AppState>) -> Result<(), CommandError> {
+    let mut guard = state
+        .keep_awake
+        .lock()
+        .map_err(|_| CommandError::MutexPoisoned("Keep awake"))?;
 
     if guard.is_some() {
         *guard = None;

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Use thiserror for structured error types in Rust backend (#57)
+  - Replace string-based error handling with typed `CommandError` enum
+  - Better error categorization (database, validation, not found, etc.)
+  - Errors now include type information for easier debugging
+  - Updated all command modules: display, queue, session, keep_awake, media_controls, youtube
+
 ### Fixed
 - Fix window restoring to wrong display and size (#60)
   - Use Tauri's monitor API for consistent physical pixel coordinates
