@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   DndContext,
   closestCenter,
@@ -20,7 +20,7 @@ import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
-import { usePlayerStore, useQueueStore, useSessionStore, getStreamUrlWithCache } from "./stores";
+import { usePlayerStore, useQueueStore, useSessionStore, getStreamUrlWithCache, type QueueItem } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { youtubeService, createLogger } from "./services";
 import { useMediaControls, useDisplayWatcher } from "./hooks";
@@ -274,6 +274,39 @@ function formatDuration(seconds?: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+function formatTotalDuration(totalSeconds: number): string {
+  if (totalSeconds <= 0) return "";
+  // Round up to nearest 10 seconds
+  const roundedSeconds = Math.ceil(totalSeconds / 10) * 10;
+  const hours = Math.floor(roundedSeconds / 3600);
+  const mins = Math.floor((roundedSeconds % 3600) / 60);
+  const secs = roundedSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${mins}m`;
+  }
+  if (roundedSeconds < 1200) { // Less than 20 minutes - show seconds
+    if (mins > 0 && secs > 0) return `${mins}m ${secs}s`;
+    if (mins > 0) return `${mins}m`;
+    return `${secs}s`;
+  }
+  return `${mins}m`;
+}
+
+function QueueSummary({ queue }: { queue: QueueItem[] }) {
+  const totalDuration = useMemo(
+    () => queue.reduce((sum, item) => sum + (item.video.duration || 0), 0),
+    [queue]
+  );
+  const formattedDuration = formatTotalDuration(totalDuration);
+
+  return (
+    <span className="text-sm text-gray-400">
+      {queue.length} {queue.length === 1 ? "song" : "songs"}
+      {formattedDuration && ` · ${formattedDuration}`}
+    </span>
+  );
+}
+
 const queueLog = createLogger("QueuePanel");
 
 function QueuePanel() {
@@ -367,16 +400,18 @@ function QueuePanel() {
           </div>
         </SortableContext>
       </DndContext>
-      <button
-        onClick={() => {
-          queueLog.info(`Clearing queue (${queue.length} items)`);
-          clearQueue();
-        }}
-        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
-      >
-        <span>🗑️</span>
-        <span>Clear Queue</span>
-      </button>
+      <div className="mt-3 flex items-center gap-2">
+        <QueueSummary queue={queue} />
+        <button
+          onClick={() => {
+            queueLog.info(`Clearing queue (${queue.length} items)`);
+            clearQueue();
+          }}
+          className="ml-auto py-2 px-3 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+        >
+          <span>Clear Queue</span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -384,7 +419,7 @@ function QueuePanel() {
 const historyLog = createLogger("HistoryPanel");
 
 function HistoryPanel() {
-  const { history, historyIndex, playFromHistory, clearHistory } = useQueueStore();
+  const { history, historyIndex, playFromHistory, clearHistory, moveAllHistoryToQueue } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
   const { session, getQueueItemSingerIds, getSingerById } = useSessionStore();
 
@@ -479,16 +514,29 @@ function HistoryPanel() {
           );
         })}
       </div>
-      <button
-        onClick={() => {
-          historyLog.info(`Clearing history (${history.length} items)`);
-          clearHistory();
-        }}
-        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
-      >
-        <span>🗑️</span>
-        <span>Clear History</span>
-      </button>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => {
+            historyLog.info(`Moving all history to queue (${history.length} items)`);
+            moveAllHistoryToQueue();
+          }}
+          className="flex-1 py-2 text-sm text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+          title="Move all history items back to queue"
+          aria-label={`Replay all ${history.length} songs from history`}
+        >
+          <span>Replay All</span>
+        </button>
+        <button
+          onClick={() => {
+            historyLog.info(`Clearing history (${history.length} items)`);
+            clearHistory();
+          }}
+          className="flex-1 py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+          aria-label={`Clear ${history.length} songs from history`}
+        >
+          <span>Clear History</span>
+        </button>
+      </div>
     </div>
   );
 }

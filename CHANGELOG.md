@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- "Replay All" button in History panel to move all history items back to queue (#47)
+  - Moves all played songs back to the queue in their original order
+  - Clears history after moving items
+  - Persisted to database for session recovery
+
 ## [0.3.3] - 2025-12-26
 
 ### Added

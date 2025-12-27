@@ -62,6 +62,11 @@ export const queueService = {
     await invoke("queue_clear_history");
   },
 
+  async moveAllHistoryToQueue(): Promise<void> {
+    log.info("Moving all history to queue");
+    await invoke("queue_move_all_history_to_queue");
+  },
+
   async setHistoryIndex(index: number): Promise<void> {
     log.debug(`Setting history index to ${index}`);
     await invoke("queue_set_history_index", { index });
