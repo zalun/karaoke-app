@@ -98,17 +98,29 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
         await displayManagerService.updateAutoApply(savedConfig.id, true);
       }
 
-      // Log what window states we received
+      // Log current display configuration
+      const currentDisplays = get().currentConfig;
+      if (currentDisplays) {
+        log.debug(
+          `restoreLayout: Current displays: ${currentDisplays.displays
+            .map((d) => `${d.name}(${d.x},${d.y} ${d.width}x${d.height}${d.is_main ? " MAIN" : ""})`)
+            .join(", ")}`
+        );
+      }
+
+      // Log what window states we received with full coordinates
       log.info(
-        `Restoring layout with ${windowStates.length} window states: ${windowStates.map((s) => `${s.window_type}(detached=${s.is_detached})`).join(", ")}`
+        `Restoring layout with ${windowStates.length} window states:`
       );
+      for (const state of windowStates) {
+        log.info(
+          `  - ${state.window_type}: (${state.x}, ${state.y}) ${state.width}x${state.height} detached=${state.is_detached}`
+        );
+      }
 
       // Find video window state
       const videoState = windowStates.find((s) => s.window_type === "video");
       const mainState = windowStates.find((s) => s.window_type === "main");
-
-      log.debug(`Video state: ${videoState ? "found" : "not found"}`);
-      log.debug(`Main state: ${mainState ? "found" : "not found"}`);
 
       // Check if we need to detach the player
       if (videoState && videoState.is_detached) {
@@ -203,6 +215,13 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     set({ isLoading: true });
 
     try {
+      // Log current display configuration for debugging
+      log.debug(
+        `saveCurrentLayout: Current displays: ${currentConfig.displays
+          .map((d) => `${d.name}(${d.x},${d.y} ${d.width}x${d.height}${d.is_main ? " MAIN" : ""})`)
+          .join(", ")}`
+      );
+
       const displayNames = currentConfig.displays.map((d) => d.name);
 
       // Save or update the config
