@@ -360,17 +360,31 @@ class WindowManager {
       // Get current display configuration to validate bounds
       let finalX = x;
       let finalY = y;
+      let finalWidth = width;
+      let finalHeight = height;
 
       try {
         const displayConfig = await displayManagerService.getConfiguration();
         const displays = displayConfig.displays;
 
         if (displays.length > 0) {
-          if (!isWindowWithinDisplayBounds(x, y, width, height, displays)) {
+          const mainDisplay = findMainDisplay(displays);
+
+          // Constrain window size to fit within main display if too large
+          if (mainDisplay) {
+            if (width > mainDisplay.width || height > mainDisplay.height) {
+              finalWidth = Math.min(width, mainDisplay.width);
+              finalHeight = Math.min(height, mainDisplay.height);
+              log.warn(
+                `restoreWindowState: ${windowLabel} size ${width}x${height} exceeds display, constraining to ${finalWidth}x${finalHeight}`
+              );
+            }
+          }
+
+          if (!isWindowWithinDisplayBounds(x, y, finalWidth, finalHeight, displays)) {
             // Target position is off-screen, center on main display
-            const mainDisplay = findMainDisplay(displays);
             if (mainDisplay) {
-              const centered = getCenteredPosition(width, height, mainDisplay);
+              const centered = getCenteredPosition(finalWidth, finalHeight, mainDisplay);
               finalX = centered.x;
               finalY = centered.y;
               log.warn(
@@ -378,6 +392,10 @@ class WindowManager {
               );
             }
           }
+        } else {
+          log.warn(
+            `restoreWindowState: No displays detected, using original position for "${windowLabel}"`
+          );
         }
       } catch (displayErr) {
         // If we can't get display info, log warning but proceed with original coordinates
@@ -388,11 +406,11 @@ class WindowManager {
       }
 
       log.info(
-        `restoreWindowState: ${windowLabel} to (${finalX}, ${finalY}) ${width}x${height}`
+        `restoreWindowState: ${windowLabel} to (${finalX}, ${finalY}) ${finalWidth}x${finalHeight}`
       );
 
       await window.setPosition(new PhysicalPosition(finalX, finalY));
-      await window.setSize(new PhysicalSize(width, height));
+      await window.setSize(new PhysicalSize(finalWidth, finalHeight));
 
       return true;
     } catch (err) {
