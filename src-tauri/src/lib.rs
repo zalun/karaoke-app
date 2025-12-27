@@ -17,7 +17,7 @@ use std::sync::mpsc;
 use std::thread::JoinHandle;
 #[cfg(target_os = "macos")]
 use std::time::Duration;
-use tauri::menu::{CheckMenuItem, Menu, MenuItemKind, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{AboutMetadata, CheckMenuItem, Menu, MenuItemKind, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_shell::ShellExt;
@@ -50,13 +50,24 @@ const LOAD_SESSION_MENU_ID: &str = "load-session";
 const SAVE_DISPLAY_LAYOUT_MENU_ID: &str = "save-display-layout";
 
 fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>, tauri::Error> {
+    // About metadata with app info
+    // Note: On macOS, `authors` and `website` fields are not supported
+    // Use `credits` for additional info that appears as scrollable text
+    let about_metadata = AboutMetadata {
+        name: Some("Karaoke".into()),
+        version: Some(env!("CARGO_PKG_VERSION").into()),
+        copyright: Some("© 2025 Piotr Zalewa".into()),
+        credits: Some("Home karaoke application for macOS with YouTube streaming, queue management, and singer tracking.\n\nhttps://github.com/zalun/karaoke-app".into()),
+        ..Default::default()
+    };
+
     // Standard app menu items
     let app_menu = Submenu::with_items(
         app,
         "Karaoke",
         true,
         &[
-            &PredefinedMenuItem::about(app, Some("About Karaoke"), None)?,
+            &PredefinedMenuItem::about(app, Some("About Karaoke"), Some(about_metadata))?,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::services(app, None)?,
             &PredefinedMenuItem::separator(app)?,
