@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clears history after moving items
   - Persisted to database for session recovery
 
+### Fixed
+- Validate window bounds before restoring position (#52)
+  - Prevents windows from being positioned off-screen after display changes
+  - Windows are centered on main display if saved position is no longer valid
+
 ## [0.3.3] - 2025-12-26
 
 ### Added
