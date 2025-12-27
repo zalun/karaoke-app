@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   DndContext,
   closestCenter,
@@ -274,6 +274,31 @@ function formatDuration(seconds?: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+function formatTotalDuration(totalSeconds: number): string {
+  if (totalSeconds <= 0) return "";
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  if (hours > 0) {
+    return `${hours}h ${mins}m`;
+  }
+  return `${mins}m`;
+}
+
+function QueueSummary({ queue }: { queue: { video: { duration?: number } }[] }) {
+  const totalDuration = useMemo(
+    () => queue.reduce((sum, item) => sum + (item.video.duration || 0), 0),
+    [queue]
+  );
+  const formattedDuration = formatTotalDuration(totalDuration);
+
+  return (
+    <span className="text-sm text-gray-400">
+      {queue.length} {queue.length === 1 ? "song" : "songs"}
+      {formattedDuration && ` · ${formattedDuration}`}
+    </span>
+  );
+}
+
 const queueLog = createLogger("QueuePanel");
 
 function QueuePanel() {
@@ -368,21 +393,7 @@ function QueuePanel() {
         </SortableContext>
       </DndContext>
       <div className="mt-3 flex items-center gap-2">
-        <span className="text-sm text-gray-400">
-          {queue.length} {queue.length === 1 ? "song" : "songs"}
-          {(() => {
-            const totalSeconds = queue.reduce((sum, item) => sum + (item.video.duration || 0), 0);
-            if (totalSeconds > 0) {
-              const hours = Math.floor(totalSeconds / 3600);
-              const mins = Math.floor((totalSeconds % 3600) / 60);
-              if (hours > 0) {
-                return ` · ${hours}h ${mins}m`;
-              }
-              return ` · ${mins}m`;
-            }
-            return "";
-          })()}
-        </span>
+        <QueueSummary queue={queue} />
         <button
           onClick={() => {
             queueLog.info(`Clearing queue (${queue.length} items)`);

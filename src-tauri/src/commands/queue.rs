@@ -409,7 +409,7 @@ pub fn queue_move_all_history_to_queue(state: State<'_, AppState>) -> Result<(),
                 [session_id],
                 |row| row.get(0),
             )
-            .unwrap_or(-1);
+            .map_err(|e| e.to_string())?;
 
         // Move all history items to queue, updating their positions to come after existing queue items
         // Keep the original order from history (by position)
