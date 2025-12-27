@@ -390,6 +390,66 @@ pub fn queue_clear_history(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn queue_move_all_history_to_queue(state: State<'_, AppState>) -> Result<(), String> {
+    info!("Moving all history items to queue");
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.connection();
+
+    let session_id = get_active_session_id(&db)?;
+
+    // Use transaction for atomicity
+    conn.execute("BEGIN IMMEDIATE", [])
+        .map_err(|e| e.to_string())?;
+
+    let result = (|| -> Result<(), String> {
+        // Get the current max position in the queue
+        let queue_max_position: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(position), -1) FROM queue_items WHERE session_id = ?1 AND item_type = 'queue'",
+                [session_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(-1);
+
+        // Move all history items to queue, updating their positions to come after existing queue items
+        // Keep the original order from history (by position)
+        conn.execute(
+            "UPDATE queue_items
+             SET item_type = 'queue',
+                 position = position + ?1 + 1,
+                 played_at = NULL
+             WHERE session_id = ?2 AND item_type = 'history'",
+            rusqlite::params![queue_max_position, session_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+        // Reorder queue positions to be sequential
+        reorder_positions(&db, session_id, "queue")?;
+
+        // Reset history index since history is now empty
+        conn.execute(
+            "UPDATE sessions SET history_index = -1 WHERE id = ?1",
+            [session_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+        Ok(())
+    })();
+
+    match result {
+        Ok(()) => {
+            conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+            info!("Moved all history items to queue");
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            Err(e)
+        }
+    }
+}
+
+#[tauri::command]
 pub fn queue_set_history_index(state: State<'_, AppState>, index: i64) -> Result<(), String> {
     debug!("Setting history index to {}", index);
     let db = state.db.lock().map_err(|e| e.to_string())?;

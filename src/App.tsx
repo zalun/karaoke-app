@@ -367,16 +367,32 @@ function QueuePanel() {
           </div>
         </SortableContext>
       </DndContext>
-      <button
-        onClick={() => {
-          queueLog.info(`Clearing queue (${queue.length} items)`);
-          clearQueue();
-        }}
-        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
-      >
-        <span>🗑️</span>
-        <span>Clear Queue</span>
-      </button>
+      <div className="mt-3 flex items-center gap-2">
+        <span className="text-sm text-gray-400">
+          {queue.length} {queue.length === 1 ? "song" : "songs"}
+          {(() => {
+            const totalSeconds = queue.reduce((sum, item) => sum + (item.video.duration || 0), 0);
+            if (totalSeconds > 0) {
+              const hours = Math.floor(totalSeconds / 3600);
+              const mins = Math.floor((totalSeconds % 3600) / 60);
+              if (hours > 0) {
+                return ` · ${hours}h ${mins}m`;
+              }
+              return ` · ${mins}m`;
+            }
+            return "";
+          })()}
+        </span>
+        <button
+          onClick={() => {
+            queueLog.info(`Clearing queue (${queue.length} items)`);
+            clearQueue();
+          }}
+          className="ml-auto py-2 px-3 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+        >
+          <span>Clear Queue</span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -384,7 +400,7 @@ function QueuePanel() {
 const historyLog = createLogger("HistoryPanel");
 
 function HistoryPanel() {
-  const { history, historyIndex, playFromHistory, clearHistory } = useQueueStore();
+  const { history, historyIndex, playFromHistory, clearHistory, moveAllHistoryToQueue } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
   const { session, getQueueItemSingerIds, getSingerById } = useSessionStore();
 
@@ -479,16 +495,27 @@ function HistoryPanel() {
           );
         })}
       </div>
-      <button
-        onClick={() => {
-          historyLog.info(`Clearing history (${history.length} items)`);
-          clearHistory();
-        }}
-        className="mt-3 w-full py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
-      >
-        <span>🗑️</span>
-        <span>Clear History</span>
-      </button>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => {
+            historyLog.info(`Moving all history to queue (${history.length} items)`);
+            moveAllHistoryToQueue();
+          }}
+          className="flex-1 py-2 text-sm text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+          title="Move all history items back to queue"
+        >
+          <span>Replay All</span>
+        </button>
+        <button
+          onClick={() => {
+            historyLog.info(`Clearing history (${history.length} items)`);
+            clearHistory();
+          }}
+          className="flex-1 py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+        >
+          <span>Clear History</span>
+        </button>
+      </div>
     </div>
   );
 }

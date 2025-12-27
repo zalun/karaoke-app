@@ -61,6 +61,7 @@ interface QueueState {
   reorderQueue: (itemId: string, newPosition: number) => void;
   clearQueue: () => void;
   clearHistory: () => void;
+  moveAllHistoryToQueue: () => void;
 
   // Playback actions - return the item to play (or null)
   playDirect: (video: Video) => QueueItem; // Play directly (e.g., from search) - adds to history
@@ -211,6 +212,28 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     });
 
     set({ history: [], historyIndex: -1 });
+  },
+
+  moveAllHistoryToQueue: () => {
+    const { history, queue } = get();
+    if (history.length === 0) {
+      log.debug("moveAllHistoryToQueue: history empty, nothing to move");
+      return;
+    }
+
+    log.info(`moveAllHistoryToQueue: moving ${history.length} items`);
+
+    // Persist to database
+    queueService.moveAllHistoryToQueue().catch((error) => {
+      log.error("Failed to move history to queue in database:", error);
+    });
+
+    // Move all history items to the end of the queue
+    set({
+      queue: [...queue, ...history],
+      history: [],
+      historyIndex: -1,
+    });
   },
 
   playDirect: (video) => {

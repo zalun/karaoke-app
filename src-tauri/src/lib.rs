@@ -218,6 +218,7 @@ pub fn run() {
             commands::queue_move_to_history,
             commands::queue_add_to_history,
             commands::queue_clear_history,
+            commands::queue_move_all_history_to_queue,
             commands::queue_set_history_index,
             commands::queue_get_state,
             // Session management commands
