@@ -2,7 +2,7 @@ import {
   WebviewWindow,
   getAllWebviewWindows,
 } from "@tauri-apps/api/webviewWindow";
-import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/dpi";
+import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { availableMonitors, type Monitor } from "@tauri-apps/api/window";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createLogger } from "./logger";
@@ -474,12 +474,31 @@ class WindowManager {
         );
       }
 
+      // Find the scale factor for the target monitor to convert physical to logical coordinates
+      // Tauri's setPosition/setSize work in logical coordinates on scaled displays
+      let scaleFactor = 1;
+      try {
+        const monitors = await availableMonitors();
+        const targetMon = findMonitorContainingPoint(finalX, finalY, monitors);
+        if (targetMon) {
+          scaleFactor = targetMon.scaleFactor;
+        }
+      } catch {
+        // Use default scale factor of 1
+      }
+
+      // Convert physical pixels to logical pixels
+      const logicalX = Math.round(finalX / scaleFactor);
+      const logicalY = Math.round(finalY / scaleFactor);
+      const logicalWidth = Math.round(finalWidth / scaleFactor);
+      const logicalHeight = Math.round(finalHeight / scaleFactor);
+
       log.info(
-        `restoreWindowState: ${windowLabel} to (${finalX}, ${finalY}) ${finalWidth}x${finalHeight}`
+        `restoreWindowState: ${windowLabel} to (${finalX}, ${finalY}) ${finalWidth}x${finalHeight} physical, (${logicalX}, ${logicalY}) ${logicalWidth}x${logicalHeight} logical (scale=${scaleFactor})`
       );
 
-      await window.setPosition(new PhysicalPosition(finalX, finalY));
-      await window.setSize(new PhysicalSize(finalWidth, finalHeight));
+      await window.setPosition(new LogicalPosition(logicalX, logicalY));
+      await window.setSize(new LogicalSize(logicalWidth, logicalHeight));
 
       // Verify the window actually moved to the correct position
       const actualPos = await window.outerPosition();
