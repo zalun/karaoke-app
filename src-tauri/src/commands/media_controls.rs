@@ -1,3 +1,4 @@
+use super::errors::CommandError;
 use crate::AppState;
 use tauri::State;
 
@@ -11,20 +12,22 @@ pub fn media_controls_update_metadata(
     artist: Option<String>,
     duration_secs: Option<f64>,
     thumbnail_url: Option<String>,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     #[cfg(target_os = "macos")]
     {
         let mut guard = state
             .media_controls
             .lock()
-            .map_err(|_| "Media controls mutex poisoned".to_string())?;
+            .map_err(|_| CommandError::MutexPoisoned("Media controls"))?;
         if let Some(ref mut controls) = *guard {
-            controls.set_metadata(
-                &title,
-                artist.as_deref(),
-                duration_secs,
-                thumbnail_url.as_deref(),
-            )?;
+            controls
+                .set_metadata(
+                    &title,
+                    artist.as_deref(),
+                    duration_secs,
+                    thumbnail_url.as_deref(),
+                )
+                .map_err(|e| CommandError::External(e))?;
         }
     }
 
@@ -42,15 +45,17 @@ pub fn media_controls_update_playback(
     state: State<AppState>,
     is_playing: bool,
     position_secs: f64,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     #[cfg(target_os = "macos")]
     {
         let mut guard = state
             .media_controls
             .lock()
-            .map_err(|_| "Media controls mutex poisoned".to_string())?;
+            .map_err(|_| CommandError::MutexPoisoned("Media controls"))?;
         if let Some(ref mut controls) = *guard {
-            controls.set_playback(is_playing, position_secs)?;
+            controls
+                .set_playback(is_playing, position_secs)
+                .map_err(|e| CommandError::External(e))?;
         }
     }
 
@@ -63,15 +68,15 @@ pub fn media_controls_update_playback(
 }
 
 #[tauri::command]
-pub fn media_controls_stop(state: State<AppState>) -> Result<(), String> {
+pub fn media_controls_stop(state: State<AppState>) -> Result<(), CommandError> {
     #[cfg(target_os = "macos")]
     {
         let mut guard = state
             .media_controls
             .lock()
-            .map_err(|_| "Media controls mutex poisoned".to_string())?;
+            .map_err(|_| CommandError::MutexPoisoned("Media controls"))?;
         if let Some(ref mut controls) = *guard {
-            controls.stop()?;
+            controls.stop().map_err(|e| CommandError::External(e))?;
         }
     }
 

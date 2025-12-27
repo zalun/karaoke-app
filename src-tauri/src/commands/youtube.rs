@@ -1,17 +1,47 @@
-use crate::services::{get_expanded_path, ytdlp::{SearchResult, StreamInfo, VideoInfo}, YtDlpService};
+use crate::services::{
+    get_expanded_path,
+    ytdlp::{SearchResult, StreamInfo, VideoInfo},
+    YtDlpService,
+};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct YouTubeError {
-    pub message: String,
+/// Error type for YouTube-related commands.
+#[derive(Error, Debug)]
+#[allow(dead_code)] // Installation variant is for future use
+pub enum YouTubeError {
+    /// yt-dlp service error
+    #[error("{0}")]
+    YtDlp(#[from] crate::services::ytdlp::YtDlpError),
+
+    /// Command execution error
+    #[error("{0}")]
+    Command(String),
+
+    /// Installation error
+    #[error("Installation failed: {0}")]
+    Installation(String),
 }
 
-impl From<crate::services::ytdlp::YtDlpError> for YouTubeError {
-    fn from(err: crate::services::ytdlp::YtDlpError) -> Self {
-        YouTubeError {
-            message: err.to_string(),
-        }
+impl Serialize for YouTubeError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+
+        let mut state = serializer.serialize_struct("YouTubeError", 2)?;
+
+        let error_type = match self {
+            YouTubeError::YtDlp(_) => "ytdlp",
+            YouTubeError::Command(_) => "command",
+            YouTubeError::Installation(_) => "installation",
+        };
+
+        state.serialize_field("type", error_type)?;
+        state.serialize_field("message", &self.to_string())?;
+        state.end()
     }
 }
 
@@ -103,9 +133,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
                 .env("PATH", &expanded_path)
                 .output()
                 .await
-                .map_err(|e| YouTubeError {
-                    message: format!("Failed to run brew: {}", e),
-                })?;
+                .map_err(|e| YouTubeError::Command(format!("Failed to run brew: {}", e)))?;
 
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -151,9 +179,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
                 .env("PATH", &expanded_path)
                 .output()
                 .await
-                .map_err(|e| YouTubeError {
-                    message: format!("Failed to run pip3: {}", e),
-                })?;
+                .map_err(|e| YouTubeError::Command(format!("Failed to run pip3: {}", e)))?;
 
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -229,9 +255,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
                 ])
                 .output()
                 .await
-                .map_err(|e| YouTubeError {
-                    message: format!("Failed to run curl: {}", e),
-                })?;
+                .map_err(|e| YouTubeError::Command(format!("Failed to run curl: {}", e)))?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -247,9 +271,7 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
                 .args(["+x", &format!("{}/yt-dlp", local_bin)])
                 .output()
                 .await
-                .map_err(|e| YouTubeError {
-                    message: format!("Failed to chmod: {}", e),
-                })?;
+                .map_err(|e| YouTubeError::Command(format!("Failed to chmod: {}", e)))?;
 
             if chmod_output.status.success() {
                 Ok(InstallResult {

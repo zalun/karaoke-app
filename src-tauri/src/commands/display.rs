@@ -1,3 +1,4 @@
+use super::errors::{CommandError, LockResultExt};
 use crate::AppState;
 use log::{debug, info, warn};
 use rusqlite::OptionalExtension;
@@ -47,8 +48,8 @@ pub fn display_get_configuration() -> Result<DisplayConfiguration, String> {
 /// Get the current display configuration (non-macOS stub)
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
-pub fn display_get_configuration() -> Result<(), String> {
-    Err("Display configuration is only available on macOS".to_string())
+pub fn display_get_configuration() -> Result<(), CommandError> {
+    Err(CommandError::PlatformNotSupported("Display configuration"))
 }
 
 /// Save a display configuration to the database
@@ -59,7 +60,7 @@ pub fn display_save_config(
     display_names: Vec<String>,
     description: Option<String>,
     auto_apply: bool,
-) -> Result<i64, String> {
+) -> Result<i64, CommandError> {
     debug!(
         "Saving display config: hash={}, names={:?}, auto_apply={}",
         &config_hash[..8.min(config_hash.len())],
@@ -67,8 +68,8 @@ pub fn display_save_config(
         auto_apply
     );
 
-    let db = state.db.lock().map_err(|e| format!("Database lock failed (may need restart): {}", e))?;
-    let display_names_json = serde_json::to_string(&display_names).map_err(|e| e.to_string())?;
+    let db = state.db.lock().map_lock_err()?;
+    let display_names_json = serde_json::to_string(&display_names)?;
 
     // First check if config already exists
     let existing_id: Option<i64> = db
@@ -78,18 +79,15 @@ pub fn display_save_config(
             [&config_hash],
             |row| row.get(0),
         )
-        .optional()
-        .map_err(|e| e.to_string())?;
+        .optional()?;
 
     let id = if let Some(existing) = existing_id {
         // Update existing config (preserves ID so window_state FK references remain valid)
-        db.connection()
-            .execute(
-                "UPDATE display_configs SET display_names = ?1, description = ?2, auto_apply = ?3
+        db.connection().execute(
+            "UPDATE display_configs SET display_names = ?1, description = ?2, auto_apply = ?3
                  WHERE id = ?4",
-                rusqlite::params![display_names_json, description, auto_apply as i32, existing],
-            )
-            .map_err(|e| e.to_string())?;
+            rusqlite::params![display_names_json, description, auto_apply as i32, existing],
+        )?;
         info!(
             "Updated existing display config: id={}, hash={}",
             existing,
@@ -98,13 +96,11 @@ pub fn display_save_config(
         existing
     } else {
         // Insert new config
-        db.connection()
-            .execute(
-                "INSERT INTO display_configs (config_hash, display_names, description, auto_apply)
+        db.connection().execute(
+            "INSERT INTO display_configs (config_hash, display_names, description, auto_apply)
                  VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![config_hash, display_names_json, description, auto_apply as i32],
-            )
-            .map_err(|e| e.to_string())?;
+            rusqlite::params![config_hash, display_names_json, description, auto_apply as i32],
+        )?;
         let new_id = db.connection().last_insert_rowid();
         info!(
             "Created new display config: id={}, hash={}",
@@ -122,26 +118,29 @@ pub fn display_save_config(
 pub fn display_get_saved_config(
     state: State<'_, AppState>,
     config_hash: String,
-) -> Result<Option<SavedDisplayConfig>, String> {
-    debug!("Getting saved config for hash: {}", &config_hash[..8.min(config_hash.len())]);
+) -> Result<Option<SavedDisplayConfig>, CommandError> {
+    debug!(
+        "Getting saved config for hash: {}",
+        &config_hash[..8.min(config_hash.len())]
+    );
 
-    let db = state.db.lock().map_err(|e| format!("Database lock failed (may need restart): {}", e))?;
+    let db = state.db.lock().map_lock_err()?;
 
-    let mut stmt = db
-        .connection()
-        .prepare(
-            "SELECT id, config_hash, display_names, description, auto_apply, created_at
+    let mut stmt = db.connection().prepare(
+        "SELECT id, config_hash, display_names, description, auto_apply, created_at
              FROM display_configs
              WHERE config_hash = ?1",
-        )
-        .map_err(|e| e.to_string())?;
+    )?;
 
     let result = stmt
         .query_row([&config_hash], |row| {
             let display_names_json: String = row.get(2)?;
             let display_names: Vec<String> =
                 serde_json::from_str(&display_names_json).unwrap_or_else(|e| {
-                    warn!("Failed to parse display_names JSON '{}': {}", display_names_json, e);
+                    warn!(
+                        "Failed to parse display_names JSON '{}': {}",
+                        display_names_json, e
+                    );
                     vec![]
                 });
 
@@ -154,8 +153,7 @@ pub fn display_get_saved_config(
                 created_at: row.get(5)?,
             })
         })
-        .optional()
-        .map_err(|e| e.to_string())?;
+        .optional()?;
 
     Ok(result)
 }
@@ -166,21 +164,21 @@ pub fn display_update_auto_apply(
     state: State<'_, AppState>,
     config_id: i64,
     auto_apply: bool,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     debug!("Updating auto_apply for config {}: {}", config_id, auto_apply);
 
-    let db = state.db.lock().map_err(|e| format!("Database lock failed (may need restart): {}", e))?;
+    let db = state.db.lock().map_lock_err()?;
 
-    let rows_updated = db
-        .connection()
-        .execute(
-            "UPDATE display_configs SET auto_apply = ?1 WHERE id = ?2",
-            rusqlite::params![auto_apply as i32, config_id],
-        )
-        .map_err(|e| e.to_string())?;
+    let rows_updated = db.connection().execute(
+        "UPDATE display_configs SET auto_apply = ?1 WHERE id = ?2",
+        rusqlite::params![auto_apply as i32, config_id],
+    )?;
 
     if rows_updated == 0 {
-        return Err(format!("Display config {} not found", config_id));
+        return Err(CommandError::NotFound {
+            resource: "Display config",
+            id: config_id.to_string(),
+        });
     }
 
     info!("Updated auto_apply for config {}: {}", config_id, auto_apply);
@@ -192,19 +190,21 @@ pub fn display_update_auto_apply(
 pub fn display_delete_config(
     state: State<'_, AppState>,
     config_id: i64,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     debug!("Deleting display config: {}", config_id);
 
-    let db = state.db.lock().map_err(|e| format!("Database lock failed (may need restart): {}", e))?;
+    let db = state.db.lock().map_lock_err()?;
 
     // Window states are deleted automatically via ON DELETE CASCADE
     let rows_deleted = db
         .connection()
-        .execute("DELETE FROM display_configs WHERE id = ?1", [config_id])
-        .map_err(|e| e.to_string())?;
+        .execute("DELETE FROM display_configs WHERE id = ?1", [config_id])?;
 
     if rows_deleted == 0 {
-        return Err(format!("Display config {} not found", config_id));
+        return Err(CommandError::NotFound {
+            resource: "Display config",
+            id: config_id.to_string(),
+        });
     }
 
     info!("Deleted display config: {}", config_id);
@@ -226,44 +226,39 @@ pub fn window_save_state(
     height: i32,
     is_detached: bool,
     is_fullscreen: bool,
-) -> Result<i64, String> {
+) -> Result<i64, CommandError> {
     debug!(
         "Saving window state: config={}, type={}, pos=({},{}), size={}x{}, detached={}, fullscreen={}",
         display_config_id, window_type, x, y, width, height, is_detached, is_fullscreen
     );
 
-    let db = state.db.lock().map_err(|e| format!("Database lock failed (may need restart): {}", e))?;
+    let db = state.db.lock().map_lock_err()?;
 
     // With UNIQUE(display_config_id, window_type) constraint, use INSERT OR REPLACE
     // This atomically handles both insert and update cases
-    db.connection()
-        .execute(
-            "INSERT OR REPLACE INTO window_state
+    db.connection().execute(
+        "INSERT OR REPLACE INTO window_state
              (display_config_id, window_type, target_display_id, x, y, width, height, is_detached, is_fullscreen, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, CURRENT_TIMESTAMP)",
-            rusqlite::params![
-                display_config_id,
-                window_type,
-                target_display_id,
-                x,
-                y,
-                width,
-                height,
-                is_detached as i32,
-                is_fullscreen as i32
-            ],
-        )
-        .map_err(|e| e.to_string())?;
+        rusqlite::params![
+            display_config_id,
+            window_type,
+            target_display_id,
+            x,
+            y,
+            width,
+            height,
+            is_detached as i32,
+            is_fullscreen as i32
+        ],
+    )?;
 
     // Query the actual ID (INSERT OR REPLACE may create new or update existing)
-    let id: i64 = db
-        .connection()
-        .query_row(
-            "SELECT id FROM window_state WHERE display_config_id = ?1 AND window_type = ?2",
-            rusqlite::params![display_config_id, window_type],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
+    let id: i64 = db.connection().query_row(
+        "SELECT id FROM window_state WHERE display_config_id = ?1 AND window_type = ?2",
+        rusqlite::params![display_config_id, window_type],
+        |row| row.get(0),
+    )?;
 
     info!(
         "Saved window state: config={}, type={}, id={}",
@@ -278,19 +273,16 @@ pub fn window_save_state(
 pub fn window_get_states(
     state: State<'_, AppState>,
     display_config_id: i64,
-) -> Result<Vec<WindowState>, String> {
+) -> Result<Vec<WindowState>, CommandError> {
     debug!("Getting window states for config: {}", display_config_id);
 
-    let db = state.db.lock().map_err(|e| format!("Database lock failed (may need restart): {}", e))?;
+    let db = state.db.lock().map_lock_err()?;
 
-    let mut stmt = db
-        .connection()
-        .prepare(
-            "SELECT id, display_config_id, window_type, target_display_id, x, y, width, height, is_detached, is_fullscreen
+    let mut stmt = db.connection().prepare(
+        "SELECT id, display_config_id, window_type, target_display_id, x, y, width, height, is_detached, is_fullscreen
              FROM window_state
              WHERE display_config_id = ?1",
-        )
-        .map_err(|e| e.to_string())?;
+    )?;
 
     let states = stmt
         .query_map([display_config_id], |row| {
@@ -306,12 +298,14 @@ pub fn window_get_states(
                 is_detached: row.get::<_, i32>(8)? != 0,
                 is_fullscreen: row.get::<_, i32>(9)? != 0,
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
-    debug!("Found {} window states for config {}", states.len(), display_config_id);
+    debug!(
+        "Found {} window states for config {}",
+        states.len(),
+        display_config_id
+    );
     Ok(states)
 }
 
@@ -320,17 +314,15 @@ pub fn window_get_states(
 pub fn window_clear_states(
     state: State<'_, AppState>,
     display_config_id: i64,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     debug!("Clearing window states for config: {}", display_config_id);
 
-    let db = state.db.lock().map_err(|e| format!("Database lock failed (may need restart): {}", e))?;
+    let db = state.db.lock().map_lock_err()?;
 
-    db.connection()
-        .execute(
-            "DELETE FROM window_state WHERE display_config_id = ?1",
-            [display_config_id],
-        )
-        .map_err(|e| e.to_string())?;
+    db.connection().execute(
+        "DELETE FROM window_state WHERE display_config_id = ?1",
+        [display_config_id],
+    )?;
 
     info!("Cleared window states for config: {}", display_config_id);
     Ok(())
