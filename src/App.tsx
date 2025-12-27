@@ -20,7 +20,7 @@ import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
-import { usePlayerStore, useQueueStore, useSessionStore, getStreamUrlWithCache } from "./stores";
+import { usePlayerStore, useQueueStore, useSessionStore, getStreamUrlWithCache, type QueueItem } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { youtubeService, createLogger } from "./services";
 import { useMediaControls, useDisplayWatcher } from "./hooks";
@@ -276,15 +276,23 @@ function formatDuration(seconds?: number): string {
 
 function formatTotalDuration(totalSeconds: number): string {
   if (totalSeconds <= 0) return "";
-  const hours = Math.floor(totalSeconds / 3600);
-  const mins = Math.floor((totalSeconds % 3600) / 60);
+  // Round up to nearest 10 seconds
+  const roundedSeconds = Math.ceil(totalSeconds / 10) * 10;
+  const hours = Math.floor(roundedSeconds / 3600);
+  const mins = Math.floor((roundedSeconds % 3600) / 60);
+  const secs = roundedSeconds % 60;
   if (hours > 0) {
     return `${hours}h ${mins}m`;
+  }
+  if (roundedSeconds < 1200) { // Less than 20 minutes - show seconds
+    if (mins > 0 && secs > 0) return `${mins}m ${secs}s`;
+    if (mins > 0) return `${mins}m`;
+    return `${secs}s`;
   }
   return `${mins}m`;
 }
 
-function QueueSummary({ queue }: { queue: { video: { duration?: number } }[] }) {
+function QueueSummary({ queue }: { queue: QueueItem[] }) {
   const totalDuration = useMemo(
     () => queue.reduce((sum, item) => sum + (item.video.duration || 0), 0),
     [queue]
@@ -514,6 +522,7 @@ function HistoryPanel() {
           }}
           className="flex-1 py-2 text-sm text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
           title="Move all history items back to queue"
+          aria-label={`Replay all ${history.length} songs from history`}
         >
           <span>Replay All</span>
         </button>
@@ -523,6 +532,7 @@ function HistoryPanel() {
             clearHistory();
           }}
           className="flex-1 py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+          aria-label={`Clear ${history.length} songs from history`}
         >
           <span>Clear History</span>
         </button>

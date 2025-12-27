@@ -223,16 +223,27 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
     log.info(`moveAllHistoryToQueue: moving ${history.length} items`);
 
-    // Persist to database
-    queueService.moveAllHistoryToQueue().catch((error) => {
-      log.error("Failed to move history to queue in database:", error);
-    });
+    // Store previous state for rollback
+    const previousQueue = queue;
+    const previousHistory = history;
+    const previousHistoryIndex = get().historyIndex;
 
-    // Move all history items to the end of the queue
+    // Optimistically update UI
     set({
       queue: [...queue, ...history],
       history: [],
       historyIndex: -1,
+    });
+
+    // Persist to database with rollback on failure
+    queueService.moveAllHistoryToQueue().catch((error) => {
+      log.error("Failed to move history to queue in database, reverting:", error);
+      // Revert to previous state on failure
+      set({
+        queue: previousQueue,
+        history: previousHistory,
+        historyIndex: previousHistoryIndex,
+      });
     });
   },
 
