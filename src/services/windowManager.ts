@@ -87,10 +87,11 @@ function isWindowWithinMonitorBounds(
 }
 
 /**
- * Find the monitor that contains the given position.
+ * Find the monitor that contains the given point (e.g., window's top-left corner).
  * Uses physical pixel coordinates.
+ * Note: This checks if a point is within a monitor, not if an entire window is visible.
  */
-function findMonitorAtPosition(x: number, y: number, monitors: Monitor[]): Monitor | null {
+function findMonitorContainingPoint(x: number, y: number, monitors: Monitor[]): Monitor | null {
   for (const monitor of monitors) {
     const bounds = getMonitorBounds(monitor);
     if (x >= bounds.x && x < bounds.x + bounds.width &&
@@ -102,12 +103,17 @@ function findMonitorAtPosition(x: number, y: number, monitors: Monitor[]): Monit
 }
 
 /**
- * Find the primary monitor, or first available if no primary.
+ * Find the primary monitor.
+ * Uses the monitor at origin (0, 0) as a reliable heuristic since Tauri
+ * doesn't expose an is_primary field. Falls back to first monitor if none at origin.
  */
 function findPrimaryMonitor(monitors: Monitor[]): Monitor | null {
-  // Tauri doesn't have an is_primary field, so we use the first monitor
-  // which is typically the primary on most systems
-  return monitors[0] || null;
+  // Primary monitor is typically at origin (0, 0)
+  const atOrigin = monitors.find((m) => {
+    const bounds = getMonitorBounds(m);
+    return bounds.x === 0 && bounds.y === 0;
+  });
+  return atOrigin || monitors[0] || null;
 }
 
 /**
@@ -414,7 +420,7 @@ class WindowManager {
 
         if (monitors.length > 0) {
           // Find which monitor the target position belongs to
-          const targetMonitor = findMonitorAtPosition(x, y, monitors);
+          const targetMonitor = findMonitorContainingPoint(x, y, monitors);
           const primaryMonitor = findPrimaryMonitor(monitors);
 
           if (targetMonitor) {
