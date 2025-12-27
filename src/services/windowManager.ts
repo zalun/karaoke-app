@@ -501,14 +501,21 @@ class WindowManager {
       await window.setSize(new LogicalSize(logicalWidth, logicalHeight));
 
       // Verify the window actually moved to the correct position
+      // Allow small tolerance for window decorations, snapping, and rounding
+      const POSITION_TOLERANCE = 10;
+      const SIZE_TOLERANCE = 10;
       const actualPos = await window.outerPosition();
       const actualSize = await window.outerSize();
-      if (actualPos.x !== finalX || actualPos.y !== finalY) {
+
+      const positionDiff = Math.abs(actualPos.x - finalX) + Math.abs(actualPos.y - finalY);
+      const sizeDiff = Math.abs(actualSize.width - finalWidth) + Math.abs(actualSize.height - finalHeight);
+
+      if (positionDiff > POSITION_TOLERANCE) {
         log.warn(
           `restoreWindowState: ${windowLabel} position mismatch! Expected (${finalX}, ${finalY}), got (${actualPos.x}, ${actualPos.y})`
         );
       }
-      if (actualSize.width !== finalWidth || actualSize.height !== finalHeight) {
+      if (sizeDiff > SIZE_TOLERANCE) {
         log.warn(
           `restoreWindowState: ${windowLabel} size mismatch! Expected ${finalWidth}x${finalHeight}, got ${actualSize.width}x${actualSize.height}`
         );
