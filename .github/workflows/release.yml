@@ -86,9 +86,9 @@ jobs:
         id: find-dmg
         run: |
           DMG_PATH=$(find src-tauri/target/${{ matrix.target }}/release/bundle/dmg -name "*.dmg" | head -1)
-          DMG_NAME=$(basename "$DMG_PATH" .dmg)
+          DMG_NAME=$(basename "$DMG_PATH")
           echo "path=$DMG_PATH" >> $GITHUB_OUTPUT
-          echo "name=${DMG_NAME}_${{ matrix.arch }}.dmg" >> $GITHUB_OUTPUT
+          echo "name=$DMG_NAME" >> $GITHUB_OUTPUT
           echo "Found DMG: $DMG_PATH"
 
       - name: Create or get release

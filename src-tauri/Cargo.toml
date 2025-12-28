@@ -1,6 +1,6 @@
 [package]
 name = "karaoke-app"
-version = "0.4.0"
+version = "0.4.2-beta"
 description = "Home karaoke application for macOS"
 authors = ["Piotr Zalewa"]
 license = "MIT"
