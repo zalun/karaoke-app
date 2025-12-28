@@ -7,8 +7,14 @@ const log = createLogger("useMediaControls");
 // Throttle position updates to avoid overwhelming the system
 const POSITION_UPDATE_INTERVAL_MS = 1000;
 
+// Debounce rapid playback state changes to prevent race conditions
+const PLAYBACK_DEBOUNCE_MS = 50;
+
 export function useMediaControls() {
   const lastPositionUpdate = useRef<number>(0);
+  const playbackDebounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentTimeRef = useRef<number>(0);
+  const isPlayingRef = useRef<boolean>(false);
 
   const {
     currentVideo,
@@ -20,6 +26,10 @@ export function useMediaControls() {
   } = usePlayerStore();
 
   const { playNext, playPrevious, hasNext, hasPrevious } = useQueueStore();
+
+  // Keep refs in sync for use in debounced callbacks
+  currentTimeRef.current = currentTime;
+  isPlayingRef.current = isPlaying;
 
   // Handle next track
   const handleNext = useCallback(async () => {
@@ -55,7 +65,12 @@ export function useMediaControls() {
     }
   }, [playPrevious, hasPrevious]);
 
-  // Update metadata and playback state when video changes or playback state changes
+  // Update metadata only when video changes (not on play/pause).
+  // This effect also calls updatePlayback() to ensure Now Playing shows immediately
+  // when a new video starts. This may result in a second updatePlayback() call from
+  // the debounced effect below (50ms later), which is intentional and harmless -
+  // the immediate call ensures responsiveness while the debounced effect handles
+  // rapid play/pause toggling.
   useEffect(() => {
     if (currentVideo) {
       // Use a clean thumbnail URL without query params (macOS NSImage handles it better)
@@ -65,19 +80,49 @@ export function useMediaControls() {
         thumbnailUrl = `https://i.ytimg.com/vi/${currentVideo.youtubeId}/hqdefault.jpg`;
       }
 
-      // Update metadata first
       mediaControlsService.updateMetadata({
         title: currentVideo.title,
         artist: currentVideo.artist,
         durationSecs: currentVideo.duration ?? duration,
         thumbnailUrl,
       });
-      // Then update playback state - this is needed for Now Playing to show
       mediaControlsService.updatePlayback(isPlaying, currentTime);
     } else {
       mediaControlsService.stop();
     }
-  }, [currentVideo?.id, currentVideo?.title, currentVideo?.artist, currentVideo?.youtubeId, duration, isPlaying]);
+  }, [currentVideo?.id, currentVideo?.title, currentVideo?.artist, currentVideo?.youtubeId, duration]);
+
+  // Debounced playback state updates when play/pause changes.
+  // This prevents race conditions from rapid toggling by coalescing updates.
+  //
+  // Dependencies explained:
+  // - isPlaying: Core trigger - we want to update when play/pause state changes
+  // - currentVideo: Needed for the early return guard. When video changes, the
+  //   metadata effect above handles the update, so the debounced call here is
+  //   redundant but harmless (just confirms the same state after 50ms)
+  useEffect(() => {
+    if (!currentVideo) return;
+
+    // Clear any pending debounced update
+    if (playbackDebounceTimeout.current) {
+      clearTimeout(playbackDebounceTimeout.current);
+    }
+
+    // Debounce the playback update to handle rapid toggling.
+    // Uses refs to get latest values without adding them to deps
+    // (which would cause excessive re-runs as these values update frequently).
+    playbackDebounceTimeout.current = setTimeout(() => {
+      mediaControlsService.updatePlayback(isPlayingRef.current, currentTimeRef.current);
+      playbackDebounceTimeout.current = null;
+    }, PLAYBACK_DEBOUNCE_MS);
+
+    return () => {
+      if (playbackDebounceTimeout.current) {
+        clearTimeout(playbackDebounceTimeout.current);
+        playbackDebounceTimeout.current = null;
+      }
+    };
+  }, [isPlaying, currentVideo]);
 
   // Throttled position updates while playing
   useEffect(() => {
