@@ -398,9 +398,9 @@ export function PlayerControls() {
         {/* Reload */}
         <button
           onClick={handleReload}
-          disabled={isDisabled || isLoading}
+          disabled={isDisabled}
           className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
-            !isDisabled && !isLoading
+            !isDisabled
               ? "hover:bg-gray-700 text-white"
               : "text-gray-600 cursor-not-allowed"
           }`}
