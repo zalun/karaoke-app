@@ -246,8 +246,11 @@ export function VideoPlayer() {
 
   const handleEnded = useCallback(async () => {
     log.info("Video ended");
-    const { playNext } = useQueueStore.getState();
-    const nextItem = playNext();
+    // Use playNextFromQueue to always take from queue when song ends naturally.
+    // This ensures songs played from Search or History don't cause the player
+    // to continue through history - it always goes to the queue next.
+    const { playNextFromQueue } = useQueueStore.getState();
+    const nextItem = playNextFromQueue();
 
     if (nextItem && nextItem.video.youtubeId) {
       // Play next from queue

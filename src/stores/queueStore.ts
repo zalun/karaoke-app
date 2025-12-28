@@ -68,7 +68,8 @@ interface QueueState {
   playDirect: (video: Video) => QueueItem; // Play directly (e.g., from search) - adds to history
   playFromQueue: (index: number) => QueueItem | null;
   playFromHistory: (index: number) => QueueItem | null;
-  playNext: () => QueueItem | null;
+  playNext: () => QueueItem | null; // For "next" button - may continue through history
+  playNextFromQueue: () => QueueItem | null; // For auto-play when song ends - always takes from queue
   playPrevious: () => QueueItem | null;
 
   // State queries
@@ -397,6 +398,40 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     });
 
     // Also persist history index reset
+    queueService.setHistoryIndex(-1).catch((error) => {
+      log.error("Failed to persist history index:", error);
+    });
+
+    set({
+      queue: newQueue,
+      history: newHistory,
+      historyIndex: -1,
+    });
+
+    return item;
+  },
+
+  playNextFromQueue: () => {
+    // Always take from queue, ignoring history position.
+    // Used for auto-play when a song ends naturally.
+    const { queue, history } = get();
+
+    if (queue.length === 0) {
+      log.debug("playNextFromQueue: queue empty");
+      return null;
+    }
+
+    const item = queue[0];
+    log.info(`playNextFromQueue: ${item.video.title}`);
+    const newQueue = queue.slice(1);
+    const newHistory = [...history, item];
+
+    // Persist to database (move from queue to history)
+    queueService.moveToHistory(item.id).catch((error) => {
+      log.error("Failed to move item to history in database:", error);
+    });
+
+    // Reset history index to end
     queueService.setHistoryIndex(-1).catch((error) => {
       log.error("Failed to persist history index:", error);
     });
