@@ -347,7 +347,8 @@ export function PlayerControls() {
 
   const { isLoading } = usePlayerStore();
   const isDisabled = !currentVideo;
-  const canReload = !!currentQueueItem?.video.youtubeId;
+  // Disable reload when detached since we can't sync the new URL to the detached window
+  const canReload = !!currentQueueItem?.video.youtubeId && !isDetached;
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
