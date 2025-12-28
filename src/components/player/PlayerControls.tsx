@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from "react";
 import { usePlayerStore, useQueueStore, useSessionStore, playVideo } from "../../stores";
-import { windowManager, createLogger } from "../../services";
+import { windowManager, youtubeService, createLogger } from "../../services";
 
 const log = createLogger("PlayerControls");
 
@@ -305,6 +305,43 @@ export function PlayerControls() {
     setIsPlaying(newState);
   }, [isPlaying, setIsPlaying]);
 
+  const { setIsLoading, setCurrentVideo, setError } = usePlayerStore();
+
+  const handleReload = useCallback(async () => {
+    // Get the current item from queue - this is the video being loaded/played
+    const currentItem = getCurrentItem();
+    const videoToReload = currentItem?.video;
+
+    if (!videoToReload?.youtubeId) return;
+
+    log.info(`Reloading video: ${videoToReload.title}`);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Always fetch fresh URL (bypass cache)
+      const streamInfo = await youtubeService.getStreamUrl(videoToReload.youtubeId);
+
+      // Check if video changed during fetch (user clicked Next/Previous)
+      const stillCurrent = getCurrentItem()?.video.youtubeId === videoToReload.youtubeId;
+      if (!stillCurrent) {
+        log.info("Video changed during reload, aborting");
+        return;
+      }
+
+      setCurrentVideo({ ...videoToReload, streamUrl: streamInfo.url });
+      setIsPlaying(true);
+      // Reset to beginning
+      seekTo(0);
+      log.info("Video reloaded successfully");
+    } catch (err) {
+      log.error("Failed to reload video", err);
+      setError("Failed to reload video");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getCurrentItem, setIsLoading, setCurrentVideo, setIsPlaying, setError, seekTo]);
+
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     log.debug(`Volume: ${Math.round(newVolume * 100)}%`);
@@ -318,14 +355,29 @@ export function PlayerControls() {
 
   const { isLoading } = usePlayerStore();
   const isDisabled = !currentVideo;
+  // Disable reload when detached since we can't sync the new URL to the detached window
+  const canReload = !!currentQueueItem?.video.youtubeId && !isDetached;
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div className={`bg-gray-800 p-3 rounded-lg relative ${isDisabled ? "opacity-60" : ""}`}>
       {/* Loading overlay */}
       {isLoading && (
-        <div className="absolute inset-0 bg-gray-900/50 rounded-lg flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-gray-900/50 rounded-lg flex items-center justify-center gap-3 z-10">
           <div className="w-8 h-8 border-4 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
+          <button
+            onClick={handleReload}
+            disabled={!canReload}
+            className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
+              canReload
+                ? "bg-gray-700 hover:bg-gray-600 text-white"
+                : "text-gray-600 cursor-not-allowed"
+            }`}
+            title="Reload video"
+            aria-label="Reload video from beginning"
+          >
+            ↻
+          </button>
         </div>
       )}
       <div className="flex items-center gap-4">
@@ -368,6 +420,21 @@ export function PlayerControls() {
           title="Next"
         >
           ⏭
+        </button>
+
+        {/* Reload */}
+        <button
+          onClick={handleReload}
+          disabled={!canReload}
+          className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
+            canReload
+              ? "hover:bg-gray-700 text-white"
+              : "text-gray-600 cursor-not-allowed"
+          }`}
+          title="Reload video"
+          aria-label="Reload video from beginning"
+        >
+          ↻
         </button>
 
         {/* Progress */}
