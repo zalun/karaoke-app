@@ -57,6 +57,7 @@ interface QueueState {
 
   // Actions
   addToQueue: (video: Video) => void;
+  addToQueueNext: (video: Video) => void;
   removeFromQueue: (itemId: string) => void;
   reorderQueue: (itemId: string, newPosition: number) => void;
   clearQueue: () => void;
@@ -156,6 +157,35 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       queueService.addItem(toQueueItemData(newItem, position)).catch((error) => {
         log.error("Failed to persist queue item:", error);
       });
+
+      return { queue: newQueue };
+    });
+  },
+
+  addToQueueNext: (video) => {
+    log.info(`addToQueueNext: ${video.title}`);
+    const newItem: QueueItem = {
+      id: crypto.randomUUID(),
+      video,
+      addedAt: new Date(),
+    };
+    set((state) => {
+      // Insert at the beginning of the queue
+      const newQueue = [newItem, ...state.queue];
+      log.debug(`Queue size: ${state.queue.length} -> ${newQueue.length}`);
+
+      // Persist to database: add item then reorder to position 0.
+      // The backend always adds to the end, so we need to reorder after adding.
+      // Note: There's a small race window between add and reorder where a crash
+      // could leave the item at the wrong position. This is acceptable for a
+      // single-user desktop app where the window is extremely small.
+      // Position 0 passed here is a placeholder; actual position is set by reorder.
+      queueService
+        .addItem(toQueueItemData(newItem, 0))
+        .then(() => queueService.reorder(newItem.id, 0))
+        .catch((error) => {
+          log.error("Failed to persist queue item at top:", error);
+        });
 
       return { queue: newQueue };
     });
