@@ -76,25 +76,115 @@ jobs:
           # Clean up certificate file
           rm -f $CERTIFICATE_PATH
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0.5
+      - name: Build Tauri app (signed, not notarized)
+        run: npm run tauri build -- --target ${{ matrix.target }}
+        env:
+          # Only signing identity - no APPLE_ID/PASSWORD means no notarization
+          APPLE_SIGNING_IDENTITY: "Developer ID Application: Piotr Zalewa"
+
+      - name: Find DMG file
+        id: find-dmg
+        run: |
+          DMG_PATH=$(find src-tauri/target/${{ matrix.target }}/release/bundle/dmg -name "*.dmg" | head -1)
+          DMG_NAME=$(basename "$DMG_PATH" .dmg)
+          echo "path=$DMG_PATH" >> $GITHUB_OUTPUT
+          echo "name=${DMG_NAME}_${{ matrix.arch }}.dmg" >> $GITHUB_OUTPUT
+          echo "Found DMG: $DMG_PATH"
+
+      - name: Create or get release
+        id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if release exists
+          if gh release view ${{ github.ref_name }} --repo ${{ github.repository }} > /dev/null 2>&1; then
+            echo "Release exists"
+          else
+            # Create draft release
+            gh release create ${{ github.ref_name }} \
+              --repo ${{ github.repository }} \
+              --title "Karaoke ${{ github.ref_name }}" \
+              --notes "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+          ## Downloads
+          - **Apple Silicon (M1/M2/M3)**: Download the \`arm64\` version
+          - **Intel Macs**: Download the \`x64\` version
+
+          ⏳ *Notarization in progress - DMGs will be updated when complete*" \
+              --draft
+            echo "Created draft release"
+          fi
+
+      - name: Upload signed DMG to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Upload the signed (not yet notarized) DMG
+          gh release upload ${{ github.ref_name }} \
+            "${{ steps.find-dmg.outputs.path }}#${{ steps.find-dmg.outputs.name }}" \
+            --repo ${{ github.repository }} \
+            --clobber
+
+      - name: Notarize app (async with retries)
+        env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Karaoke ${{ github.ref_name }}'
-          releaseBody: |
-            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+        run: |
+          echo "Submitting for notarization..."
 
-            ## Downloads
-            - **Apple Silicon (M1/M2/M3)**: Download the `arm64` version
-            - **Intel Macs**: Download the `x64` version
-          releaseDraft: true
-          prerelease: false
-          args: --target ${{ matrix.target }}
+          # Submit for notarization and capture submission ID
+          SUBMIT_OUTPUT=$(xcrun notarytool submit "${{ steps.find-dmg.outputs.path }}" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait \
+            --timeout 30m \
+            2>&1) || true
+
+          echo "$SUBMIT_OUTPUT"
+
+          # Check if notarization succeeded
+          if echo "$SUBMIT_OUTPUT" | grep -q "status: Accepted"; then
+            echo "Notarization successful!"
+            echo "NOTARIZATION_SUCCESS=true" >> $GITHUB_ENV
+          else
+            echo "Notarization failed or timed out - signed DMG is still available"
+            echo "NOTARIZATION_SUCCESS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Staple notarization ticket
+        if: env.NOTARIZATION_SUCCESS == 'true'
+        run: |
+          # Find the .app inside the DMG to staple
+          # First, mount the DMG
+          MOUNT_POINT=$(mktemp -d)
+          hdiutil attach "${{ steps.find-dmg.outputs.path }}" -mountpoint "$MOUNT_POINT" -nobrowse
+
+          # Find the app
+          APP_PATH=$(find "$MOUNT_POINT" -name "*.app" -maxdepth 1 | head -1)
+          APP_NAME=$(basename "$APP_PATH")
+
+          # Unmount
+          hdiutil detach "$MOUNT_POINT"
+
+          # For DMGs, we staple the DMG itself
+          xcrun stapler staple "${{ steps.find-dmg.outputs.path }}"
+
+          echo "Stapled notarization ticket to DMG"
+
+      - name: Upload notarized DMG to release
+        if: env.NOTARIZATION_SUCCESS == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Replace with notarized DMG
+          gh release upload ${{ github.ref_name }} \
+            "${{ steps.find-dmg.outputs.path }}#${{ steps.find-dmg.outputs.name }}" \
+            --repo ${{ github.repository }} \
+            --clobber
+
+          echo "Uploaded notarized DMG to release"
 
       - name: Cleanup keychain
         if: always()
@@ -109,8 +199,18 @@ jobs:
     needs: build-macos
     runs-on: ubuntu-latest
     steps:
-      - name: Publish Release
+      - name: Update release notes and publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Update release notes to remove "in progress" message
+          gh release edit ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --notes "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+          ## Downloads
+          - **Apple Silicon (M1/M2/M3)**: Download the \`arm64\` version
+          - **Intel Macs**: Download the \`x64\` version"
+
+          # Publish the release
           gh release edit ${{ github.ref_name }} --draft=false --repo=${{ github.repository }}
