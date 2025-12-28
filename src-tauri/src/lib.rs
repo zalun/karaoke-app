@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod services;
 
+use chrono::Datelike;
 use db::Database;
 use log::{debug, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -56,7 +57,7 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
     let about_metadata = AboutMetadata {
         name: Some("Karaoke".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
-        copyright: Some(format!("© 2025 {}", env!("CARGO_PKG_AUTHORS")).into()),
+        copyright: Some(format!("© {} {}", chrono::Utc::now().year(), env!("CARGO_PKG_AUTHORS")).into()),
         credits: Some(format!(
             "Home karaoke application for macOS with YouTube streaming, queue management, and singer tracking.\n\n{}",
             env!("CARGO_PKG_REPOSITORY")
