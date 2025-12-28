@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Improve About dialog with description and GitHub link (#65)
+  - Display app description and clickable GitHub repository link
+  - Show author information and copyright with dynamic year
+  - Use compile-time environment variables from Cargo.toml for consistency
 - Use thiserror for structured error types in Rust backend (#57)
   - Replace string-based error handling with typed `CommandError` enum
   - Better error categorization (database, validation, not found, etc.)
