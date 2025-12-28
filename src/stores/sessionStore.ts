@@ -85,8 +85,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       const session = await sessionService.startSession(name);
       set({ session, isLoading: false, singers: [], queueSingerAssignments: new Map() });
-      // Reset queue store for fresh session
-      useQueueStore.getState().resetState();
+      // Reload queue/history state (items were migrated to the new session in backend)
+      await useQueueStore.getState().loadPersistedState();
+      // Load singer assignments for all queue and history items
+      await get().loadAllQueueItemSingers();
       log.info(`Session started: ${session.id}`);
     } catch (error) {
       log.error("Failed to start session:", error);

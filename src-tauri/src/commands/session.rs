@@ -119,37 +119,79 @@ pub fn start_session(
 
     info!("Starting new session: {:?}", name);
     let db = state.db.lock().map_lock_err()?;
+    let conn = db.connection();
 
-    // End any active sessions first
-    db.connection().execute(
-        "UPDATE sessions SET is_active = 0, ended_at = CURRENT_TIMESTAMP WHERE is_active = 1",
-        [],
-    )?;
+    // Use transaction for atomicity
+    conn.execute("BEGIN IMMEDIATE", [])?;
 
-    // Create new session
-    db.connection().execute(
-        "INSERT INTO sessions (name, is_active) VALUES (?1, 1)",
-        [&name],
-    )?;
+    let result = (|| -> Result<Session, CommandError> {
+        // Get the current active session ID (if any) before ending it
+        let old_session_id: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM sessions WHERE is_active = 1",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
 
-    let id = db.connection().last_insert_rowid();
+        // End old session first to avoid having two active sessions
+        if old_session_id.is_some() {
+            conn.execute(
+                "UPDATE sessions SET is_active = 0, ended_at = CURRENT_TIMESTAMP WHERE is_active = 1",
+                [],
+            )?;
+        }
 
-    let session = db.connection().query_row(
-        "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
-        [id],
-        |row| {
-            Ok(Session {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                started_at: row.get(2)?,
-                ended_at: row.get(3)?,
-                is_active: row.get::<_, i32>(4)? != 0,
-            })
-        },
-    )?;
+        // Create new session
+        conn.execute(
+            "INSERT INTO sessions (name, is_active) VALUES (?1, 1)",
+            [&name],
+        )?;
 
-    info!("Session started: id={}", id);
-    Ok(session)
+        let new_session_id = conn.last_insert_rowid();
+
+        // Migrate queue/history items from old session to new session
+        if let Some(old_id) = old_session_id {
+            let migrated_count = conn.execute(
+                "UPDATE queue_items SET session_id = ?1 WHERE session_id = ?2",
+                rusqlite::params![new_session_id, old_id],
+            )?;
+            info!(
+                "Migrated {} queue/history items from session {} to session {}",
+                migrated_count, old_id, new_session_id
+            );
+        }
+
+        let session = conn.query_row(
+            "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
+            [new_session_id],
+            |row| {
+                Ok(Session {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    started_at: row.get(2)?,
+                    ended_at: row.get(3)?,
+                    is_active: row.get::<_, i32>(4)? != 0,
+                })
+            },
+        )?;
+
+        Ok(session)
+    })();
+
+    match result {
+        Ok(session) => {
+            conn.execute("COMMIT", [])?;
+            info!("Session started: id={}", session.id);
+            Ok(session)
+        }
+        Err(e) => {
+            if let Err(rollback_err) = conn.execute("ROLLBACK", []) {
+                log::error!("Failed to rollback transaction: {}", rollback_err);
+            }
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]
