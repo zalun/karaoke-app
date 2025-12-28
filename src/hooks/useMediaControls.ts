@@ -13,6 +13,7 @@ const PLAYBACK_DEBOUNCE_MS = 50;
 export function useMediaControls() {
   const lastPositionUpdate = useRef<number>(0);
   const playbackDebounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentTimeRef = useRef<number>(0);
 
   const {
     currentVideo,
@@ -24,6 +25,9 @@ export function useMediaControls() {
   } = usePlayerStore();
 
   const { playNext, playPrevious, hasNext, hasPrevious } = useQueueStore();
+
+  // Keep currentTimeRef in sync for use in debounced callbacks
+  currentTimeRef.current = currentTime;
 
   // Handle next track
   const handleNext = useCallback(async () => {
@@ -84,6 +88,7 @@ export function useMediaControls() {
 
   // Debounced playback state updates when play/pause changes
   // This prevents race conditions from rapid toggling
+  // Note: currentVideo?.id is not in deps - metadata effect handles video changes
   useEffect(() => {
     if (!currentVideo) return;
 
@@ -93,8 +98,9 @@ export function useMediaControls() {
     }
 
     // Debounce the playback update to handle rapid toggling
+    // Use currentTimeRef to get latest position without adding to deps
     playbackDebounceTimeout.current = setTimeout(() => {
-      mediaControlsService.updatePlayback(isPlaying, currentTime);
+      mediaControlsService.updatePlayback(isPlaying, currentTimeRef.current);
       playbackDebounceTimeout.current = null;
     }, PLAYBACK_DEBOUNCE_MS);
 
@@ -103,7 +109,7 @@ export function useMediaControls() {
         clearTimeout(playbackDebounceTimeout.current);
       }
     };
-  }, [isPlaying, currentVideo?.id]);
+  }, [isPlaying, currentVideo]);
 
   // Throttled position updates while playing
   useEffect(() => {
