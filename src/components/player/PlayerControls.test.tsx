@@ -3,9 +3,70 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlayerControls } from "./PlayerControls";
 
-// Define mock state objects at module level (before vi.mock)
-const createMockPlayerStore = () => ({
-  currentVideo: null as { id: string; title: string; artist?: string; youtubeId?: string; streamUrl?: string; duration?: number } | null,
+// =============================================================================
+// Type Definitions for Mocks
+// =============================================================================
+
+interface MockVideo {
+  id: string;
+  title: string;
+  artist?: string;
+  youtubeId?: string;
+  streamUrl?: string;
+  duration?: number;
+}
+
+interface MockQueueItem {
+  id: string;
+  video: MockVideo;
+  addedAt: Date;
+}
+
+interface MockPlayerState {
+  currentVideo: MockVideo | null;
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  volume: number;
+  isMuted: boolean;
+  isDetached: boolean;
+  isLoading: boolean;
+  seekTime: number | null;
+  error: string | null;
+  setIsPlaying: ReturnType<typeof vi.fn>;
+  setIsDetached: ReturnType<typeof vi.fn>;
+  setVolume: ReturnType<typeof vi.fn>;
+  toggleMute: ReturnType<typeof vi.fn>;
+  seekTo: ReturnType<typeof vi.fn>;
+  setIsLoading: ReturnType<typeof vi.fn>;
+  setCurrentVideo: ReturnType<typeof vi.fn>;
+  setError: ReturnType<typeof vi.fn>;
+}
+
+interface MockQueueState {
+  queue: MockQueueItem[];
+  hasNext: ReturnType<typeof vi.fn>;
+  hasPrevious: ReturnType<typeof vi.fn>;
+  playNext: ReturnType<typeof vi.fn>;
+  playPrevious: ReturnType<typeof vi.fn>;
+  getCurrentItem: ReturnType<typeof vi.fn>;
+}
+
+interface MockSessionState {
+  session: null;
+  queueSingerAssignments: Map<string, number[]>;
+  singers: never[];
+  loadQueueItemSingers: ReturnType<typeof vi.fn>;
+  getQueueItemSingerIds: ReturnType<typeof vi.fn>;
+  getSingerById: ReturnType<typeof vi.fn>;
+}
+
+// =============================================================================
+// Mock Factory Functions
+// =============================================================================
+
+const createMockPlayerStore = (): MockPlayerState => ({
+  currentVideo: null,
   isPlaying: false,
   currentTime: 0,
   duration: 0,
@@ -25,14 +86,8 @@ const createMockPlayerStore = () => ({
   setError: vi.fn(),
 });
 
-interface MockQueueItem {
-  id: string;
-  video: { id: string; title: string; artist?: string; youtubeId?: string; streamUrl?: string; duration?: number };
-  addedAt: Date;
-}
-
-const createMockQueueStore = () => ({
-  queue: [] as MockQueueItem[],
+const createMockQueueStore = (): MockQueueState => ({
+  queue: [],
   hasNext: vi.fn(() => false),
   hasPrevious: vi.fn(() => false),
   playNext: vi.fn(),
@@ -40,7 +95,7 @@ const createMockQueueStore = () => ({
   getCurrentItem: vi.fn((): MockQueueItem | null => null),
 });
 
-const createMockSessionStore = () => ({
+const createMockSessionStore = (): MockSessionState => ({
   session: null,
   queueSingerAssignments: new Map(),
   singers: [],
@@ -66,7 +121,10 @@ const createMockYoutubeService = () => ({
   getStreamUrl: vi.fn((_videoId: unknown) => Promise.resolve({ url: "https://stream.example.com/video" })),
 });
 
-// Create instances that will be used and reset
+// =============================================================================
+// Mock Instances
+// =============================================================================
+
 let mockPlayerStore = createMockPlayerStore();
 let mockQueueStore = createMockQueueStore();
 let mockSessionStore = createMockSessionStore();
@@ -74,10 +132,13 @@ let mockWindowManager = createMockWindowManager();
 let mockYoutubeService = createMockYoutubeService();
 const mockPlayVideo = vi.fn();
 
-// Mock stores
+// =============================================================================
+// Mock Definitions
+// =============================================================================
+
 vi.mock("../../stores", () => ({
   usePlayerStore: Object.assign(
-    (selector?: (state: ReturnType<typeof createMockPlayerStore>) => unknown) => {
+    (selector?: (state: MockPlayerState) => unknown) => {
       if (selector) {
         return selector(mockPlayerStore);
       }
@@ -85,13 +146,13 @@ vi.mock("../../stores", () => ({
     },
     {
       getState: () => mockPlayerStore,
-      setState: vi.fn((updates: Partial<ReturnType<typeof createMockPlayerStore>>) => {
+      setState: vi.fn((updates: Partial<MockPlayerState>) => {
         Object.assign(mockPlayerStore, updates);
       }),
     }
   ),
   useQueueStore: Object.assign(
-    (selector?: (state: ReturnType<typeof createMockQueueStore>) => unknown) => {
+    (selector?: (state: MockQueueState) => unknown) => {
       if (selector) {
         return selector(mockQueueStore);
       }
@@ -102,7 +163,7 @@ vi.mock("../../stores", () => ({
     }
   ),
   useSessionStore: Object.assign(
-    (selector?: (state: ReturnType<typeof createMockSessionStore>) => unknown) => {
+    (selector?: (state: MockSessionState) => unknown) => {
       if (selector) {
         return selector(mockSessionStore);
       }
@@ -115,7 +176,6 @@ vi.mock("../../stores", () => ({
   playVideo: () => mockPlayVideo(),
 }));
 
-// Mock services
 vi.mock("../../services", () => ({
   windowManager: {
     detachPlayer: (state: unknown) => mockWindowManager.detachPlayer(state),
@@ -140,9 +200,11 @@ vi.mock("../../services", () => ({
   }),
 }));
 
-// Helper to reset all mocks
+// =============================================================================
+// Test Helpers
+// =============================================================================
+
 function resetMocks() {
-  // Recreate mock stores with fresh functions
   mockPlayerStore = createMockPlayerStore();
   mockQueueStore = createMockQueueStore();
   mockSessionStore = createMockSessionStore();
@@ -151,7 +213,6 @@ function resetMocks() {
   mockPlayVideo.mockClear();
 }
 
-// Helper to set up a video for testing
 function setupVideoPlaying(options: {
   hasNext?: boolean;
   hasPrevious?: boolean;
@@ -161,7 +222,7 @@ function setupVideoPlaying(options: {
   duration?: number;
   currentTime?: number;
 } = {}) {
-  const video = {
+  const video: MockVideo = {
     id: "video-1",
     title: "Test Song",
     artist: "Test Artist",
@@ -187,6 +248,18 @@ function setupVideoPlaying(options: {
 
   return video;
 }
+
+/**
+ * Helper to find the main reload button (not the one in loading overlay)
+ */
+function getMainReloadButton() {
+  const reloadButtons = screen.getAllByTitle("Reload video");
+  return reloadButtons.find(btn => !btn.closest("[data-testid='loading-overlay']"));
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
 
 describe("PlayerControls", () => {
   beforeEach(() => {
@@ -303,7 +376,6 @@ describe("PlayerControls", () => {
       mockPlayerStore.isMuted = false;
       render(<PlayerControls />);
 
-      // Find the button containing the volume icon
       const volumeButton = screen.getByText("🔊").closest("button");
       expect(volumeButton).toBeInTheDocument();
     });
@@ -395,13 +467,15 @@ describe("PlayerControls", () => {
       setupVideoPlaying({ duration: 100 });
       render(<PlayerControls />);
 
-      // Find the progress bar (the clickable div with hover:h-3 class)
-      const progressBar = document.querySelector(".cursor-pointer.hover\\:h-3");
+      const progressBar = screen.getByTestId("progress-bar");
       expect(progressBar).toBeInTheDocument();
 
-      // Mock getBoundingClientRect
-      const originalGetBoundingClientRect = progressBar!.getBoundingClientRect;
-      progressBar!.getBoundingClientRect = () => ({
+      // We need to mock getBoundingClientRect because jsdom doesn't implement
+      // actual layout. The component uses the click position relative to the
+      // element's bounds to calculate the seek percentage. Without this mock,
+      // rect.width would be 0, causing division issues.
+      const originalGetBoundingClientRect = progressBar.getBoundingClientRect;
+      progressBar.getBoundingClientRect = () => ({
         left: 0,
         right: 100,
         width: 100,
@@ -413,22 +487,21 @@ describe("PlayerControls", () => {
         toJSON: () => {},
       });
 
-      // Click at 50% position
-      fireEvent.click(progressBar!, { clientX: 50 });
+      // Click at 50% position (clientX=50 on a 100px wide bar)
+      fireEvent.click(progressBar, { clientX: 50 });
 
       expect(mockPlayerStore.seekTo).toHaveBeenCalledWith(50);
 
-      // Restore
-      progressBar!.getBoundingClientRect = originalGetBoundingClientRect;
+      // Restore original function
+      progressBar.getBoundingClientRect = originalGetBoundingClientRect;
     });
 
     it("progress bar is not clickable during loading", () => {
       setupVideoPlaying({ isLoading: true, duration: 100 });
       render(<PlayerControls />);
 
-      // During loading, progress bar should have cursor-not-allowed class
-      const progressBar = document.querySelector(".cursor-not-allowed");
-      expect(progressBar).toBeInTheDocument();
+      const progressBar = screen.getByTestId("progress-bar");
+      expect(progressBar).toHaveClass("cursor-not-allowed");
     });
   });
 
@@ -436,11 +509,7 @@ describe("PlayerControls", () => {
     it("reload button is disabled when no video is loaded", () => {
       render(<PlayerControls />);
 
-      const reloadButtons = screen.getAllByTitle("Reload video");
-      // Get the main reload button (not the one in loading overlay)
-      const reloadButton = reloadButtons.find(btn =>
-        !btn.closest(".absolute.inset-0")
-      );
+      const reloadButton = getMainReloadButton();
       expect(reloadButton).toBeDisabled();
     });
 
@@ -448,10 +517,7 @@ describe("PlayerControls", () => {
       setupVideoPlaying({ isDetached: false });
       render(<PlayerControls />);
 
-      const reloadButtons = screen.getAllByTitle("Reload video");
-      const reloadButton = reloadButtons.find(btn =>
-        !btn.closest(".absolute.inset-0")
-      );
+      const reloadButton = getMainReloadButton();
       expect(reloadButton).not.toBeDisabled();
     });
 
@@ -459,10 +525,7 @@ describe("PlayerControls", () => {
       setupVideoPlaying({ isDetached: true });
       render(<PlayerControls />);
 
-      const reloadButtons = screen.getAllByTitle("Reload video");
-      const reloadButton = reloadButtons.find(btn =>
-        !btn.closest(".absolute.inset-0")
-      );
+      const reloadButton = getMainReloadButton();
       expect(reloadButton).toBeDisabled();
     });
 
@@ -470,11 +533,10 @@ describe("PlayerControls", () => {
       setupVideoPlaying({ isLoading: true, isDetached: false });
       render(<PlayerControls />);
 
-      // During loading, the reload button in the loading overlay should be enabled
-      const loadingOverlay = document.querySelector(".absolute.inset-0");
+      const loadingOverlay = screen.getByTestId("loading-overlay");
       expect(loadingOverlay).toBeInTheDocument();
 
-      const reloadButtonInOverlay = loadingOverlay!.querySelector('button[title="Reload video"]');
+      const reloadButtonInOverlay = loadingOverlay.querySelector('button[title="Reload video"]');
       expect(reloadButtonInOverlay).not.toBeDisabled();
     });
 
@@ -482,17 +544,11 @@ describe("PlayerControls", () => {
       setupVideoPlaying();
       render(<PlayerControls />);
 
-      const reloadButtons = screen.getAllByTitle("Reload video");
-      const reloadButton = reloadButtons.find(btn =>
-        !btn.closest(".absolute.inset-0")
-      );
-
+      const reloadButton = getMainReloadButton();
       await userEvent.click(reloadButton!);
 
-      // Should fetch fresh URL
       expect(mockYoutubeService.getStreamUrl).toHaveBeenCalledWith("abc123");
 
-      // Wait for async operations
       await waitFor(() => {
         expect(mockPlayerStore.setCurrentVideo).toHaveBeenCalled();
         expect(mockPlayerStore.setIsPlaying).toHaveBeenCalledWith(true);
@@ -505,11 +561,7 @@ describe("PlayerControls", () => {
       mockYoutubeService.getStreamUrl.mockRejectedValue(new Error("Network error"));
       render(<PlayerControls />);
 
-      const reloadButtons = screen.getAllByTitle("Reload video");
-      const reloadButton = reloadButtons.find(btn =>
-        !btn.closest(".absolute.inset-0")
-      );
-
+      const reloadButton = getMainReloadButton();
       await userEvent.click(reloadButton!);
 
       await waitFor(() => {
@@ -521,7 +573,6 @@ describe("PlayerControls", () => {
     it("reload sets loading state before and after fetch", async () => {
       setupVideoPlaying();
 
-      // Make the fetch take some time
       let resolvePromise: (value: { url: string }) => void;
       mockYoutubeService.getStreamUrl.mockImplementation(() =>
         new Promise(resolve => { resolvePromise = resolve; })
@@ -529,17 +580,11 @@ describe("PlayerControls", () => {
 
       render(<PlayerControls />);
 
-      const reloadButtons = screen.getAllByTitle("Reload video");
-      const reloadButton = reloadButtons.find(btn =>
-        !btn.closest(".absolute.inset-0")
-      );
-
+      const reloadButton = getMainReloadButton();
       await userEvent.click(reloadButton!);
 
-      // Should set loading to true immediately
       expect(mockPlayerStore.setIsLoading).toHaveBeenCalledWith(true);
 
-      // Resolve the promise
       resolvePromise!({ url: "https://stream.example.com/new" });
 
       await waitFor(() => {
@@ -551,16 +596,38 @@ describe("PlayerControls", () => {
       setupVideoPlaying({ currentTime: 90 });
       render(<PlayerControls />);
 
-      const reloadButtons = screen.getAllByTitle("Reload video");
-      const reloadButton = reloadButtons.find(btn =>
-        !btn.closest(".absolute.inset-0")
-      );
-
+      const reloadButton = getMainReloadButton();
       await userEvent.click(reloadButton!);
 
       await waitFor(() => {
         expect(mockPlayerStore.seekTo).toHaveBeenCalledWith(0);
       });
+    });
+
+    it("reload clears previous error state", async () => {
+      setupVideoPlaying();
+      mockPlayerStore.error = "Previous error";
+      render(<PlayerControls />);
+
+      const reloadButton = getMainReloadButton();
+      await userEvent.click(reloadButton!);
+
+      // setError(null) should be called to clear previous error
+      expect(mockPlayerStore.setError).toHaveBeenCalledWith(null);
+    });
+
+    it("reload does nothing when getCurrentItem returns null", async () => {
+      setupVideoPlaying();
+      // Override getCurrentItem to return null (edge case: queue cleared during operation)
+      mockQueueStore.getCurrentItem.mockReturnValue(null);
+      render(<PlayerControls />);
+
+      const reloadButton = getMainReloadButton();
+      await userEvent.click(reloadButton!);
+
+      // Should not attempt to fetch stream URL
+      expect(mockYoutubeService.getStreamUrl).not.toHaveBeenCalled();
+      expect(mockPlayerStore.setIsLoading).not.toHaveBeenCalled();
     });
   });
 
@@ -625,7 +692,6 @@ describe("PlayerControls", () => {
       const detachButton = screen.getByTitle("Detach player");
       await userEvent.click(detachButton);
 
-      // Should pause first
       expect(mockPlayerStore.setIsPlaying).toHaveBeenCalledWith(false);
     });
   });
@@ -657,12 +723,10 @@ describe("PlayerControls", () => {
       setupVideoPlaying({ isLoading: true });
       render(<PlayerControls />);
 
-      // The loading overlay should be visible
-      const loadingOverlay = document.querySelector(".absolute.inset-0");
+      const loadingOverlay = screen.getByTestId("loading-overlay");
       expect(loadingOverlay).toBeInTheDocument();
 
-      // Should have the spinner
-      const spinner = loadingOverlay!.querySelector(".animate-spin");
+      const spinner = screen.getByTestId("loading-spinner");
       expect(spinner).toBeInTheDocument();
     });
 
@@ -670,9 +734,7 @@ describe("PlayerControls", () => {
       setupVideoPlaying({ isLoading: false });
       render(<PlayerControls />);
 
-      // The loading overlay should not be visible
-      const loadingOverlay = document.querySelector(".absolute.inset-0");
-      expect(loadingOverlay).not.toBeInTheDocument();
+      expect(screen.queryByTestId("loading-overlay")).not.toBeInTheDocument();
     });
   });
 
@@ -680,16 +742,16 @@ describe("PlayerControls", () => {
     it("has reduced opacity when disabled", () => {
       render(<PlayerControls />);
 
-      const container = document.querySelector(".bg-gray-800.p-3");
-      expect(container?.classList.contains("opacity-60")).toBe(true);
+      const container = screen.getByTestId("player-controls");
+      expect(container).toHaveClass("opacity-60");
     });
 
     it("has normal opacity when video is loaded", () => {
       setupVideoPlaying();
       render(<PlayerControls />);
 
-      const container = document.querySelector(".bg-gray-800.p-3");
-      expect(container?.classList.contains("opacity-60")).toBe(false);
+      const container = screen.getByTestId("player-controls");
+      expect(container).not.toHaveClass("opacity-60");
     });
   });
 });
