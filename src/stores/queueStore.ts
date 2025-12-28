@@ -174,8 +174,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       const newQueue = [newItem, ...state.queue];
       log.debug(`Queue size: ${state.queue.length} -> ${newQueue.length}`);
 
-      // Persist to database: add item then reorder to position 0
-      // The backend always adds to the end, so we need to reorder after adding
+      // Persist to database: add item then reorder to position 0.
+      // The backend always adds to the end, so we need to reorder after adding.
+      // Note: There's a small race window between add and reorder where a crash
+      // could leave the item at the wrong position. This is acceptable for a
+      // single-user desktop app where the window is extremely small.
+      // Position 0 passed here is a placeholder; actual position is set by reorder.
       queueService
         .addItem(toQueueItemData(newItem, 0))
         .then(() => queueService.reorder(newItem.id, 0))
