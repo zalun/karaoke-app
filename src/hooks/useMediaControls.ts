@@ -14,6 +14,7 @@ export function useMediaControls() {
   const lastPositionUpdate = useRef<number>(0);
   const playbackDebounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentTimeRef = useRef<number>(0);
+  const isPlayingRef = useRef<boolean>(false);
 
   const {
     currentVideo,
@@ -26,8 +27,9 @@ export function useMediaControls() {
 
   const { playNext, playPrevious, hasNext, hasPrevious } = useQueueStore();
 
-  // Keep currentTimeRef in sync for use in debounced callbacks
+  // Keep refs in sync for use in debounced callbacks
   currentTimeRef.current = currentTime;
+  isPlayingRef.current = isPlaying;
 
   // Handle next track
   const handleNext = useCallback(async () => {
@@ -107,20 +109,17 @@ export function useMediaControls() {
     }
 
     // Debounce the playback update to handle rapid toggling.
-    // Uses currentTimeRef to get latest position without adding currentTime to deps
-    // (which would cause excessive re-runs as position updates every frame).
+    // Uses refs to get latest values without adding them to deps
+    // (which would cause excessive re-runs as these values update frequently).
     playbackDebounceTimeout.current = setTimeout(() => {
-      // Guard against stale callbacks after cleanup/unmount
-      if (playbackDebounceTimeout.current) {
-        mediaControlsService.updatePlayback(isPlaying, currentTimeRef.current);
-        playbackDebounceTimeout.current = null;
-      }
+      mediaControlsService.updatePlayback(isPlayingRef.current, currentTimeRef.current);
+      playbackDebounceTimeout.current = null;
     }, PLAYBACK_DEBOUNCE_MS);
 
     return () => {
       if (playbackDebounceTimeout.current) {
         clearTimeout(playbackDebounceTimeout.current);
-        playbackDebounceTimeout.current = null; // Null ref so guard check is effective
+        playbackDebounceTimeout.current = null;
       }
     };
   }, [isPlaying, currentVideo]);
