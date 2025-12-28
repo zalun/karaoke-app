@@ -366,6 +366,7 @@ export function PlayerControls() {
                 : "text-gray-600 cursor-not-allowed"
             }`}
             title="Reload video"
+            aria-label="Reload video from beginning"
           >
             ↻
           </button>
@@ -423,6 +424,7 @@ export function PlayerControls() {
               : "text-gray-600 cursor-not-allowed"
           }`}
           title="Reload video"
+          aria-label="Reload video from beginning"
         >
           ↻
         </button>
