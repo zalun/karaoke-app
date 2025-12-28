@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated all command modules: display, queue, session, keep_awake, media_controls, youtube
 
 ### Fixed
+- Associate existing queue and history with newly started session (#77)
+  - Queue and history items are now migrated to the new session when clicking "Start Session"
+  - Previous behavior would reset the UI and leave items orphaned in the old session
 - Fix song duration display not updating when switching songs in detached mode (#71)
   - Duration from video metadata in detached window is now synced back to main window
   - Resets duration/currentTime when setting new video to prevent stale values
