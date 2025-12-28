@@ -105,6 +105,7 @@ export function DraggableQueueItem({
           onPlay();
         }}
         className="text-gray-400 hover:text-green-400 text-sm px-1"
+        aria-label="Play now"
         title="Play now"
       >
         ▶
