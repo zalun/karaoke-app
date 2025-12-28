@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Apple Developer code signing and notarization for macOS distribution (#85)
+  - App is now signed with Developer ID certificate
+  - Builds are notarized with Apple for Gatekeeper approval
+  - GitHub Actions workflow updated to sign and notarize release builds
+- Future plan for AirPlay integration feature
+
 ## [0.4.0] - 2025-12-28
 
 ### Added
