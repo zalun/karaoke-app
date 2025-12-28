@@ -63,7 +63,12 @@ export function useMediaControls() {
     }
   }, [playPrevious, hasPrevious]);
 
-  // Update metadata only when video changes (not on play/pause)
+  // Update metadata only when video changes (not on play/pause).
+  // This effect also calls updatePlayback() to ensure Now Playing shows immediately
+  // when a new video starts. This may result in a second updatePlayback() call from
+  // the debounced effect below (50ms later), which is intentional and harmless -
+  // the immediate call ensures responsiveness while the debounced effect handles
+  // rapid play/pause toggling.
   useEffect(() => {
     if (currentVideo) {
       // Use a clean thumbnail URL without query params (macOS NSImage handles it better)
@@ -79,16 +84,20 @@ export function useMediaControls() {
         durationSecs: currentVideo.duration ?? duration,
         thumbnailUrl,
       });
-      // Also update playback state when video changes so Now Playing shows immediately
       mediaControlsService.updatePlayback(isPlaying, currentTime);
     } else {
       mediaControlsService.stop();
     }
   }, [currentVideo?.id, currentVideo?.title, currentVideo?.artist, currentVideo?.youtubeId, duration]);
 
-  // Debounced playback state updates when play/pause changes
-  // This prevents race conditions from rapid toggling
-  // Note: currentVideo?.id is not in deps - metadata effect handles video changes
+  // Debounced playback state updates when play/pause changes.
+  // This prevents race conditions from rapid toggling by coalescing updates.
+  //
+  // Dependencies explained:
+  // - isPlaying: Core trigger - we want to update when play/pause state changes
+  // - currentVideo: Needed for the early return guard. When video changes, the
+  //   metadata effect above handles the update, so the debounced call here is
+  //   redundant but harmless (just confirms the same state after 50ms)
   useEffect(() => {
     if (!currentVideo) return;
 
@@ -97,8 +106,9 @@ export function useMediaControls() {
       clearTimeout(playbackDebounceTimeout.current);
     }
 
-    // Debounce the playback update to handle rapid toggling
-    // Use currentTimeRef to get latest position without adding to deps
+    // Debounce the playback update to handle rapid toggling.
+    // Uses currentTimeRef to get latest position without adding currentTime to deps
+    // (which would cause excessive re-runs as position updates every frame).
     playbackDebounceTimeout.current = setTimeout(() => {
       mediaControlsService.updatePlayback(isPlaying, currentTimeRef.current);
       playbackDebounceTimeout.current = null;
