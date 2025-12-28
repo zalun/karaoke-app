@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from "react";
 import { usePlayerStore, useQueueStore, useSessionStore, playVideo } from "../../stores";
-import { windowManager, createLogger } from "../../services";
+import { windowManager, youtubeService, createLogger } from "../../services";
 
 const log = createLogger("PlayerControls");
 
@@ -305,6 +305,31 @@ export function PlayerControls() {
     setIsPlaying(newState);
   }, [isPlaying, setIsPlaying]);
 
+  const { setIsLoading, setCurrentVideo, setError } = usePlayerStore();
+
+  const handleReload = useCallback(async () => {
+    if (!currentVideo?.youtubeId) return;
+
+    log.info("Reloading current video");
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Always fetch fresh URL (bypass cache)
+      const streamInfo = await youtubeService.getStreamUrl(currentVideo.youtubeId);
+      setCurrentVideo({ ...currentVideo, streamUrl: streamInfo.url });
+      setIsPlaying(true);
+      // Reset to beginning
+      seekTo(0);
+      log.info("Video reloaded successfully");
+    } catch (err) {
+      log.error("Failed to reload video", err);
+      setError("Failed to reload video");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentVideo, setIsLoading, setCurrentVideo, setIsPlaying, setError, seekTo]);
+
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     log.debug(`Volume: ${Math.round(newVolume * 100)}%`);
@@ -368,6 +393,20 @@ export function PlayerControls() {
           title="Next"
         >
           ⏭
+        </button>
+
+        {/* Reload */}
+        <button
+          onClick={handleReload}
+          disabled={isDisabled || isLoading}
+          className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
+            !isDisabled && !isLoading
+              ? "hover:bg-gray-700 text-white"
+              : "text-gray-600 cursor-not-allowed"
+          }`}
+          title="Reload video"
+        >
+          ↻
         </button>
 
         {/* Progress */}

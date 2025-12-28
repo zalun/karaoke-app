@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Reload button in PlayerControls for stuck videos (#69)
+  - Re-fetches streaming URL and reloads video from the beginning
+  - Useful when videos get stuck in loading state
 - "Play Next" button in search results to add songs to top of queue (#72)
   - Inserts song at position 0 so it plays immediately after the current song
   - If nothing is playing, starts playback immediately
