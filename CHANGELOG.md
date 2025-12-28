@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated all command modules: display, queue, session, keep_awake, media_controls, youtube
 
 ### Fixed
+- Fix queue not continuing after playing from History or Search (#68)
+  - Songs played from Search or History no longer cause auto-play to continue through history
+  - When a song ends naturally, the next song always comes from the queue
+  - "Next" button still navigates forward through history as expected
 - Fix window restoring to wrong display and size (#60)
   - Use Tauri's monitor API for consistent physical pixel coordinates
   - Previously used CoreGraphics logical points which don't match window positions on Retina displays
