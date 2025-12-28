@@ -7,8 +7,12 @@ const log = createLogger("useMediaControls");
 // Throttle position updates to avoid overwhelming the system
 const POSITION_UPDATE_INTERVAL_MS = 1000;
 
+// Debounce rapid playback state changes to prevent race conditions
+const PLAYBACK_DEBOUNCE_MS = 50;
+
 export function useMediaControls() {
   const lastPositionUpdate = useRef<number>(0);
+  const playbackDebounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     currentVideo,
@@ -55,7 +59,7 @@ export function useMediaControls() {
     }
   }, [playPrevious, hasPrevious]);
 
-  // Update metadata and playback state when video changes or playback state changes
+  // Update metadata only when video changes (not on play/pause)
   useEffect(() => {
     if (currentVideo) {
       // Use a clean thumbnail URL without query params (macOS NSImage handles it better)
@@ -65,19 +69,41 @@ export function useMediaControls() {
         thumbnailUrl = `https://i.ytimg.com/vi/${currentVideo.youtubeId}/hqdefault.jpg`;
       }
 
-      // Update metadata first
       mediaControlsService.updateMetadata({
         title: currentVideo.title,
         artist: currentVideo.artist,
         durationSecs: currentVideo.duration ?? duration,
         thumbnailUrl,
       });
-      // Then update playback state - this is needed for Now Playing to show
+      // Also update playback state when video changes so Now Playing shows immediately
       mediaControlsService.updatePlayback(isPlaying, currentTime);
     } else {
       mediaControlsService.stop();
     }
-  }, [currentVideo?.id, currentVideo?.title, currentVideo?.artist, currentVideo?.youtubeId, duration, isPlaying]);
+  }, [currentVideo?.id, currentVideo?.title, currentVideo?.artist, currentVideo?.youtubeId, duration]);
+
+  // Debounced playback state updates when play/pause changes
+  // This prevents race conditions from rapid toggling
+  useEffect(() => {
+    if (!currentVideo) return;
+
+    // Clear any pending debounced update
+    if (playbackDebounceTimeout.current) {
+      clearTimeout(playbackDebounceTimeout.current);
+    }
+
+    // Debounce the playback update to handle rapid toggling
+    playbackDebounceTimeout.current = setTimeout(() => {
+      mediaControlsService.updatePlayback(isPlaying, currentTime);
+      playbackDebounceTimeout.current = null;
+    }, PLAYBACK_DEBOUNCE_MS);
+
+    return () => {
+      if (playbackDebounceTimeout.current) {
+        clearTimeout(playbackDebounceTimeout.current);
+      }
+    };
+  }, [isPlaying, currentVideo?.id]);
 
   // Throttled position updates while playing
   useEffect(() => {
