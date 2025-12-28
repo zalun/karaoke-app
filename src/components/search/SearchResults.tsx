@@ -114,7 +114,7 @@ export function SearchResults({
         return (
           <div
             key={result.id}
-            onClick={() => onPlay(result)}
+            onClick={() => onAddToQueue(result)}
             className={`flex gap-3 p-3 rounded-lg transition-colors cursor-pointer ${
               isCurrentlyPlaying
                 ? "bg-blue-900/50 border border-blue-600"
@@ -160,22 +160,22 @@ export function SearchResults({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onPlay(result);
+                  onAddToQueue(result);
                 }}
-                className="w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded transition-colors"
-                aria-label="Play"
+                className="w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded text-lg transition-colors"
+                aria-label="Add to queue"
               >
-                ▶
+                +
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onAddToQueue(result);
+                  onPlay(result);
                 }}
                 className="w-8 h-8 flex items-center justify-center bg-gray-600 hover:bg-gray-500 rounded text-lg transition-colors"
-                aria-label="Add to queue"
+                aria-label="Play now"
               >
-                +
+                ▶
               </button>
             </div>
           </div>
