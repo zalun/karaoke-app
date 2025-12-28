@@ -162,17 +162,6 @@ export function SearchResults({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onPlayNext(result);
-                }}
-                className="w-8 h-8 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded text-lg transition-colors"
-                aria-label="Play next"
-                title="Play next"
-              >
-                ⏭
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
                   onAddToQueue(result);
                 }}
                 className="w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded text-lg transition-colors"
@@ -180,6 +169,17 @@ export function SearchResults({
                 title="Add to queue"
               >
                 +
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlayNext(result);
+                }}
+                className="w-8 h-8 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded text-lg transition-colors"
+                aria-label="Play next"
+                title="Play next"
+              >
+                ⏭
               </button>
               <button
                 onClick={(e) => {
