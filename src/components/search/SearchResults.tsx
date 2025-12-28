@@ -172,7 +172,7 @@ export function SearchResults({
                   e.stopPropagation();
                   onPlay(result);
                 }}
-                className="w-8 h-8 flex items-center justify-center bg-gray-600 hover:bg-gray-500 rounded transition-colors"
+                className="w-8 h-8 flex items-center justify-center bg-gray-600 hover:bg-gray-500 rounded text-lg transition-colors"
                 aria-label="Play now"
               >
                 ▶
