@@ -56,8 +56,11 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
     let about_metadata = AboutMetadata {
         name: Some("Karaoke".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
-        copyright: Some("© 2025 Piotr Zalewa".into()),
-        credits: Some("Home karaoke application for macOS with YouTube streaming, queue management, and singer tracking.\n\nhttps://github.com/zalun/karaoke-app".into()),
+        copyright: Some(format!("© 2025 {}", env!("CARGO_PKG_AUTHORS")).into()),
+        credits: Some(format!(
+            "Home karaoke application for macOS with YouTube streaming, queue management, and singer tracking.\n\n{}",
+            env!("CARGO_PKG_REPOSITORY")
+        ).into()),
         ..Default::default()
     };
 
