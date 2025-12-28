@@ -287,6 +287,14 @@ export function DetachedPlayer() {
     windowManager.emitVideoEnded();
   }, []);
 
+  // Handle loadedmetadata - send duration to main window
+  const handleLoadedMetadata = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !video.duration) return;
+    log.debug(`Video duration: ${video.duration}`);
+    windowManager.emitDurationUpdate(video.duration);
+  }, []);
+
   // Show current singer overlay when video changes (new streamUrl)
   useEffect(() => {
     // Only show when we have a new video (not initial load)
@@ -324,6 +332,7 @@ export function DetachedPlayer() {
         ref={videoRef}
         className="w-full h-full object-contain"
         onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
         onCanPlay={handleCanPlay}
         onEnded={handleEnded}
         onDoubleClick={handleDoubleClick}
