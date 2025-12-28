@@ -74,7 +74,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setCurrentVideo: (video) => {
     log.debug(`setCurrentVideo: ${video?.title ?? "null"}`);
-    set({ currentVideo: video, error: null });
+    // Reset duration and currentTime to prevent stale values from previous video
+    set({ currentVideo: video, error: null, duration: 0, currentTime: 0 });
   },
   setIsPlaying: (isPlaying) => {
     log.debug(`setIsPlaying: ${isPlaying}`);

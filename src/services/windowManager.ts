@@ -15,6 +15,7 @@ const PLAYER_EVENTS = {
   STATE_SYNC: "player:state-sync",
   COMMAND: "player:command",
   TIME_UPDATE: "player:time-update",
+  DURATION_UPDATE: "player:duration-update",
   REQUEST_STATE: "player:request-state",
   FINAL_STATE: "player:final-state",
   VIDEO_ENDED: "player:video-ended",
@@ -287,6 +288,24 @@ class WindowManager {
   async emitTimeUpdate(time: number): Promise<void> {
     try {
       await emit(PLAYER_EVENTS.TIME_UPDATE, time);
+    } catch {
+      // Window might not exist anymore, ignore
+    }
+  }
+
+  async listenForDurationUpdate(callback: (duration: number) => void): Promise<UnlistenFn> {
+    return listen<number>(PLAYER_EVENTS.DURATION_UPDATE, (event) => {
+      callback(event.payload);
+    });
+  }
+
+  async emitDurationUpdate(duration: number): Promise<void> {
+    if (duration <= 0 || isNaN(duration) || !isFinite(duration)) {
+      log.warn(`emitDurationUpdate: invalid duration value: ${duration}`);
+      return;
+    }
+    try {
+      await emit(PLAYER_EVENTS.DURATION_UPDATE, duration);
     } catch {
       // Window might not exist anymore, ignore
     }

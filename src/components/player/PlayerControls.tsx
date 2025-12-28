@@ -183,6 +183,31 @@ export function PlayerControls() {
     };
   }, [isDetached]);
 
+  // Listen for duration updates from detached window
+  useEffect(() => {
+    if (!isDetached) return;
+
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForDurationUpdate((newDuration) => {
+      if (isMounted && isFinite(newDuration) && newDuration > 0) {
+        usePlayerStore.setState({ duration: newDuration });
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unlistenFn?.();
+    };
+  }, [isDetached]);
+
   // Listen for state requests from detached window and respond with current state
   useEffect(() => {
     if (!isDetached) return;
