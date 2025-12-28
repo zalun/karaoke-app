@@ -44,7 +44,7 @@ function App() {
   const [displayedCount, setDisplayedCount] = useState(RESULTS_PER_PAGE);
 
   const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
-  const { addToQueue, playDirect } = useQueueStore();
+  const { addToQueue, addToQueueNext, playDirect } = useQueueStore();
 
   // Initialize macOS Now Playing media controls
   useMediaControls();
@@ -137,6 +137,29 @@ function App() {
     [addToQueue]
   );
 
+  const handlePlayNext = useCallback(
+    (result: SearchResult) => {
+      // If nothing is playing, start playback immediately
+      if (!currentVideo) {
+        log.info(`Nothing playing, starting playback: "${result.title}"`);
+        handlePlay(result);
+        return;
+      }
+
+      log.info(`Adding to play next: "${result.title}"`);
+      addToQueueNext({
+        id: result.id,
+        title: result.title,
+        artist: result.channel,
+        duration: result.duration,
+        thumbnailUrl: result.thumbnail,
+        source: "youtube",
+        youtubeId: result.id,
+      });
+    },
+    [currentVideo, handlePlay, addToQueueNext]
+  );
+
   if (!dependenciesReady) {
     return <DependencyCheck onReady={() => setDependenciesReady(true)} />;
   }
@@ -198,6 +221,7 @@ function App() {
                 error={searchError}
                 onPlay={handlePlay}
                 onAddToQueue={handleAddToQueue}
+                onPlayNext={handlePlayNext}
                 displayedCount={displayedCount}
                 onLoadMore={handleLoadMore}
               />

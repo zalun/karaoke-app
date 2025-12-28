@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- "Play Next" button in search results to add songs to top of queue (#72)
+  - Inserts song at position 0 so it plays immediately after the current song
+  - If nothing is playing, starts playback immediately
+  - Green button with ⏭ icon for visual distinction from "Add to Queue"
+
 ### Changed
 - Improve About dialog with description and GitHub link (#65)
   - Display app description and clickable GitHub repository link
