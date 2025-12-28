@@ -287,10 +287,11 @@ export function DetachedPlayer() {
     windowManager.emitVideoEnded();
   }, []);
 
-  // Handle loadedmetadata - send duration to main window
-  const handleLoadedMetadata = useCallback(() => {
+  // Handle loadedmetadata/durationchange - send duration to main window
+  // Using both events handles adaptive streaming where duration may update
+  const handleDurationChange = useCallback(() => {
     const video = videoRef.current;
-    if (!video || !video.duration) return;
+    if (!video || !video.duration || isNaN(video.duration)) return;
     log.debug(`Video duration: ${video.duration}`);
     windowManager.emitDurationUpdate(video.duration);
   }, []);
@@ -332,7 +333,8 @@ export function DetachedPlayer() {
         ref={videoRef}
         className="w-full h-full object-contain"
         onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
+        onLoadedMetadata={handleDurationChange}
+        onDurationChange={handleDurationChange}
         onCanPlay={handleCanPlay}
         onEnded={handleEnded}
         onDoubleClick={handleDoubleClick}

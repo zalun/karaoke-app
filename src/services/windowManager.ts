@@ -300,6 +300,10 @@ class WindowManager {
   }
 
   async emitDurationUpdate(duration: number): Promise<void> {
+    if (duration <= 0 || isNaN(duration)) {
+      log.warn(`emitDurationUpdate: invalid duration value: ${duration}`);
+      return;
+    }
     try {
       await emit(PLAYER_EVENTS.DURATION_UPDATE, duration);
     } catch {

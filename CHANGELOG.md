@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated all command modules: display, queue, session, keep_awake, media_controls, youtube
 
 ### Fixed
+- Fix song duration display not updating when switching songs in detached mode (#71)
+  - Duration from video metadata in detached window is now synced back to main window
+  - Resets duration/currentTime when setting new video to prevent stale values
 - Fix queue not continuing after playing from History or Search (#68)
   - Songs played from Search or History no longer cause auto-play to continue through history
   - When a song ends naturally, the next song always comes from the queue
