@@ -134,6 +134,14 @@ pub fn start_session(
             )
             .ok();
 
+        // End old session first to avoid having two active sessions
+        if old_session_id.is_some() {
+            conn.execute(
+                "UPDATE sessions SET is_active = 0, ended_at = CURRENT_TIMESTAMP WHERE is_active = 1",
+                [],
+            )?;
+        }
+
         // Create new session
         conn.execute(
             "INSERT INTO sessions (name, is_active) VALUES (?1, 1)",
@@ -148,19 +156,11 @@ pub fn start_session(
                 "UPDATE queue_items SET session_id = ?1 WHERE session_id = ?2",
                 rusqlite::params![new_session_id, old_id],
             )?;
-            if migrated_count > 0 {
-                info!(
-                    "Migrated {} queue/history items from session {} to session {}",
-                    migrated_count, old_id, new_session_id
-                );
-            }
+            info!(
+                "Migrated {} queue/history items from session {} to session {}",
+                migrated_count, old_id, new_session_id
+            );
         }
-
-        // End any active sessions (the old one)
-        conn.execute(
-            "UPDATE sessions SET is_active = 0, ended_at = CURRENT_TIMESTAMP WHERE is_active = 1 AND id != ?1",
-            [new_session_id],
-        )?;
 
         let session = conn.query_row(
             "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
@@ -186,7 +186,9 @@ pub fn start_session(
             Ok(session)
         }
         Err(e) => {
-            let _ = conn.execute("ROLLBACK", []);
+            if let Err(rollback_err) = conn.execute("ROLLBACK", []) {
+                log::error!("Failed to rollback transaction: {}", rollback_err);
+            }
             Err(e)
         }
     }
