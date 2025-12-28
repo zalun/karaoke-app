@@ -110,8 +110,11 @@ export function useMediaControls() {
     // Uses currentTimeRef to get latest position without adding currentTime to deps
     // (which would cause excessive re-runs as position updates every frame).
     playbackDebounceTimeout.current = setTimeout(() => {
-      mediaControlsService.updatePlayback(isPlaying, currentTimeRef.current);
-      playbackDebounceTimeout.current = null;
+      // Guard against stale callbacks after cleanup/unmount
+      if (playbackDebounceTimeout.current) {
+        mediaControlsService.updatePlayback(isPlaying, currentTimeRef.current);
+        playbackDebounceTimeout.current = null;
+      }
     }, PLAYBACK_DEBOUNCE_MS);
 
     return () => {
