@@ -56,7 +56,6 @@ export function DraggableQueueItem({
       style={style}
       {...attributes}
       {...listeners}
-      onClick={onPlay}
       className={`flex gap-2 p-2 rounded transition-colors bg-gray-700 cursor-grab active:cursor-grabbing touch-none ${
         isDragging ? "shadow-lg ring-2 ring-blue-500" : "hover:bg-gray-600"
       }`}
@@ -98,6 +97,18 @@ export function DraggableQueueItem({
 
       {/* Singer picker (only when session active) */}
       {session && <SingerPicker queueItemId={item.id} />}
+
+      {/* Play button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onPlay();
+        }}
+        className="text-gray-400 hover:text-green-400 text-sm px-1"
+        title="Play now"
+      >
+        ▶
+      </button>
 
       {/* Remove button */}
       <button
