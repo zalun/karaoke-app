@@ -321,6 +321,14 @@ export function PlayerControls() {
     try {
       // Always fetch fresh URL (bypass cache)
       const streamInfo = await youtubeService.getStreamUrl(videoToReload.youtubeId);
+
+      // Check if video changed during fetch (user clicked Next/Previous)
+      const stillCurrent = getCurrentItem()?.video.youtubeId === videoToReload.youtubeId;
+      if (!stillCurrent) {
+        log.info("Video changed during reload, aborting");
+        return;
+      }
+
       setCurrentVideo({ ...videoToReload, streamUrl: streamInfo.url });
       setIsPlaying(true);
       // Reset to beginning
