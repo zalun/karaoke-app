@@ -291,10 +291,10 @@ export function DetachedPlayer() {
   // Using both events handles adaptive streaming where duration may update
   const handleDurationChange = useCallback(() => {
     const video = videoRef.current;
-    if (!video || !video.duration || isNaN(video.duration)) return;
+    if (!video || !video.duration || isNaN(video.duration) || !isReady) return;
     log.debug(`Video duration: ${video.duration}`);
     windowManager.emitDurationUpdate(video.duration);
-  }, []);
+  }, [isReady]);
 
   // Show current singer overlay when video changes (new streamUrl)
   useEffect(() => {

@@ -300,7 +300,7 @@ class WindowManager {
   }
 
   async emitDurationUpdate(duration: number): Promise<void> {
-    if (duration <= 0 || isNaN(duration)) {
+    if (duration <= 0 || isNaN(duration) || !isFinite(duration)) {
       log.warn(`emitDurationUpdate: invalid duration value: ${duration}`);
       return;
     }

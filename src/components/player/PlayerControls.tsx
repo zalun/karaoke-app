@@ -191,7 +191,7 @@ export function PlayerControls() {
     let unlistenFn: (() => void) | undefined;
 
     windowManager.listenForDurationUpdate((newDuration) => {
-      if (isMounted) {
+      if (isMounted && isFinite(newDuration) && newDuration > 0) {
         usePlayerStore.setState({ duration: newDuration });
       }
     }).then((unlisten) => {
