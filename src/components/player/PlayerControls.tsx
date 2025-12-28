@@ -385,11 +385,14 @@ export function PlayerControls() {
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className={`bg-gray-800 p-3 rounded-lg relative ${isDisabled ? "opacity-60" : ""}`}>
+    <div
+      data-testid="player-controls"
+      className={`bg-gray-800 p-3 rounded-lg relative ${isDisabled ? "opacity-60" : ""}`}
+    >
       {/* Loading overlay */}
       {isLoading && (
-        <div className="absolute inset-0 bg-gray-900/50 rounded-lg flex items-center justify-center gap-3 z-10">
-          <div className="w-8 h-8 border-4 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
+        <div data-testid="loading-overlay" className="absolute inset-0 bg-gray-900/50 rounded-lg flex items-center justify-center gap-3 z-10">
+          <div data-testid="loading-spinner" className="w-8 h-8 border-4 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
           <button
             onClick={handleReload}
             disabled={!canReload}
@@ -468,6 +471,7 @@ export function PlayerControls() {
             <span>{isDisabled ? "--:--" : formatTime(currentTime)}</span>
             <div
               ref={progressRef}
+              data-testid="progress-bar"
               onClick={isDisabled || isLoading ? undefined : handleSeek}
               className={`flex-1 h-2 bg-gray-700 rounded-full transition-all ${
                 isDisabled || isLoading ? "cursor-not-allowed" : "cursor-pointer hover:h-3"
