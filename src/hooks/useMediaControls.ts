@@ -120,6 +120,7 @@ export function useMediaControls() {
     return () => {
       if (playbackDebounceTimeout.current) {
         clearTimeout(playbackDebounceTimeout.current);
+        playbackDebounceTimeout.current = null; // Null ref so guard check is effective
       }
     };
   }, [isPlaying, currentVideo]);
