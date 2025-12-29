@@ -244,6 +244,10 @@ const MIGRATIONS: &[&str] = &[
     -- Index for efficient singer favorites lookup
     CREATE INDEX IF NOT EXISTS idx_singer_favorites_singer ON singer_favorites(singer_id);
     "#,
+    // Migration 6: Add index on video_id for efficient reverse lookups
+    r#"
+    CREATE INDEX IF NOT EXISTS idx_singer_favorites_video ON singer_favorites(video_id);
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

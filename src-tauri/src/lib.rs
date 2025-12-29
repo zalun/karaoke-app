@@ -243,6 +243,7 @@ pub fn run() {
             commands::remove_favorite,
             commands::get_singer_favorites,
             commands::bulk_add_favorites,
+            commands::check_video_favorites,
             commands::start_session,
             commands::end_session,
             commands::get_active_session,

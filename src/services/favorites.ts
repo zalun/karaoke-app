@@ -33,4 +33,10 @@ export const favoritesService = {
       videos,
     });
   },
+
+  /** Check which singers have a video favorited (efficient single query) */
+  async checkVideoFavorites(videoId: string): Promise<number[]> {
+    log.debug(`Checking favorites for video ${videoId}`);
+    return await invoke<number[]>("check_video_favorites", { videoId });
+  },
 };

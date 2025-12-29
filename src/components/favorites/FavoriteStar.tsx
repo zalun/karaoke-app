@@ -3,9 +3,11 @@ import { createPortal } from "react-dom";
 import { Star, Check } from "lucide-react";
 import { useFavoritesStore, useSessionStore } from "../../stores";
 import type { Video } from "../../stores";
-import type { FavoriteVideo, SingerFavorite } from "../../services";
-import { favoritesService } from "../../services";
+import type { FavoriteVideo } from "../../services";
+import { favoritesService, createLogger } from "../../services";
 import { SingerAvatar } from "../singers/SingerAvatar";
+
+const log = createLogger("FavoriteStar");
 
 const DROPDOWN_WIDTH = 200;
 const DROPDOWN_OFFSET_Y = 8;
@@ -45,7 +47,8 @@ export function FavoriteStar({ video, className = "" }: FavoriteStarProps) {
     openAbove: true,
     maxHeight: DROPDOWN_MAX_HEIGHT,
   });
-  const [singerFavorites, setSingerFavorites] = useState<Map<number, SingerFavorite | null>>(new Map());
+  // Track which singers have this video favorited (by singer ID)
+  const [favoritedBySingers, setFavoritedBySingers] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -55,28 +58,21 @@ export function FavoriteStar({ video, className = "" }: FavoriteStarProps) {
   const { session } = useSessionStore();
 
   // Check if this video is a favorite for any singer
-  const isFavorite = Array.from(singerFavorites.values()).some((fav) => fav !== null);
+  const isFavorite = favoritedBySingers.size > 0;
 
-  // Load favorite status for all persistent singers
+  // Load favorite status using efficient single query
   const loadFavoriteStatus = useCallback(async () => {
-    if (persistentSingers.length === 0) return;
     setIsLoading(true);
     try {
-      const newMap = new Map<number, SingerFavorite | null>();
-      await Promise.all(
-        persistentSingers.map(async (singer) => {
-          const favorites = await favoritesService.getSingerFavorites(singer.id);
-          const found = favorites.find((f) => f.video.video_id === video.id);
-          newMap.set(singer.id, found || null);
-        })
-      );
-      setSingerFavorites(newMap);
+      // Single query to get all singers who favorited this video
+      const singerIds = await favoritesService.checkVideoFavorites(video.id);
+      setFavoritedBySingers(new Set(singerIds));
     } catch (error) {
-      console.error("Failed to load favorite status:", error);
+      log.error("Failed to load favorite status:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [persistentSingers, video.id]);
+  }, [video.id]);
 
   // Load persistent singers and check favorite status when dropdown opens
   useEffect(() => {
@@ -86,12 +82,10 @@ export function FavoriteStar({ video, className = "" }: FavoriteStarProps) {
     }
   }, [isOpen, loadPersistentSingers, loadFavoriteStatus]);
 
-  // Also check favorite status on mount if we have persistent singers
+  // Also check favorite status on mount
   useEffect(() => {
-    if (persistentSingers.length > 0) {
-      loadFavoriteStatus();
-    }
-  }, [persistentSingers.length, loadFavoriteStatus]);
+    loadFavoriteStatus();
+  }, [loadFavoriteStatus]);
 
   // Calculate and update dropdown position
   const updateDropdownPosition = useCallback(() => {
@@ -161,33 +155,27 @@ export function FavoriteStar({ video, className = "" }: FavoriteStarProps) {
   }
 
   const handleToggleFavorite = async (singerId: number) => {
-    const existingFavorite = singerFavorites.get(singerId);
+    const hasFavorite = favoritedBySingers.has(singerId);
     try {
-      if (existingFavorite) {
+      if (hasFavorite) {
         // Remove from favorites
         await removeFavorite(singerId, video.id);
-        setSingerFavorites((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(singerId, null);
-          return newMap;
+        setFavoritedBySingers((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(singerId);
+          return newSet;
         });
       } else {
         // Add to favorites
         await addFavorite(singerId, videoToFavoriteVideo(video));
-        // Reload to get the new favorite object
-        const favorites = await favoritesService.getSingerFavorites(singerId);
-        const newFavorite = favorites.find((f) => f.video.video_id === video.id);
-        setSingerFavorites((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(singerId, newFavorite || null);
-          return newMap;
-        });
+        setFavoritedBySingers((prev) => new Set(prev).add(singerId));
       }
     } catch (error) {
-      console.error("Failed to toggle favorite:", error);
+      log.error("Failed to toggle favorite:", error);
     }
   };
 
+  // Only render dropdown when open (portal optimization)
   const dropdown = isOpen ? (
     <div
       ref={dropdownRef}
@@ -214,7 +202,7 @@ export function FavoriteStar({ video, className = "" }: FavoriteStarProps) {
             <div className="px-3 py-2 text-sm text-gray-400">Loading...</div>
           ) : (
             persistentSingers.map((singer) => {
-              const hasFavorite = singerFavorites.get(singer.id) !== null && singerFavorites.get(singer.id) !== undefined;
+              const hasFavorite = favoritedBySingers.has(singer.id);
               return (
                 <button
                   key={singer.id}
@@ -272,7 +260,7 @@ export function FavoriteStar({ video, className = "" }: FavoriteStarProps) {
       >
         <Star size={18} className={isFavorite ? "fill-yellow-500" : ""} />
       </button>
-      {createPortal(dropdown, document.body)}
+      {isOpen && createPortal(dropdown, document.body)}
     </div>
   );
 }

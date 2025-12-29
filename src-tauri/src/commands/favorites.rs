@@ -170,6 +170,26 @@ pub fn get_singer_favorites(
     Ok(favorites)
 }
 
+/// Check which singers have a video favorited (efficient single query)
+#[tauri::command]
+pub fn check_video_favorites(
+    state: State<'_, AppState>,
+    video_id: String,
+) -> Result<Vec<i64>, CommandError> {
+    debug!("Checking favorites for video {}", video_id);
+    let db = state.db.lock().map_lock_err()?;
+
+    let mut stmt = db.connection().prepare(
+        "SELECT singer_id FROM singer_favorites WHERE video_id = ?1",
+    )?;
+
+    let singer_ids = stmt
+        .query_map([&video_id], |row| row.get::<_, i64>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(singer_ids)
+}
+
 #[tauri::command]
 pub fn bulk_add_favorites(
     state: State<'_, AppState>,
@@ -205,7 +225,7 @@ pub fn bulk_add_favorites(
         ));
     }
 
-    // Insert all favorites
+    // Insert all favorites (protected by Mutex lock)
     for video in &videos {
         db.connection().execute(
             "INSERT OR IGNORE INTO singer_favorites

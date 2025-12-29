@@ -69,7 +69,7 @@ export function ManageFavoritesDialog() {
       await loadSingers();
       setEditingUniqueName(false);
     } catch (error) {
-      console.error("Failed to update singer:", error);
+      log.error("Failed to update singer:", error);
     } finally {
       setIsSaving(false);
     }
@@ -94,7 +94,7 @@ export function ManageFavoritesDialog() {
       // Auto-select the newly created singer
       await selectSinger(singer.id);
     } catch (error) {
-      console.error("Failed to create singer:", error);
+      log.error("Failed to create singer:", error);
     } finally {
       setIsSaving(false);
     }
@@ -152,7 +152,7 @@ export function ManageFavoritesDialog() {
       // Auto-select the newly promoted singer
       await selectSinger(singer.id);
     } catch (error) {
-      console.error("Failed to promote singer:", error);
+      log.error("Failed to promote singer:", error);
     } finally {
       setIsSaving(false);
     }
