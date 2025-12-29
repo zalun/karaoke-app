@@ -332,7 +332,7 @@ jobs:
           ## Downloads
 
           ### macOS
-          - **Apple Silicon (M1/M2/M3)**: Download the \`arm64\` DMG
+          - **Apple Silicon (M1/M2/M3)**: Download the \`aarch64\` DMG
           - **Intel Macs**: Download the \`x64\` DMG
 
           ### Linux
