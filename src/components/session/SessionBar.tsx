@@ -566,7 +566,10 @@ export function SessionBar() {
             ) : (
               <div className="relative">
                 <button
-                  onClick={() => setShowPersistentDropdown(!showPersistentDropdown)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowPersistentDropdown(!showPersistentDropdown);
+                  }}
                   className="flex items-center gap-1 px-2 py-1 text-blue-400 hover:bg-gray-700 rounded transition-colors text-sm"
                 >
                   <UserPlus size={14} />
