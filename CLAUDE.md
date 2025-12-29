@@ -71,17 +71,14 @@ export const useXxxStore = create<XxxState>((set, get) => ({
 
 ## Releases
 
-Releases are automated via GitHub Actions (`.github/workflows/release.yml`):
+**See [`plan/deployment.md`](./plan/deployment.md) for complete deployment guide** including code signing, notarization commands, and troubleshooting.
 
-1. Update version and CHANGELOG.md
-2. Merge PR to main
-3. Create and push a version tag:
-   ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
-4. GitHub Actions builds for Apple Silicon (arm64) and Intel (x86_64)
-5. Release appears at https://github.com/zalun/karaoke-app/releases with .dmg files
+Quick overview:
+1. Update version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`
+2. Update `CHANGELOG.md`
+3. Commit, push, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+4. GitHub Actions builds and signs DMGs for Apple Silicon and Intel
+5. Notarization may require manual follow-up (see deployment guide)
 
 ## Implementation Roadmap
 
