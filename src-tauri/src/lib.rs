@@ -55,7 +55,7 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
     // Note: On macOS, `authors` and `website` fields are not supported
     // Use `credits` for additional info that appears as scrollable text
     let about_metadata = AboutMetadata {
-        name: Some("Karaoke".into()),
+        name: Some("HomeKaraoke".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
         copyright: Some(format!("© {} {}", chrono::Utc::now().year(), env!("CARGO_PKG_AUTHORS")).into()),
         credits: Some(format!(
@@ -68,10 +68,10 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
     // Standard app menu items
     let app_menu = Submenu::with_items(
         app,
-        "Karaoke",
+        "HomeKaraoke",
         true,
         &[
-            &PredefinedMenuItem::about(app, Some("About Karaoke"), Some(about_metadata))?,
+            &PredefinedMenuItem::about(app, Some("About HomeKaraoke"), Some(about_metadata))?,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::services(app, None)?,
             &PredefinedMenuItem::separator(app)?,
@@ -256,7 +256,7 @@ pub fn run() {
             commands::window_clear_states,
         ])
         .setup(|app| {
-            info!("Starting Karaoke application");
+            info!("Starting HomeKaraoke application");
 
             let app_data_dir = app
                 .path()

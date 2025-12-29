@@ -1,7 +1,7 @@
 [package]
-name = "karaoke-app"
+name = "homekaraoke"
 version = "0.4.2-beta"
-description = "Home karaoke application for macOS"
+description = "Home karaoke application"
 authors = ["Piotr Zalewa"]
 license = "MIT"
 repository = "https://github.com/zalun/karaoke-app"
@@ -9,7 +9,7 @@ edition = "2021"
 rust-version = "1.77.2"
 
 [lib]
-name = "karaoke_app_lib"
+name = "homekaraoke_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

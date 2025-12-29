@@ -12,8 +12,8 @@ pub struct MediaControlsService {
 impl MediaControlsService {
     pub fn new(event_tx: Sender<MediaControlEvent>) -> Result<Self, String> {
         let config = PlatformConfig {
-            dbus_name: "karaoke",
-            display_name: "Karaoke",
+            dbus_name: "homekaraoke",
+            display_name: "HomeKaraoke",
             hwnd: None,
         };
 

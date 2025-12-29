@@ -103,7 +103,7 @@ jobs:
             # Create draft release
             gh release create ${{ github.ref_name }} \
               --repo ${{ github.repository }} \
-              --title "Karaoke ${{ github.ref_name }}" \
+              --title "HomeKaraoke ${{ github.ref_name }}" \
               --notes "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
 
           ## Downloads
