@@ -176,6 +176,14 @@ export const useFavoritesStore = create<FavoritesState>((set, get) => ({
 
       const queueStore = useQueueStore.getState();
       const sessionStore = useSessionStore.getState();
+      const { session, singers, loadSingers } = sessionStore;
+
+      // If singer is not in the current session, add them first
+      if (session && !singers.some((s) => s.id === singerId)) {
+        log.info(`Adding singer ${singerId} to session first`);
+        await sessionService.addSingerToSession(session.id, singerId);
+        await loadSingers();
+      }
 
       for (const favorite of favoritesToLoad) {
         const queueItem = queueStore.addToQueue({
