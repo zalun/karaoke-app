@@ -610,17 +610,46 @@ export function SessionBar() {
                         ))}
                       </div>
                     )}
-                    {/* New singer option */}
-                    <button
-                      onClick={() => {
-                        setShowPersistentDropdown(false);
-                        setShowNewSinger(true);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-blue-400 hover:bg-gray-700 transition-colors"
-                    >
-                      <UserPlus size={14} />
-                      <span className="text-sm">New session singer...</span>
-                    </button>
+                    {/* New singer input */}
+                    <div className="p-2 border-t border-gray-700">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newSingerName}
+                          onChange={(e) => {
+                            setNewSingerName(e.target.value);
+                            setCreateError(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && newSingerName.trim()) {
+                              handleCreateSinger();
+                              setShowPersistentDropdown(false);
+                            } else if (e.key === "Escape") {
+                              setShowPersistentDropdown(false);
+                              setNewSingerName("");
+                            }
+                          }}
+                          placeholder="New singer name..."
+                          className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => {
+                            if (newSingerName.trim()) {
+                              handleCreateSinger();
+                              setShowPersistentDropdown(false);
+                            }
+                          }}
+                          disabled={!newSingerName.trim()}
+                          className="px-2 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:text-gray-400 rounded text-sm text-white transition-colors"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      {createError && (
+                        <p className="text-xs text-red-400 mt-1">{createError}</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
