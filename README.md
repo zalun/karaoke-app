@@ -2,6 +2,8 @@
 
 A home karaoke application for macOS built with Tauri 2.0 and React.
 
+**Official website:** [https://homekaraoke.app](https://homekaraoke.app)
+
 ![HomeKaraoke Screenshot](screenshots/app-screenshot.png)
 
 ## Features
