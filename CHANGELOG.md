@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated D-Bus/MPRIS name for media controls
 
 ### Added
+- Linux build support for Fedora and Debian (#89)
+  - Builds .deb packages for Debian/Ubuntu
+  - Builds .rpm packages for Fedora/RHEL
+  - Builds .AppImage for other distributions
+  - Media controls work via MPRIS/D-Bus
+  - Note: Display layout save/restore not yet available on Linux
 - Apple Developer code signing and notarization for macOS distribution (#85)
   - App is now signed with Developer ID certificate
   - Builds are notarized with Apple for Gatekeeper approval

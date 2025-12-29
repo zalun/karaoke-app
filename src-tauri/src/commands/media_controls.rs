@@ -2,7 +2,7 @@ use super::errors::CommandError;
 use crate::AppState;
 use tauri::State;
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 use log::debug;
 
 #[tauri::command]
@@ -13,7 +13,7 @@ pub fn media_controls_update_metadata(
     duration_secs: Option<f64>,
     thumbnail_url: Option<String>,
 ) -> Result<(), CommandError> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         let mut guard = state
             .media_controls
@@ -31,7 +31,7 @@ pub fn media_controls_update_metadata(
         }
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         let _ = (state, title, artist, duration_secs, thumbnail_url);
         debug!("Media controls not available on this platform");
@@ -46,7 +46,7 @@ pub fn media_controls_update_playback(
     is_playing: bool,
     position_secs: f64,
 ) -> Result<(), CommandError> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         let mut guard = state
             .media_controls
@@ -59,7 +59,7 @@ pub fn media_controls_update_playback(
         }
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         let _ = (state, is_playing, position_secs);
     }
@@ -69,7 +69,7 @@ pub fn media_controls_update_playback(
 
 #[tauri::command]
 pub fn media_controls_stop(state: State<AppState>) -> Result<(), CommandError> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         let mut guard = state
             .media_controls
@@ -80,7 +80,7 @@ pub fn media_controls_stop(state: State<AppState>) -> Result<(), CommandError> {
         }
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         let _ = state;
         debug!("Media controls not available on this platform");

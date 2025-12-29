@@ -27,8 +27,12 @@ chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
 tauri-plugin-log = "2"
 keepawake = "0.5"
+sha2 = "0.10"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.24"
 souvlaki = "0.8"
-sha2 = "0.10"
+
+# Linux uses zbus for MPRIS media controls (D-Bus based)
+[target.'cfg(target_os = "linux")'.dependencies]
+souvlaki = { version = "0.8", features = ["use_zbus"] }
