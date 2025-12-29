@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0-beta] - 2025-12-29
+
 ### Changed
 - Rename app from "Karaoke" to "HomeKaraoke" (#91)
   - Updated bundle identifier to `app.homekaraoke`
@@ -24,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - App is now signed with Developer ID certificate
   - Builds are notarized with Apple for Gatekeeper approval
   - GitHub Actions workflow updated to sign and notarize release builds
-- Future plan for AirPlay integration feature
 
 ## [0.4.0] - 2025-12-28
 
