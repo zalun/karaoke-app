@@ -60,32 +60,38 @@ export function FavoriteStar({ video, className = "" }: FavoriteStarProps) {
   // Check if this video is a favorite for any singer
   const isFavorite = favoritedBySingers.size > 0;
 
-  // Load favorite status using efficient single query
-  const loadFavoriteStatus = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      // Single query to get all singers who favorited this video
-      const singerIds = await favoritesService.checkVideoFavorites(video.id);
-      setFavoritedBySingers(new Set(singerIds));
-    } catch (error) {
-      log.error("Failed to load favorite status:", error);
-    } finally {
-      setIsLoading(false);
-    }
+  // Load favorite status on mount and when video changes (with cleanup)
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadFavoriteStatus = async () => {
+      setIsLoading(true);
+      try {
+        const singerIds = await favoritesService.checkVideoFavorites(video.id);
+        if (!cancelled) {
+          setFavoritedBySingers(new Set(singerIds));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          log.error("Failed to load favorite status:", error);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadFavoriteStatus();
+    return () => { cancelled = true; };
   }, [video.id]);
 
-  // Load persistent singers and check favorite status when dropdown opens
+  // Load persistent singers when dropdown opens
   useEffect(() => {
     if (isOpen) {
       loadPersistentSingers();
-      loadFavoriteStatus();
     }
-  }, [isOpen, loadPersistentSingers, loadFavoriteStatus]);
-
-  // Also check favorite status on mount
-  useEffect(() => {
-    loadFavoriteStatus();
-  }, [loadFavoriteStatus]);
+  }, [isOpen, loadPersistentSingers]);
 
   // Calculate and update dropdown position
   const updateDropdownPosition = useCallback(() => {

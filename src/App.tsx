@@ -59,19 +59,29 @@ function App() {
 
   // Listen for Singers menu events
   useEffect(() => {
+    let mounted = true;
     const unsubscribers: (() => void)[] = [];
 
     listen("show-load-favorites-dialog", () => {
       log.info("Load Favorites dialog triggered from menu");
       openLoadFavoritesDialog();
-    }).then((fn) => unsubscribers.push(fn));
+    }).then((fn) => {
+      if (mounted) unsubscribers.push(fn);
+      else fn(); // Already unmounted, clean up immediately
+    });
 
     listen("show-manage-favorites-dialog", () => {
       log.info("Manage Favorites dialog triggered from menu");
       openManageFavoritesDialog();
-    }).then((fn) => unsubscribers.push(fn));
+    }).then((fn) => {
+      if (mounted) unsubscribers.push(fn);
+      else fn(); // Already unmounted, clean up immediately
+    });
 
-    return () => unsubscribers.forEach((fn) => fn());
+    return () => {
+      mounted = false;
+      unsubscribers.forEach((fn) => fn());
+    };
   }, [openLoadFavoritesDialog, openManageFavoritesDialog]);
 
   const handleSearch = useCallback(async (query: string) => {
