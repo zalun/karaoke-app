@@ -1,6 +1,19 @@
 import { useRef, useEffect, useMemo } from "react";
 import type { SearchResult } from "../../types";
-import { usePlayerStore } from "../../stores";
+import { usePlayerStore, useFavoritesStore, type Video } from "../../stores";
+import { FavoriteStar } from "../favorites";
+
+function searchResultToVideo(result: SearchResult): Video {
+  return {
+    id: result.id,
+    title: result.title,
+    artist: result.channel,
+    duration: result.duration,
+    thumbnailUrl: result.thumbnail,
+    source: "youtube",
+    youtubeId: result.id,
+  };
+}
 
 const RESULTS_PER_PAGE = 15;
 
@@ -40,7 +53,13 @@ export function SearchResults({
   onLoadMore,
 }: SearchResultsProps) {
   const { currentVideo, isPlaying } = usePlayerStore();
+  const { persistentSingers, loadPersistentSingers } = useFavoritesStore();
   const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Load persistent singers on mount
+  useEffect(() => {
+    loadPersistentSingers();
+  }, [loadPersistentSingers]);
 
   // Filter out channels/playlists (memoized to avoid recomputing on every render)
   const videoResults = useMemo(() => {
@@ -159,6 +178,9 @@ export function SearchResults({
 
             {/* Actions */}
             <div className="flex items-center gap-2">
+              {persistentSingers.length > 0 && (
+                <FavoriteStar video={searchResultToVideo(result)} />
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();

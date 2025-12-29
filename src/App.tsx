@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
 import {
   DndContext,
   closestCenter,
@@ -20,7 +21,8 @@ import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
-import { usePlayerStore, useQueueStore, useSessionStore, getStreamUrlWithCache, type QueueItem } from "./stores";
+import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
+import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, getStreamUrlWithCache, type QueueItem } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { youtubeService, createLogger } from "./services";
 import { useMediaControls, useDisplayWatcher } from "./hooks";
@@ -51,6 +53,36 @@ function App() {
 
   // Initialize display hotplug watcher (macOS only)
   useDisplayWatcher();
+
+  // Get favorites store methods for menu events
+  const { openLoadFavoritesDialog, openManageFavoritesDialog } = useFavoritesStore();
+
+  // Listen for Singers menu events
+  useEffect(() => {
+    let mounted = true;
+    const unsubscribers: (() => void)[] = [];
+
+    listen("show-load-favorites-dialog", () => {
+      log.info("Load Favorites dialog triggered from menu");
+      openLoadFavoritesDialog();
+    }).then((fn) => {
+      if (mounted) unsubscribers.push(fn);
+      else fn(); // Already unmounted, clean up immediately
+    });
+
+    listen("show-manage-favorites-dialog", () => {
+      log.info("Manage Favorites dialog triggered from menu");
+      openManageFavoritesDialog();
+    }).then((fn) => {
+      if (mounted) unsubscribers.push(fn);
+      else fn(); // Already unmounted, clean up immediately
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribers.forEach((fn) => fn());
+    };
+  }, [openLoadFavoritesDialog, openManageFavoritesDialog]);
 
   const handleSearch = useCallback(async (query: string) => {
     log.info(`Searching for: "${query}"`);
@@ -168,6 +200,10 @@ function App() {
     <AppLayout>
       {/* Display configuration restore dialog */}
       <DisplayRestoreDialog />
+
+      {/* Favorites dialogs */}
+      <LoadFavoritesDialog />
+      <ManageFavoritesDialog />
 
       <div className="h-full grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left: Main content area */}
@@ -446,6 +482,24 @@ function HistoryPanel() {
   const { history, historyIndex, playFromHistory, clearHistory, moveAllHistoryToQueue } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
   const { session, getQueueItemSingerIds, getSingerById } = useSessionStore();
+  const {
+    historySelectionMode,
+    selectedHistoryIds,
+    persistentSingers,
+    toggleHistorySelectionMode,
+    toggleHistoryItemSelection,
+    addSelectedHistoryToFavorites,
+    loadPersistentSingers,
+  } = useFavoritesStore();
+
+  const [showSingerPicker, setShowSingerPicker] = useState(false);
+
+  // Load persistent singers when entering selection mode
+  useEffect(() => {
+    if (historySelectionMode) {
+      loadPersistentSingers();
+    }
+  }, [historySelectionMode, loadPersistentSingers]);
 
   const handlePlayFromHistory = useCallback(
     async (index: number) => {
@@ -481,28 +535,111 @@ function HistoryPanel() {
     );
   }
 
+  const handleAddToFavorites = async (singerId: number) => {
+    await addSelectedHistoryToFavorites(singerId);
+    setShowSingerPicker(false);
+  };
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      {/* Selection mode header */}
+      {historySelectionMode && (
+        <div className="flex items-center gap-2 mb-2 p-2 bg-gray-700/50 rounded">
+          <span className="text-sm text-gray-300 flex-1">
+            {selectedHistoryIds.size} selected
+          </span>
+          {selectedHistoryIds.size > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowSingerPicker(!showSingerPicker)}
+                className="px-3 py-1 text-sm bg-yellow-600 hover:bg-yellow-500 text-white rounded transition-colors"
+              >
+                Add to Favorites
+              </button>
+              {showSingerPicker && (
+                <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl min-w-[180px] z-50">
+                  <div className="px-3 py-2 border-b border-gray-700">
+                    <span className="text-xs text-gray-400 uppercase tracking-wide">
+                      Select singer
+                    </span>
+                  </div>
+                  {persistentSingers.length > 0 ? (
+                    <div className="py-1 max-h-48 overflow-y-auto">
+                      {persistentSingers.map((singer) => (
+                        <button
+                          key={singer.id}
+                          onClick={() => handleAddToFavorites(singer.id)}
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors"
+                        >
+                          <SingerAvatar name={singer.name} color={singer.color} size="sm" />
+                          <span className="text-sm text-gray-200 flex-1 text-left truncate">
+                            {singer.name}
+                            {singer.unique_name && (
+                              <span className="text-gray-400 ml-1">({singer.unique_name})</span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-3 py-4 text-sm text-gray-400 text-center">
+                      No persistent singers
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={toggleHistorySelectionMode}
+            className="px-3 py-1 text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto space-y-2">
         {history.map((item, index) => {
           const isCurrent = index === effectiveIndex;
+          const isSelected = selectedHistoryIds.has(item.id);
           return (
             <div
               key={item.id}
-              onClick={() => handlePlayFromHistory(index)}
+              onClick={() => {
+                if (historySelectionMode) {
+                  toggleHistoryItemSelection(item.id);
+                } else {
+                  handlePlayFromHistory(index);
+                }
+              }}
               className={`flex gap-2 p-2 rounded cursor-pointer transition-colors ${
-                isCurrent
+                historySelectionMode && isSelected
+                  ? "bg-yellow-900/30 border border-yellow-600"
+                  : isCurrent
                   ? "bg-blue-900/50 border border-blue-600"
                   : "bg-gray-700/50 hover:bg-gray-600"
               }`}
             >
-              <span className="text-gray-400 w-6 flex items-center justify-center">
-                {isCurrent ? (
-                  <span className="text-blue-400">▶</span>
-                ) : (
-                  `${index + 1}.`
-                )}
-              </span>
+              {historySelectionMode ? (
+                <span className="w-6 flex items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleHistoryItemSelection(item.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-yellow-500 focus:ring-yellow-500"
+                  />
+                </span>
+              ) : (
+                <span className="text-gray-400 w-6 flex items-center justify-center">
+                  {isCurrent ? (
+                    <span className="text-blue-400">▶</span>
+                  ) : (
+                    `${index + 1}.`
+                  )}
+                </span>
+              )}
               <div className="flex-1 min-w-0">
                 <p className={`text-sm truncate ${!isCurrent ? "text-gray-300" : ""}`}>
                   {item.video.title}
@@ -534,11 +671,26 @@ function HistoryPanel() {
                   </div>
                 );
               })()}
+              {/* Favorite star */}
+              {!historySelectionMode && persistentSingers.length > 0 && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <FavoriteStar video={item.video} />
+                </div>
+              )}
             </div>
           );
         })}
       </div>
       <div className="mt-3 flex gap-2">
+        {!historySelectionMode && (
+          <button
+            onClick={toggleHistorySelectionMode}
+            className="flex-1 py-2 text-sm text-gray-400 hover:text-yellow-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+            title="Select songs to add to favorites"
+          >
+            <span>Select</span>
+          </button>
+        )}
         <button
           onClick={() => {
             historyLog.info(`Moving all history to queue (${history.length} items)`);

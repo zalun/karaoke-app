@@ -1,5 +1,6 @@
 pub mod display;
 pub mod errors;
+pub mod favorites;
 pub mod keep_awake;
 pub mod media_controls;
 pub mod queue;
@@ -8,6 +9,7 @@ pub mod settings;
 pub mod youtube;
 
 pub use display::*;
+pub use favorites::*;
 pub use keep_awake::*;
 pub use media_controls::*;
 pub use queue::*;

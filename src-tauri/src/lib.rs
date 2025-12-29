@@ -51,6 +51,8 @@ const OPEN_LOGS_MENU_ID: &str = "open-logs";
 const SAVE_SESSION_AS_MENU_ID: &str = "save-session-as";
 const LOAD_SESSION_MENU_ID: &str = "load-session";
 const SAVE_DISPLAY_LAYOUT_MENU_ID: &str = "save-display-layout";
+const LOAD_FAVORITES_MENU_ID: &str = "load-favorites";
+const MANAGE_FAVORITES_MENU_ID: &str = "manage-favorites";
 
 fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>, tauri::Error> {
     // About metadata with app info
@@ -137,6 +139,22 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
         ],
     )?;
 
+    // Singers menu
+    let load_favorites_item =
+        MenuItem::with_id(app, LOAD_FAVORITES_MENU_ID, "Load Favorites to Queue...", true, None::<&str>)?;
+    let manage_favorites_item =
+        MenuItem::with_id(app, MANAGE_FAVORITES_MENU_ID, "Manage Favorites...", true, None::<&str>)?;
+
+    let singers_menu = Submenu::with_items(
+        app,
+        "Singers",
+        true,
+        &[
+            &load_favorites_item,
+            &manage_favorites_item,
+        ],
+    )?;
+
     // Window menu
     let save_display_layout_item =
         MenuItem::with_id(app, SAVE_DISPLAY_LAYOUT_MENU_ID, "Save Display Layout...", true, None::<&str>)?;
@@ -155,7 +173,7 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
         ],
     )?;
 
-    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &sessions_menu, &window_menu])
+    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &sessions_menu, &singers_menu, &window_menu])
 }
 
 fn load_debug_preference(db: &Database) -> bool {
@@ -218,6 +236,14 @@ pub fn run() {
             commands::create_singer,
             commands::get_singers,
             commands::delete_singer,
+            commands::update_singer,
+            commands::get_persistent_singers,
+            // Favorites commands
+            commands::add_favorite,
+            commands::remove_favorite,
+            commands::get_singer_favorites,
+            commands::bulk_add_favorites,
+            commands::check_video_favorites,
             commands::start_session,
             commands::end_session,
             commands::get_active_session,
@@ -508,6 +534,14 @@ pub fn run() {
                     info!("Save Display Layout... menu clicked");
                     // Emit event to frontend to save current display layout
                     let _ = app.emit("save-display-layout", ());
+                }
+                LOAD_FAVORITES_MENU_ID => {
+                    info!("Load Favorites to Queue... menu clicked");
+                    let _ = app.emit("show-load-favorites-dialog", ());
+                }
+                MANAGE_FAVORITES_MENU_ID => {
+                    info!("Manage Favorites... menu clicked");
+                    let _ = app.emit("show-manage-favorites-dialog", ());
                 }
                 _ => {}
             }

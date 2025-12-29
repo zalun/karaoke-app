@@ -12,6 +12,7 @@ export type {
 } from "./displayManager";
 export { logger, createLogger } from "./logger";
 export { sessionService } from "./session";
-export type { Singer, Session } from "./session";
+export type { Singer, Session, FavoriteVideo, SingerFavorite } from "./session";
 export { queueService } from "./queue";
 export type { QueueItemData, QueueState } from "./queue";
+export { favoritesService } from "./favorites";

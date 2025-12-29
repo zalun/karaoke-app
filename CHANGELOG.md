@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Singer Favorites feature (#88)
+  - Persistent singers can save favorite songs
+  - Star button on search results and history items to add/remove favorites
+  - Manage Favorites dialog (Singers menu) to view and manage favorites per singer
+  - Load Favorites to Queue dialog to quickly add favorites to queue
+  - Auto-assign singer when loading favorites to queue
+  - Promote session singers to persistent via star icon
+  - Add persistent singers to session from singer picker dropdown
+  - `unique_name` field for singer disambiguation
+
 ## [0.5.0-beta] - 2025-12-29
 
 ### Changed
