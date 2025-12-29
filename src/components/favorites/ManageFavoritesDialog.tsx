@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X, Music, Trash2, ChevronRight, Settings, Save, UserPlus, Star } from "lucide-react";
 import { useFavoritesStore, useSessionStore } from "../../stores";
 import { SingerAvatar } from "../singers/SingerAvatar";
-import { sessionService, createLogger } from "../../services";
+import { sessionService, favoritesService, createLogger } from "../../services";
 import { getNextSingerColor } from "../../constants";
 
 const log = createLogger("ManageFavoritesDialog");
@@ -116,9 +116,15 @@ export function ManageFavoritesDialog() {
 
     setIsSaving(true);
     try {
-      log.info(`Deleting singer ${singerId}`);
-      await sessionService.deleteSinger(singerId);
-      log.info("Singer deleted, reloading lists");
+      log.info(`Removing persistent singer ${singerId} (downgrading to temporary)`);
+      // Downgrade to temporary singer (preserves session history)
+      await sessionService.updateSinger(singerId, { isPersistent: false });
+      // Delete all their favorites
+      const singerFavorites = await favoritesService.getSingerFavorites(singerId);
+      for (const fav of singerFavorites) {
+        await favoritesService.removeFavorite(singerId, fav.video.video_id);
+      }
+      log.info("Singer downgraded and favorites removed, reloading lists");
       await loadPersistentSingers();
       await loadSingers();
       // Clear selection if we deleted the selected singer
@@ -454,14 +460,15 @@ export function ManageFavoritesDialog() {
                 <Trash2 size={24} className="text-red-500" />
               </div>
               <div>
-                <h3 className="text-lg font-medium text-white">Delete Singer</h3>
+                <h3 className="text-lg font-medium text-white">Remove Persistent Singer</h3>
                 <p className="text-sm text-gray-400">
                   {(persistentSingers || []).find((s) => s.id === confirmDeleteId)?.name}
                 </p>
               </div>
             </div>
             <p className="text-sm text-gray-300 mb-6">
-              This will permanently delete this singer and all their favorites. This action cannot be undone.
+              This will remove the singer from the persistent list and delete all their favorites.
+              They will remain as a temporary singer in session history.
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -475,7 +482,7 @@ export function ManageFavoritesDialog() {
                 disabled={isSaving}
                 className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-gray-600 text-white rounded transition-colors"
               >
-                {isSaving ? "Deleting..." : "Delete"}
+                {isSaving ? "Removing..." : "Remove"}
               </button>
             </div>
           </div>
