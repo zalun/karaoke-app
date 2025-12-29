@@ -36,6 +36,26 @@ npm run lint               # ESLint
 ### IPC Pattern
 Tauri commands (to be implemented) follow naming: `youtube_*`, `library_*`, `queue_*`, `drives_*`, `window_*`, `display_*`
 
+## Database Migrations
+
+The app uses a versioned migration system in `src-tauri/src/db/schema.rs`:
+
+- Migrations are stored in `MIGRATIONS` array, indexed by version (1-based)
+- Schema version tracked in `schema_version` table
+- On startup, only pending migrations run (current_version < migration_version)
+- Each migration runs in sequence and updates the version number
+
+**Safe upgrade path from v0.5.0 onwards:**
+- `ALTER TABLE ADD COLUMN` is safe - existing rows get NULL
+- `CREATE TABLE IF NOT EXISTS` doesn't affect existing data
+- `CREATE INDEX IF NOT EXISTS` is idempotent
+
+When adding new migrations:
+1. Append to `MIGRATIONS` array (never modify existing migrations)
+2. Use `IF NOT EXISTS` for tables/indexes
+3. For `ALTER TABLE ADD COLUMN`, nullable columns are safest
+4. Test upgrade path from previous released version
+
 ## Key Conventions
 
 **Zustand stores:**
