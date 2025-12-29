@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This document describes how to build, sign, notarize, and release the Karaoke app.
+This document describes how to build, sign, notarize, and release the HomeKaraoke app.
 
 ## Overview
 
@@ -66,20 +66,20 @@ export APPLE_ID="your@email.com"
 export APPLE_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 export APPLE_TEAM_ID="DCXDSQYXM7"
 
-xcrun notarytool submit src-tauri/target/release/bundle/dmg/Karaoke_*.dmg \
+xcrun notarytool submit src-tauri/target/release/bundle/dmg/HomeKaraoke_*.dmg \
   --apple-id "$APPLE_ID" \
   --password "$APPLE_PASSWORD" \
   --team-id "$APPLE_TEAM_ID" \
   --wait
 
 # 4. Staple the notarization ticket to the DMG
-xcrun stapler staple src-tauri/target/release/bundle/dmg/Karaoke_*.dmg
+xcrun stapler staple src-tauri/target/release/bundle/dmg/HomeKaraoke_*.dmg
 
 # 5. Verify notarization
-xcrun stapler validate src-tauri/target/release/bundle/dmg/Karaoke_*.dmg
+xcrun stapler validate src-tauri/target/release/bundle/dmg/HomeKaraoke_*.dmg
 
 # 6. Upload to GitHub release
-gh release upload vX.Y.Z src-tauri/target/release/bundle/dmg/Karaoke_*.dmg --clobber
+gh release upload vX.Y.Z src-tauri/target/release/bundle/dmg/HomeKaraoke_*.dmg --clobber
 ```
 
 ### Understanding Notarization
@@ -109,17 +109,17 @@ export APPLE_PASSWORD="app-specific-password"  # From appleid.apple.com
 export APPLE_TEAM_ID="DCXDSQYXM7"
 
 # Submit for notarization (can take hours)
-xcrun notarytool submit path/to/Karaoke_X.Y.Z_aarch64.dmg \
+xcrun notarytool submit path/to/HomeKaraoke_X.Y.Z_aarch64.dmg \
   --apple-id "$APPLE_ID" \
   --password "$APPLE_PASSWORD" \
   --team-id "$APPLE_TEAM_ID" \
   --wait
 
 # Once complete, staple the ticket
-xcrun stapler staple path/to/Karaoke_X.Y.Z_aarch64.dmg
+xcrun stapler staple path/to/HomeKaraoke_X.Y.Z_aarch64.dmg
 
 # Upload to release
-gh release upload vX.Y.Z path/to/Karaoke_X.Y.Z_aarch64.dmg --clobber
+gh release upload vX.Y.Z path/to/HomeKaraoke_X.Y.Z_aarch64.dmg --clobber
 ```
 
 #### Option B: Build with Notarization
@@ -156,11 +156,11 @@ xcrun notarytool info <submission-id> \
 
 ```bash
 # Check if app/DMG is notarized
-xcrun stapler validate path/to/Karaoke.app
-xcrun stapler validate path/to/Karaoke_X.Y.Z_aarch64.dmg
+xcrun stapler validate path/to/HomeKaraoke.app
+xcrun stapler validate path/to/HomeKaraoke_X.Y.Z_aarch64.dmg
 
 # Check signature and notarization
-spctl --assess --verbose path/to/Karaoke.app
+spctl --assess --verbose path/to/HomeKaraoke.app
 ```
 
 ## Code Signing
@@ -181,7 +181,7 @@ Configure these in repository Settings → Secrets:
 
 1. Go to https://appleid.apple.com
 2. Sign in → Security → App-Specific Passwords
-3. Generate a new password for "Karaoke Notarization"
+3. Generate a new password for "HomeKaraoke Notarization"
 
 ### Local Signing Identity
 
@@ -233,8 +233,8 @@ npm run tauri build -- --target x86_64-apple-darwin
 
 After building:
 
-- **App bundle**: `src-tauri/target/release/bundle/macos/Karaoke.app`
-- **DMG**: `src-tauri/target/release/bundle/dmg/Karaoke_X.Y.Z_<arch>.dmg`
+- **App bundle**: `src-tauri/target/release/bundle/macos/HomeKaraoke.app`
+- **DMG**: `src-tauri/target/release/bundle/dmg/HomeKaraoke_X.Y.Z_<arch>.dmg`
 
 For cross-compilation:
 

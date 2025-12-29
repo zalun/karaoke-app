@@ -1,4 +1,4 @@
-# Overview: Karaoke Application for macOS
+# Overview: HomeKaraoke Application for macOS
 
 ## Summary
 
