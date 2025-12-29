@@ -1,6 +1,6 @@
 pub mod ytdlp;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod media_controls;
 
 #[cfg(target_os = "macos")]
@@ -8,7 +8,7 @@ pub mod display_watcher;
 
 pub use ytdlp::{get_expanded_path, YtDlpService};
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub use media_controls::MediaControlsService;
 
 #[cfg(target_os = "macos")]
