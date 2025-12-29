@@ -219,6 +219,31 @@ const MIGRATIONS: &[&str] = &[
     -- Add index on window_state for faster lookups
     CREATE INDEX IF NOT EXISTS idx_window_state_config ON window_state(display_config_id);
     "#,
+    // Migration 5: Singer Favorites (Issue #88)
+    r#"
+    -- Add unique_name column to singers for disambiguation
+    ALTER TABLE singers ADD COLUMN unique_name TEXT;
+
+    -- Singer favorites table with denormalized video data
+    CREATE TABLE IF NOT EXISTS singer_favorites (
+        id INTEGER PRIMARY KEY,
+        singer_id INTEGER NOT NULL,
+        video_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        artist TEXT,
+        duration INTEGER,
+        thumbnail_url TEXT,
+        source TEXT NOT NULL CHECK(source IN ('youtube', 'local', 'external')),
+        youtube_id TEXT,
+        file_path TEXT,
+        added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE,
+        UNIQUE(singer_id, video_id)
+    );
+
+    -- Index for efficient singer favorites lookup
+    CREATE INDEX IF NOT EXISTS idx_singer_favorites_singer ON singer_favorites(singer_id);
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

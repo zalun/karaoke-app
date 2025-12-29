@@ -8,6 +8,7 @@ use tauri::State;
 pub struct Singer {
     pub id: i64,
     pub name: String,
+    pub unique_name: Option<String>,
     pub color: String,
     pub is_persistent: bool,
 }
@@ -31,6 +32,7 @@ pub fn create_singer(
     name: String,
     color: String,
     is_persistent: bool,
+    unique_name: Option<String>,
 ) -> Result<Singer, CommandError> {
     // Input validation
     let name = name.trim().to_string();
@@ -46,12 +48,25 @@ pub fn create_singer(
         )));
     }
 
+    // Validate and normalize unique_name
+    let unique_name = unique_name
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty());
+    if let Some(ref un) = unique_name {
+        if un.len() > MAX_NAME_LENGTH {
+            return Err(CommandError::Validation(format!(
+                "Unique name cannot exceed {} characters",
+                MAX_NAME_LENGTH
+            )));
+        }
+    }
+
     debug!("Creating singer: {} with color {}", name, color);
     let db = state.db.lock().map_lock_err()?;
 
     db.connection().execute(
-        "INSERT INTO singers (name, color, is_persistent) VALUES (?1, ?2, ?3)",
-        rusqlite::params![name, color, is_persistent],
+        "INSERT INTO singers (name, color, is_persistent, unique_name) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![name, color, is_persistent, unique_name],
     )?;
 
     let id = db.connection().last_insert_rowid();
@@ -60,6 +75,7 @@ pub fn create_singer(
     Ok(Singer {
         id,
         name,
+        unique_name,
         color,
         is_persistent,
     })
@@ -72,15 +88,16 @@ pub fn get_singers(state: State<'_, AppState>) -> Result<Vec<Singer>, CommandErr
 
     let mut stmt = db
         .connection()
-        .prepare("SELECT id, name, color, is_persistent FROM singers ORDER BY name")?;
+        .prepare("SELECT id, name, unique_name, color, is_persistent FROM singers ORDER BY name")?;
 
     let singers = stmt
         .query_map([], |row| {
             Ok(Singer {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                color: row.get(2)?,
-                is_persistent: row.get::<_, i32>(3)? != 0,
+                unique_name: row.get(2)?,
+                color: row.get(3)?,
+                is_persistent: row.get::<_, i32>(4)? != 0,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -97,6 +114,128 @@ pub fn delete_singer(state: State<'_, AppState>, singer_id: i64) -> Result<(), C
         .execute("DELETE FROM singers WHERE id = ?1", [singer_id])?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn update_singer(
+    state: State<'_, AppState>,
+    singer_id: i64,
+    name: Option<String>,
+    unique_name: Option<String>,
+    color: Option<String>,
+    is_persistent: Option<bool>,
+) -> Result<Singer, CommandError> {
+    info!("Updating singer: {}", singer_id);
+    let db = state.db.lock().map_lock_err()?;
+
+    // Validate name if provided
+    if let Some(ref n) = name {
+        let n = n.trim();
+        if n.is_empty() {
+            return Err(CommandError::Validation(
+                "Singer name cannot be empty".to_string(),
+            ));
+        }
+        if n.len() > MAX_NAME_LENGTH {
+            return Err(CommandError::Validation(format!(
+                "Singer name cannot exceed {} characters",
+                MAX_NAME_LENGTH
+            )));
+        }
+    }
+
+    // Validate unique_name if provided
+    if let Some(ref un) = unique_name {
+        let un = un.trim();
+        if !un.is_empty() && un.len() > MAX_NAME_LENGTH {
+            return Err(CommandError::Validation(format!(
+                "Unique name cannot exceed {} characters",
+                MAX_NAME_LENGTH
+            )));
+        }
+    }
+
+    // Build dynamic update query
+    let mut updates = Vec::new();
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+    if let Some(n) = name {
+        updates.push("name = ?");
+        params.push(Box::new(n.trim().to_string()));
+    }
+    if let Some(un) = unique_name {
+        updates.push("unique_name = ?");
+        let un_trimmed = un.trim();
+        params.push(Box::new(if un_trimmed.is_empty() {
+            None::<String>
+        } else {
+            Some(un_trimmed.to_string())
+        }));
+    }
+    if let Some(c) = color {
+        updates.push("color = ?");
+        params.push(Box::new(c));
+    }
+    if let Some(p) = is_persistent {
+        updates.push("is_persistent = ?");
+        params.push(Box::new(if p { 1 } else { 0 }));
+    }
+
+    if updates.is_empty() {
+        return Err(CommandError::Validation(
+            "No fields to update".to_string(),
+        ));
+    }
+
+    params.push(Box::new(singer_id));
+    let sql = format!(
+        "UPDATE singers SET {} WHERE id = ?",
+        updates.join(", ")
+    );
+
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+    db.connection().execute(&sql, params_refs.as_slice())?;
+
+    // Return updated singer
+    let singer = db.connection().query_row(
+        "SELECT id, name, unique_name, color, is_persistent FROM singers WHERE id = ?1",
+        [singer_id],
+        |row| {
+            Ok(Singer {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                unique_name: row.get(2)?,
+                color: row.get(3)?,
+                is_persistent: row.get::<_, i32>(4)? != 0,
+            })
+        },
+    )?;
+
+    Ok(singer)
+}
+
+#[tauri::command]
+pub fn get_persistent_singers(state: State<'_, AppState>) -> Result<Vec<Singer>, CommandError> {
+    debug!("Getting persistent singers");
+    let db = state.db.lock().map_lock_err()?;
+
+    let mut stmt = db.connection().prepare(
+        "SELECT id, name, unique_name, color, is_persistent FROM singers WHERE is_persistent = 1 ORDER BY name",
+    )?;
+
+    let singers = stmt
+        .query_map([], |row| {
+            Ok(Singer {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                unique_name: row.get(2)?,
+                color: row.get(3)?,
+                is_persistent: row.get::<_, i32>(4)? != 0,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(singers)
 }
 
 // ============ Session Commands ============
@@ -305,7 +444,7 @@ pub fn get_session_singers(
     let db = state.db.lock().map_lock_err()?;
 
     let mut stmt = db.connection().prepare(
-        "SELECT s.id, s.name, s.color, s.is_persistent
+        "SELECT s.id, s.name, s.unique_name, s.color, s.is_persistent
              FROM singers s
              INNER JOIN session_singers ss ON s.id = ss.singer_id
              WHERE ss.session_id = ?1
@@ -317,8 +456,9 @@ pub fn get_session_singers(
             Ok(Singer {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                color: row.get(2)?,
-                is_persistent: row.get::<_, i32>(3)? != 0,
+                unique_name: row.get(2)?,
+                color: row.get(3)?,
+                is_persistent: row.get::<_, i32>(4)? != 0,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -387,7 +527,7 @@ pub fn get_queue_item_singers(
     let db = state.db.lock().map_lock_err()?;
 
     let mut stmt = db.connection().prepare(
-        "SELECT s.id, s.name, s.color, s.is_persistent
+        "SELECT s.id, s.name, s.unique_name, s.color, s.is_persistent
              FROM singers s
              INNER JOIN queue_singers qs ON s.id = qs.singer_id
              WHERE qs.queue_item_id = ?1
@@ -399,8 +539,9 @@ pub fn get_queue_item_singers(
             Ok(Singer {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                color: row.get(2)?,
-                is_persistent: row.get::<_, i32>(3)? != 0,
+                unique_name: row.get(2)?,
+                color: row.get(3)?,
+                is_persistent: row.get::<_, i32>(4)? != 0,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

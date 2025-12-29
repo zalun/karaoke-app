@@ -353,6 +353,7 @@ export function DetachedPlayer() {
           singers={state.nextSong.singers?.map((s) => ({
             id: s.id,
             name: s.name,
+            unique_name: s.unique_name ?? null,
             color: s.color,
             is_persistent: false,
           }))}

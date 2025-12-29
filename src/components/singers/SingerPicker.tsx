@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Users, Check, UserPlus } from "lucide-react";
-import { useSessionStore } from "../../stores";
+import { Users, Check, UserPlus, Star } from "lucide-react";
+import { useSessionStore, useFavoritesStore } from "../../stores";
 import { SingerAvatar } from "./SingerAvatar";
+import { sessionService } from "../../services";
 
 const DROPDOWN_WIDTH = 200;
 const DROPDOWN_OFFSET_Y = 8;
@@ -37,9 +38,27 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
     assignSingerToQueueItem,
     removeSingerFromQueueItem,
     createSinger,
+    loadSingers,
   } = useSessionStore();
 
+  const {
+    persistentSingers,
+    loadPersistentSingers,
+  } = useFavoritesStore();
+
   const assignedSingerIds = getQueueItemSingerIds(queueItemId);
+
+  // Persistent singers not yet in session
+  const availablePersistentSingers = persistentSingers.filter(
+    (ps) => !singers.some((s) => s.id === ps.id)
+  );
+
+  // Load persistent singers when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      loadPersistentSingers();
+    }
+  }, [isOpen, loadPersistentSingers]);
 
   // Calculate and update dropdown position
   const updateDropdownPosition = useCallback(() => {
@@ -120,6 +139,14 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
     }
   };
 
+  // Add an existing persistent singer to the current session and assign to queue item
+  const handleAddPersistentSingerToSession = async (singerId: number) => {
+    if (!session) return;
+    await sessionService.addSingerToSession(session.id, singerId);
+    await loadSingers();
+    await assignSingerToQueueItem(queueItemId, singerId);
+  };
+
   const handleCreateAndAssign = async () => {
     if (!newSingerName.trim()) return;
 
@@ -144,7 +171,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   const dropdown = isOpen ? (
     <div
       ref={dropdownRef}
-      className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl min-w-[200px] flex flex-col"
+      className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl min-w-[220px] flex flex-col"
       style={{
         top: dropdownPosition.top,
         left: dropdownPosition.left,
@@ -154,14 +181,52 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {singers.length > 0 && (
-        <div className="py-1 overflow-y-auto flex-1">
-          {singers.map((singer) => {
-            const isAssigned = assignedSingerIds.includes(singer.id);
-            return (
+      <div className="overflow-y-auto flex-1">
+        {/* Session Singers */}
+        {singers.length > 0 && (
+          <div className="py-1">
+            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wide">
+              Session Singers
+            </div>
+            {singers.map((singer) => {
+              const isAssigned = assignedSingerIds.includes(singer.id);
+              return (
+                <button
+                  key={singer.id}
+                  onClick={() => handleToggleSinger(singer.id)}
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors"
+                >
+                  <SingerAvatar
+                    name={singer.name}
+                    color={singer.color}
+                    size="sm"
+                  />
+                  <span className="text-sm text-gray-200 flex-1 text-left">
+                    {singer.name}
+                    {singer.is_persistent && (
+                      <Star size={10} className="inline ml-1 text-yellow-500" />
+                    )}
+                  </span>
+                  {isAssigned && (
+                    <Check size={16} className="text-green-500" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Available Persistent Singers (not yet in session) */}
+        {availablePersistentSingers.length > 0 && (
+          <div className={`py-1 ${singers.length > 0 ? "border-t border-gray-700" : ""}`}>
+            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
+              <Star size={10} className="text-yellow-500" />
+              Add Persistent Singer
+            </div>
+            {availablePersistentSingers.map((singer) => (
               <button
                 key={singer.id}
-                onClick={() => handleToggleSinger(singer.id)}
+                onClick={() => handleAddPersistentSingerToSession(singer.id)}
                 className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors"
               >
                 <SingerAvatar
@@ -171,17 +236,20 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
                 />
                 <span className="text-sm text-gray-200 flex-1 text-left">
                   {singer.name}
+                  {singer.unique_name && (
+                    <span className="text-gray-400 text-xs ml-1">
+                      ({singer.unique_name})
+                    </span>
+                  )}
                 </span>
-                {isAssigned && (
-                  <Check size={16} className="text-green-500" />
-                )}
+                <UserPlus size={14} className="text-blue-400" />
               </button>
-            );
-          })}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
 
-      <div className={`flex-shrink-0 ${singers.length > 0 ? "border-t border-gray-700" : ""}`}>
+      <div className={`flex-shrink-0 ${singers.length > 0 || availablePersistentSingers.length > 0 ? "border-t border-gray-700" : ""}`}>
         {showNewSinger ? (
           <div className="p-2 flex gap-2">
             <input
@@ -190,7 +258,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
               value={newSingerName}
               onChange={(e) => setNewSingerName(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Singer name..."
+              placeholder="New session singer..."
               className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
             />
             <button
@@ -207,7 +275,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
             className="w-full flex items-center gap-2 px-3 py-2 text-blue-400 hover:bg-gray-700 transition-colors"
           >
             <UserPlus size={16} />
-            <span className="text-sm">New singer...</span>
+            <span className="text-sm">New session singer...</span>
           </button>
         )}
       </div>

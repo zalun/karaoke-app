@@ -6,8 +6,27 @@ const log = createLogger("SessionService");
 export interface Singer {
   id: number;
   name: string;
+  unique_name: string | null;
   color: string;
   is_persistent: boolean;
+}
+
+export interface FavoriteVideo {
+  video_id: string;
+  title: string;
+  artist?: string;
+  duration?: number;
+  thumbnail_url?: string;
+  source: "youtube" | "local" | "external";
+  youtube_id?: string;
+  file_path?: string;
+}
+
+export interface SingerFavorite {
+  id: number;
+  singer_id: number;
+  video: FavoriteVideo;
+  added_at: string;
 }
 
 export interface Session {
@@ -23,13 +42,15 @@ export const sessionService = {
   async createSinger(
     name: string,
     color: string,
-    isPersistent: boolean = false
+    isPersistent: boolean = false,
+    uniqueName?: string
   ): Promise<Singer> {
     log.info(`Creating singer: ${name}`);
     return await invoke<Singer>("create_singer", {
       name,
       color,
       isPersistent,
+      uniqueName: uniqueName || null,
     });
   },
 
@@ -41,6 +62,25 @@ export const sessionService = {
   async deleteSinger(singerId: number): Promise<void> {
     log.info(`Deleting singer: ${singerId}`);
     await invoke("delete_singer", { singerId });
+  },
+
+  async updateSinger(
+    singerId: number,
+    updates: { name?: string; uniqueName?: string; color?: string; isPersistent?: boolean }
+  ): Promise<Singer> {
+    log.info(`Updating singer: ${singerId}`);
+    return await invoke<Singer>("update_singer", {
+      singerId,
+      name: updates.name ?? null,
+      uniqueName: updates.uniqueName ?? null,
+      color: updates.color ?? null,
+      isPersistent: updates.isPersistent ?? null,
+    });
+  },
+
+  async getPersistentSingers(): Promise<Singer[]> {
+    log.debug("Fetching persistent singers");
+    return await invoke<Singer[]>("get_persistent_singers");
   },
 
   // Session management

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen } from "lucide-react";
+import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen, Star } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
-import { useSessionStore } from "../../stores";
+import { useSessionStore, useFavoritesStore } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
+import { sessionService } from "../../services";
 
 const MAX_VISIBLE_SINGERS = 10;
 
@@ -34,6 +35,7 @@ export function SessionBar() {
     closeLoadDialog,
     deleteSession,
     renameStoredSession,
+    loadSingers,
   } = useSessionStore();
 
   // Check if a singer is assigned to any queue item
@@ -191,6 +193,18 @@ export function SessionBar() {
     } else if (e.key === "Escape") {
       closeRenameDialog();
       setRenameError(null);
+    }
+  };
+
+  const { loadPersistentSingers } = useFavoritesStore();
+
+  const handleMakePermanent = async (singerId: number) => {
+    try {
+      await sessionService.updateSinger(singerId, { isPersistent: true });
+      await loadSingers();
+      await loadPersistentSingers();
+    } catch (error) {
+      console.error("Failed to make singer permanent:", error);
     }
   };
 
@@ -453,13 +467,30 @@ export function SessionBar() {
         <div className="mt-2 pt-2 border-t border-gray-600">
           <div className="flex flex-wrap items-center gap-2">
             {singers.map((singer) => (
-              <SingerChip
-                key={singer.id}
-                name={singer.name}
-                color={singer.color}
-                faded={!isSingerAssigned(singer.id)}
-                onRemove={() => deleteSinger(singer.id)}
-              />
+              <div key={singer.id} className="flex items-center gap-1">
+                <SingerChip
+                  name={singer.name}
+                  color={singer.color}
+                  faded={!isSingerAssigned(singer.id)}
+                  onRemove={() => deleteSinger(singer.id)}
+                />
+                {singer.is_persistent ? (
+                  <span title="Persistent singer - has favorites">
+                    <Star
+                      size={14}
+                      className="text-yellow-500 fill-yellow-500"
+                    />
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleMakePermanent(singer.id)}
+                    className="p-0.5 text-gray-500 hover:text-yellow-500 transition-colors"
+                    title="Make permanent (enables favorites)"
+                  >
+                    <Star size={14} />
+                  </button>
+                )}
+              </div>
             ))}
             {showNewSinger ? (
               <div className="flex flex-col gap-1">
