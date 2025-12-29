@@ -23,7 +23,7 @@ export function ManageFavoritesDialog() {
   const { singers: sessionSingers, loadSingers } = useSessionStore();
 
   // Session singers that are not persistent (can be promoted)
-  const tempSessionSingers = sessionSingers.filter((s) => !s.is_persistent);
+  const tempSessionSingers = (sessionSingers || []).filter((s) => !s.is_persistent);
 
   const [editingUniqueName, setEditingUniqueName] = useState(false);
   const [uniqueNameValue, setUniqueNameValue] = useState("");
@@ -31,19 +31,20 @@ export function ManageFavoritesDialog() {
   const [showNewSingerForm, setShowNewSingerForm] = useState(false);
   const [newSingerName, setNewSingerName] = useState("");
   const [newSingerUniqueName, setNewSingerUniqueName] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   if (!showManageFavoritesDialog) {
     return null;
   }
 
-  const selectedSinger = persistentSingers.find(
+  const selectedSinger = (persistentSingers || []).find(
     (s) => s.id === selectedSingerId
   );
 
   const handleSelectSinger = async (singerId: number) => {
     await selectSinger(singerId);
     setEditingUniqueName(false);
-    const singer = persistentSingers.find((s) => s.id === singerId);
+    const singer = (persistentSingers || []).find((s) => s.id === singerId);
     setUniqueNameValue(singer?.unique_name || "");
   };
 
@@ -78,7 +79,7 @@ export function ManageFavoritesDialog() {
     if (!newSingerName.trim()) return;
     setIsSaving(true);
     try {
-      const usedColors = persistentSingers.map((s) => s.color);
+      const usedColors = (persistentSingers || []).map((s) => s.color);
       const color = getNextSingerColor(usedColors);
       const singer = await sessionService.createSinger(
         newSingerName.trim(),
@@ -98,8 +99,6 @@ export function ManageFavoritesDialog() {
       setIsSaving(false);
     }
   };
-
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const handleDeleteSinger = async (singerId: number, e?: React.MouseEvent) => {
     log.info(`Delete button clicked for singer ${singerId}`);
@@ -238,14 +237,14 @@ export function ManageFavoritesDialog() {
             <div className="flex-1 overflow-y-auto">
               {isLoading && !selectedSingerId ? (
                 <div className="p-4 text-gray-400 text-sm">Loading...</div>
-              ) : persistentSingers.length === 0 ? (
+              ) : (persistentSingers || []).length === 0 ? (
                 <div className="p-4 text-gray-400 text-sm text-center">
                   <Star size={24} className="mx-auto mb-2 opacity-50" />
                   <p>No persistent singers yet.</p>
                   <p className="text-xs mt-1">Create one to start saving favorites!</p>
                 </div>
               ) : (
-                persistentSingers.map((singer) => (
+                (persistentSingers || []).map((singer) => (
                   <div
                     key={singer.id}
                     onClick={() => handleSelectSinger(singer.id)}
@@ -268,16 +267,15 @@ export function ManageFavoritesDialog() {
                         </span>
                       )}
                     </span>
-                    {selectedSingerId === singer.id ? (
+                    <button
+                      onClick={(e) => handleDeleteSinger(singer.id, e)}
+                      className="p-1 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete singer"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    {selectedSingerId === singer.id && (
                       <ChevronRight size={16} className="text-gray-400" />
-                    ) : (
-                      <button
-                        onClick={(e) => handleDeleteSinger(singer.id, e)}
-                        className="p-1 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Delete singer"
-                      >
-                        <Trash2 size={14} />
-                      </button>
                     )}
                   </div>
                 ))
@@ -306,11 +304,10 @@ export function ManageFavoritesDialog() {
                     <button
                       onClick={() => handlePromoteToPersonal(singer.id)}
                       disabled={isSaving}
-                      className="flex items-center gap-1 px-2 py-1 text-xs bg-yellow-600/80 hover:bg-yellow-600 disabled:bg-gray-600 text-white rounded transition-colors"
+                      className="p-1.5 bg-yellow-600/80 hover:bg-yellow-600 disabled:bg-gray-600 text-white rounded transition-colors"
                       title="Make this singer permanent to enable favorites"
                     >
-                      <Star size={12} />
-                      Make Permanent
+                      <Star size={14} />
                     </button>
                   </div>
                 ))}
@@ -459,7 +456,7 @@ export function ManageFavoritesDialog() {
               <div>
                 <h3 className="text-lg font-medium text-white">Delete Singer</h3>
                 <p className="text-sm text-gray-400">
-                  {persistentSingers.find((s) => s.id === confirmDeleteId)?.name}
+                  {(persistentSingers || []).find((s) => s.id === confirmDeleteId)?.name}
                 </p>
               </div>
             </div>

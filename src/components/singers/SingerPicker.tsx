@@ -217,13 +217,13 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
         )}
 
         {/* Available Persistent Singers (not yet in session) */}
-        {availablePersistentSingers.length > 0 && (
-          <div className={`py-1 ${singers.length > 0 ? "border-t border-gray-700" : ""}`}>
-            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
-              <Star size={10} className="text-yellow-500" />
-              Add Persistent Singer
-            </div>
-            {availablePersistentSingers.map((singer) => (
+        <div className={`py-1 ${singers.length > 0 ? "border-t border-gray-700" : ""}`}>
+          <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
+            <Star size={10} className="text-yellow-500" />
+            Persistent Singers
+          </div>
+          {availablePersistentSingers.length > 0 ? (
+            availablePersistentSingers.map((singer) => (
               <button
                 key={singer.id}
                 onClick={() => handleAddPersistentSingerToSession(singer.id)}
@@ -244,12 +244,18 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
                 </span>
                 <UserPlus size={14} className="text-blue-400" />
               </button>
-            ))}
-          </div>
-        )}
+            ))
+          ) : (
+            <div className="px-3 py-2 text-xs text-gray-500">
+              {persistentSingers.length === 0
+                ? "No persistent singers yet. Create them in Singers → Manage Favorites."
+                : "All persistent singers are in this session."}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className={`flex-shrink-0 ${singers.length > 0 || availablePersistentSingers.length > 0 ? "border-t border-gray-700" : ""}`}>
+      <div className="flex-shrink-0 border-t border-gray-700">
         {showNewSinger ? (
           <div className="p-2 flex gap-2">
             <input
