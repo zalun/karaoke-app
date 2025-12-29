@@ -57,16 +57,9 @@ export function FavoriteStar({ video, className = "" }: FavoriteStarProps) {
   // Check if this video is a favorite for any singer
   const isFavorite = Array.from(singerFavorites.values()).some((fav) => fav !== null);
 
-  // Load persistent singers and check favorite status when dropdown opens
-  useEffect(() => {
-    if (isOpen) {
-      loadPersistentSingers();
-      loadFavoriteStatus();
-    }
-  }, [isOpen, loadPersistentSingers]);
-
   // Load favorite status for all persistent singers
-  const loadFavoriteStatus = async () => {
+  const loadFavoriteStatus = useCallback(async () => {
+    if (persistentSingers.length === 0) return;
     setIsLoading(true);
     try {
       const newMap = new Map<number, SingerFavorite | null>();
@@ -83,14 +76,22 @@ export function FavoriteStar({ video, className = "" }: FavoriteStarProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [persistentSingers, video.id]);
+
+  // Load persistent singers and check favorite status when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      loadPersistentSingers();
+      loadFavoriteStatus();
+    }
+  }, [isOpen, loadPersistentSingers, loadFavoriteStatus]);
 
   // Also check favorite status on mount if we have persistent singers
   useEffect(() => {
     if (persistentSingers.length > 0) {
       loadFavoriteStatus();
     }
-  }, [persistentSingers.length, video.id]);
+  }, [persistentSingers.length, loadFavoriteStatus]);
 
   // Calculate and update dropdown position
   const updateDropdownPosition = useCallback(() => {
