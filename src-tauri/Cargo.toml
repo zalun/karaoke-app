@@ -33,6 +33,6 @@ sha2 = "0.10"
 core-graphics = "0.24"
 souvlaki = "0.8"
 
-# Linux uses zbus for MPRIS media controls (D-Bus based)
+# Linux uses zbus for MPRIS media controls (pure Rust D-Bus implementation)
 [target.'cfg(target_os = "linux")'.dependencies]
-souvlaki = { version = "0.8", features = ["use_zbus"] }
+souvlaki = { version = "0.8", default-features = false, features = ["use_zbus"] }
