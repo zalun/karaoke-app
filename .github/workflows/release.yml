@@ -241,19 +241,25 @@ jobs:
       - name: Find built packages
         id: find-packages
         run: |
-          DEB_PATH=$(find src-tauri/target/release/bundle/deb -name "*.deb" | head -1)
+          DEB_PATH=$(find src-tauri/target/release/bundle/deb -name "*.deb" 2>/dev/null | head -1 || echo "")
           RPM_PATH=$(find src-tauri/target/release/bundle/rpm -name "*.rpm" 2>/dev/null | head -1 || echo "")
           APPIMAGE_PATH=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" 2>/dev/null | head -1 || echo "")
+
+          # Validate DEB package exists (required)
+          if [ -z "$DEB_PATH" ] || [ ! -f "$DEB_PATH" ]; then
+            echo "::error::DEB package not found! Build may have failed."
+            exit 1
+          fi
 
           echo "deb_path=$DEB_PATH" >> $GITHUB_OUTPUT
           echo "deb_name=$(basename "$DEB_PATH")" >> $GITHUB_OUTPUT
 
-          if [ -n "$RPM_PATH" ]; then
+          if [ -n "$RPM_PATH" ] && [ -f "$RPM_PATH" ]; then
             echo "rpm_path=$RPM_PATH" >> $GITHUB_OUTPUT
             echo "rpm_name=$(basename "$RPM_PATH")" >> $GITHUB_OUTPUT
           fi
 
-          if [ -n "$APPIMAGE_PATH" ]; then
+          if [ -n "$APPIMAGE_PATH" ] && [ -f "$APPIMAGE_PATH" ]; then
             echo "appimage_path=$APPIMAGE_PATH" >> $GITHUB_OUTPUT
             echo "appimage_name=$(basename "$APPIMAGE_PATH")" >> $GITHUB_OUTPUT
           fi
