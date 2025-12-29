@@ -1,8 +1,8 @@
-# Karaoke App
+# HomeKaraoke
 
 A home karaoke application for macOS built with Tauri 2.0 and React.
 
-![Karaoke App Screenshot](screenshots/app-screenshot.png)
+![HomeKaraoke Screenshot](screenshots/app-screenshot.png)
 
 ## Features
 
@@ -17,12 +17,12 @@ A home karaoke application for macOS built with Tauri 2.0 and React.
 
 Download the latest release from the [Releases page](https://github.com/zalun/karaoke-app/releases/latest):
 
-- **Apple Silicon (M1/M2/M3):** `Karaoke_x.x.x_aarch64.dmg`
-- **Intel Macs:** `Karaoke_x.x.x_x64.dmg`
+- **Apple Silicon (M1/M2/M3):** `HomeKaraoke_x.x.x_aarch64.dmg`
+- **Intel Macs:** `HomeKaraoke_x.x.x_x64.dmg`
 
 ### Steps
 1. Download the `.dmg` file for your Mac architecture
-2. Open the `.dmg` and drag Karaoke to your Applications folder
+2. Open the `.dmg` and drag HomeKaraoke to your Applications folder
 3. On first launch, right-click the app and select "Open" (required for unsigned apps)
 4. The app will prompt to install `yt-dlp` if not already installed
 

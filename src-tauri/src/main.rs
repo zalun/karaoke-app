@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    karaoke_app_lib::run();
+    homekaraoke_lib::run();
 }

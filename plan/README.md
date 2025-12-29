@@ -1,6 +1,6 @@
-# Karaoke App Planning Documents
+# HomeKaraoke Planning Documents
 
-This directory contains detailed planning documents for the Karaoke application.
+This directory contains detailed planning documents for the HomeKaraoke application.
 
 ## Current Implementation
 

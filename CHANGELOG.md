@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Rename app from "Karaoke" to "HomeKaraoke" (#91)
+  - Updated bundle identifier to `app.homekaraoke`
+  - Updated all UI labels, window titles, and menu items
+  - Updated D-Bus/MPRIS name for media controls
+
 ### Added
 - Apple Developer code signing and notarization for macOS distribution (#85)
   - App is now signed with Developer ID certificate

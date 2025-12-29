@@ -13,9 +13,9 @@ pub fn keep_awake_enable(state: State<AppState>) -> Result<(), CommandError> {
         let awake = keepawake::Builder::default()
             .display(true)
             .idle(true)
-            .reason("Karaoke video playing")
-            .app_name("Karaoke")
-            .app_reverse_domain("com.karaoke.app")
+            .reason("HomeKaraoke video playing")
+            .app_name("HomeKaraoke")
+            .app_reverse_domain("app.homekaraoke")
             .create()
             .map_err(|e| CommandError::External(format!("Failed to enable keep awake: {}", e)))?;
 

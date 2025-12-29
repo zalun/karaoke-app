@@ -166,7 +166,7 @@ class WindowManager {
       // Create the player window
       this.playerWindow = new WebviewWindow("player", {
         url: "/#/player",
-        title: "Karaoke Player",
+        title: "HomeKaraoke Player",
         width: 854,
         height: 480,
         minWidth: 320,

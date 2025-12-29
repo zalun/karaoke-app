@@ -58,7 +58,7 @@ export const useXxxStore = create<XxxState>((set, get) => ({
 
 - Uses `tauri-plugin-log` with file + stdout + webview targets
 - Debug mode toggle in View menu (persisted to SQLite)
-- Log location: `~/Library/Logs/app.karaoke.home/karaoke.log` (macOS)
+- Log location: `~/Library/Logs/app.homekaraoke/homekaraoke.log` (macOS)
 - Frontend: Use `createLogger("Context")` from `src/services/logger`
 - Backend: Use `log::debug!()`, `log::info!()`, etc.
 
