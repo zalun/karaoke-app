@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1-beta] - 2025-12-30
+
 ### Fixed
 - Fix video playback not working on Fedora Linux (#93)
   - Add GStreamer codec plugin dependencies for Linux packages
@@ -196,6 +198,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Queue and history management
 - Basic video player controls
 
+[0.5.1-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.0-beta...v0.5.1-beta
+[0.5.0-beta]: https://github.com/zalun/karaoke-app/compare/v0.4.0...v0.5.0-beta
 [0.4.0]: https://github.com/zalun/karaoke-app/compare/v0.3.5...v0.4.0
 [0.3.5]: https://github.com/zalun/karaoke-app/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/zalun/karaoke-app/compare/v0.3.3...v0.3.4

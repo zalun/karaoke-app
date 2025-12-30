@@ -107,10 +107,17 @@ jobs:
               --notes "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
 
           ## Downloads
-          - **Apple Silicon (M1/M2/M3)**: Download the \`arm64\` version
-          - **Intel Macs**: Download the \`x64\` version
 
-          ⏳ *Notarization in progress - DMGs will be updated when complete*" \
+          ### macOS
+          - **Apple Silicon (M1/M2/M3)**: Download the \`aarch64\` DMG
+          - **Intel Macs**: Download the \`x64\` DMG
+
+          ⏳ *Notarization in progress - DMGs will be updated when complete*
+
+          ### Linux
+          - **Ubuntu/Debian**: Download the \`.deb\` package
+          - **Fedora/RHEL**: Download the \`.rpm\` package
+          - **Other distributions**: Download the \`.AppImage\`" \
               --draft
             echo "Created draft release"
           fi
@@ -336,9 +343,9 @@ jobs:
           - **Intel Macs**: Download the \`x64\` DMG
 
           ### Linux
-          - **Debian/Ubuntu**: Download the \`.deb\` package
+          - **Ubuntu/Debian**: Download the \`.deb\` package
           - **Fedora/RHEL**: Download the \`.rpm\` package
-          - **Other**: Download the \`.AppImage\` (if available)"
+          - **Other distributions**: Download the \`.AppImage\`"
 
           # Publish the release
           gh release edit ${{ github.ref_name }} --draft=false --repo=${{ github.repository }}

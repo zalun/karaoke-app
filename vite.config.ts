@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      preserveSymlinks: true,
     },
   },
   clearScreen: false,
@@ -16,6 +17,7 @@ export default defineConfig({
     strictPort: true,
     watch: {
       ignored: ["**/src-tauri/**"],
+      usePolling: true,  // required by WebDAV
     },
   },
 });
