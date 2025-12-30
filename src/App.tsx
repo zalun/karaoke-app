@@ -26,6 +26,7 @@ import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, getS
 import { SingerAvatar } from "./components/singers";
 import { youtubeService, createLogger } from "./services";
 import { useMediaControls, useDisplayWatcher } from "./hooks";
+import { NotificationBar } from "./components/notification";
 import type { SearchResult } from "./types";
 
 const log = createLogger("App");
@@ -198,6 +199,9 @@ function App() {
 
   return (
     <AppLayout>
+      {/* Notification bar (bottom) */}
+      <NotificationBar />
+
       {/* Display configuration restore dialog */}
       <DisplayRestoreDialog />
 
