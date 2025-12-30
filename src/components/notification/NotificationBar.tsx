@@ -48,6 +48,7 @@ export function NotificationBar() {
     isVisible,
     isHiding,
     showLast,
+    moreCount,
     dismiss,
     toggleShowLast,
     hideLastIndicator,
@@ -71,6 +72,11 @@ export function NotificationBar() {
             <Icon className={`w-5 h-5 ${config.iconClass} flex-shrink-0`} />
             <p className={`flex-1 text-sm ${config.textClass}`}>
               {current.message}
+              {moreCount > 0 && (
+                <span className="ml-2 opacity-75">
+                  (+{moreCount} more)
+                </span>
+              )}
             </p>
             <button
               onClick={dismiss}

@@ -25,6 +25,7 @@ interface NotificationState {
   isVisible: boolean;
   isHiding: boolean; // For slide-down animation
   showLast: boolean;
+  moreCount: number; // Count of additional notifications while one is visible
 
   // Actions
   notify: (type: NotificationType, message: string) => void;
@@ -55,9 +56,43 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   isVisible: false,
   isHiding: false,
   showLast: false,
+  moreCount: 0,
 
   notify: (type, message) => {
     log.info(`Notification [${type}]: ${message}`);
+
+    const { isVisible, isHiding } = get();
+
+    // If a notification is already visible (and not hiding), increment counter
+    if (isVisible && !isHiding) {
+      log.debug(`Notification queued, moreCount: ${get().moreCount + 1}`);
+      set((state) => ({ moreCount: state.moreCount + 1 }));
+
+      // Also update lastNotification for the indicator
+      const notification: Notification = {
+        id: crypto.randomUUID(),
+        type,
+        message,
+        timestamp: Date.now(),
+      };
+      set({ lastNotification: notification });
+
+      // Reset auto-hide timer to give user more time
+      clearAllTimeouts();
+      const currentId = get().current?.id;
+      autoHideTimeoutId = setTimeout(() => {
+        const state = get();
+        if (state.isVisible && state.current?.id === currentId) {
+          set({ isHiding: true });
+          animationTimeoutId = setTimeout(() => {
+            if (get().current?.id === currentId) {
+              set({ isVisible: false, isHiding: false, moreCount: 0 });
+            }
+          }, ANIMATION_DURATION_MS);
+        }
+      }, AUTO_HIDE_TIMEOUT_MS);
+      return;
+    }
 
     // Clear any existing timeouts to prevent memory leaks
     clearAllTimeouts();
@@ -75,6 +110,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       isVisible: true,
       isHiding: false,
       showLast: false,
+      moreCount: 0,
     });
 
     // Set up auto-hide with notification ID check to prevent race conditions
@@ -90,7 +126,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         animationTimeoutId = setTimeout(() => {
           // Double-check notification hasn't changed during animation
           if (get().current?.id === notificationId) {
-            set({ isVisible: false, isHiding: false });
+            set({ isVisible: false, isHiding: false, moreCount: 0 });
           }
         }, ANIMATION_DURATION_MS);
       }
@@ -108,7 +144,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     // After animation completes, hide fully
     animationTimeoutId = setTimeout(() => {
-      set({ isVisible: false, isHiding: false });
+      set({ isVisible: false, isHiding: false, moreCount: 0 });
     }, ANIMATION_DURATION_MS);
   },
 
