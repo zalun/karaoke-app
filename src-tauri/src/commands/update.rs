@@ -71,6 +71,42 @@ struct ParsedVersion {
     prerelease: Option<String>,
 }
 
+/// Split a pre-release string into alphabetic prefix and numeric suffix
+/// e.g., "rc10" -> ("rc", Some(10)), "beta" -> ("beta", None)
+fn split_prerelease(s: &str) -> (&str, Option<u32>) {
+    let num_start = s.find(|c: char| c.is_ascii_digit());
+    match num_start {
+        Some(idx) => {
+            let (prefix, num_str) = s.split_at(idx);
+            let num = num_str.parse::<u32>().ok();
+            (prefix, num)
+        }
+        None => (s, None),
+    }
+}
+
+/// Compare pre-release strings with numeric suffix awareness
+/// e.g., "rc2" < "rc10", "beta" < "rc", "alpha1" < "alpha2"
+fn compare_prerelease(a: &str, b: &str) -> std::cmp::Ordering {
+    let (prefix_a, num_a) = split_prerelease(a);
+    let (prefix_b, num_b) = split_prerelease(b);
+
+    // Compare prefixes first (alphabetically)
+    match prefix_a.cmp(prefix_b) {
+        std::cmp::Ordering::Equal => {
+            // Same prefix, compare numeric suffixes
+            // None < Some (e.g., "beta" < "beta1")
+            match (num_a, num_b) {
+                (None, None) => std::cmp::Ordering::Equal,
+                (None, Some(_)) => std::cmp::Ordering::Less,
+                (Some(_), None) => std::cmp::Ordering::Greater,
+                (Some(a), Some(b)) => a.cmp(&b),
+            }
+        }
+        other => other,
+    }
+}
+
 impl PartialOrd for ParsedVersion {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -89,7 +125,7 @@ impl Ord for ParsedVersion {
                     (None, None) => std::cmp::Ordering::Equal,
                     (None, Some(_)) => std::cmp::Ordering::Greater, // stable > prerelease
                     (Some(_), None) => std::cmp::Ordering::Less,    // prerelease < stable
-                    (Some(a), Some(b)) => a.cmp(b), // alphabetical for pre-releases
+                    (Some(a), Some(b)) => compare_prerelease(a, b),
                 }
             }
             other => other,
@@ -250,5 +286,11 @@ mod tests {
 
         // Pre-release of newer version is still newer
         assert!(is_newer_version("v0.5.0", "v0.5.1-beta")); // 0.5.1-beta > 0.5.0
+
+        // Numeric suffix comparisons (rc2 < rc10, not alphabetical)
+        assert!(is_newer_version("v1.0.0-rc2", "v1.0.0-rc10")); // rc10 > rc2
+        assert!(is_newer_version("v1.0.0-rc1", "v1.0.0-rc2")); // rc2 > rc1
+        assert!(is_newer_version("v1.0.0-beta1", "v1.0.0-beta2")); // beta2 > beta1
+        assert!(!is_newer_version("v1.0.0-rc10", "v1.0.0-rc2")); // rc2 is not newer than rc10
     }
 }
