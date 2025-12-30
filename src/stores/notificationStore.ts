@@ -77,16 +77,21 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       showLast: false,
     });
 
-    // Set up auto-hide
+    // Set up auto-hide with notification ID check to prevent race conditions
+    const notificationId = notification.id;
     autoHideTimeoutId = setTimeout(() => {
-      const { isVisible } = get();
-      if (isVisible) {
+      const { isVisible, current } = get();
+      // Only hide if this notification is still current
+      if (isVisible && current?.id === notificationId) {
         // Start hiding animation
         set({ isHiding: true });
 
         // After animation completes, hide fully
         animationTimeoutId = setTimeout(() => {
-          set({ isVisible: false, isHiding: false });
+          // Double-check notification hasn't changed during animation
+          if (get().current?.id === notificationId) {
+            set({ isVisible: false, isHiding: false });
+          }
         }, ANIMATION_DURATION_MS);
       }
     }, AUTO_HIDE_TIMEOUT_MS);
