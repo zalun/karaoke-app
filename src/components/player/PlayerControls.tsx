@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect } from "react";
-import { usePlayerStore, useQueueStore, useSessionStore, playVideo } from "../../stores";
+import { usePlayerStore, useQueueStore, useSessionStore, playVideo, notify } from "../../stores";
 import { windowManager, youtubeService, createLogger } from "../../services";
 
 const log = createLogger("PlayerControls");
@@ -330,7 +330,7 @@ export function PlayerControls() {
     setIsPlaying(newState);
   }, [isPlaying, setIsPlaying]);
 
-  const { setIsLoading, setCurrentVideo, setError } = usePlayerStore();
+  const { setIsLoading, setCurrentVideo } = usePlayerStore();
 
   const handleReload = useCallback(async () => {
     // Get the current item from queue - this is the video being loaded/played
@@ -341,7 +341,6 @@ export function PlayerControls() {
 
     log.info(`Reloading video: ${videoToReload.title}`);
     setIsLoading(true);
-    setError(null);
 
     try {
       // Always fetch fresh URL (bypass cache)
@@ -361,11 +360,11 @@ export function PlayerControls() {
       log.info("Video reloaded successfully");
     } catch (err) {
       log.error("Failed to reload video", err);
-      setError("Failed to reload video");
+      notify("error", "Failed to reload video");
     } finally {
       setIsLoading(false);
     }
-  }, [getCurrentItem, setIsLoading, setCurrentVideo, setIsPlaying, setError, seekTo]);
+  }, [getCurrentItem, setIsLoading, setCurrentVideo, setIsPlaying, seekTo]);
 
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);

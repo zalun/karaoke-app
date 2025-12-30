@@ -6,6 +6,7 @@ import {
   getStreamUrlWithCache,
   invalidatePrefetchIfStale,
   PREFETCH_THRESHOLD_SECONDS,
+  notify,
 } from "../../stores";
 import { youtubeService, createLogger, windowManager } from "../../services";
 import { useWakeLock } from "../../hooks";
@@ -63,7 +64,6 @@ export function VideoPlayer() {
     setCurrentTime,
     setDuration,
     setIsLoading,
-    setError,
     clearSeek,
     setIsDetached,
   } = usePlayerStore();
@@ -117,10 +117,10 @@ export function VideoPlayer() {
 
     video.play().catch((e) => {
       log.error("Failed to play video", e);
-      setError("Failed to play video");
+      notify("error", "Failed to play video");
       setIsPlaying(false);
     });
-  }, [setError, setIsPlaying]);
+  }, [setIsPlaying]);
 
   // Handle play/pause state changes (only for pause, play is handled by canplay)
   // Also pause when detached (video plays in separate window)
@@ -266,14 +266,14 @@ export function VideoPlayer() {
         setIsPlaying(true);
       } catch (err) {
         log.error("Failed to play next", err);
-        setError("Failed to play next video");
+        notify("error", "Failed to play next video");
         setIsLoading(false);
       }
     } else {
       log.info("Queue empty, playback stopped");
       setIsPlaying(false);
     }
-  }, [setCurrentVideo, setIsPlaying, setIsLoading, setError]);
+  }, [setCurrentVideo, setIsPlaying, setIsLoading]);
 
   // Listen for video ended event from detached player
   // Note: We use a ref pattern to avoid re-registering the listener when handleEnded changes
@@ -339,9 +339,9 @@ export function VideoPlayer() {
       }
     }
     log.error("Failed to load video");
-    setError("Failed to load video");
+    notify("error", "Failed to load video");
     setIsLoading(false);
-  }, [currentVideo, setCurrentVideo, setError, setIsLoading]);
+  }, [currentVideo, setCurrentVideo, setIsLoading]);
 
   const handleLoadStart = () => {
     setIsLoading(true);

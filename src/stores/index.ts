@@ -11,3 +11,9 @@ export { useAppStore } from "./appStore";
 export { useSessionStore } from "./sessionStore";
 export { useDisplayStore } from "./displayStore";
 export { useFavoritesStore } from "./favoritesStore";
+export {
+  useNotificationStore,
+  notify,
+  type Notification,
+  type NotificationType,
+} from "./notificationStore";

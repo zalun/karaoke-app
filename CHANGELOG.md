@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Comprehensive CONTRIBUTING.md guide for new contributors (#103)
+- In-app notification system for errors and messages (#98)
+  - Notification bar slides up from bottom of screen
+  - Support for error, warning, success, and info notification types
+  - Auto-hide after 10 seconds with manual dismiss option
+  - Indicator button to view last notification after it hides
+  - Replaces silent errors with visible user feedback
 
 ### Fixed
 - Fix choppy video playback in detached window on Fedora Linux (#100)

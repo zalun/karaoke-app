@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { youtubeService, createLogger } from "../services";
+import { notify } from "./notificationStore";
 
 const log = createLogger("PlayerStore");
 
@@ -31,7 +32,6 @@ interface PlayerState {
   isFullscreen: boolean;
   isLoading: boolean;
   isDetached: boolean;
-  error: string | null;
   seekTime: number | null;
   prefetchedStreamUrl: { videoId: string; url: string; timestamp: number } | null;
 
@@ -45,7 +45,6 @@ interface PlayerState {
   setIsFullscreen: (fullscreen: boolean) => void;
   setIsLoading: (loading: boolean) => void;
   setIsDetached: (detached: boolean) => void;
-  setError: (error: string | null) => void;
   seekTo: (time: number) => void;
   clearSeek: () => void;
   reset: () => void;
@@ -64,7 +63,6 @@ const initialState = {
   isFullscreen: false,
   isLoading: false,
   isDetached: false,
-  error: null,
   seekTime: null,
   prefetchedStreamUrl: null,
 };
@@ -75,7 +73,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setCurrentVideo: (video) => {
     log.debug(`setCurrentVideo: ${video?.title ?? "null"}`);
     // Reset duration and currentTime to prevent stale values from previous video
-    set({ currentVideo: video, error: null, duration: 0, currentTime: 0 });
+    set({ currentVideo: video, duration: 0, currentTime: 0 });
   },
   setIsPlaying: (isPlaying) => {
     log.debug(`setIsPlaying: ${isPlaying}`);
@@ -105,10 +103,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setIsDetached: (isDetached) => {
     log.info(`setIsDetached: ${isDetached}`);
     set({ isDetached });
-  },
-  setError: (error) => {
-    if (error) log.error(`setError: ${error}`);
-    set({ error, isLoading: false });
   },
   seekTo: (time) => {
     log.debug(`seekTo: ${time}`);
@@ -204,7 +198,7 @@ export async function playVideo(video: Video): Promise<void> {
     return;
   }
 
-  const { setIsLoading, setCurrentVideo, setIsPlaying, setError } =
+  const { setIsLoading, setCurrentVideo, setIsPlaying } =
     usePlayerStore.getState();
 
   setIsLoading(true);
@@ -216,7 +210,7 @@ export async function playVideo(video: Video): Promise<void> {
     log.info(`Now playing: ${video.title}`);
   } catch (err) {
     log.error("Failed to play video", err);
-    setError("Failed to play video");
+    notify("error", "Failed to play video");
     setIsLoading(false);
     throw err;
   }
