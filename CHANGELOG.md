@@ -7,13 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2-beta] - 2025-12-30
+
 ### Added
+- Update notification on app startup (#99)
+  - Checks GitHub releases API for newer versions
+  - Shows notification with Download button linking to release page
+  - Remembers dismissed versions to avoid repeated notifications
 - Comprehensive CONTRIBUTING.md guide for new contributors (#103)
 - In-app notification system for errors and messages (#98)
   - Notification bar slides up from bottom of screen
   - Support for error, warning, success, and info notification types
   - Auto-hide after 10 seconds with manual dismiss option
   - Indicator button to view last notification after it hides
+  - Notifications can include action buttons with external links
   - Replaces silent errors with visible user feedback
 
 ### Fixed
@@ -211,6 +218,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Queue and history management
 - Basic video player controls
 
+[0.5.2-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.1-beta...v0.5.2-beta
 [0.5.1-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.0-beta...v0.5.1-beta
 [0.5.0-beta]: https://github.com/zalun/karaoke-app/compare/v0.4.0...v0.5.0-beta
 [0.4.0]: https://github.com/zalun/karaoke-app/compare/v0.3.5...v0.4.0
