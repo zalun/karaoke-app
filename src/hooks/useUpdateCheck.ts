@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useUpdateStore } from "../stores";
+import { checkForUpdate } from "../stores/updateStore";
 
 /**
  * Hook to check for updates on app startup.
@@ -7,8 +7,6 @@ import { useUpdateStore } from "../stores";
  * impacting initial render performance.
  */
 export function useUpdateCheck() {
-  const checkForUpdate = useUpdateStore((state) => state.checkForUpdate);
-
   useEffect(() => {
     // Delay the check slightly to not impact startup performance
     const timer = setTimeout(() => {
@@ -16,5 +14,5 @@ export function useUpdateCheck() {
     }, 3000); // 3 second delay
 
     return () => clearTimeout(timer);
-  }, [checkForUpdate]);
+  }, []);
 }

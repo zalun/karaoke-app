@@ -27,7 +27,6 @@ import { SingerAvatar } from "./components/singers";
 import { youtubeService, createLogger } from "./services";
 import { useMediaControls, useDisplayWatcher, useUpdateCheck } from "./hooks";
 import { NotificationBar } from "./components/notification";
-import { UpdateNotification } from "./components/update";
 import type { SearchResult } from "./types";
 
 const log = createLogger("App");
@@ -205,9 +204,6 @@ function App() {
     <AppLayout>
       {/* Notification bar (bottom) */}
       <NotificationBar />
-
-      {/* Update notification (top-right corner) */}
-      <UpdateNotification />
 
       {/* Display configuration restore dialog */}
       <DisplayRestoreDialog />
