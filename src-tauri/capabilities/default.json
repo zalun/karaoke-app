@@ -18,6 +18,7 @@
     "core:window:allow-outer-size",
     "core:event:default",
     "core:webview:allow-create-webview-window",
-    "log:default"
+    "log:default",
+    "shell:allow-open"
   ]
 }

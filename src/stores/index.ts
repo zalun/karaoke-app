@@ -15,6 +15,7 @@ export {
   useNotificationStore,
   notify,
   type Notification,
+  type NotificationAction,
   type NotificationType,
 } from "./notificationStore";
 export { checkForUpdate } from "./updateStore";

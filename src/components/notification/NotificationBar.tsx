@@ -1,5 +1,7 @@
-import { X, AlertCircle, CheckCircle, Info, AlertTriangle } from "lucide-react";
+import { X, AlertCircle, CheckCircle, Info, AlertTriangle, ExternalLink } from "lucide-react";
+import { open } from "@tauri-apps/plugin-shell";
 import { useNotificationStore, type NotificationType } from "../../stores/notificationStore";
+import { createLogger } from "../../services";
 
 const typeConfig: Record<
   NotificationType,
@@ -41,6 +43,15 @@ const typeConfig: Record<
   },
 };
 
+const log = createLogger("NotificationBar");
+
+function handleActionClick(url: string) {
+  log.info(`Opening URL: ${url}`);
+  open(url).catch((err: unknown) => {
+    log.error("Failed to open URL", err);
+  });
+}
+
 export function NotificationBar() {
   const {
     current,
@@ -78,6 +89,15 @@ export function NotificationBar() {
                 </span>
               )}
             </p>
+            {current.action && (
+              <button
+                onClick={() => handleActionClick(current.action!.url)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-white/20 hover:bg-white/30 text-white rounded transition-colors flex-shrink-0"
+              >
+                <ExternalLink className="w-3 h-3" />
+                {current.action.label}
+              </button>
+            )}
             <button
               onClick={dismiss}
               className={`${config.iconClass} hover:text-white transition-colors flex-shrink-0`}
@@ -111,6 +131,15 @@ export function NotificationBar() {
                 {formatTimeAgo(lastNotification.timestamp)}
               </p>
             </div>
+            {lastNotification.action && (
+              <button
+                onClick={() => handleActionClick(lastNotification.action!.url)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-white/20 hover:bg-white/30 text-white rounded transition-colors flex-shrink-0"
+              >
+                <ExternalLink className="w-3 h-3" />
+                {lastNotification.action.label}
+              </button>
+            )}
             <button
               onClick={hideLastIndicator}
               className={`${config.iconClass} hover:text-white transition-colors flex-shrink-0`}

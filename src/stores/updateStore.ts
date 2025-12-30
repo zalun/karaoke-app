@@ -32,9 +32,12 @@ export async function checkForUpdate(): Promise<void> {
       `Update available: ${info.current_version} -> ${info.latest_version}`
     );
 
-    // Show notification and mark as dismissed so it only shows once per version
-    const message = `Update available: v${info.latest_version}. Visit GitHub releases to download.`;
-    notify("info", message);
+    // Show notification with download link
+    const message = `Update available: v${info.latest_version}`;
+    notify("info", message, {
+      label: "Download",
+      url: info.download_url,
+    });
 
     // Mark this version as notified so we don't show it again
     localStorage.setItem(DISMISSED_VERSION_KEY, info.latest_version);
