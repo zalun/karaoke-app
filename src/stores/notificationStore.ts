@@ -11,11 +11,17 @@ const ANIMATION_DURATION_MS = 300;
 
 export type NotificationType = "error" | "warning" | "success" | "info";
 
+export interface NotificationAction {
+  label: string;
+  url: string;
+}
+
 export interface Notification {
   id: string;
   type: NotificationType;
   message: string;
   timestamp: number;
+  action?: NotificationAction;
 }
 
 interface NotificationState {
@@ -28,7 +34,7 @@ interface NotificationState {
   moreCount: number; // Count of additional notifications while one is visible
 
   // Actions
-  notify: (type: NotificationType, message: string) => void;
+  notify: (type: NotificationType, message: string, action?: NotificationAction) => void;
   dismiss: () => void;
   toggleShowLast: () => void;
   hideLastIndicator: () => void;
@@ -58,7 +64,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   showLast: false,
   moreCount: 0,
 
-  notify: (type, message) => {
+  notify: (type, message, action) => {
     log.info(`Notification [${type}]: ${message}`);
 
     const { isVisible, isHiding } = get();
@@ -74,6 +80,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         type,
         message,
         timestamp: Date.now(),
+        action,
       };
       set({ lastNotification: notification });
 
@@ -102,6 +109,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       type,
       message,
       timestamp: Date.now(),
+      action,
     };
 
     set({
@@ -167,8 +175,12 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 }));
 
 // Helper function for easy notification access outside components
-export function notify(type: NotificationType, message: string): void {
-  useNotificationStore.getState().notify(type, message);
+export function notify(
+  type: NotificationType,
+  message: string,
+  action?: NotificationAction
+): void {
+  useNotificationStore.getState().notify(type, message, action);
 }
 
 // Expose notify to window for console testing in development

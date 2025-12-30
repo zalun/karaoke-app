@@ -18,22 +18,6 @@ body {
   min-height: 100vh;
 }
 
-/* Update notification slide-in animation */
-@keyframes slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.animate-slide-in {
-  animation: slide-in 0.3s ease-out;
-}
-
 /* Notification bar slide-up animation (from bottom) */
 @keyframes slide-up {
   from {

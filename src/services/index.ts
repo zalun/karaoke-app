@@ -16,3 +16,5 @@ export type { Singer, Session, FavoriteVideo, SingerFavorite } from "./session";
 export { queueService } from "./queue";
 export type { QueueItemData, QueueState } from "./queue";
 export { favoritesService } from "./favorites";
+export { updateService } from "./update";
+export type { UpdateInfo } from "./update";
