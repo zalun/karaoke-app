@@ -17,3 +17,4 @@ export {
   type Notification,
   type NotificationType,
 } from "./notificationStore";
+export { useUpdateStore } from "./updateStore";

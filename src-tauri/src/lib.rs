@@ -282,6 +282,8 @@ pub fn run() {
             commands::window_save_state,
             commands::window_get_states,
             commands::window_clear_states,
+            // Update check command
+            commands::update_check,
         ])
         .setup(|app| {
             info!("Starting HomeKaraoke application");

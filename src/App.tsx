@@ -25,8 +25,9 @@ import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./comp
 import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, getStreamUrlWithCache, notify, type QueueItem } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { youtubeService, createLogger } from "./services";
-import { useMediaControls, useDisplayWatcher } from "./hooks";
+import { useMediaControls, useDisplayWatcher, useUpdateCheck } from "./hooks";
 import { NotificationBar } from "./components/notification";
+import { UpdateNotification } from "./components/update";
 import type { SearchResult } from "./types";
 
 const log = createLogger("App");
@@ -54,6 +55,9 @@ function App() {
 
   // Initialize display hotplug watcher (macOS only)
   useDisplayWatcher();
+
+  // Check for app updates on startup
+  useUpdateCheck();
 
   // Get favorites store methods for menu events
   const { openLoadFavoritesDialog, openManageFavoritesDialog } = useFavoritesStore();
@@ -201,6 +205,9 @@ function App() {
     <AppLayout>
       {/* Notification bar (bottom) */}
       <NotificationBar />
+
+      {/* Update notification (top-right corner) */}
+      <UpdateNotification />
 
       {/* Display configuration restore dialog */}
       <DisplayRestoreDialog />

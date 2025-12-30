@@ -6,6 +6,7 @@ pub mod media_controls;
 pub mod queue;
 pub mod session;
 pub mod settings;
+pub mod update;
 pub mod youtube;
 
 pub use display::*;
@@ -15,4 +16,5 @@ pub use media_controls::*;
 pub use queue::*;
 pub use session::*;
 pub use settings::*;
+pub use update::*;
 pub use youtube::*;
