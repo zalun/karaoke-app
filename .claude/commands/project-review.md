@@ -68,6 +68,34 @@ Ask: "Would you like me to help with any of these?"
 
 Analyze ALL changes (committed, uncommitted, AND untracked files) for:
 
+### Database Backward Compatibility (if `src-tauri/src/db/schema.rs` is modified)
+
+Check that database migrations are safe for upgrades from v0.5.1-beta onwards:
+
+1. **Migration Safety Rules:**
+   - New migrations MUST be appended to `MIGRATIONS` array (never modify existing migrations)
+   - Use `CREATE TABLE IF NOT EXISTS` for new tables
+   - Use `CREATE INDEX IF NOT EXISTS` for new indexes
+   - Use `ALTER TABLE ADD COLUMN` with nullable columns (existing rows get NULL)
+   - Use `DROP TABLE IF EXISTS` only for tables that were never used or after data migration
+
+2. **Destructive Operations (REQUIRE data migration):**
+   - `DROP TABLE` on tables with user data - MUST copy data first
+   - `DROP COLUMN` (SQLite requires table recreation) - MUST preserve data
+   - Changing column types - MUST handle conversion
+   - Removing/changing `CHECK` constraints - verify existing data is valid
+   - Table recreation pattern (create new → copy data → drop old → rename) - verify INSERT copies ALL columns
+
+3. **Check for data loss scenarios:**
+   - If dropping a table: Was it used in v0.5.1+? If yes, data must be migrated
+   - If recreating a table: Does INSERT copy all existing columns?
+   - If adding NOT NULL columns: Is there a DEFAULT value?
+
+4. **Review Output:**
+   - **PASS**: All migrations are additive or use safe patterns with data preservation
+   - **FAIL**: Found potentially destructive operations without data migration
+   - List specific concerns with line numbers
+
 ### Code Quality
 - Bugs and logic errors
 - Missing error handling
