@@ -46,6 +46,18 @@ const typeConfig: Record<
 const log = createLogger("NotificationBar");
 
 function handleActionClick(url: string) {
+  // Validate URL is from GitHub to prevent open redirect attacks
+  try {
+    const parsedUrl = new URL(url);
+    if (!parsedUrl.hostname.endsWith("github.com")) {
+      log.error(`Blocked opening non-GitHub URL: ${url}`);
+      return;
+    }
+  } catch {
+    log.error(`Invalid URL: ${url}`);
+    return;
+  }
+
   log.info(`Opening URL: ${url}`);
   open(url).catch((err: unknown) => {
     log.error("Failed to open URL", err);

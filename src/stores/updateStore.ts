@@ -33,7 +33,8 @@ export async function checkForUpdate(): Promise<void> {
     );
 
     // Show notification with download link
-    const message = `Update available: v${info.latest_version}`;
+    // latest_version already includes "v" prefix from GitHub tag_name
+    const message = `Update available: ${info.latest_version}`;
     notify("info", message, {
       label: "Download",
       url: info.download_url,
