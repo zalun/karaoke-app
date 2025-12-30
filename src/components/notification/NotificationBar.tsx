@@ -121,6 +121,7 @@ export function NotificationBar() {
   // Show small indicator for last message access
   if (lastNotification && !isVisible) {
     const config = typeConfig[lastNotification.type];
+    const Icon = config.icon;
 
     return (
       <div className="fixed bottom-0 left-4 z-50">
@@ -130,7 +131,7 @@ export function NotificationBar() {
           aria-label="Show last notification"
           title="Show last notification"
         >
-          <Info className="w-4 h-4 text-white" />
+          <Icon className="w-4 h-4 text-white" />
         </button>
       </div>
     );

@@ -33,8 +33,21 @@ interface NotificationState {
   hideLastIndicator: () => void;
 }
 
-// Store the timeout ID outside the store to avoid serialization issues
+// Store timeout IDs outside the store to avoid serialization issues
 let autoHideTimeoutId: ReturnType<typeof setTimeout> | null = null;
+let animationTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+// Clear all pending timeouts
+function clearAllTimeouts() {
+  if (autoHideTimeoutId) {
+    clearTimeout(autoHideTimeoutId);
+    autoHideTimeoutId = null;
+  }
+  if (animationTimeoutId) {
+    clearTimeout(animationTimeoutId);
+    animationTimeoutId = null;
+  }
+}
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   current: null,
@@ -46,11 +59,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   notify: (type, message) => {
     log.info(`Notification [${type}]: ${message}`);
 
-    // Clear any existing timeout
-    if (autoHideTimeoutId) {
-      clearTimeout(autoHideTimeoutId);
-      autoHideTimeoutId = null;
-    }
+    // Clear any existing timeouts to prevent memory leaks
+    clearAllTimeouts();
 
     const notification: Notification = {
       id: crypto.randomUUID(),
@@ -75,7 +85,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         set({ isHiding: true });
 
         // After animation completes, hide fully
-        setTimeout(() => {
+        animationTimeoutId = setTimeout(() => {
           set({ isVisible: false, isHiding: false });
         }, ANIMATION_DURATION_MS);
       }
@@ -85,17 +95,14 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   dismiss: () => {
     log.debug("Notification dismissed by user");
 
-    // Clear auto-hide timeout
-    if (autoHideTimeoutId) {
-      clearTimeout(autoHideTimeoutId);
-      autoHideTimeoutId = null;
-    }
+    // Clear all timeouts to prevent memory leaks
+    clearAllTimeouts();
 
     // Start hiding animation
     set({ isHiding: true });
 
     // After animation completes, hide fully
-    setTimeout(() => {
+    animationTimeoutId = setTimeout(() => {
       set({ isVisible: false, isHiding: false });
     }, ANIMATION_DURATION_MS);
   },
