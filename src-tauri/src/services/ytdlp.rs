@@ -303,10 +303,13 @@ impl YtDlpService {
 
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
 
+        // Prefer H.264 (avc1) codec for best compatibility with WebKitGTK/GStreamer on Linux
+        // Exclude HLS (m3u8) streams - HTML5 video doesn't support HLS natively on WebKitGTK
+        // Format priority: best mp4 with H.264 (no HLS) > best mp4 (no HLS) > best (no HLS)
         let output = Command::new(get_ytdlp_command())
             .arg(&url)
             .arg("-f")
-            .arg("best[ext=mp4]/best")
+            .arg("best[ext=mp4][vcodec^=avc][protocol!*=m3u8]/best[ext=mp4][protocol!*=m3u8]/best[protocol!*=m3u8]/best")
             .arg("--get-url")
             .arg("--no-warnings")
             .env("PATH", get_expanded_path())

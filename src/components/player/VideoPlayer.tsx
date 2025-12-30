@@ -304,7 +304,27 @@ export function VideoPlayer() {
     };
   }, [isDetached]);
 
-  const handleError = useCallback(async () => {
+  const handleError = useCallback(async (event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = event.currentTarget;
+    const mediaError = video.error;
+
+    // Log detailed error information
+    const errorCodes: Record<number, string> = {
+      1: "MEDIA_ERR_ABORTED - Fetching was aborted",
+      2: "MEDIA_ERR_NETWORK - Network error during download",
+      3: "MEDIA_ERR_DECODE - Error decoding media (codec issue)",
+      4: "MEDIA_ERR_SRC_NOT_SUPPORTED - Media format not supported",
+    };
+
+    const errorCode = mediaError?.code || 0;
+    const errorMessage = mediaError?.message || "Unknown error";
+    const errorDescription = errorCodes[errorCode] || `Unknown error code: ${errorCode}`;
+
+    log.error(`Video error: ${errorDescription}`);
+    log.error(`Error message: ${errorMessage}`);
+    log.error(`Video src: ${video.src?.substring(0, 100)}...`);
+    log.error(`Network state: ${video.networkState}, Ready state: ${video.readyState}`);
+
     // If we used a cached URL that might be stale, retry with fresh fetch
     if (usedCachedUrlRef.current && currentVideo?.youtubeId) {
       log.debug("Cached URL failed, retrying with fresh fetch");

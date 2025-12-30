@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fix video playback not working on Fedora Linux (#93)
+  - Add GStreamer codec plugin dependencies for Linux packages
+  - RPM: gstreamer1-plugins-base, gstreamer1-plugins-good, gstreamer1-libav
+  - DEB: gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-libav
+  - Prefer H.264 (avc) codec and exclude HLS streams for WebKitGTK compatibility
+
 ### Added
 - Singer Favorites feature (#88)
   - Persistent singers can save favorite songs
