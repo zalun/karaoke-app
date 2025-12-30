@@ -180,7 +180,7 @@ pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
 
     // Fetch latest release from GitHub API
     let client = reqwest::Client::builder()
-        .user_agent("HomeKaraoke-App")
+        .user_agent(format!("HomeKaraoke-App/{}", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| UpdateError::Network(e.to_string()))?;
