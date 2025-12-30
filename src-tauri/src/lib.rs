@@ -63,7 +63,7 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
         version: Some(env!("CARGO_PKG_VERSION").into()),
         copyright: Some(format!("© {} {}", chrono::Utc::now().year(), env!("CARGO_PKG_AUTHORS")).into()),
         credits: Some(format!(
-            "Home karaoke application for macOS with YouTube streaming, queue management, and singer tracking.\n\n{}",
+            "Home karaoke application with YouTube streaming, queue management, and singer tracking.\n\nhttps://homekaraoke.app\n\n{}",
             env!("CARGO_PKG_REPOSITORY")
         ).into()),
         ..Default::default()
