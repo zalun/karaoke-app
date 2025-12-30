@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Comprehensive CONTRIBUTING.md guide for new contributors (#103)
+
 ### Fixed
 - Fix choppy video playback in detached window on Fedora Linux (#100)
   - Disable WebKitGTK DMABuf renderer to resolve multi-window video rendering issues
