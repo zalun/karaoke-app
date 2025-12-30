@@ -140,6 +140,10 @@ export function NotificationBar() {
 }
 
 function formatTimeAgo(timestamp: number): string {
+  if (!timestamp || !Number.isFinite(timestamp)) {
+    return "Unknown time";
+  }
+
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
 
   if (seconds < 60) {

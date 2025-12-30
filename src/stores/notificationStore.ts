@@ -6,6 +6,9 @@ const log = createLogger("NotificationStore");
 // Auto-hide timeout in milliseconds
 const AUTO_HIDE_TIMEOUT_MS = 10000;
 
+// Animation duration in milliseconds (must match CSS)
+const ANIMATION_DURATION_MS = 300;
+
 export type NotificationType = "error" | "warning" | "success" | "info";
 
 export interface Notification {
@@ -74,7 +77,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         // After animation completes, hide fully
         setTimeout(() => {
           set({ isVisible: false, isHiding: false });
-        }, 300); // Match animation duration
+        }, ANIMATION_DURATION_MS);
       }
     }, AUTO_HIDE_TIMEOUT_MS);
   },
@@ -94,7 +97,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // After animation completes, hide fully
     setTimeout(() => {
       set({ isVisible: false, isHiding: false });
-    }, 300);
+    }, ANIMATION_DURATION_MS);
   },
 
   toggleShowLast: () => {

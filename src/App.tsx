@@ -22,7 +22,7 @@ import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
-import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, getStreamUrlWithCache, type QueueItem } from "./stores";
+import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, getStreamUrlWithCache, notify, type QueueItem } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { youtubeService, createLogger } from "./services";
 import { useMediaControls, useDisplayWatcher } from "./hooks";
@@ -375,7 +375,7 @@ const queueLog = createLogger("QueuePanel");
 
 function QueuePanel() {
   const { queue, playFromQueue, removeFromQueue, reorderQueue, clearQueue } = useQueueStore();
-  const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
+  const { setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -400,12 +400,12 @@ function QueuePanel() {
           setIsPlaying(true);
         } catch (err) {
           queueLog.error("Failed to play from queue", err);
-          setError("Failed to play video");
+          notify("error", "Failed to play video");
           setIsLoading(false);
         }
       }
     },
-    [playFromQueue, setCurrentVideo, setIsPlaying, setIsLoading, setError]
+    [playFromQueue, setCurrentVideo, setIsPlaying, setIsLoading]
   );
 
   const handleDragEnd = useCallback(
@@ -484,7 +484,7 @@ const historyLog = createLogger("HistoryPanel");
 
 function HistoryPanel() {
   const { history, historyIndex, playFromHistory, clearHistory, moveAllHistoryToQueue } = useQueueStore();
-  const { setCurrentVideo, setIsPlaying, setIsLoading, setError } = usePlayerStore();
+  const { setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { session, getQueueItemSingerIds, getSingerById } = useSessionStore();
   const {
     historySelectionMode,
@@ -517,12 +517,12 @@ function HistoryPanel() {
           setIsPlaying(true);
         } catch (err) {
           historyLog.error("Failed to play from history", err);
-          setError("Failed to play video");
+          notify("error", "Failed to play video");
           setIsLoading(false);
         }
       }
     },
-    [playFromHistory, setCurrentVideo, setIsPlaying, setIsLoading, setError]
+    [playFromHistory, setCurrentVideo, setIsPlaying, setIsLoading]
   );
 
   // Calculate effective index for highlighting current item
