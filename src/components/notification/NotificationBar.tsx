@@ -60,7 +60,7 @@ export function NotificationBar() {
 
     return (
       <div
-        className={`fixed bottom-0 left-4 right-4 z-50 ${
+        className={`fixed bottom-0 left-4 right-4 z-[9999] ${
           isHiding ? "animate-slide-down" : "animate-slide-up"
         }`}
       >
@@ -91,7 +91,7 @@ export function NotificationBar() {
     const Icon = config.icon;
 
     return (
-      <div className="fixed bottom-0 left-4 right-4 z-50 animate-slide-up">
+      <div className="fixed bottom-0 left-4 right-4 z-[9999] animate-slide-up">
         <div
           className={`${config.bgClass} rounded-t-2xl p-4 shadow-xl backdrop-blur max-w-2xl mx-auto`}
         >
@@ -124,7 +124,7 @@ export function NotificationBar() {
     const Icon = config.icon;
 
     return (
-      <div className="fixed bottom-0 left-4 z-50">
+      <div className="fixed bottom-0 left-4 z-[9999]">
         <button
           onClick={toggleShowLast}
           className={`${config.indicatorClass} rounded-full p-2 shadow-lg transition-colors`}
