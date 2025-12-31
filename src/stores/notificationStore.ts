@@ -3,8 +3,13 @@ import { createLogger } from "../services";
 
 const log = createLogger("NotificationStore");
 
-// Auto-hide timeout in milliseconds
-const AUTO_HIDE_TIMEOUT_MS = 4000;
+// Auto-hide timeouts in milliseconds by notification type
+const AUTO_HIDE_TIMEOUTS: Record<NotificationType, number> = {
+  success: 3000,
+  info: 4000,
+  warning: 6000,
+  error: 8000,
+};
 
 // Animation duration in milliseconds (must match CSS)
 const ANIMATION_DURATION_MS = 300;
@@ -86,7 +91,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       // Reset auto-hide timer to give user more time
       clearAllTimeouts();
-      const currentId = get().current?.id;
+      const current = get().current;
+      const currentId = current?.id;
+      const currentTimeout = current ? AUTO_HIDE_TIMEOUTS[current.type] : AUTO_HIDE_TIMEOUTS.info;
       autoHideTimeoutId = setTimeout(() => {
         const state = get();
         if (state.isVisible && state.current?.id === currentId) {
@@ -97,7 +104,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
             }
           }, ANIMATION_DURATION_MS);
         }
-      }, AUTO_HIDE_TIMEOUT_MS);
+      }, currentTimeout);
       return;
     }
 
@@ -138,7 +145,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           }
         }, ANIMATION_DURATION_MS);
       }
-    }, AUTO_HIDE_TIMEOUT_MS);
+    }, AUTO_HIDE_TIMEOUTS[notification.type]);
   },
 
   dismiss: () => {
