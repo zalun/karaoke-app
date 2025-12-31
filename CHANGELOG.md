@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.6-beta] - 2025-12-31
+
+### Added
+- Prefetch first queue item when player is idle (faster playback start)
+
+### Fixed
+- Next song overlay showing wrong song during loading transition (#117)
+
+### Changed
+- Increased prefetch threshold from 20s to 30s for slower machines (#117)
+
 ## [0.5.5-beta] - 2025-12-31
 
 ### Fixed
@@ -251,6 +262,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Queue and history management
 - Basic video player controls
 
+[0.5.6-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.5-beta...v0.5.6-beta
 [0.5.5-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.4-beta...v0.5.5-beta
 [0.5.4-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.3-beta...v0.5.4-beta
 [0.5.3-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.2-beta...v0.5.3-beta
