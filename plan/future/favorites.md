@@ -1,5 +1,9 @@
 # Feature: Favorites / Starred Songs
 
+> **Status: IMPLEMENTED** in v0.5.1-beta ([#88](https://github.com/zalun/karaoke-app/issues/88))
+>
+> Core functionality implemented: persistent singer favorites, star button on search/history, Manage Favorites dialog, Load Favorites to Queue. See CHANGELOG for details.
+
 ## Summary
 
 Allow users to star/favorite songs for quick access, building a personal library of go-to karaoke tracks.

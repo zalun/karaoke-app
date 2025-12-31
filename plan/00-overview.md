@@ -40,4 +40,4 @@ Home karaoke application built with Tauri 2.0 + React. Features YouTube search a
 
 ## Current Version
 
-**v0.3.5** - See [CHANGELOG.md](../CHANGELOG.md) for release history.
+**v0.5.2-beta** - See [CHANGELOG.md](../CHANGELOG.md) for release history.

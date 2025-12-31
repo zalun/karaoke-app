@@ -34,22 +34,37 @@ CREATE TABLE videos (
 );
 ```
 
-### Table `queue`
+### Table `queue_items`
 
-Current session queue items.
+Session-scoped queue and history items (replaces legacy `queue` table).
 
 ```sql
-CREATE TABLE queue (
-    id INTEGER PRIMARY KEY,
-    video_id INTEGER,             -- from library (optional)
-    youtube_id TEXT,              -- YT streaming (optional)
-    youtube_title TEXT,
-    local_file_path TEXT,         -- file from disk without import (optional)
-    local_file_title TEXT,        -- display name for file
+CREATE TABLE queue_items (
+    id TEXT PRIMARY KEY,                    -- UUID from frontend
+    session_id INTEGER NOT NULL,
+    item_type TEXT NOT NULL CHECK(item_type IN ('queue', 'history')),
+
+    -- Video data (denormalized)
+    video_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    artist TEXT,
+    duration INTEGER,
+    thumbnail_url TEXT,
+    source TEXT NOT NULL CHECK(source IN ('youtube', 'local', 'external')),
+    youtube_id TEXT,
+    file_path TEXT,
+
+    -- Ordering & timestamps
     position INTEGER NOT NULL,
-    status TEXT DEFAULT 'pending'
+    added_at TEXT NOT NULL,
+    played_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
--- One of: video_id, youtube_id, or local_file_path must be set
+
+CREATE INDEX idx_queue_items_session_type ON queue_items(session_id, item_type);
+CREATE INDEX idx_queue_items_position ON queue_items(session_id, item_type, position);
 ```
 
 ### Table `external_drives`
@@ -128,7 +143,8 @@ CREATE TABLE sessions (
     name TEXT,
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ended_at TIMESTAMP,
-    is_active INTEGER DEFAULT 1
+    is_active INTEGER DEFAULT 1,
+    history_index INTEGER DEFAULT -1  -- Index for history navigation
 );
 ```
 
@@ -142,6 +158,7 @@ CREATE TABLE singers (
     name TEXT NOT NULL,
     color TEXT NOT NULL,          -- Hex color e.g., '#FF5733'
     is_persistent INTEGER DEFAULT 0,
+    unique_name TEXT,             -- Optional unique name for disambiguation
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -193,12 +210,39 @@ Queue item to singer assignments (supports duets).
 
 ```sql
 CREATE TABLE queue_singers (
+    id INTEGER PRIMARY KEY,
     queue_item_id TEXT NOT NULL,  -- Frontend UUID from queueStore
     singer_id INTEGER NOT NULL,
     position INTEGER DEFAULT 0,   -- For ordering multiple singers
-    PRIMARY KEY (queue_item_id, singer_id),
     FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE
 );
+
+CREATE INDEX idx_queue_singers_queue_item ON queue_singers(queue_item_id);
+```
+
+### Table `singer_favorites`
+
+Favorite songs per persistent singer.
+
+```sql
+CREATE TABLE singer_favorites (
+    id INTEGER PRIMARY KEY,
+    singer_id INTEGER NOT NULL,
+    video_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    artist TEXT,
+    duration INTEGER,
+    thumbnail_url TEXT,
+    source TEXT NOT NULL CHECK(source IN ('youtube', 'local', 'external')),
+    youtube_id TEXT,
+    file_path TEXT,
+    added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE,
+    UNIQUE(singer_id, video_id)
+);
+
+CREATE INDEX idx_singer_favorites_singer ON singer_favorites(singer_id);
+CREATE INDEX idx_singer_favorites_video ON singer_favorites(video_id);
 ```
 
 ## Schema Versioning
@@ -217,5 +261,7 @@ CREATE TABLE schema_version (
 | 2 | Sessions and Singers: singers, groups, singer_groups, sessions, session_singers, queue_singers | - |
 | 3 | Queue/History Persistence: queue_items table, session history_index | [#31](https://github.com/zalun/karaoke-app/issues/31) |
 | 4 | Display config improvements: window_state constraints, indexes | [#48](https://github.com/zalun/karaoke-app/issues/48) |
+| 5 | Singer Favorites: singer_favorites table, unique_name column on singers | [#88](https://github.com/zalun/karaoke-app/issues/88) |
+| 6 | Add index on singer_favorites.video_id for reverse lookups | [#88](https://github.com/zalun/karaoke-app/issues/88) |
 
-Current version: **4**
+Current version: **6**
