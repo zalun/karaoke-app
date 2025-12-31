@@ -4,7 +4,7 @@ import { createLogger } from "../services";
 const log = createLogger("NotificationStore");
 
 // Auto-hide timeout in milliseconds
-const AUTO_HIDE_TIMEOUT_MS = 10000;
+const AUTO_HIDE_TIMEOUT_MS = 4000;
 
 // Animation duration in milliseconds (must match CSS)
 const ANIMATION_DURATION_MS = 300;

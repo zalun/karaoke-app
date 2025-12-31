@@ -61,6 +61,7 @@ interface QueueState {
   removeFromQueue: (itemId: string) => void;
   reorderQueue: (itemId: string, newPosition: number) => void;
   clearQueue: () => void;
+  fairShuffle: () => Promise<void>;
   clearHistory: () => void;
   moveAllHistoryToQueue: () => void;
 
@@ -233,6 +234,32 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     });
 
     set({ queue: [] });
+  },
+
+  fairShuffle: async () => {
+    const { queue } = get();
+    if (queue.length <= 1) {
+      log.debug("fairShuffle: queue too small, nothing to shuffle");
+      return;
+    }
+
+    log.info(`fairShuffle: shuffling ${queue.length} items`);
+
+    try {
+      // Shuffle on backend (reorganizes positions in database)
+      await queueService.fairShuffle();
+
+      // Reload queue from backend to get new order
+      const state = await queueService.getState();
+      if (state) {
+        const newQueue = state.queue.map(fromQueueItemData);
+        set({ queue: newQueue });
+        log.info(`fairShuffle: reloaded ${newQueue.length} items`);
+      }
+    } catch (error) {
+      log.error("Failed to fair shuffle queue:", error);
+      throw error;
+    }
   },
 
   clearHistory: () => {
