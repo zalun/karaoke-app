@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Custom karaoke-themed background image for macOS DMG installer (#112)
+
 ## [0.5.3-beta] - 2025-12-31
 
 ### Added
-- Custom karaoke-themed background image for macOS DMG installer (#112)
 - Fair Shuffle button in Queue panel (#109)
   - Reorganizes queue into fair round-robin order by singer
   - Multi-singer items (duets) count for ALL singers involved
