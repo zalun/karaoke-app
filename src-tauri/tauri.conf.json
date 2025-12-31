@@ -37,7 +37,22 @@
     ],
     "macOS": {
       "minimumSystemVersion": "10.15",
-      "signingIdentity": "Developer ID Application: Piotr Zalewa (DCXDSQYXM7)"
+      "signingIdentity": "Developer ID Application: Piotr Zalewa (DCXDSQYXM7)",
+      "dmg": {
+        "background": "icons/dmg-background.png",
+        "windowSize": {
+          "width": 540,
+          "height": 380
+        },
+        "appPosition": {
+          "x": 140,
+          "y": 180
+        },
+        "applicationFolderPosition": {
+          "x": 400,
+          "y": 180
+        }
+      }
     },
     "linux": {
       "deb": {
