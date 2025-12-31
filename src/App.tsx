@@ -171,7 +171,10 @@ function App() {
         youtubeId: result.id,
       });
 
-      // Auto-assign active singer if set
+      // Auto-assign active singer if set.
+      // Note: No race condition here - addToQueue is synchronous and returns the item
+      // with a client-generated UUID immediately. DB persistence is async but the
+      // singer assignment only needs the item ID, which exists before persistence.
       const { activeSingerId, assignSingerToQueueItem, getSingerById } = useSessionStore.getState();
       if (activeSingerId && queueItem) {
         try {
@@ -207,7 +210,10 @@ function App() {
         youtubeId: result.id,
       });
 
-      // Auto-assign active singer if set
+      // Auto-assign active singer if set.
+      // Note: No race condition here - addToQueueNext is synchronous and returns the item
+      // with a client-generated UUID immediately. DB persistence is async but the
+      // singer assignment only needs the item ID, which exists before persistence.
       const { activeSingerId, assignSingerToQueueItem, getSingerById } = useSessionStore.getState();
       if (activeSingerId && queueItem) {
         try {

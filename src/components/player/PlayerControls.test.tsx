@@ -131,6 +131,7 @@ let mockSessionStore = createMockSessionStore();
 let mockWindowManager = createMockWindowManager();
 let mockYoutubeService = createMockYoutubeService();
 const mockPlayVideo = vi.fn();
+const mockNotify = vi.fn();
 
 // =============================================================================
 // Mock Definitions
@@ -174,6 +175,7 @@ vi.mock("../../stores", () => ({
     }
   ),
   playVideo: () => mockPlayVideo(),
+  notify: (...args: unknown[]) => mockNotify(...args),
 }));
 
 vi.mock("../../services", () => ({
@@ -211,6 +213,7 @@ function resetMocks() {
   mockWindowManager = createMockWindowManager();
   mockYoutubeService = createMockYoutubeService();
   mockPlayVideo.mockClear();
+  mockNotify.mockClear();
 }
 
 function setupVideoPlaying(options: {
@@ -565,7 +568,7 @@ describe("PlayerControls", () => {
       await userEvent.click(reloadButton!);
 
       await waitFor(() => {
-        expect(mockPlayerStore.setError).toHaveBeenCalledWith("Failed to reload video");
+        expect(mockNotify).toHaveBeenCalledWith("error", "Failed to reload video");
         expect(mockPlayerStore.setIsLoading).toHaveBeenCalledWith(false);
       });
     });
@@ -604,17 +607,8 @@ describe("PlayerControls", () => {
       });
     });
 
-    it("reload clears previous error state", async () => {
-      setupVideoPlaying();
-      mockPlayerStore.error = "Previous error";
-      render(<PlayerControls />);
-
-      const reloadButton = getMainReloadButton();
-      await userEvent.click(reloadButton!);
-
-      // setError(null) should be called to clear previous error
-      expect(mockPlayerStore.setError).toHaveBeenCalledWith(null);
-    });
+    // Note: Component no longer uses setError - it uses notify() for user-facing errors.
+    // The notification system handles error display separately from the error state.
 
     it("reload does nothing when getCurrentItem returns null", async () => {
       setupVideoPlaying();

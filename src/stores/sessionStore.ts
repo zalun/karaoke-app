@@ -395,9 +395,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   setActiveSinger: async (singerId: number | null) => {
-    const { session } = get();
+    const { session, singers } = get();
     if (!session) {
       log.warn("Cannot set active singer: no active session");
+      return;
+    }
+
+    // Validate singer exists in session (if not clearing)
+    if (singerId !== null && !singers.some((s) => s.id === singerId)) {
+      log.warn(`Cannot set active singer: singer ${singerId} not in session`);
       return;
     }
 
