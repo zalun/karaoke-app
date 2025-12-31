@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5-beta] - 2025-12-31
+
+### Fixed
+- Seek bar not working when app starts with detached player (#116)
+
 ## [0.5.4-beta] - 2025-12-31
 
 ### Added
@@ -246,6 +251,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Queue and history management
 - Basic video player controls
 
+[0.5.5-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.4-beta...v0.5.5-beta
 [0.5.4-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.3-beta...v0.5.4-beta
 [0.5.3-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.2-beta...v0.5.3-beta
 [0.5.2-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.1-beta...v0.5.2-beta
