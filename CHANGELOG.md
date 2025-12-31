@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Custom karaoke-themed background image for macOS DMG installer (#112)
 
+### Changed
+- Notification duration now varies by type (#111)
+  - Success: 3s, Info: 4s, Warning: 6s, Error: 8s
+
 ## [0.5.3-beta] - 2025-12-31
 
 ### Added
