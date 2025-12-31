@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4-beta] - 2025-12-31
+
 ### Added
 - Custom karaoke-themed background image for macOS DMG installer (#112)
 - Active singer selection for auto-assigning singers when adding songs (#109)
@@ -244,6 +246,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Queue and history management
 - Basic video player controls
 
+[0.5.4-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.3-beta...v0.5.4-beta
+[0.5.3-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.2-beta...v0.5.3-beta
 [0.5.2-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.1-beta...v0.5.2-beta
 [0.5.1-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.0-beta...v0.5.1-beta
 [0.5.0-beta]: https://github.com/zalun/karaoke-app/compare/v0.4.0...v0.5.0-beta
