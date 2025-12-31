@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3-beta] - 2025-12-31
+
+### Added
+- Fair Shuffle button in Queue panel (#109)
+  - Reorganizes queue into fair round-robin order by singer
+  - Multi-singer items (duets) count for ALL singers involved
+  - Uses MAX count algorithm: duets wait until all singers are due
+  - 11 unit tests for shuffle algorithm
+- Icon-only buttons for Queue and History panels
+  - Shuffle, Trash, Star, and ListRestart icons from lucide-react
+  - Improved accessibility with aria-labels
+
+### Changed
+- Reduced notification auto-hide duration from 10s to 4s
+
 ## [0.5.2-beta] - 2025-12-30
 
 ### Added
