@@ -111,6 +111,26 @@ export function VideoPlayer() {
     }
   }, [nextQueueVideoId]);
 
+  // Prefetch first queue item when no video is loaded (idle state)
+  useEffect(() => {
+    if (currentVideo || !nextQueueVideoId || prefetchTriggeredRef.current === nextQueueVideoId) {
+      return;
+    }
+
+    prefetchTriggeredRef.current = nextQueueVideoId;
+    log.debug(`Prefetching first queue item (idle): ${nextQueueItem?.video.title}`);
+
+    youtubeService.getStreamUrl(nextQueueVideoId)
+      .then(info => {
+        // Only cache if this is still the first item in queue
+        if (useQueueStore.getState().queue[0]?.video.youtubeId === nextQueueVideoId) {
+          usePlayerStore.getState().setPrefetchedStreamUrl(nextQueueVideoId, info.url);
+          log.debug(`Prefetch complete (idle): ${nextQueueItem?.video.title}`);
+        }
+      })
+      .catch((err) => log.debug(`Prefetch failed (idle) for ${nextQueueVideoId}`, err));
+  }, [currentVideo, nextQueueVideoId, nextQueueItem?.video.title]);
+
   const tryPlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
