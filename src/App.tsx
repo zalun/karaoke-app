@@ -24,6 +24,7 @@ import { DisplayRestoreDialog } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
 import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, getStreamUrlWithCache, notify, type QueueItem } from "./stores";
 import { SingerAvatar } from "./components/singers";
+import { Shuffle, Trash2, ListRestart, Star } from "lucide-react";
 import { youtubeService, createLogger } from "./services";
 import { useMediaControls, useDisplayWatcher, useUpdateCheck } from "./hooks";
 import { NotificationBar } from "./components/notification";
@@ -377,7 +378,7 @@ function QueueSummary({ queue }: { queue: QueueItem[] }) {
 const queueLog = createLogger("QueuePanel");
 
 function QueuePanel() {
-  const { queue, playFromQueue, removeFromQueue, reorderQueue, clearQueue } = useQueueStore();
+  const { queue, playFromQueue, removeFromQueue, reorderQueue, clearQueue, fairShuffle } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
 
   const sensors = useSensors(
@@ -470,13 +471,33 @@ function QueuePanel() {
       <div className="mt-3 flex items-center gap-2">
         <QueueSummary queue={queue} />
         <button
+          onClick={async () => {
+            queueLog.info(`Fair shuffling queue (${queue.length} items)`);
+            try {
+              await fairShuffle();
+              notify("success", "Queue reordered for fair rotation");
+            } catch (error) {
+              queueLog.error("Failed to fair shuffle queue:", error);
+              notify("error", "Failed to shuffle queue");
+            }
+          }}
+          disabled={queue.length <= 1}
+          title="Fair Shuffle"
+          aria-label="Fair shuffle queue by singer"
+          className="ml-auto p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-gray-400 disabled:hover:bg-transparent"
+        >
+          <Shuffle size={18} />
+        </button>
+        <button
           onClick={() => {
             queueLog.info(`Clearing queue (${queue.length} items)`);
             clearQueue();
           }}
-          className="ml-auto py-2 px-3 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+          title="Clear Queue"
+          aria-label="Clear queue"
+          className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
         >
-          <span>Clear Queue</span>
+          <Trash2 size={18} />
         </button>
       </div>
     </div>
@@ -688,14 +709,16 @@ function HistoryPanel() {
           );
         })}
       </div>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex items-center gap-2">
+        <div className="flex-1" />
         {!historySelectionMode && (
           <button
             onClick={toggleHistorySelectionMode}
-            className="flex-1 py-2 text-sm text-gray-400 hover:text-yellow-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+            className="p-2 text-gray-400 hover:text-yellow-400 hover:bg-gray-700 rounded transition-colors"
             title="Select songs to add to favorites"
+            aria-label="Select songs to add to favorites"
           >
-            <span>Select</span>
+            <Star size={18} />
           </button>
         )}
         <button
@@ -703,21 +726,22 @@ function HistoryPanel() {
             historyLog.info(`Moving all history to queue (${history.length} items)`);
             moveAllHistoryToQueue();
           }}
-          className="flex-1 py-2 text-sm text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+          className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors"
           title="Move all history items back to queue"
           aria-label={`Replay all ${history.length} songs from history`}
         >
-          <span>Replay All</span>
+          <ListRestart size={18} />
         </button>
         <button
           onClick={() => {
             historyLog.info(`Clearing history (${history.length} items)`);
             clearHistory();
           }}
-          className="flex-1 py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors flex items-center justify-center gap-2"
+          className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
+          title="Clear History"
           aria-label={`Clear ${history.length} songs from history`}
         >
-          <span>Clear History</span>
+          <Trash2 size={18} />
         </button>
       </div>
     </div>

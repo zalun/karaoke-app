@@ -264,6 +264,7 @@ pub fn run() {
             commands::queue_move_all_history_to_queue,
             commands::queue_set_history_index,
             commands::queue_get_state,
+            commands::queue_fair_shuffle,
             // Session management commands
             commands::get_recent_sessions,
             commands::rename_session,

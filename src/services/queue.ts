@@ -46,6 +46,11 @@ export const queueService = {
     await invoke("queue_clear");
   },
 
+  async fairShuffle(): Promise<void> {
+    log.info("Fair shuffling queue");
+    await invoke("queue_fair_shuffle");
+  },
+
   // History operations
   async moveToHistory(itemId: string): Promise<void> {
     log.debug(`Moving item to history: ${itemId}`);
