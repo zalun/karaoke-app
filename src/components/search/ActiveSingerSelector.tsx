@@ -1,7 +1,7 @@
 import { useSessionStore } from "../../stores";
 import { SingerAvatar } from "../singers";
 import { ChevronDown, User } from "lucide-react";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
 export function ActiveSingerSelector() {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,7 +19,18 @@ export function ActiveSingerSelector() {
   const activeSinger = activeSingerId ? getSingerById(activeSingerId) : null;
 
   // All menu options: null (No singer) + all singers
-  const menuOptions = [null, ...singers.map((s) => s.id)];
+  const menuOptions = useMemo(() => [null, ...singers.map((s) => s.id)], [singers]);
+
+  // Handle selection - defined before handleKeyDown to avoid stale closure
+  const handleSelect = useCallback(
+    async (singerId: number | null) => {
+      await setActiveSinger(singerId);
+      setIsOpen(false);
+      setFocusedIndex(-1);
+      buttonRef.current?.focus();
+    },
+    [setActiveSinger]
+  );
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -87,20 +98,13 @@ export function ActiveSingerSelector() {
           break;
       }
     },
-    [isOpen, focusedIndex, menuOptions]
+    [isOpen, focusedIndex, menuOptions, handleSelect]
   );
 
   // Don't render if no active session
   if (!session) {
     return null;
   }
-
-  const handleSelect = async (singerId: number | null) => {
-    await setActiveSinger(singerId);
-    setIsOpen(false);
-    setFocusedIndex(-1);
-    buttonRef.current?.focus();
-  };
 
   const handleToggle = () => {
     setIsOpen(!isOpen);
