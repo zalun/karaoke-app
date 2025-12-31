@@ -248,6 +248,12 @@ const MIGRATIONS: &[&str] = &[
     r#"
     CREATE INDEX IF NOT EXISTS idx_singer_favorites_video ON singer_favorites(video_id);
     "#,
+    // Migration 7: Active singer for sessions (Issue #109)
+    // Note: SQLite doesn't enforce FK constraints on ALTER TABLE, but we handle
+    // cleanup in delete_singer command. ON DELETE SET NULL is for documentation.
+    r#"
+    ALTER TABLE sessions ADD COLUMN active_singer_id INTEGER REFERENCES singers(id) ON DELETE SET NULL;
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

@@ -57,7 +57,7 @@ interface QueueState {
 
   // Actions
   addToQueue: (video: Video) => QueueItem;
-  addToQueueNext: (video: Video) => void;
+  addToQueueNext: (video: Video) => QueueItem;
   removeFromQueue: (itemId: string) => void;
   reorderQueue: (itemId: string, newPosition: number) => void;
   clearQueue: () => void;
@@ -192,6 +192,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
       return { queue: newQueue };
     });
+    return newItem;
   },
 
   removeFromQueue: (itemId) => {

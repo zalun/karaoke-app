@@ -17,6 +17,9 @@ interface SessionState {
   // Singers state
   singers: Singer[];
 
+  // Active singer for auto-assignment when adding songs
+  activeSingerId: number | null;
+
   // Queue item singer assignments (queueItemId -> singerId[])
   queueSingerAssignments: Map<string, number[]>;
 
@@ -40,6 +43,10 @@ interface SessionState {
   createSinger: (name: string, color?: string, isPersistent?: boolean) => Promise<Singer>;
   deleteSinger: (singerId: number) => Promise<void>;
 
+  // Active singer actions
+  setActiveSinger: (singerId: number | null) => Promise<void>;
+  loadActiveSinger: () => Promise<void>;
+
   // Queue singer assignment actions
   assignSingerToQueueItem: (queueItemId: string, singerId: number) => Promise<void>;
   removeSingerFromQueueItem: (queueItemId: string, singerId: number) => Promise<void>;
@@ -58,6 +65,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   recentSessions: [],
   recentSessionSingers: new Map(),
   singers: [],
+  activeSingerId: null,
   queueSingerAssignments: new Map(),
 
   loadSession: async () => {
@@ -69,6 +77,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         log.info(`Active session loaded: ${session.id}`);
         // Load singers for the active session
         await get().loadSingers();
+        // Load active singer for the session
+        await get().loadActiveSinger();
         // Load persisted queue/history state
         await useQueueStore.getState().loadPersistedState();
         // Load singer assignments for all queue and history items
@@ -84,7 +94,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ isLoading: true });
     try {
       const session = await sessionService.startSession(name);
-      set({ session, isLoading: false, singers: [], queueSingerAssignments: new Map() });
+      set({ session, isLoading: false, singers: [], activeSingerId: null, queueSingerAssignments: new Map() });
       // Reload queue/history state (items were migrated to the new session in backend)
       await useQueueStore.getState().loadPersistedState();
       // Load singer assignments for all queue and history items
@@ -102,7 +112,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ isLoading: true });
     try {
       await sessionService.endSession();
-      set({ session: null, isLoading: false, singers: [], queueSingerAssignments: new Map() });
+      set({ session: null, isLoading: false, singers: [], activeSingerId: null, queueSingerAssignments: new Map() });
       // Reset queue store (data already archived in DB)
       useQueueStore.getState().resetState();
       log.info("Session ended");
@@ -140,6 +150,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         session,
         isLoading: false,
         singers: [],
+        activeSingerId: null,
         queueSingerAssignments: new Map(),
         recentSessions: state.recentSessions.map((s) => ({
           ...s,
@@ -148,6 +159,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }));
       // Load singers and queue state for the new session
       await get().loadSingers();
+      // Load active singer for the session
+      await get().loadActiveSinger();
       await useQueueStore.getState().loadPersistedState();
       // Load singer assignments for all queue and history items
       await get().loadAllQueueItemSingers();
@@ -281,7 +294,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           queueSingerAssignments.delete(itemId);
         }
       }
-      return { singers, queueSingerAssignments };
+      // Clear active singer if it was the deleted one (backend already cleared it)
+      const activeSingerId = state.activeSingerId === singerId ? null : state.activeSingerId;
+      return { singers, queueSingerAssignments, activeSingerId };
     });
   },
 
@@ -377,5 +392,46 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   getSingerById: (singerId: number) => {
     return get().singers.find((s) => s.id === singerId);
+  },
+
+  setActiveSinger: async (singerId: number | null) => {
+    const { session, singers } = get();
+    if (!session) {
+      log.warn("Cannot set active singer: no active session");
+      return;
+    }
+
+    // Validate singer exists in session (if not clearing)
+    if (singerId !== null && !singers.some((s) => s.id === singerId)) {
+      log.warn(`Cannot set active singer: singer ${singerId} not in session`);
+      return;
+    }
+
+    log.info(`Setting active singer: ${singerId}`);
+    try {
+      await sessionService.setActiveSinger(session.id, singerId);
+      set({ activeSingerId: singerId });
+    } catch (error) {
+      log.error("Failed to set active singer:", error);
+      throw error;
+    }
+  },
+
+  loadActiveSinger: async () => {
+    const { session } = get();
+    if (!session) {
+      set({ activeSingerId: null });
+      return;
+    }
+
+    log.debug(`Loading active singer for session ${session.id}`);
+    try {
+      const singer = await sessionService.getActiveSinger(session.id);
+      set({ activeSingerId: singer?.id ?? null });
+      log.debug(`Active singer loaded: ${singer?.id ?? "none"}`);
+    } catch (error) {
+      log.error("Failed to load active singer:", error);
+      set({ activeSingerId: null });
+    }
   },
 }));

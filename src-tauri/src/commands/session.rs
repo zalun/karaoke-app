@@ -110,6 +110,12 @@ pub fn delete_singer(state: State<'_, AppState>, singer_id: i64) -> Result<(), C
     info!("Deleting singer: {}", singer_id);
     let db = state.db.lock().map_lock_err()?;
 
+    // Clear active_singer_id if this singer was the active singer
+    db.connection().execute(
+        "UPDATE sessions SET active_singer_id = NULL WHERE active_singer_id = ?1",
+        [singer_id],
+    )?;
+
     db.connection()
         .execute("DELETE FROM singers WHERE id = ?1", [singer_id])?;
 
@@ -733,5 +739,80 @@ pub fn load_session(
             let _ = conn.execute("ROLLBACK", []);
             Err(e)
         }
+    }
+}
+
+// ============ Active Singer Commands ============
+
+#[tauri::command]
+pub fn session_set_active_singer(
+    state: State<'_, AppState>,
+    session_id: i64,
+    singer_id: Option<i64>,
+) -> Result<(), CommandError> {
+    debug!(
+        "Setting active singer for session {}: {:?}",
+        session_id, singer_id
+    );
+    let db = state.db.lock().map_lock_err()?;
+
+    // If singer_id is provided, verify singer exists and is in the session
+    if let Some(sid) = singer_id {
+        let exists: bool = db
+            .connection()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM session_singers WHERE session_id = ?1 AND singer_id = ?2)",
+                rusqlite::params![session_id, sid],
+                |row| row.get(0),
+            )?;
+
+        if !exists {
+            return Err(CommandError::Validation(
+                "Singer is not part of this session".to_string(),
+            ));
+        }
+    }
+
+    db.connection().execute(
+        "UPDATE sessions SET active_singer_id = ?1 WHERE id = ?2",
+        rusqlite::params![singer_id, session_id],
+    )?;
+
+    info!(
+        "Active singer set for session {}: {:?}",
+        session_id, singer_id
+    );
+    Ok(())
+}
+
+#[tauri::command]
+pub fn session_get_active_singer(
+    state: State<'_, AppState>,
+    session_id: i64,
+) -> Result<Option<Singer>, CommandError> {
+    debug!("Getting active singer for session {}", session_id);
+    let db = state.db.lock().map_lock_err()?;
+
+    let result = db.connection().query_row(
+        "SELECT s.id, s.name, s.unique_name, s.color, s.is_persistent
+         FROM singers s
+         INNER JOIN sessions sess ON sess.active_singer_id = s.id
+         WHERE sess.id = ?1",
+        [session_id],
+        |row| {
+            Ok(Singer {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                unique_name: row.get(2)?,
+                color: row.get(3)?,
+                is_persistent: row.get::<_, i32>(4)? != 0,
+            })
+        },
+    );
+
+    match result {
+        Ok(singer) => Ok(Some(singer)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(CommandError::Database(e)),
     }
 }
