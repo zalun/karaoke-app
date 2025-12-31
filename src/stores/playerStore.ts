@@ -8,7 +8,8 @@ const log = createLogger("PlayerStore");
 const PREFETCH_CACHE_EXPIRY_MS = 5 * 60 * 60 * 1000;
 
 // Prefetch threshold: start prefetching this many seconds before video ends
-export const PREFETCH_THRESHOLD_SECONDS = 20;
+// Set to 30s to accommodate slower machines (M1 Mac takes ~7s for yt-dlp)
+export const PREFETCH_THRESHOLD_SECONDS = 30;
 
 export interface Video {
   id: string;

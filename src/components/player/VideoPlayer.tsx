@@ -409,6 +409,7 @@ export function VideoPlayer() {
         nextQueueItem={nextQueueItem}
         duration={duration}
         currentTime={currentTime}
+        isLoading={isLoading}
       />
     </div>
   );
@@ -419,10 +420,12 @@ function NextSongOverlayWithSingers({
   nextQueueItem,
   duration,
   currentTime,
+  isLoading,
 }: {
   nextQueueItem: ReturnType<typeof useQueueStore.getState>["queue"][0] | undefined;
   duration: number;
   currentTime: number;
+  isLoading: boolean;
 }) {
   const { session, singers, queueSingerAssignments, getQueueItemSingerIds, getSingerById, loadQueueItemSingers } = useSessionStore();
 
@@ -443,7 +446,8 @@ function NextSongOverlayWithSingers({
     >[];
   }, [session, nextQueueItem, queueSingerAssignments, singers, getQueueItemSingerIds, getSingerById]);
 
-  if (!nextQueueItem || duration <= 0) return null;
+  // Hide overlay when loading next video (prevents showing wrong "next" song during transition)
+  if (!nextQueueItem || duration <= 0 || isLoading) return null;
   const timeRemaining = Math.ceil(duration - currentTime);
   if (timeRemaining > OVERLAY_SHOW_THRESHOLD_SECONDS) return null;
 
