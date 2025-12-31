@@ -270,6 +270,9 @@ pub fn run() {
             commands::rename_session,
             commands::load_session,
             commands::delete_session,
+            // Active singer commands
+            commands::session_set_active_singer,
+            commands::session_get_active_singer,
             // Media controls commands
             commands::media_controls_update_metadata,
             commands::media_controls_update_playback,

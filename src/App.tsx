@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
-import { SearchBar, SearchResults } from "./components/search";
+import { SearchBar, SearchResults, ActiveSingerSelector } from "./components/search";
 import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
@@ -159,9 +159,9 @@ function App() {
   );
 
   const handleAddToQueue = useCallback(
-    (result: SearchResult) => {
+    async (result: SearchResult) => {
       log.info(`Adding to queue: "${result.title}"`);
-      addToQueue({
+      const queueItem = addToQueue({
         id: result.id,
         title: result.title,
         artist: result.channel,
@@ -170,12 +170,25 @@ function App() {
         source: "youtube",
         youtubeId: result.id,
       });
+
+      // Auto-assign active singer if set
+      const { activeSingerId, assignSingerToQueueItem, getSingerById } = useSessionStore.getState();
+      if (activeSingerId && queueItem) {
+        try {
+          await assignSingerToQueueItem(queueItem.id, activeSingerId);
+          log.debug(`Auto-assigned singer ${activeSingerId} to queue item ${queueItem.id}`);
+        } catch (error) {
+          log.error("Failed to auto-assign singer:", error);
+          const singer = getSingerById(activeSingerId);
+          notify("warning", `Could not assign ${singer?.name || "singer"} to song`);
+        }
+      }
     },
     [addToQueue]
   );
 
   const handlePlayNext = useCallback(
-    (result: SearchResult) => {
+    async (result: SearchResult) => {
       // If nothing is playing, start playback immediately
       if (!currentVideo) {
         log.info(`Nothing playing, starting playback: "${result.title}"`);
@@ -184,7 +197,7 @@ function App() {
       }
 
       log.info(`Adding to play next: "${result.title}"`);
-      addToQueueNext({
+      const queueItem = addToQueueNext({
         id: result.id,
         title: result.title,
         artist: result.channel,
@@ -193,6 +206,19 @@ function App() {
         source: "youtube",
         youtubeId: result.id,
       });
+
+      // Auto-assign active singer if set
+      const { activeSingerId, assignSingerToQueueItem, getSingerById } = useSessionStore.getState();
+      if (activeSingerId && queueItem) {
+        try {
+          await assignSingerToQueueItem(queueItem.id, activeSingerId);
+          log.debug(`Auto-assigned singer ${activeSingerId} to queue item ${queueItem.id}`);
+        } catch (error) {
+          log.error("Failed to auto-assign singer:", error);
+          const singer = getSingerById(activeSingerId);
+          notify("warning", `Could not assign ${singer?.name || "singer"} to song`);
+        }
+      }
     },
     [currentVideo, handlePlay, addToQueueNext]
   );
@@ -258,7 +284,10 @@ function App() {
             )}
             {/* Search Results - hidden when on player tab */}
             <div className={`h-full overflow-auto ${mainTab === "search" || !currentVideo ? "" : "hidden"}`}>
-              <h2 className="text-lg font-semibold mb-3">Search Results</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold">Search Results</h2>
+                <ActiveSingerSelector />
+              </div>
               <SearchResults
                 results={searchResults}
                 isLoading={isSearching}

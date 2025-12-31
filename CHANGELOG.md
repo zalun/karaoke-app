@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Custom karaoke-themed background image for macOS DMG installer (#112)
+- Active singer selection for auto-assigning singers when adding songs (#109)
+  - "Adding as" dropdown in search panel to select active singer
+  - Songs added to queue automatically assigned to selected singer
+  - Active singer persisted per session
 
 ### Changed
 - Notification duration now varies by type (#111)

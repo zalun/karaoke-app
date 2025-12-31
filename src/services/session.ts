@@ -160,4 +160,15 @@ export const sessionService = {
     log.info(`Deleting session: ${sessionId}`);
     await invoke("delete_session", { sessionId });
   },
+
+  // Active singer management
+  async setActiveSinger(sessionId: number, singerId: number | null): Promise<void> {
+    log.debug(`Setting active singer for session ${sessionId}: ${singerId}`);
+    await invoke("session_set_active_singer", { sessionId, singerId });
+  },
+
+  async getActiveSinger(sessionId: number): Promise<Singer | null> {
+    log.debug(`Getting active singer for session ${sessionId}`);
+    return await invoke<Singer | null>("session_get_active_singer", { sessionId });
+  },
 };
