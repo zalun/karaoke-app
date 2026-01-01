@@ -1,7 +1,7 @@
 {
   "name": "homekaraoke",
   "private": true,
-  "version": "0.5.6-beta",
+  "version": "0.5.7-beta",
   "type": "module",
   "scripts": {
     "dev": "vite",

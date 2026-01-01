@@ -1,6 +1,6 @@
 [package]
 name = "homekaraoke"
-version = "0.5.6-beta"
+version = "0.5.7-beta"
 description = "Home karaoke application"
 authors = ["Piotr Zalewa"]
 license = "MIT"
