@@ -112,6 +112,7 @@ jobs:
           # create-dmg expects a SOURCE FOLDER containing the items to put in the DMG
           # If we pass the .app directly, it copies its contents rather than the bundle
           STAGING_DIR=$(mktemp -d)
+          trap "rm -rf '$STAGING_DIR'" EXIT
           cp -R "$APP_PATH" "$STAGING_DIR/"
           echo "Staged app in: $STAGING_DIR"
 
@@ -128,9 +129,6 @@ jobs:
             --no-internet-enable \
             "$DMG_PATH" \
             "$STAGING_DIR"
-
-          # Cleanup staging directory
-          rm -rf "$STAGING_DIR"
 
           echo "path=$DMG_PATH" >> $GITHUB_OUTPUT
           echo "name=$DMG_NAME" >> $GITHUB_OUTPUT
