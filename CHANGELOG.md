@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.9-beta] - 2026-01-01
+## [0.5.9] - 2026-01-01
 
 ### Added
 - Windows platform support (#105)
