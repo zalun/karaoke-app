@@ -89,8 +89,9 @@ jobs:
         id: find-dmg
         run: |
           # Find the built .app
-          APP_PATH=$(find src-tauri/target/${{ matrix.target }}/release/bundle/macos -name "*.app" | head -1)
+          APP_PATH=$(find src-tauri/target/${{ matrix.target }}/release/bundle/macos -name "*.app" -type d | head -1)
           echo "Found app: $APP_PATH"
+          APP_NAME=$(basename "$APP_PATH")
 
           # Remove Tauri-generated DMG (lacks customization in headless CI)
           rm -f src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
@@ -108,6 +109,12 @@ jobs:
           mkdir -p "$DMG_DIR"
           DMG_PATH="$DMG_DIR/$DMG_NAME"
 
+          # create-dmg expects a SOURCE FOLDER containing the items to put in the DMG
+          # If we pass the .app directly, it copies its contents rather than the bundle
+          STAGING_DIR=$(mktemp -d)
+          cp -R "$APP_PATH" "$STAGING_DIR/"
+          echo "Staged app in: $STAGING_DIR"
+
           # Create customized DMG using create-dmg with sandbox-safe mode
           # This works in headless CI without requiring AppleScript/Finder
           create-dmg \
@@ -115,12 +122,15 @@ jobs:
             --background "src-tauri/icons/dmg-background.png" \
             --window-size 540 380 \
             --icon-size 80 \
-            --icon "HomeKaraoke.app" 140 180 \
+            --icon "$APP_NAME" 140 180 \
             --app-drop-link 400 180 \
             --sandbox-safe \
             --no-internet-enable \
             "$DMG_PATH" \
-            "$APP_PATH"
+            "$STAGING_DIR"
+
+          # Cleanup staging directory
+          rm -rf "$STAGING_DIR"
 
           echo "path=$DMG_PATH" >> $GITHUB_OUTPUT
           echo "name=$DMG_NAME" >> $GITHUB_OUTPUT
