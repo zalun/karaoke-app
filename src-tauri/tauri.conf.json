@@ -73,6 +73,11 @@
           "gstreamer1-libav"
         ]
       }
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
     }
   }
 }

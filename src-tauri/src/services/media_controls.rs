@@ -2,6 +2,7 @@ use log::{debug, error, info};
 use souvlaki::{
     MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, MediaPosition, PlatformConfig,
 };
+use std::ffi::c_void;
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
@@ -10,11 +11,18 @@ pub struct MediaControlsService {
 }
 
 impl MediaControlsService {
-    pub fn new(event_tx: Sender<MediaControlEvent>) -> Result<Self, String> {
+    /// Create new media controls service
+    /// On Windows, hwnd must be provided for media controls to work
+    pub fn new(event_tx: Sender<MediaControlEvent>, hwnd: Option<*mut c_void>) -> Result<Self, String> {
+        #[cfg(target_os = "windows")]
+        if hwnd.is_none() {
+            return Err("HWND is required for Windows media controls".to_string());
+        }
+
         let config = PlatformConfig {
             dbus_name: "homekaraoke",
             display_name: "HomeKaraoke",
-            hwnd: None,
+            hwnd,
         };
 
         let mut controls =

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Windows platform support (#105)
+  - Windows build in CI (produces MSI and NSIS installers)
+  - Media controls integration (play/pause from taskbar)
+  - Note: No code signing yet (SmartScreen warnings expected)
+  - Note: Multi-display support not available on Windows
+
 ## [0.5.8-beta] - 2026-01-01
 
 ### Fixed
