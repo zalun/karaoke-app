@@ -82,14 +82,49 @@ jobs:
           # Only signing identity - no APPLE_ID/PASSWORD means no notarization
           APPLE_SIGNING_IDENTITY: "Developer ID Application: Piotr Zalewa"
 
-      - name: Find DMG file
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Create customized DMG
         id: find-dmg
         run: |
-          DMG_PATH=$(find src-tauri/target/${{ matrix.target }}/release/bundle/dmg -name "*.dmg" | head -1)
-          DMG_NAME=$(basename "$DMG_PATH")
+          # Find the built .app
+          APP_PATH=$(find src-tauri/target/${{ matrix.target }}/release/bundle/macos -name "*.app" | head -1)
+          echo "Found app: $APP_PATH"
+
+          # Remove Tauri-generated DMG (lacks customization in headless CI)
+          rm -f src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+
+          # Determine DMG name based on architecture
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            DMG_NAME="HomeKaraoke_${VERSION}_aarch64.dmg"
+          else
+            DMG_NAME="HomeKaraoke_${VERSION}_x64.dmg"
+          fi
+
+          DMG_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/dmg"
+          mkdir -p "$DMG_DIR"
+          DMG_PATH="$DMG_DIR/$DMG_NAME"
+
+          # Create customized DMG using create-dmg with sandbox-safe mode
+          # This works in headless CI without requiring AppleScript/Finder
+          create-dmg \
+            --volname "HomeKaraoke" \
+            --background "src-tauri/icons/dmg-background.png" \
+            --window-size 540 380 \
+            --icon-size 80 \
+            --icon "HomeKaraoke.app" 140 180 \
+            --app-drop-link 400 180 \
+            --sandbox-safe \
+            --no-internet-enable \
+            "$DMG_PATH" \
+            "$APP_PATH"
+
           echo "path=$DMG_PATH" >> $GITHUB_OUTPUT
           echo "name=$DMG_NAME" >> $GITHUB_OUTPUT
-          echo "Found DMG: $DMG_PATH"
+          echo "Created customized DMG: $DMG_PATH"
 
       - name: Create or get release
         id: release
