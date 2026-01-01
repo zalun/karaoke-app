@@ -400,8 +400,11 @@ jobs:
         id: find-packages
         shell: pwsh
         run: |
-          $MSI_PATH = Get-ChildItem -Path "src-tauri/target/release/bundle/msi" -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-          $NSIS_PATH = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          $MSI_DIR = Join-Path "src-tauri" "target" "release" "bundle" "msi"
+          $NSIS_DIR = Join-Path "src-tauri" "target" "release" "bundle" "nsis"
+
+          $MSI_PATH = Get-ChildItem -Path $MSI_DIR -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          $NSIS_PATH = Get-ChildItem -Path $NSIS_DIR -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
 
           if ($MSI_PATH) {
             $MSI_NAME = Split-Path $MSI_PATH -Leaf
@@ -418,6 +421,17 @@ jobs:
           }
 
           if (-not $MSI_PATH -and -not $NSIS_PATH) {
+            Write-Host "Searched paths:"
+            Write-Host "  MSI: $MSI_DIR"
+            Write-Host "  NSIS: $NSIS_DIR"
+            Write-Host ""
+            Write-Host "Bundle directory contents:"
+            $BUNDLE_DIR = Join-Path "src-tauri" "target" "release" "bundle"
+            if (Test-Path $BUNDLE_DIR) {
+              Get-ChildItem -Path $BUNDLE_DIR -Recurse | ForEach-Object { Write-Host $_.FullName }
+            } else {
+              Write-Host "Bundle directory does not exist: $BUNDLE_DIR"
+            }
             Write-Error "No Windows installer found!"
             exit 1
           }
@@ -463,8 +477,10 @@ jobs:
             --clobber
 
   # Publish the draft release after all builds complete
+  # Windows build is optional - release continues if macOS and Linux succeed
   publish-release:
     needs: [build-macos, build-linux, build-windows]
+    if: always() && needs.build-macos.result == 'success' && needs.build-linux.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Update release notes and publish
