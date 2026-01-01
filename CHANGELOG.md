@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.8-beta] - 2026-01-01
+
+### Fixed
+- DMG containing Contents folder instead of HomeKaraoke.app bundle (#119)
+  - create-dmg now receives staging directory instead of .app path directly
+  - Added trap for guaranteed cleanup of temporary staging directory
+
 ## [0.5.7-beta] - 2025-12-31
 
 ### Fixed
