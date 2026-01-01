@@ -314,14 +314,25 @@ pub fn run() {
             let debug_enabled = load_debug_preference(&db);
             debug!("Debug mode loaded from preferences: {}", debug_enabled);
 
-            // Initialize media controls (macOS and Linux)
+            // Initialize media controls (macOS, Linux, and Windows)
             #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
             let shutdown_flag = Arc::new(AtomicBool::new(false));
 
             #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
             let (media_controls, media_event_rx) = {
                 let (tx, rx) = mpsc::channel();
-                let controls = match MediaControlsService::new(tx) {
+
+                // On Windows, we need the HWND from the main window
+                #[cfg(target_os = "windows")]
+                let hwnd = app
+                    .get_webview_window("main")
+                    .and_then(|w| w.hwnd().ok())
+                    .map(|h| h.0 as *mut std::ffi::c_void);
+
+                #[cfg(not(target_os = "windows"))]
+                let hwnd = None;
+
+                let controls = match MediaControlsService::new(tx, hwnd) {
                     Ok(c) => {
                         info!("Media controls initialized");
                         Some(c)
