@@ -157,6 +157,9 @@ jobs:
 
           ⏳ *Notarization in progress - DMGs will be updated when complete*
 
+          ### Windows
+          - **Windows 10/11**: Download the \`.msi\` installer
+
           ### Linux
           - **Ubuntu/Debian**: Download the \`.deb\` package
           - **Fedora/RHEL**: Download the \`.rpm\` package
@@ -365,9 +368,103 @@ jobs:
             --repo ${{ github.repository }} \
             --clobber
 
+  build-windows:
+    runs-on: windows-latest
+    name: Build Windows
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build Tauri app for Windows
+        run: npm run tauri build
+
+      - name: Find built packages
+        id: find-packages
+        shell: pwsh
+        run: |
+          $MSI_PATH = Get-ChildItem -Path "src-tauri/target/release/bundle/msi" -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          $NSIS_PATH = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+
+          if ($MSI_PATH) {
+            $MSI_NAME = Split-Path $MSI_PATH -Leaf
+            "msi_path=$MSI_PATH" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "msi_name=$MSI_NAME" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Host "Found MSI: $MSI_PATH"
+          }
+
+          if ($NSIS_PATH) {
+            $NSIS_NAME = Split-Path $NSIS_PATH -Leaf
+            "nsis_path=$NSIS_PATH" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "nsis_name=$NSIS_NAME" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Host "Found NSIS: $NSIS_PATH"
+          }
+
+          if (-not $MSI_PATH -and -not $NSIS_PATH) {
+            Write-Error "No Windows installer found!"
+            exit 1
+          }
+
+      - name: Create or get release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          # Check if release exists (may already be created by other jobs)
+          if gh release view ${{ github.ref_name }} --repo ${{ github.repository }} > /dev/null 2>&1; then
+            echo "Release exists"
+          else
+            # Create draft release
+            gh release create ${{ github.ref_name }} \
+              --repo ${{ github.repository }} \
+              --title "HomeKaraoke ${{ github.ref_name }}" \
+              --notes "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details." \
+              --draft
+            echo "Created draft release"
+          fi
+
+      - name: Upload MSI to release
+        if: steps.find-packages.outputs.msi_path != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release upload ${{ github.ref_name }} \
+            "${{ steps.find-packages.outputs.msi_path }}#${{ steps.find-packages.outputs.msi_name }}" \
+            --repo ${{ github.repository }} \
+            --clobber
+
+      - name: Upload NSIS installer to release
+        if: steps.find-packages.outputs.nsis_path != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release upload ${{ github.ref_name }} \
+            "${{ steps.find-packages.outputs.nsis_path }}#${{ steps.find-packages.outputs.nsis_name }}" \
+            --repo ${{ github.repository }} \
+            --clobber
+
   # Publish the draft release after all builds complete
   publish-release:
-    needs: [build-macos, build-linux]
+    needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Update release notes and publish
@@ -384,6 +481,10 @@ jobs:
           ### macOS
           - **Apple Silicon (M1/M2/M3)**: Download the \`aarch64\` DMG
           - **Intel Macs**: Download the \`x64\` DMG
+
+          ### Windows
+          - **Windows 10/11**: Download the \`.msi\` installer
+          - Note: You may see a SmartScreen warning (app is not code-signed yet)
 
           ### Linux
           - **Ubuntu/Debian**: Download the \`.deb\` package

@@ -10,15 +10,15 @@ use std::sync::{Arc, Mutex};
 
 #[cfg(target_os = "macos")]
 use services::{DisplayEvent, DisplayWatcherService};
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use services::MediaControlsService;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use souvlaki::MediaControlEvent;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use std::sync::mpsc;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use std::thread::JoinHandle;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use std::time::Duration;
 use tauri::menu::{AboutMetadata, CheckMenuItem, Menu, MenuItemKind, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -30,13 +30,13 @@ pub struct AppState {
     pub keep_awake: Mutex<Option<keepawake::KeepAwake>>,
     pub debug_mode: AtomicBool,
     pub log_dir: std::path::PathBuf,
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     pub media_controls: Mutex<Option<MediaControlsService>>,
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     pub media_event_rx: Mutex<Option<mpsc::Receiver<MediaControlEvent>>>,
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     pub media_event_thread: Mutex<Option<JoinHandle<()>>>,
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     pub shutdown_flag: Arc<AtomicBool>,
     #[cfg(target_os = "macos")]
     pub display_watcher: Mutex<Option<DisplayWatcherService>>,
@@ -315,10 +315,10 @@ pub fn run() {
             debug!("Debug mode loaded from preferences: {}", debug_enabled);
 
             // Initialize media controls (macOS and Linux)
-            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
             let shutdown_flag = Arc::new(AtomicBool::new(false));
 
-            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
             let (media_controls, media_event_rx) = {
                 let (tx, rx) = mpsc::channel();
                 let controls = match MediaControlsService::new(tx) {
@@ -356,13 +356,13 @@ pub fn run() {
                 keep_awake: Mutex::new(None),
                 debug_mode: AtomicBool::new(debug_enabled),
                 log_dir: log_dir.clone(),
-                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
                 media_controls: Mutex::new(media_controls),
-                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
                 media_event_rx: Mutex::new(media_event_rx),
-                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
                 media_event_thread: Mutex::new(None),
-                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
                 shutdown_flag: shutdown_flag.clone(),
                 #[cfg(target_os = "macos")]
                 display_watcher: Mutex::new(display_watcher),
@@ -373,7 +373,7 @@ pub fn run() {
             });
 
             // Spawn media event polling thread (macOS and Linux)
-            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
             {
                 let app_handle = app.handle().clone();
                 let shutdown_flag_clone = shutdown_flag.clone();
@@ -559,7 +559,7 @@ pub fn run() {
                 info!("Application exiting, initiating graceful shutdown");
 
                 // Shutdown media controls (macOS and Linux)
-                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
                 {
                     let state = app_handle.state::<AppState>();
 
