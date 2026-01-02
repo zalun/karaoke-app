@@ -22,7 +22,8 @@ import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
-import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, getStreamUrlWithCache, notify, type QueueItem } from "./stores";
+import { SettingsDialog } from "./components/settings";
+import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, getStreamUrlWithCache, notify, type QueueItem } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star } from "lucide-react";
 import { youtubeService, createLogger } from "./services";
@@ -62,7 +63,10 @@ function App() {
   // Get favorites store methods for menu events
   const { openLoadFavoritesDialog, openManageFavoritesDialog } = useFavoritesStore();
 
-  // Listen for Singers menu events
+  // Get settings store methods for menu events
+  const { openSettingsDialog } = useSettingsStore();
+
+  // Listen for menu events
   useEffect(() => {
     let mounted = true;
     const unsubscribers: (() => void)[] = [];
@@ -83,11 +87,19 @@ function App() {
       else fn(); // Already unmounted, clean up immediately
     });
 
+    listen("show-settings-dialog", () => {
+      log.info("Settings dialog triggered from menu");
+      openSettingsDialog();
+    }).then((fn) => {
+      if (mounted) unsubscribers.push(fn);
+      else fn(); // Already unmounted, clean up immediately
+    });
+
     return () => {
       mounted = false;
       unsubscribers.forEach((fn) => fn());
     };
-  }, [openLoadFavoritesDialog, openManageFavoritesDialog]);
+  }, [openLoadFavoritesDialog, openManageFavoritesDialog, openSettingsDialog]);
 
   const handleSearch = useCallback(async (query: string) => {
     log.info(`Searching for: "${query}"`);
@@ -244,6 +256,9 @@ function App() {
       {/* Favorites dialogs */}
       <LoadFavoritesDialog />
       <ManageFavoritesDialog />
+
+      {/* Settings dialog */}
+      <SettingsDialog />
 
       <div className="h-full grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left: Main content area */}

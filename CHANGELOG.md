@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Settings dialog with tabbed interface (#102)
+  - Access via HomeKaraoke > Settings or ⌘,
+  - Tabs: Playback, Display, Queue & History, Advanced, About
+  - Settings persist to SQLite database
+  - Arrow key navigation between tabs
+  - Check for Updates button in About tab
+  - Open Log Folder button in About tab
+  - Note: Settings UI only - functionality will be wired in future updates
+
 ### Changed
 - Update check now uses cached endpoint at homekaraoke.app (#107)
   - Avoids GitHub API rate limits (60 requests/hour per IP)
