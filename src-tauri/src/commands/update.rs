@@ -77,8 +77,8 @@ struct CachedVersionResponse {
 /// Cached version endpoint URL
 const CACHED_VERSION_ENDPOINT: &str = "https://homekaraoke.app/api/latest-version";
 
-/// Allowed domain for release URLs (security validation)
-const ALLOWED_RELEASE_DOMAIN: &str = "https://github.com/";
+/// Allowed prefix for release URLs (security validation)
+const ALLOWED_RELEASE_PREFIX: &str = "https://github.com/zalun/karaoke-app/";
 
 /// Parsed version with optional pre-release suffix
 #[derive(Debug, PartialEq, Eq)]
@@ -228,10 +228,10 @@ async fn fetch_from_cache(client: &reqwest::Client) -> Option<(String, String)> 
         return None;
     }
 
-    // Security: only allow release URLs from trusted domain
-    if !cached.release_url.starts_with(ALLOWED_RELEASE_DOMAIN) {
+    // Security: only allow release URLs from this repository
+    if !cached.release_url.starts_with(ALLOWED_RELEASE_PREFIX) {
         debug!(
-            "update_check: cache returned URL from untrusted domain: {}",
+            "update_check: cache returned URL from untrusted source: {}",
             cached.release_url
         );
         return None;
