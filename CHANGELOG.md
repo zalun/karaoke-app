@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Update check now uses cached endpoint at homekaraoke.app (#107)
+  - Avoids GitHub API rate limits (60 requests/hour per IP)
+  - Falls back to GitHub API if cached endpoint is unavailable
+
 ## [0.5.9] - 2026-01-01
 
 ### Added

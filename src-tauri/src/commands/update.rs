@@ -61,6 +61,25 @@ struct GitHubRelease {
     html_url: String,
 }
 
+/// Cached version API response from homekaraoke.app
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CachedVersionResponse {
+    /// Version tag (e.g., "0.5.9" or "v0.5.9")
+    version: String,
+    /// Published timestamp (present in API but unused by client)
+    #[serde(default)]
+    _published_at: Option<String>,
+    /// URL to the GitHub release page
+    release_url: String,
+}
+
+/// Cached version endpoint URL
+const CACHED_VERSION_ENDPOINT: &str = "https://homekaraoke.app/api/latest-version";
+
+/// Allowed prefix for release URLs (security validation)
+const ALLOWED_RELEASE_PREFIX: &str = "https://github.com/zalun/karaoke-app/";
+
 /// Parsed version with optional pre-release suffix
 #[derive(Debug, PartialEq, Eq)]
 struct ParsedVersion {
@@ -173,32 +192,64 @@ fn is_newer_version(current: &str, latest: &str) -> bool {
     }
 }
 
-#[tauri::command]
-pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
-    let current_version = env!("CARGO_PKG_VERSION");
-    debug!("update_check: current version = {}", current_version);
+/// Try to fetch version info from the cached endpoint at homekaraoke.app
+async fn fetch_from_cache(client: &reqwest::Client) -> Option<(String, String)> {
+    let response = match client
+        .get(CACHED_VERSION_ENDPOINT)
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            debug!("update_check: cache endpoint network error: {}", e);
+            return None;
+        }
+    };
 
-    // Fetch latest release from GitHub API
-    let client = reqwest::Client::builder()
-        .user_agent(format!(
-            "HomeKaraoke-App/{} (+https://github.com/zalun/karaoke-app)",
-            env!("CARGO_PKG_VERSION")
-        ))
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| UpdateError::Network(e.to_string()))?;
+    if !response.status().is_success() {
+        debug!(
+            "update_check: cache endpoint returned status {}",
+            response.status()
+        );
+        return None;
+    }
 
+    let cached: CachedVersionResponse = match response.json().await {
+        Ok(c) => c,
+        Err(e) => {
+            debug!("update_check: failed to parse cache response: {}", e);
+            return None;
+        }
+    };
+
+    // Validate response data
+    if !is_valid_cached_response(&cached.version, &cached.release_url) {
+        debug!(
+            "update_check: invalid cache response - version: '{}', url: '{}'",
+            cached.version, cached.release_url
+        );
+        return None;
+    }
+
+    debug!(
+        "update_check: got cached version {} (cache endpoint)",
+        cached.version
+    );
+    Some((cached.version, cached.release_url))
+}
+
+/// Fetch version info directly from GitHub API (fallback)
+async fn fetch_from_github(client: &reqwest::Client) -> Result<(String, String, Option<String>), UpdateError> {
     let response = client
         .get("https://api.github.com/repos/zalun/karaoke-app/releases/latest")
         .send()
         .await
         .map_err(|e| {
-            warn!("update_check: network error: {}", e);
+            warn!("update_check: GitHub API network error: {}", e);
             UpdateError::Network(e.to_string())
         })?;
 
     if !response.status().is_success() {
-        // Handle 404 (no releases) vs other errors
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Err(UpdateError::NoReleases);
         }
@@ -209,17 +260,42 @@ pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
     }
 
     let release: GitHubRelease = response.json().await.map_err(|e| {
-        warn!("update_check: failed to parse response: {}", e);
+        warn!("update_check: failed to parse GitHub response: {}", e);
         UpdateError::Parse(e.to_string())
     })?;
 
     debug!(
-        "update_check: latest release = {} ({})",
-        release.tag_name,
-        release.name.as_deref().unwrap_or("")
+        "update_check: got version {} from GitHub API",
+        release.tag_name
     );
+    Ok((release.tag_name, release.html_url, release.name))
+}
 
-    let latest_version = release.tag_name.clone();
+#[tauri::command]
+pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
+    let current_version = env!("CARGO_PKG_VERSION");
+    debug!("update_check: current version = {}", current_version);
+
+    let client = reqwest::Client::builder()
+        .user_agent(format!(
+            "HomeKaraoke-App/{} (+https://github.com/zalun/karaoke-app)",
+            env!("CARGO_PKG_VERSION")
+        ))
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| UpdateError::Network(e.to_string()))?;
+
+    // Try cached endpoint first (avoids GitHub API rate limits)
+    let (latest_version, release_url, release_name) =
+        if let Some((version, url)) = fetch_from_cache(&client).await {
+            // Cached endpoint doesn't provide release name
+            (normalize_version(&version), url, None)
+        } else {
+            // Fall back to GitHub API
+            debug!("update_check: cache unavailable, falling back to GitHub API");
+            fetch_from_github(&client).await?
+        };
+
     let update_available = is_newer_version(current_version, &latest_version);
 
     if update_available {
@@ -235,10 +311,31 @@ pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
         latest_version,
         current_version: current_version.to_string(),
         update_available,
-        release_url: release.html_url.clone(),
-        download_url: release.html_url, // Use GitHub release page for downloads
-        release_name: release.name,
+        release_url: release_url.clone(),
+        download_url: release_url,
+        release_name,
     })
+}
+
+/// Normalize version string to always have "v" prefix
+fn normalize_version(version: &str) -> String {
+    if version.starts_with('v') {
+        version.to_string()
+    } else {
+        format!("v{}", version)
+    }
+}
+
+/// Validate that a release URL is from the trusted repository
+fn is_valid_release_url(url: &str) -> bool {
+    url.starts_with(ALLOWED_RELEASE_PREFIX)
+}
+
+/// Validate cached response data
+fn is_valid_cached_response(version: &str, release_url: &str) -> bool {
+    !version.trim().is_empty()
+        && !release_url.trim().is_empty()
+        && is_valid_release_url(release_url)
 }
 
 #[cfg(test)]
@@ -295,5 +392,93 @@ mod tests {
         assert!(is_newer_version("v1.0.0-rc1", "v1.0.0-rc2")); // rc2 > rc1
         assert!(is_newer_version("v1.0.0-beta1", "v1.0.0-beta2")); // beta2 > beta1
         assert!(!is_newer_version("v1.0.0-rc10", "v1.0.0-rc2")); // rc2 is not newer than rc10
+    }
+
+    #[test]
+    fn test_normalize_version() {
+        // Without v prefix
+        assert_eq!(normalize_version("0.5.9"), "v0.5.9");
+        assert_eq!(normalize_version("1.0.0"), "v1.0.0");
+        assert_eq!(normalize_version("0.5.9-beta"), "v0.5.9-beta");
+
+        // With v prefix (should remain unchanged)
+        assert_eq!(normalize_version("v0.5.9"), "v0.5.9");
+        assert_eq!(normalize_version("v1.0.0"), "v1.0.0");
+        assert_eq!(normalize_version("v0.5.9-beta"), "v0.5.9-beta");
+    }
+
+    #[test]
+    fn test_is_valid_release_url() {
+        // Valid URLs
+        assert!(is_valid_release_url(
+            "https://github.com/zalun/karaoke-app/releases/tag/v0.5.9"
+        ));
+        assert!(is_valid_release_url(
+            "https://github.com/zalun/karaoke-app/releases/download/v0.5.9/HomeKaraoke.dmg"
+        ));
+
+        // Invalid URLs - wrong domain
+        assert!(!is_valid_release_url("https://github.com/other/repo/releases"));
+        assert!(!is_valid_release_url("https://evil.com/zalun/karaoke-app/"));
+        assert!(!is_valid_release_url("http://github.com/zalun/karaoke-app/")); // HTTP not HTTPS
+
+        // Invalid URLs - malicious attempts
+        assert!(!is_valid_release_url(
+            "https://github.com/zalun/karaoke-app-malicious/releases"
+        ));
+        assert!(!is_valid_release_url("https://github.com/malicious/karaoke-app/"));
+    }
+
+    #[test]
+    fn test_is_valid_cached_response() {
+        let valid_url = "https://github.com/zalun/karaoke-app/releases/tag/v0.5.9";
+
+        // Valid responses
+        assert!(is_valid_cached_response("0.5.9", valid_url));
+        assert!(is_valid_cached_response("v0.5.9", valid_url));
+
+        // Invalid - empty version
+        assert!(!is_valid_cached_response("", valid_url));
+        assert!(!is_valid_cached_response("   ", valid_url));
+
+        // Invalid - empty URL
+        assert!(!is_valid_cached_response("0.5.9", ""));
+        assert!(!is_valid_cached_response("0.5.9", "   "));
+
+        // Invalid - untrusted URL
+        assert!(!is_valid_cached_response(
+            "0.5.9",
+            "https://evil.com/releases"
+        ));
+        assert!(!is_valid_cached_response(
+            "0.5.9",
+            "https://github.com/other/repo/releases"
+        ));
+    }
+
+    #[test]
+    fn test_cached_version_response_deserialization() {
+        // Test JSON deserialization with camelCase
+        let json = r#"{
+            "version": "0.5.9",
+            "publishedAt": "2026-01-01T00:00:00Z",
+            "releaseUrl": "https://github.com/zalun/karaoke-app/releases/tag/v0.5.9"
+        }"#;
+
+        let response: CachedVersionResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.version, "0.5.9");
+        assert_eq!(
+            response.release_url,
+            "https://github.com/zalun/karaoke-app/releases/tag/v0.5.9"
+        );
+
+        // Test without optional publishedAt field
+        let json_minimal = r#"{
+            "version": "0.5.9",
+            "releaseUrl": "https://github.com/zalun/karaoke-app/releases/tag/v0.5.9"
+        }"#;
+
+        let response: CachedVersionResponse = serde_json::from_str(json_minimal).unwrap();
+        assert_eq!(response.version, "0.5.9");
     }
 }
