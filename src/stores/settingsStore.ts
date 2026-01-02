@@ -65,8 +65,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   // Actions
   openSettingsDialog: () => {
-    set({ showSettingsDialog: true });
-    // Load settings when dialog opens
+    set({ showSettingsDialog: true, isLoading: true });
     get().loadSettings();
   },
 

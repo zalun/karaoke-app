@@ -186,6 +186,20 @@ interface SettingsSectionProps {
   setSetting: (key: string, value: string) => Promise<void>;
 }
 
+// Helper to wrap setSetting with error handling
+function createSettingHandler(
+  setSetting: (key: string, value: string) => Promise<void>
+) {
+  return async (key: string, value: string) => {
+    try {
+      await setSetting(key, value);
+    } catch (error) {
+      log.error(`Failed to save setting ${key}:`, error);
+      notify("error", "Failed to save setting");
+    }
+  };
+}
+
 function SettingRow({
   label,
   description,
@@ -256,13 +270,15 @@ function ToggleSwitch({
 }
 
 function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
+  const handleChange = createSettingHandler(setSetting);
+
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Playback</h4>
 
       <SettingRow
         label="Video Quality"
-        description="Maximum quality for YouTube videos"
+        description="Maximum quality for YouTube videos (not yet implemented)"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.VIDEO_QUALITY)}
@@ -272,25 +288,25 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
             { value: "720", label: "720p" },
             { value: "480", label: "480p" },
           ]}
-          onChange={(v) => setSetting(SETTINGS_KEYS.VIDEO_QUALITY, v)}
+          onChange={(v) => handleChange(SETTINGS_KEYS.VIDEO_QUALITY, v)}
         />
       </SettingRow>
 
       <SettingRow
         label="Autoplay Next Song"
-        description="Automatically play the next song in queue"
+        description="Automatically play the next song in queue (not yet implemented)"
       >
         <ToggleSwitch
           checked={getSetting(SETTINGS_KEYS.AUTOPLAY_NEXT) === "true"}
           onChange={(v) =>
-            setSetting(SETTINGS_KEYS.AUTOPLAY_NEXT, v ? "true" : "false")
+            handleChange(SETTINGS_KEYS.AUTOPLAY_NEXT, v ? "true" : "false")
           }
         />
       </SettingRow>
 
       <SettingRow
         label="Default Volume"
-        description="Volume level when app starts"
+        description="Volume level when app starts (not yet implemented)"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.DEFAULT_VOLUME)}
@@ -301,13 +317,13 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
             { value: "75", label: "75%" },
             { value: "100", label: "100%" },
           ]}
-          onChange={(v) => setSetting(SETTINGS_KEYS.DEFAULT_VOLUME, v)}
+          onChange={(v) => handleChange(SETTINGS_KEYS.DEFAULT_VOLUME, v)}
         />
       </SettingRow>
 
       <SettingRow
         label="Prefetch Next Video"
-        description="Pre-load stream URL before current song ends"
+        description="Pre-load stream URL before current song ends (not yet implemented)"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.PREFETCH_SECONDS)}
@@ -317,7 +333,7 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
             { value: "20", label: "20 seconds before" },
             { value: "30", label: "30 seconds before" },
           ]}
-          onChange={(v) => setSetting(SETTINGS_KEYS.PREFETCH_SECONDS, v)}
+          onChange={(v) => handleChange(SETTINGS_KEYS.PREFETCH_SECONDS, v)}
         />
       </SettingRow>
     </div>
@@ -325,13 +341,15 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
 }
 
 function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
+  const handleChange = createSettingHandler(setSetting);
+
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Display</h4>
 
       <SettingRow
         label="Next Song Overlay"
-        description="Show upcoming song info before current song ends"
+        description="Show upcoming song info before current song ends (not yet implemented)"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS)}
@@ -342,14 +360,14 @@ function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
             { value: "30", label: "30 seconds" },
           ]}
           onChange={(v) =>
-            setSetting(SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS, v)
+            handleChange(SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS, v)
           }
         />
       </SettingRow>
 
       <SettingRow
         label="Singer Announcement"
-        description="Duration to show current singer name"
+        description="Duration to show current singer name (not yet implemented)"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.SINGER_ANNOUNCEMENT_SECONDS)}
@@ -360,19 +378,19 @@ function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
             { value: "8", label: "8 seconds" },
           ]}
           onChange={(v) =>
-            setSetting(SETTINGS_KEYS.SINGER_ANNOUNCEMENT_SECONDS, v)
+            handleChange(SETTINGS_KEYS.SINGER_ANNOUNCEMENT_SECONDS, v)
           }
         />
       </SettingRow>
 
       <SettingRow
         label="Remember Player Position"
-        description="Restore detached player window position"
+        description="Restore detached player window position (not yet implemented)"
       >
         <ToggleSwitch
           checked={getSetting(SETTINGS_KEYS.REMEMBER_PLAYER_POSITION) === "true"}
           onChange={(v) =>
-            setSetting(SETTINGS_KEYS.REMEMBER_PLAYER_POSITION, v ? "true" : "false")
+            handleChange(SETTINGS_KEYS.REMEMBER_PLAYER_POSITION, v ? "true" : "false")
           }
         />
       </SettingRow>
@@ -381,13 +399,15 @@ function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
 }
 
 function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
+  const handleChange = createSettingHandler(setSetting);
+
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Queue & History</h4>
 
       <SettingRow
         label="History Limit"
-        description="Maximum number of songs to keep in history"
+        description="Maximum number of songs to keep in history (not yet implemented)"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.HISTORY_LIMIT)}
@@ -397,13 +417,13 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
             { value: "200", label: "200 songs" },
             { value: "unlimited", label: "Unlimited" },
           ]}
-          onChange={(v) => setSetting(SETTINGS_KEYS.HISTORY_LIMIT, v)}
+          onChange={(v) => handleChange(SETTINGS_KEYS.HISTORY_LIMIT, v)}
         />
       </SettingRow>
 
       <SettingRow
         label="Clear Queue on Exit"
-        description="What to do with the queue when closing the app"
+        description="What to do with the queue when closing the app (not yet implemented)"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT)}
@@ -412,7 +432,7 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
             { value: "always", label: "Always" },
             { value: "ask", label: "Ask" },
           ]}
-          onChange={(v) => setSetting(SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT, v)}
+          onChange={(v) => handleChange(SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT, v)}
         />
       </SettingRow>
     </div>
