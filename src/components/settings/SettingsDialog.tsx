@@ -34,9 +34,11 @@ export function SettingsDialog() {
     activeTab,
     setActiveTab,
     isLoading,
+    loadError,
     getSetting,
     setSetting,
     resetToDefaults,
+    loadSettings,
   } = useSettingsStore();
 
   // Handle keyboard navigation
@@ -137,6 +139,22 @@ export function SettingsDialog() {
           <div className="flex-1 overflow-y-auto p-6">
             {isLoading ? (
               <div className="text-gray-400">Loading settings...</div>
+            ) : loadError ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <AlertTriangle size={48} className="text-red-500 mb-4" />
+                <div className="text-lg font-medium text-white mb-2">
+                  Failed to load settings
+                </div>
+                <div className="text-sm text-gray-400 mb-4 max-w-md">
+                  {loadError}
+                </div>
+                <button
+                  onClick={() => loadSettings()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
             ) : (
               <>
                 {activeTab === "playback" && (

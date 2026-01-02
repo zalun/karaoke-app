@@ -26,6 +26,10 @@ impl Database {
         &self.conn
     }
 
+    pub fn connection_mut(&mut self) -> &mut Connection {
+        &mut self.conn
+    }
+
     /// Get a setting value by key
     pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
         let mut stmt = self.conn.prepare("SELECT value FROM settings WHERE key = ?1")?;

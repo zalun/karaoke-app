@@ -4,6 +4,20 @@ use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use tauri::State;
 
+/// Allowed setting keys - prevents arbitrary key injection
+const ALLOWED_SETTING_KEYS: &[&str] = &[
+    "video_quality",
+    "autoplay_next",
+    "default_volume",
+    "prefetch_seconds",
+    "next_song_overlay_seconds",
+    "singer_announcement_seconds",
+    "remember_player_position",
+    "history_limit",
+    "clear_queue_on_exit",
+    "debug_mode",
+];
+
 /// Get the current debug mode state
 #[tauri::command]
 pub fn get_debug_mode(state: State<'_, AppState>) -> bool {
@@ -88,18 +102,20 @@ pub fn open_log_folder(state: State<'_, AppState>) -> Result<(), String> {
     let log_dir = &state.log_dir;
     log::info!("Opening log directory from command: {:?}", log_dir);
 
-    // Validate the path exists and is a directory
-    if !log_dir.exists() {
-        return Err(format!("Log directory does not exist: {:?}", log_dir));
-    }
-    if !log_dir.is_dir() {
-        return Err(format!("Log path is not a directory: {:?}", log_dir));
+    // Canonicalize the path to resolve symlinks and validate it exists
+    let canonical_path = log_dir
+        .canonicalize()
+        .map_err(|e| format!("Invalid log directory path: {}", e))?;
+
+    // Validate it's a directory
+    if !canonical_path.is_dir() {
+        return Err(format!("Log path is not a directory: {:?}", canonical_path));
     }
 
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
-            .arg(log_dir)
+            .arg(&canonical_path)
             .spawn()
             .map_err(|e| format!("Failed to open log folder: {}", e))?;
     }
@@ -107,7 +123,7 @@ pub fn open_log_folder(state: State<'_, AppState>) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("explorer")
-            .arg(log_dir)
+            .arg(&canonical_path)
             .spawn()
             .map_err(|e| format!("Failed to open log folder: {}", e))?;
     }
@@ -115,7 +131,7 @@ pub fn open_log_folder(state: State<'_, AppState>) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         std::process::Command::new("xdg-open")
-            .arg(log_dir)
+            .arg(&canonical_path)
             .spawn()
             .map_err(|e| format!("Failed to open log folder: {}", e))?;
     }
@@ -130,32 +146,40 @@ pub fn settings_reset_all(
     defaults: HashMap<String, String>,
 ) -> Result<(), String> {
     debug!("settings_reset_all called with {} defaults", defaults.len());
-    match state.db.lock() {
-        Ok(db) => {
-            let conn = db.connection();
 
-            // Use a transaction for atomic reset
-            conn.execute("BEGIN TRANSACTION", [])
+    // Validate all keys are in the allowlist
+    for key in defaults.keys() {
+        if !ALLOWED_SETTING_KEYS.contains(&key.as_str()) {
+            return Err(format!("Invalid setting key: {}", key));
+        }
+    }
+
+    match state.db.lock() {
+        Ok(mut db) => {
+            // Use rusqlite's Transaction API for proper RAII-based transaction handling
+            let tx = db
+                .connection_mut()
+                .transaction()
                 .map_err(|e| format!("Failed to begin transaction: {}", e))?;
 
             for (key, value) in defaults.iter() {
-                if let Err(e) = conn.execute(
+                tx.execute(
                     "INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
                      ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = CURRENT_TIMESTAMP",
                     rusqlite::params![key, value],
-                ) {
-                    // Rollback on error
-                    let _ = conn.execute("ROLLBACK", []);
-                    return Err(format!("Failed to reset setting {}: {}", key, e));
-                }
+                )
+                .map_err(|e| format!("Failed to reset setting {}: {}", key, e))?;
             }
 
-            conn.execute("COMMIT", [])
+            tx.commit()
                 .map_err(|e| format!("Failed to commit transaction: {}", e))?;
 
             log::info!("All settings reset to defaults");
             Ok(())
         }
-        Err(e) => Err(format!("Failed to acquire database lock for settings_reset_all: {}", e)),
+        Err(e) => Err(format!(
+            "Failed to acquire database lock for settings_reset_all: {}",
+            e
+        )),
     }
 }

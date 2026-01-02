@@ -43,6 +43,7 @@ interface SettingsState {
   // Settings values (loaded from DB)
   settings: Record<string, string>;
   isLoading: boolean;
+  loadError: string | null;
 
   // Actions
   openSettingsDialog: () => void;
@@ -62,10 +63,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // Settings values
   settings: { ...SETTINGS_DEFAULTS },
   isLoading: false,
+  loadError: null,
 
   // Actions
   openSettingsDialog: () => {
-    set({ showSettingsDialog: true, isLoading: true });
+    set({ showSettingsDialog: true, isLoading: true, loadError: null });
     get().loadSettings();
   },
 
@@ -78,18 +80,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   loadSettings: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, loadError: null });
     try {
       const dbSettings = await invoke<Record<string, string>>("settings_get_all");
       log.debug("Loaded settings from database:", dbSettings);
 
       // Merge with defaults (DB values override defaults)
       const mergedSettings = { ...SETTINGS_DEFAULTS, ...dbSettings };
-      set({ settings: mergedSettings });
+      set({ settings: mergedSettings, isLoading: false });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       log.error("Failed to load settings:", error);
-    } finally {
-      set({ isLoading: false });
+      set({ loadError: errorMessage, isLoading: false });
     }
   },
 
