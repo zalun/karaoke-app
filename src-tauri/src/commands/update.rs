@@ -65,11 +65,20 @@ struct GitHubRelease {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CachedVersionResponse {
+    /// Version tag (e.g., "0.5.9" or "v0.5.9")
     version: String,
+    /// Published timestamp (present in API but unused by client)
     #[serde(default)]
     _published_at: Option<String>,
+    /// URL to the GitHub release page
     release_url: String,
 }
+
+/// Cached version endpoint URL
+const CACHED_VERSION_ENDPOINT: &str = "https://homekaraoke.app/api/latest-version";
+
+/// Allowed domain for release URLs (security validation)
+const ALLOWED_RELEASE_DOMAIN: &str = "https://github.com/";
 
 /// Parsed version with optional pre-release suffix
 #[derive(Debug, PartialEq, Eq)]
@@ -186,7 +195,7 @@ fn is_newer_version(current: &str, latest: &str) -> bool {
 /// Try to fetch version info from the cached endpoint at homekaraoke.app
 async fn fetch_from_cache(client: &reqwest::Client) -> Option<(String, String)> {
     let response = match client
-        .get("https://homekaraoke.app/api/latest-version")
+        .get(CACHED_VERSION_ENDPOINT)
         .send()
         .await
     {
@@ -219,8 +228,12 @@ async fn fetch_from_cache(client: &reqwest::Client) -> Option<(String, String)> 
         return None;
     }
 
-    if !cached.release_url.starts_with("https://") {
-        debug!("update_check: cache returned non-HTTPS URL");
+    // Security: only allow release URLs from trusted domain
+    if !cached.release_url.starts_with(ALLOWED_RELEASE_DOMAIN) {
+        debug!(
+            "update_check: cache returned URL from untrusted domain: {}",
+            cached.release_url
+        );
         return None;
     }
 
