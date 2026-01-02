@@ -185,17 +185,34 @@ fn is_newer_version(current: &str, latest: &str) -> bool {
 
 /// Try to fetch version info from the cached endpoint at homekaraoke.app
 async fn fetch_from_cache(client: &reqwest::Client) -> Option<(String, String)> {
-    let response = client
+    let response = match client
         .get("https://homekaraoke.app/api/latest-version")
         .send()
         .await
-        .ok()?;
+    {
+        Ok(r) => r,
+        Err(e) => {
+            debug!("update_check: cache endpoint network error: {}", e);
+            return None;
+        }
+    };
 
     if !response.status().is_success() {
+        debug!(
+            "update_check: cache endpoint returned status {}",
+            response.status()
+        );
         return None;
     }
 
-    let cached: CachedVersionResponse = response.json().await.ok()?;
+    let cached: CachedVersionResponse = match response.json().await {
+        Ok(c) => c,
+        Err(e) => {
+            debug!("update_check: failed to parse cache response: {}", e);
+            return None;
+        }
+    };
+
     debug!(
         "update_check: got cached version {} (cache endpoint)",
         cached.version
@@ -253,8 +270,14 @@ pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
     // Try cached endpoint first (avoids GitHub API rate limits)
     let (latest_version, release_url, release_name) =
         if let Some((version, url)) = fetch_from_cache(&client).await {
+            // Normalize version to always have "v" prefix for consistency
+            let normalized = if version.starts_with('v') {
+                version
+            } else {
+                format!("v{}", version)
+            };
             // Cached endpoint doesn't provide release name
-            (format!("v{}", version), url, None)
+            (normalized, url, None)
         } else {
             // Fall back to GitHub API
             debug!("update_check: cache miss, falling back to GitHub API");
