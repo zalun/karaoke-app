@@ -61,6 +61,16 @@ struct GitHubRelease {
     html_url: String,
 }
 
+/// Cached version API response from homekaraoke.app
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CachedVersionResponse {
+    version: String,
+    #[allow(dead_code)]
+    published_at: Option<String>,
+    release_url: String,
+}
+
 /// Parsed version with optional pre-release suffix
 #[derive(Debug, PartialEq, Eq)]
 struct ParsedVersion {
@@ -173,32 +183,38 @@ fn is_newer_version(current: &str, latest: &str) -> bool {
     }
 }
 
-#[tauri::command]
-pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
-    let current_version = env!("CARGO_PKG_VERSION");
-    debug!("update_check: current version = {}", current_version);
+/// Try to fetch version info from the cached endpoint at homekaraoke.app
+async fn fetch_from_cache(client: &reqwest::Client) -> Option<(String, String)> {
+    let response = client
+        .get("https://homekaraoke.app/api/latest-version")
+        .send()
+        .await
+        .ok()?;
 
-    // Fetch latest release from GitHub API
-    let client = reqwest::Client::builder()
-        .user_agent(format!(
-            "HomeKaraoke-App/{} (+https://github.com/zalun/karaoke-app)",
-            env!("CARGO_PKG_VERSION")
-        ))
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| UpdateError::Network(e.to_string()))?;
+    if !response.status().is_success() {
+        return None;
+    }
 
+    let cached: CachedVersionResponse = response.json().await.ok()?;
+    debug!(
+        "update_check: got cached version {} (cache endpoint)",
+        cached.version
+    );
+    Some((cached.version, cached.release_url))
+}
+
+/// Fetch version info directly from GitHub API (fallback)
+async fn fetch_from_github(client: &reqwest::Client) -> Result<(String, String, Option<String>), UpdateError> {
     let response = client
         .get("https://api.github.com/repos/zalun/karaoke-app/releases/latest")
         .send()
         .await
         .map_err(|e| {
-            warn!("update_check: network error: {}", e);
+            warn!("update_check: GitHub API network error: {}", e);
             UpdateError::Network(e.to_string())
         })?;
 
     if !response.status().is_success() {
-        // Handle 404 (no releases) vs other errors
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Err(UpdateError::NoReleases);
         }
@@ -209,17 +225,42 @@ pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
     }
 
     let release: GitHubRelease = response.json().await.map_err(|e| {
-        warn!("update_check: failed to parse response: {}", e);
+        warn!("update_check: failed to parse GitHub response: {}", e);
         UpdateError::Parse(e.to_string())
     })?;
 
     debug!(
-        "update_check: latest release = {} ({})",
-        release.tag_name,
-        release.name.as_deref().unwrap_or("")
+        "update_check: got version {} from GitHub API",
+        release.tag_name
     );
+    Ok((release.tag_name, release.html_url, release.name))
+}
 
-    let latest_version = release.tag_name.clone();
+#[tauri::command]
+pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
+    let current_version = env!("CARGO_PKG_VERSION");
+    debug!("update_check: current version = {}", current_version);
+
+    let client = reqwest::Client::builder()
+        .user_agent(format!(
+            "HomeKaraoke-App/{} (+https://github.com/zalun/karaoke-app)",
+            env!("CARGO_PKG_VERSION")
+        ))
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| UpdateError::Network(e.to_string()))?;
+
+    // Try cached endpoint first (avoids GitHub API rate limits)
+    let (latest_version, release_url, release_name) =
+        if let Some((version, url)) = fetch_from_cache(&client).await {
+            // Cached endpoint doesn't provide release name
+            (format!("v{}", version), url, None)
+        } else {
+            // Fall back to GitHub API
+            debug!("update_check: cache miss, falling back to GitHub API");
+            fetch_from_github(&client).await?
+        };
+
     let update_available = is_newer_version(current_version, &latest_version);
 
     if update_available {
@@ -235,9 +276,9 @@ pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
         latest_version,
         current_version: current_version.to_string(),
         update_available,
-        release_url: release.html_url.clone(),
-        download_url: release.html_url, // Use GitHub release page for downloads
-        release_name: release.name,
+        release_url: release_url.clone(),
+        download_url: release_url,
+        release_name,
     })
 }
 
