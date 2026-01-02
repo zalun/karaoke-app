@@ -66,8 +66,8 @@ struct GitHubRelease {
 #[serde(rename_all = "camelCase")]
 struct CachedVersionResponse {
     version: String,
-    #[allow(dead_code)]
-    published_at: Option<String>,
+    #[serde(default)]
+    _published_at: Option<String>,
     release_url: String,
 }
 
@@ -213,6 +213,17 @@ async fn fetch_from_cache(client: &reqwest::Client) -> Option<(String, String)> 
         }
     };
 
+    // Validate response data
+    if cached.version.trim().is_empty() || cached.release_url.trim().is_empty() {
+        debug!("update_check: cache returned empty version or URL");
+        return None;
+    }
+
+    if !cached.release_url.starts_with("https://") {
+        debug!("update_check: cache returned non-HTTPS URL");
+        return None;
+    }
+
     debug!(
         "update_check: got cached version {} (cache endpoint)",
         cached.version
@@ -280,7 +291,7 @@ pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
             (normalized, url, None)
         } else {
             // Fall back to GitHub API
-            debug!("update_check: cache miss, falling back to GitHub API");
+            debug!("update_check: cache unavailable, falling back to GitHub API");
             fetch_from_github(&client).await?
         };
 
