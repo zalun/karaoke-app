@@ -19,3 +19,9 @@ export {
   type NotificationType,
 } from "./notificationStore";
 export { checkForUpdate } from "./updateStore";
+export {
+  useSettingsStore,
+  SETTINGS_KEYS,
+  SETTINGS_DEFAULTS,
+  type SettingsTab,
+} from "./settingsStore";

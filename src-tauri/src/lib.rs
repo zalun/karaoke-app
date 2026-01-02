@@ -46,6 +46,7 @@ pub struct AppState {
     pub display_event_thread: Mutex<Option<JoinHandle<()>>>,
 }
 
+const SETTINGS_MENU_ID: &str = "settings";
 const DEBUG_MODE_MENU_ID: &str = "debug-mode";
 const OPEN_LOGS_MENU_ID: &str = "open-logs";
 const SAVE_SESSION_AS_MENU_ID: &str = "save-session-as";
@@ -69,6 +70,10 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
         ..Default::default()
     };
 
+    // Settings menu item
+    let settings_item =
+        MenuItem::with_id(app, SETTINGS_MENU_ID, "Settings...", true, Some("CmdOrCtrl+,"))?;
+
     // Standard app menu items
     let app_menu = Submenu::with_items(
         app,
@@ -76,6 +81,8 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
         true,
         &[
             &PredefinedMenuItem::about(app, Some("About HomeKaraoke"), Some(about_metadata))?,
+            &PredefinedMenuItem::separator(app)?,
+            &settings_item,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::services(app, None)?,
             &PredefinedMenuItem::separator(app)?,
@@ -232,6 +239,11 @@ pub fn run() {
             commands::get_debug_mode,
             commands::set_debug_mode,
             commands::get_log_path,
+            // Settings commands
+            commands::settings_get,
+            commands::settings_set,
+            commands::settings_get_all,
+            commands::open_log_folder,
             // Session & Singer commands
             commands::create_singer,
             commands::get_singers,
@@ -559,6 +571,10 @@ pub fn run() {
                 MANAGE_FAVORITES_MENU_ID => {
                     info!("Manage Favorites... menu clicked");
                     let _ = app.emit("show-manage-favorites-dialog", ());
+                }
+                SETTINGS_MENU_ID => {
+                    info!("Settings... menu clicked");
+                    let _ = app.emit("show-settings-dialog", ());
                 }
                 _ => {}
             }
