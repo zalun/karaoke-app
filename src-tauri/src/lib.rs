@@ -243,6 +243,7 @@ pub fn run() {
             commands::settings_get,
             commands::settings_set,
             commands::settings_get_all,
+            commands::settings_reset_all,
             commands::open_log_folder,
             // Session & Singer commands
             commands::create_singer,

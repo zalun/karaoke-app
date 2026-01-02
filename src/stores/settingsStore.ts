@@ -115,10 +115,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   resetToDefaults: async () => {
     try {
-      // Save all defaults to database
-      for (const [key, value] of Object.entries(SETTINGS_DEFAULTS)) {
-        await invoke("settings_set", { key, value });
-      }
+      // Use batch command for single transaction
+      await invoke("settings_reset_all", { defaults: SETTINGS_DEFAULTS });
       log.info("Settings reset to defaults");
 
       // Update local state

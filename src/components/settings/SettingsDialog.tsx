@@ -10,6 +10,7 @@ import {
   FolderOpen,
   RotateCcw,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore, SETTINGS_KEYS, notify } from "../../stores";
@@ -444,6 +445,13 @@ function AdvancedSettings({
 }: {
   onResetToDefaults: () => void;
 }) {
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleReset = () => {
+    setShowConfirm(false);
+    onResetToDefaults();
+  };
+
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Advanced</h4>
@@ -453,13 +461,43 @@ function AdvancedSettings({
       </div>
 
       <div className="pt-4 border-t border-gray-700">
-        <button
-          onClick={onResetToDefaults}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
-        >
-          <RotateCcw size={16} />
-          Reset All Settings to Defaults
-        </button>
+        {showConfirm ? (
+          <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={20} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="text-sm font-medium text-yellow-200 mb-2">
+                  Reset all settings to defaults?
+                </div>
+                <div className="text-xs text-yellow-300/70 mb-3">
+                  This will restore all settings to their original values. This action cannot be undone.
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleReset}
+                    className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white text-sm rounded transition-colors"
+                  >
+                    Reset Settings
+                  </button>
+                  <button
+                    onClick={() => setShowConfirm(false)}
+                    className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
+          >
+            <RotateCcw size={16} />
+            Reset All Settings to Defaults
+          </button>
+        )}
       </div>
     </div>
   );

@@ -88,6 +88,14 @@ pub fn open_log_folder(state: State<'_, AppState>) -> Result<(), String> {
     let log_dir = &state.log_dir;
     log::info!("Opening log directory from command: {:?}", log_dir);
 
+    // Validate the path exists and is a directory
+    if !log_dir.exists() {
+        return Err(format!("Log directory does not exist: {:?}", log_dir));
+    }
+    if !log_dir.is_dir() {
+        return Err(format!("Log path is not a directory: {:?}", log_dir));
+    }
+
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
@@ -113,4 +121,41 @@ pub fn open_log_folder(state: State<'_, AppState>) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Reset all settings to their default values in a single transaction
+#[tauri::command]
+pub fn settings_reset_all(
+    state: State<'_, AppState>,
+    defaults: HashMap<String, String>,
+) -> Result<(), String> {
+    debug!("settings_reset_all called with {} defaults", defaults.len());
+    match state.db.lock() {
+        Ok(db) => {
+            let conn = db.connection();
+
+            // Use a transaction for atomic reset
+            conn.execute("BEGIN TRANSACTION", [])
+                .map_err(|e| format!("Failed to begin transaction: {}", e))?;
+
+            for (key, value) in defaults.iter() {
+                if let Err(e) = conn.execute(
+                    "INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
+                     ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = CURRENT_TIMESTAMP",
+                    rusqlite::params![key, value],
+                ) {
+                    // Rollback on error
+                    let _ = conn.execute("ROLLBACK", []);
+                    return Err(format!("Failed to reset setting {}: {}", key, e));
+                }
+            }
+
+            conn.execute("COMMIT", [])
+                .map_err(|e| format!("Failed to commit transaction: {}", e))?;
+
+            log::info!("All settings reset to defaults");
+            Ok(())
+        }
+        Err(e) => Err(format!("Failed to acquire database lock for settings_reset_all: {}", e)),
+    }
 }
