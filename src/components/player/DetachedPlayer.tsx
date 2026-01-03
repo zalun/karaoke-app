@@ -60,9 +60,16 @@ export function DetachedPlayer() {
       const stateListener = await windowManager.listenForStateSync((newState) => {
         stateReceived = true;
         log.info(`State sync received: videoId=${newState.videoId}, isPlaying=${newState.isPlaying}, playbackMode=${newState.playbackMode}`);
+        log.info(`State sync songs: currentSong=${newState.currentSong?.title ?? 'none'}, nextSong=${newState.nextSong?.title ?? 'none'}, currentSingers=${newState.currentSong?.singers?.length ?? 0}, nextSingers=${newState.nextSong?.singers?.length ?? 0}`);
         if (isMounted) {
           intendedPlayStateRef.current = newState.isPlaying;
-          setState(newState);
+          // Preserve song data if new state has undefined values (race condition protection)
+          // This can happen when multiple effects trigger state sync in quick succession
+          setState((prevState) => ({
+            ...newState,
+            currentSong: newState.currentSong ?? prevState.currentSong,
+            nextSong: newState.nextSong ?? prevState.nextSong,
+          }));
         }
       });
 
@@ -227,6 +234,7 @@ export function DetachedPlayer() {
       state.currentSong?.singers &&
       state.currentSong.singers.length > 0
     ) {
+      log.debug(`Showing current singer overlay for ${state.currentSong.singers.length} singers`);
       setShowCurrentSingerOverlay(true);
       const timer = setTimeout(() => {
         setShowCurrentSingerOverlay(false);
@@ -256,7 +264,7 @@ export function DetachedPlayer() {
   const hasContent = canPlayYouTube || canPlayNative;
 
   // Debug logging
-  log.debug(`Render: playbackMode=${playbackMode}, videoId=${state.videoId}, isPlaying=${state.isPlaying}, canPlayYouTube=${canPlayYouTube}, hasContent=${hasContent}`);
+  log.debug(`Render: playbackMode=${playbackMode}, videoId=${state.videoId}, isPlaying=${state.isPlaying}`);
 
   // Determine initial seek time (for position restore on initial load)
   const initialSeekTime = shouldRestorePosition && state.currentTime > MIN_RESTORE_POSITION_SECONDS

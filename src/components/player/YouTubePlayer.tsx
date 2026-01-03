@@ -435,7 +435,7 @@ export function YouTubePlayer({
   }, [isMuted, volume]);
 
   return (
-    <div className={`relative w-full h-full bg-black ${className || ""}`} style={{ isolation: "isolate" }}>
+    <div className={`relative w-full h-full bg-black ${className || ""}`} style={{ isolation: "isolate", zIndex: 0 }}>
       <div
         ref={containerRef}
         className="w-full h-full"
