@@ -18,6 +18,8 @@ export const SETTINGS_KEYS = {
   // Queue & History
   HISTORY_LIMIT: "history_limit",
   CLEAR_QUEUE_ON_EXIT: "clear_queue_on_exit",
+  // Advanced
+  PLAYBACK_MODE: "playback_mode", // 'youtube' | 'ytdlp'
 } as const;
 
 // Default values
@@ -31,6 +33,7 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
   [SETTINGS_KEYS.REMEMBER_PLAYER_POSITION]: "true",
   [SETTINGS_KEYS.HISTORY_LIMIT]: "100",
   [SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT]: "never",
+  [SETTINGS_KEYS.PLAYBACK_MODE]: "youtube", // Default to YouTube embed
 };
 
 export type SettingsTab = "playback" | "display" | "queue" | "advanced" | "about";
@@ -45,6 +48,9 @@ interface SettingsState {
   isLoading: boolean;
   loadError: string | null;
 
+  // yt-dlp availability (detected at startup)
+  ytDlpAvailable: boolean;
+
   // Actions
   openSettingsDialog: () => void;
   closeSettingsDialog: () => void;
@@ -53,6 +59,7 @@ interface SettingsState {
   getSetting: (key: string) => string;
   setSetting: (key: string, value: string) => Promise<void>;
   resetToDefaults: () => Promise<void>;
+  setYtDlpAvailable: (available: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -64,6 +71,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: { ...SETTINGS_DEFAULTS },
   isLoading: false,
   loadError: null,
+
+  // yt-dlp availability
+  ytDlpAvailable: false,
 
   // Actions
   openSettingsDialog: () => {
@@ -127,5 +137,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       log.error("Failed to reset settings:", error);
       throw error;
     }
+  },
+
+  setYtDlpAvailable: (available: boolean) => {
+    log.debug(`yt-dlp availability set to: ${available}`);
+    set({ ytDlpAvailable: available });
   },
 }));

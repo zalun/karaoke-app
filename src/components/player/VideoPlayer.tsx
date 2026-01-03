@@ -3,9 +3,12 @@ import {
   usePlayerStore,
   useQueueStore,
   useSessionStore,
+  useSettingsStore,
+  SETTINGS_KEYS,
   getStreamUrlWithCache,
   invalidatePrefetchIfStale,
   PREFETCH_THRESHOLD_SECONDS,
+  isEmbeddingError,
   notify,
 } from "../../stores";
 import { youtubeService, createLogger, windowManager } from "../../services";
@@ -17,6 +20,8 @@ import {
 } from "./NextSongOverlay";
 import { CurrentSingerOverlay } from "./CurrentSingerOverlay";
 import { MIN_RESTORE_POSITION_SECONDS } from "./DetachedPlayer";
+import { YouTubePlayer } from "./YouTubePlayer";
+import { NativePlayer } from "./NativePlayer";
 
 const log = createLogger("VideoPlayer");
 
@@ -43,7 +48,6 @@ function DetachIcon({ className }: { className?: string }) {
 }
 
 export function VideoPlayer() {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const prefetchTriggeredRef = useRef<string | null>(null);
   const usedCachedUrlRef = useRef<boolean>(false);
   // Track previous detached state to detect reattachment
@@ -68,6 +72,13 @@ export function VideoPlayer() {
     setIsDetached,
   } = usePlayerStore();
 
+  // Get playback mode from settings with runtime validation
+  const rawPlaybackMode = useSettingsStore((state) =>
+    state.getSetting(SETTINGS_KEYS.PLAYBACK_MODE)
+  );
+  // Validate and default to 'youtube' if invalid value in database
+  const playbackMode: "youtube" | "ytdlp" = rawPlaybackMode === "ytdlp" ? "ytdlp" : "youtube";
+
   // Handle detach button click
   const handleDetach = useCallback(async () => {
     if (isDetached) return;
@@ -75,6 +86,8 @@ export function VideoPlayer() {
     log.info("Detaching player window");
     const playerState = {
       streamUrl: currentVideo?.streamUrl || null,
+      videoId: currentVideo?.youtubeId || null,
+      playbackMode,
       isPlaying,
       currentTime,
       duration,
@@ -90,7 +103,7 @@ export function VideoPlayer() {
     } catch (err) {
       log.error("Failed to detach player", err);
     }
-  }, [isDetached, currentVideo, isPlaying, currentTime, duration, volume, isMuted, setIsDetached, setIsLoading]);
+  }, [isDetached, currentVideo, playbackMode, isPlaying, currentTime, duration, volume, isMuted, setIsDetached, setIsLoading]);
 
   // Prevent screen from sleeping while playing (only when not detached)
   useWakeLock(isPlaying && !isDetached);
@@ -111,8 +124,9 @@ export function VideoPlayer() {
     }
   }, [nextQueueVideoId]);
 
-  // Prefetch first queue item when no video is loaded (idle state)
+  // Prefetch first queue item when no video is loaded (idle state) - only for yt-dlp mode
   useEffect(() => {
+    if (playbackMode !== "ytdlp") return;
     if (currentVideo || !nextQueueVideoId || prefetchTriggeredRef.current === nextQueueVideoId) {
       return;
     }
@@ -129,115 +143,62 @@ export function VideoPlayer() {
         }
       })
       .catch((err) => log.debug(`Prefetch failed (idle) for ${nextQueueVideoId}`, err));
-  }, [currentVideo, nextQueueVideoId, nextQueueItem?.video.title]);
+  }, [currentVideo, nextQueueVideoId, nextQueueItem?.video.title, playbackMode]);
 
-  const tryPlay = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    video.play().catch((e) => {
-      log.error("Failed to play video", e);
-      notify("error", "Failed to play video");
-      setIsPlaying(false);
-    });
-  }, [setIsPlaying]);
-
-  // Handle play/pause state changes (only for pause, play is handled by canplay)
-  // Also pause when detached (video plays in separate window)
+  // Handle play/pause when detached
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (isDetached || !isPlaying) {
-      video.pause();
-    } else if (video.readyState >= 3) {
-      // Video is ready, play it
-      tryPlay();
+    if (!isDetached) return;
+    // When detached, send play/pause commands to the detached window
+    if (isPlaying) {
+      windowManager.sendCommand("play");
+    } else {
+      windowManager.sendCommand("pause");
     }
-    // If isPlaying but video not ready, handleCanPlay will trigger play
-  }, [isPlaying, isDetached, tryPlay]);
+  }, [isPlaying, isDetached]);
 
+  // Note: State syncing to detached window is handled by PlayerControls.tsx
+  // which includes full song info (currentSong, nextSong with singers).
+  // Removed redundant sync from here to avoid race conditions with incomplete state.
+
+  // Handle seeking when detached
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    video.volume = isMuted ? 0 : volume;
-  }, [volume, isMuted]);
-
-  // Handle seeking
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || seekTime === null) return;
-
-    video.currentTime = seekTime;
+    if (!isDetached || seekTime === null) return;
+    windowManager.sendCommand("seek", seekTime);
     clearSeek();
-  }, [seekTime, clearSeek]);
+  }, [seekTime, isDetached, clearSeek]);
 
   // Seek to stored currentTime when reattaching from detached window
   useEffect(() => {
-    const video = videoRef.current;
     // Detect reattachment: was detached, now not detached
-    if (wasDetachedRef.current && !isDetached && video && currentTime > MIN_RESTORE_POSITION_SECONDS) {
-      video.currentTime = currentTime;
+    if (wasDetachedRef.current && !isDetached && currentTime > MIN_RESTORE_POSITION_SECONDS) {
+      // Will be handled by the player component via seekTime
+      usePlayerStore.getState().seekTo(currentTime);
     }
     // Update ref for next render
     wasDetachedRef.current = isDetached;
   }, [isDetached, currentTime]);
 
-  // Keyboard shortcuts for seeking
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
+  // Handle time update from player components
+  const handleTimeUpdate = useCallback((time: number, dur: number) => {
+    setCurrentTime(time);
+    if (dur > 0 && dur !== duration) {
+      setDuration(dur);
+    }
 
-      const video = videoRef.current;
-      if (!video || !currentVideo) return;
-
-      switch (e.key) {
-        case "ArrowLeft":
-          e.preventDefault();
-          video.currentTime = Math.max(0, video.currentTime - 10);
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
-          break;
-        case " ":
-          e.preventDefault();
-          setIsPlaying(!isPlaying);
-          break;
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentVideo, isPlaying, setIsPlaying]);
-
-  const handleTimeUpdate = () => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const currentTime = video.currentTime;
-    const duration = video.duration;
-    setCurrentTime(currentTime);
-
-    // Prefetch next video before end (or immediately if video is short)
-    if (duration > 0) {
-      const timeRemaining = duration - currentTime;
-      const shouldPrefetch = timeRemaining <= PREFETCH_THRESHOLD_SECONDS || duration <= PREFETCH_THRESHOLD_SECONDS;
+    // Prefetch next video before end (or immediately if video is short) - only for yt-dlp mode
+    if (playbackMode === "ytdlp" && dur > 0) {
+      const timeRemaining = dur - time;
+      const shouldPrefetch = timeRemaining <= PREFETCH_THRESHOLD_SECONDS || dur <= PREFETCH_THRESHOLD_SECONDS;
 
       if (shouldPrefetch) {
         const nextItem = useQueueStore.getState().queue[0];
         const nextVideoId = nextItem?.video.youtubeId;
         if (nextVideoId && prefetchTriggeredRef.current !== nextVideoId) {
           prefetchTriggeredRef.current = nextVideoId;
-          const videoIdToFetch = nextVideoId; // Capture to avoid race condition
+          const videoIdToFetch = nextVideoId;
           log.debug(`Prefetching next video: ${nextItem?.video.title}`);
           youtubeService.getStreamUrl(videoIdToFetch)
             .then(info => {
-              // Only cache if this is still the next video in queue
               if (useQueueStore.getState().queue[0]?.video.youtubeId === videoIdToFetch) {
                 usePlayerStore.getState().setPrefetchedStreamUrl(videoIdToFetch, info.url);
                 log.debug(`Prefetch complete for: ${nextItem?.video.title}`);
@@ -247,56 +208,54 @@ export function VideoPlayer() {
         }
       }
     }
-  };
+  }, [setCurrentTime, setDuration, duration, playbackMode]);
 
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration);
+  const handleDurationChange = useCallback((dur: number) => {
+    if (dur > 0) {
+      setDuration(dur);
     }
-  };
+  }, [setDuration]);
 
-  const handleCanPlay = () => {
+  const handleReady = useCallback(() => {
     setIsLoading(false);
-    usedCachedUrlRef.current = false; // Reset on successful load
-    // Auto-play when video is ready and isPlaying is true
-    if (isPlaying) {
-      tryPlay();
-    }
-  };
+    usedCachedUrlRef.current = false;
+  }, [setIsLoading]);
 
   const handleEnded = useCallback(async () => {
     log.info("Video ended");
-    // Use playNextFromQueue to always take from queue when song ends naturally.
-    // This ensures songs played from Search or History don't cause the player
-    // to continue through history - it always goes to the queue next.
     const { playNextFromQueue } = useQueueStore.getState();
     const nextItem = playNextFromQueue();
 
     if (nextItem && nextItem.video.youtubeId) {
-      // Play next from queue
       log.info(`Auto-playing next: "${nextItem.video.title}"`);
       setIsLoading(true);
-      try {
-        // Check if we have a cached URL
-        const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId);
-        usedCachedUrlRef.current = !!cachedUrl;
 
-        const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
-        setCurrentVideo({ ...nextItem.video, streamUrl });
+      if (playbackMode === "ytdlp") {
+        // yt-dlp mode: fetch stream URL
+        try {
+          const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId);
+          usedCachedUrlRef.current = !!cachedUrl;
+
+          const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
+          setCurrentVideo({ ...nextItem.video, streamUrl });
+          setIsPlaying(true);
+        } catch (err) {
+          log.error("Failed to play next", err);
+          notify("error", "Failed to play next video");
+          setIsLoading(false);
+        }
+      } else {
+        // YouTube mode: just set the video, no stream URL needed
+        setCurrentVideo(nextItem.video);
         setIsPlaying(true);
-      } catch (err) {
-        log.error("Failed to play next", err);
-        notify("error", "Failed to play next video");
-        setIsLoading(false);
       }
     } else {
       log.info("Queue empty, playback stopped");
       setIsPlaying(false);
     }
-  }, [setCurrentVideo, setIsPlaying, setIsLoading]);
+  }, [setCurrentVideo, setIsPlaying, setIsLoading, playbackMode]);
 
   // Listen for video ended event from detached player
-  // Note: We use a ref pattern to avoid re-registering the listener when handleEnded changes
   const handleEndedRef = useRef(handleEnded);
   handleEndedRef.current = handleEnded;
 
@@ -313,7 +272,6 @@ export function VideoPlayer() {
       if (!cancelled) {
         unlistenFn = unlisten;
       } else {
-        // Cleanup immediately if effect was already cancelled
         unlisten();
       }
     });
@@ -324,11 +282,59 @@ export function VideoPlayer() {
     };
   }, [isDetached]);
 
-  const handleError = useCallback(async (event: React.SyntheticEvent<HTMLVideoElement>) => {
-    const video = event.currentTarget;
-    const mediaError = video.error;
+  const handleError = useCallback(async (errorOrCode: MediaError | number | null, message?: string) => {
+    if (typeof errorOrCode === "number") {
+      // YouTube player error
+      log.error(`YouTube player error: ${errorOrCode} - ${message}`);
 
-    // Log detailed error information
+      // Check if this is an embedding error (101/150)
+      if (isEmbeddingError(errorOrCode) && currentVideo?.youtubeId) {
+        log.info(`Video "${currentVideo.title}" does not allow embedding, marking and skipping`);
+
+        // Mark as non-embeddable
+        usePlayerStore.getState().markAsNonEmbeddable(currentVideo.youtubeId);
+
+        // Show brief notification
+        notify("warning", `"${currentVideo.title}" doesn't allow embedding, skipping...`);
+
+        // Auto-skip to next video
+        setIsLoading(true);
+        const { playNextFromQueue } = useQueueStore.getState();
+        const nextItem = playNextFromQueue();
+
+        if (nextItem && nextItem.video.youtubeId) {
+          log.info(`Auto-skipping to: "${nextItem.video.title}"`);
+          if (playbackMode === "ytdlp") {
+            try {
+              const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
+              setCurrentVideo({ ...nextItem.video, streamUrl });
+              setIsPlaying(true);
+            } catch (err) {
+              log.error("Failed to play next after skip", err);
+              notify("error", "Failed to play next video");
+              setIsLoading(false);
+            }
+          } else {
+            setCurrentVideo(nextItem.video);
+            setIsPlaying(true);
+          }
+        } else {
+          log.info("No more videos in queue after skip");
+          setCurrentVideo(null);
+          setIsPlaying(false);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // Non-embedding error - show error
+      notify("error", message || "Video playback error");
+      setIsLoading(false);
+      return;
+    }
+
+    // Native player error (MediaError)
+    const mediaError = errorOrCode;
     const errorCodes: Record<number, string> = {
       1: "MEDIA_ERR_ABORTED - Fetching was aborted",
       2: "MEDIA_ERR_NETWORK - Network error during download",
@@ -342,8 +348,6 @@ export function VideoPlayer() {
 
     log.error(`Video error: ${errorDescription}`);
     log.error(`Error message: ${errorMessage}`);
-    log.error(`Video src: ${video.src?.substring(0, 100)}...`);
-    log.error(`Network state: ${video.networkState}, Ready state: ${video.readyState}`);
 
     // If we used a cached URL that might be stale, retry with fresh fetch
     if (usedCachedUrlRef.current && currentVideo?.youtubeId) {
@@ -353,7 +357,7 @@ export function VideoPlayer() {
       try {
         const streamInfo = await youtubeService.getStreamUrl(currentVideo.youtubeId);
         setCurrentVideo({ ...currentVideo, streamUrl: streamInfo.url });
-        return; // Don't show error, we're retrying
+        return;
       } catch (err) {
         log.error("Fresh fetch also failed", err);
       }
@@ -361,14 +365,16 @@ export function VideoPlayer() {
     log.error("Failed to load video");
     notify("error", "Failed to load video");
     setIsLoading(false);
-  }, [currentVideo, setCurrentVideo, setIsLoading]);
+  }, [currentVideo, setCurrentVideo, setIsLoading, setIsPlaying, playbackMode]);
 
-  const handleLoadStart = () => {
-    setIsLoading(true);
-  };
+  // Determine what to show
+  const hasVideoId = !!currentVideo?.youtubeId;
+  const hasStreamUrl = !!currentVideo?.streamUrl;
+  const canPlayYouTube = playbackMode === "youtube" && hasVideoId;
+  const canPlayNative = playbackMode === "ytdlp" && hasStreamUrl;
 
   // Show placeholder when no video or when detached (video plays in separate window)
-  if (!currentVideo?.streamUrl || isDetached) {
+  if ((!canPlayYouTube && !canPlayNative) || isDetached) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
         {isLoading ? (
@@ -397,28 +403,41 @@ export function VideoPlayer() {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <video
-        ref={videoRef}
-        src={currentVideo.streamUrl}
-        className="w-full h-full object-contain"
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onCanPlay={handleCanPlay}
-        onEnded={handleEnded}
-        onError={handleError}
-        onLoadStart={handleLoadStart}
-        playsInline
-      />
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-          <div className="text-white">Loading...</div>
-        </div>
+      {canPlayYouTube && currentVideo?.youtubeId && (
+        <YouTubePlayer
+          videoId={currentVideo.youtubeId}
+          isPlaying={isPlaying}
+          volume={volume}
+          isMuted={isMuted}
+          seekTime={seekTime}
+          onReady={handleReady}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleEnded}
+          onError={(code, msg) => handleError(code, msg)}
+          onDurationChange={handleDurationChange}
+          onClearSeek={clearSeek}
+        />
+      )}
+      {canPlayNative && currentVideo?.streamUrl && (
+        <NativePlayer
+          streamUrl={currentVideo.streamUrl}
+          isPlaying={isPlaying}
+          volume={volume}
+          isMuted={isMuted}
+          seekTime={seekTime}
+          onReady={handleReady}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleEnded}
+          onError={(err) => handleError(err)}
+          onDurationChange={handleDurationChange}
+          onClearSeek={clearSeek}
+        />
       )}
       {/* Detach button - appears on hover */}
       {!isDetached && isHovered && (
         <button
           onClick={handleDetach}
-          className="absolute bottom-3 right-3 p-2 bg-black/70 hover:bg-black/90 rounded-lg transition-all duration-200 text-white"
+          className="absolute bottom-3 right-3 p-2 bg-black/70 hover:bg-black/90 rounded-lg transition-all duration-200 text-white z-10"
           title="Detach video to separate window"
         >
           <DetachIcon className="w-5 h-5" />
@@ -457,7 +476,6 @@ function NextSongOverlayWithSingers({
   }, [session, nextQueueItem?.id, loadQueueItemSingers]);
 
   // Get singers for next queue item
-  // Include queueSingerAssignments and singers in deps to ensure reactivity
   const nextSingers = useMemo(() => {
     if (!session || !nextQueueItem) return undefined;
     const singerIds = getQueueItemSingerIds(nextQueueItem.id);

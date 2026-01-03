@@ -18,3 +18,10 @@ export type { QueueItemData, QueueState } from "./queue";
 export { favoritesService } from "./favorites";
 export { updateService } from "./update";
 export type { UpdateInfo } from "./update";
+export {
+  loadYouTubeAPI,
+  isYouTubeAPIReady,
+  YouTubePlayerState,
+  YouTubeErrorCodes,
+  getYouTubeErrorMessage,
+} from "./youtubeIframe";

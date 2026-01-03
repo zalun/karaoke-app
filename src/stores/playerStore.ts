@@ -1,11 +1,22 @@
 import { create } from "zustand";
 import { youtubeService, createLogger } from "../services";
 import { notify } from "./notificationStore";
+import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 
 const log = createLogger("PlayerStore");
 
 // Cache expiration: 5 hours (YouTube URLs typically expire after 6 hours)
 const PREFETCH_CACHE_EXPIRY_MS = 5 * 60 * 60 * 1000;
+
+// YouTube error codes that indicate embedding is disabled
+export const EMBEDDING_ERROR_CODES = [101, 150];
+
+/**
+ * Check if a YouTube error code indicates embedding is disabled
+ */
+export function isEmbeddingError(errorCode: number): boolean {
+  return EMBEDDING_ERROR_CODES.includes(errorCode);
+}
 
 // Prefetch threshold: start prefetching this many seconds before video ends
 // Set to 30s to accommodate slower machines (M1 Mac takes ~7s for yt-dlp)
@@ -35,6 +46,8 @@ interface PlayerState {
   isDetached: boolean;
   seekTime: number | null;
   prefetchedStreamUrl: { videoId: string; url: string; timestamp: number } | null;
+  // Track videos that don't allow embedding (error 101/150)
+  nonEmbeddableVideoIds: Set<string>;
 
   // Actions
   setCurrentVideo: (video: Video | null) => void;
@@ -52,6 +65,9 @@ interface PlayerState {
   setPrefetchedStreamUrl: (videoId: string, url: string) => void;
   getPrefetchedStreamUrl: (videoId: string) => string | null;
   clearPrefetchedStreamUrl: () => void;
+  // Non-embeddable video tracking
+  markAsNonEmbeddable: (videoId: string) => void;
+  isNonEmbeddable: (videoId: string) => boolean;
 }
 
 const initialState = {
@@ -66,6 +82,7 @@ const initialState = {
   isDetached: false,
   seekTime: null,
   prefetchedStreamUrl: null,
+  nonEmbeddableVideoIds: new Set<string>(),
 };
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -142,6 +159,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     log.debug("clearPrefetchedStreamUrl");
     set({ prefetchedStreamUrl: null });
   },
+  markAsNonEmbeddable: (videoId) => {
+    log.info(`markAsNonEmbeddable: ${videoId}`);
+    set((state) => {
+      const newSet = new Set(state.nonEmbeddableVideoIds);
+      newSet.add(videoId);
+      return { nonEmbeddableVideoIds: newSet };
+    });
+  },
+  isNonEmbeddable: (videoId) => {
+    return get().nonEmbeddableVideoIds.has(videoId);
+  },
 }));
 
 /**
@@ -187,7 +215,7 @@ export function invalidatePrefetchIfStale(expectedVideoId: string | undefined): 
 }
 
 /**
- * Play a video by fetching its stream URL and updating player state.
+ * Play a video by fetching its stream URL (for yt-dlp mode) or directly (for YouTube mode).
  * Shared helper for playback logic used by both PlayerControls and useMediaControls.
  *
  * @param video - The video to play (must have youtubeId)
@@ -202,13 +230,25 @@ export async function playVideo(video: Video): Promise<void> {
   const { setIsLoading, setCurrentVideo, setIsPlaying } =
     usePlayerStore.getState();
 
+  const playbackMode = useSettingsStore.getState().getSetting(SETTINGS_KEYS.PLAYBACK_MODE);
+  log.info(`playVideo: mode=${playbackMode}, video=${video.title}`);
+
+  if (playbackMode === "youtube") {
+    // YouTube embed mode - no stream URL needed
+    log.info(`Playing via YouTube embed: ${video.title}`);
+    setCurrentVideo(video);
+    setIsPlaying(true);
+    return;
+  }
+
+  // yt-dlp mode - fetch stream URL
   setIsLoading(true);
   try {
     const streamUrl = await getStreamUrlWithCache(video.youtubeId);
     setCurrentVideo({ ...video, streamUrl });
     setIsPlaying(true);
     setIsLoading(false);
-    log.info(`Now playing: ${video.title}`);
+    log.info(`Now playing via yt-dlp: ${video.title}`);
   } catch (err) {
     log.error("Failed to play video", err);
     notify("error", "Failed to play video");

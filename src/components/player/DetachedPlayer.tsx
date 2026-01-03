@@ -9,6 +9,8 @@ import {
 } from "./NextSongOverlay";
 import { SingerOverlayDisplay } from "./SingerOverlayDisplay";
 import { CURRENT_SINGER_OVERLAY_DURATION_MS } from "./CurrentSingerOverlay";
+import { YouTubePlayer } from "./YouTubePlayer";
+import { NativePlayer } from "./NativePlayer";
 
 const log = createLogger("DetachedPlayer");
 
@@ -18,33 +20,24 @@ const TIME_UPDATE_THROTTLE_MS = 500;
 // Minimum position (in seconds) to restore when reattaching - avoids seeking to near-zero
 export const MIN_RESTORE_POSITION_SECONDS = 1;
 
-// Validate stream URL to prevent XSS - only allow http/https schemes
-function isValidStreamUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 export function DetachedPlayer() {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const lastTimeUpdateRef = useRef<number>(0);
-  const pendingCommandRef = useRef<{ command: "play" | "pause" | "seek"; value?: number } | null>(null);
   // Track intended play state via ref to avoid closure timing issues
-  const intendedPlayStateRef = useRef(false); // Start paused - user can click play
+  const intendedPlayStateRef = useRef(false);
   const [isReady, setIsReady] = useState(false);
   const [shouldRestorePosition, setShouldRestorePosition] = useState(true);
-  const [currentStreamUrl, setCurrentStreamUrl] = useState<string | null>(null);
-  // Track time remaining for overlay (only update state when crossing thresholds to reduce re-renders)
+  // Track time remaining for overlay
   const [overlayTimeRemaining, setOverlayTimeRemaining] = useState<number | null>(null);
   const videoTimeRef = useRef({ currentTime: 0, duration: 0 });
   // Track current singer overlay visibility
   const [showCurrentSingerOverlay, setShowCurrentSingerOverlay] = useState(false);
-  const previousStreamUrlRef = useRef<string | null>(null);
+  const previousVideoIdRef = useRef<string | null>(null);
+  // Seek time from main window
+  const [seekTime, setSeekTime] = useState<number | null>(null);
   const [state, setState] = useState<PlayerState>({
     streamUrl: null,
+    videoId: null,
+    playbackMode: "youtube",
     isPlaying: false,
     currentTime: 0,
     duration: 0,
@@ -66,10 +59,17 @@ export function DetachedPlayer() {
     const setupListeners = async () => {
       const stateListener = await windowManager.listenForStateSync((newState) => {
         stateReceived = true;
+        log.info(`State sync received: videoId=${newState.videoId}, isPlaying=${newState.isPlaying}, playbackMode=${newState.playbackMode}`);
+        log.info(`State sync songs: currentSong=${newState.currentSong?.title ?? 'none'}, nextSong=${newState.nextSong?.title ?? 'none'}, currentSingers=${newState.currentSong?.singers?.length ?? 0}, nextSingers=${newState.nextSong?.singers?.length ?? 0}`);
         if (isMounted) {
-          // Update ref immediately (no async batching)
           intendedPlayStateRef.current = newState.isPlaying;
-          setState(newState);
+          // State sync now always includes song data from PlayerControls.buildPlayerState()
+          // The fallback to previous state is kept as a defensive measure
+          setState((prevState) => ({
+            ...newState,
+            currentSong: newState.currentSong ?? prevState.currentSong,
+            nextSong: newState.nextSong ?? prevState.nextSong,
+          }));
         }
       });
 
@@ -82,29 +82,29 @@ export function DetachedPlayer() {
 
       const commandsListener = await windowManager.listenForCommands((cmd) => {
         if (!isMounted) return;
-        const video = videoRef.current;
-        if (!video) return;
+
+        log.info(`Command received: ${cmd.command}, value=${cmd.value}`);
 
         // Update ref for play/pause commands
         if (cmd.command === "play") intendedPlayStateRef.current = true;
         if (cmd.command === "pause") intendedPlayStateRef.current = false;
 
-        // If video isn't ready, queue the command for later
-        if (video.readyState < 3) {
-          pendingCommandRef.current = cmd;
-          return;
-        }
-
         switch (cmd.command) {
           case "play":
-            video.play().catch(console.error);
+            setState((s) => {
+              log.debug(`Setting isPlaying=true, current videoId=${s.videoId}`);
+              return { ...s, isPlaying: true };
+            });
             break;
           case "pause":
-            video.pause();
+            setState((s) => {
+              log.debug(`Setting isPlaying=false, current videoId=${s.videoId}`);
+              return { ...s, isPlaying: false };
+            });
             break;
           case "seek":
             if (cmd.value !== undefined) {
-              video.currentTime = cmd.value;
+              setSeekTime(cmd.value);
             }
             break;
         }
@@ -143,113 +143,33 @@ export function DetachedPlayer() {
     };
   }, []);
 
-  // Update video source when streamUrl changes
+  // Handle video/stream change
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (state.streamUrl && state.streamUrl !== currentStreamUrl) {
-      // Validate URL before assignment to prevent XSS
-      if (!isValidStreamUrl(state.streamUrl)) {
-        console.error("Invalid stream URL rejected:", state.streamUrl);
-        return;
-      }
-
-      const isNewVideo = currentStreamUrl !== null && state.streamUrl !== currentStreamUrl;
-
-      setIsReady(false);
-      setCurrentStreamUrl(state.streamUrl);
-
-      // If this is a NEW video (not initial detach), don't restore position
+    const currentVideoId = state.videoId || state.streamUrl;
+    if (currentVideoId && currentVideoId !== previousVideoIdRef.current) {
+      const isNewVideo = previousVideoIdRef.current !== null;
       if (isNewVideo) {
         setShouldRestorePosition(false);
+        setIsReady(false);
       }
-
-      video.src = state.streamUrl;
-      video.load();
+      previousVideoIdRef.current = currentVideoId;
     }
-  }, [state.streamUrl, currentStreamUrl]);
+  }, [state.videoId, state.streamUrl]);
 
-  // Handle canplay event - set initial time and play if needed
-  const handleCanPlay = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || isReady) return;
-
+  // Handle ready event
+  const handleReady = useCallback(() => {
     setIsReady(true);
-
-    // Notify main window that video is loaded
     windowManager.emitVideoLoaded();
-
-    // Emit duration now that video is ready (metadata events fire before isReady)
-    if (video.duration && isFinite(video.duration)) {
-      windowManager.emitDurationUpdate(video.duration);
-    }
-
-    // Restore position only on initial detach, not when switching videos
-    if (shouldRestorePosition && state.currentTime > MIN_RESTORE_POSITION_SECONDS) {
-      video.currentTime = state.currentTime;
-    }
-
-    // Process any pending command that arrived before video was ready
-    const pendingCmd = pendingCommandRef.current;
-    if (pendingCmd) {
-      pendingCommandRef.current = null;
-      if (pendingCmd.command === "pause") {
-        intendedPlayStateRef.current = false;
-      } else if (pendingCmd.command === "play") {
-        intendedPlayStateRef.current = true;
-      } else if (pendingCmd.command === "seek" && pendingCmd.value !== undefined) {
-        video.currentTime = pendingCmd.value;
-      }
-    }
-
-    // Try to play if we should be playing
-    if (intendedPlayStateRef.current) {
-      video.play().catch((err) => console.error("Play failed:", err));
-    }
-
-    // After first video loads, don't restore position for subsequent videos
     setShouldRestorePosition(false);
-  }, [isReady, state.currentTime, shouldRestorePosition]);
+  }, []);
 
-  // Handle play state changes (only after video is ready)
-  // Only PLAYS video when needed - pause is handled by commands listener
-  // Note: state.isPlaying is in deps to trigger effect when state changes, but we use
-  // intendedPlayStateRef.current to avoid closure timing issues with React's batching
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !state.streamUrl || !isReady) return;
+  // Handle time updates
+  const handleTimeUpdate = useCallback((currentTime: number, duration: number) => {
+    videoTimeRef.current = { currentTime, duration };
 
-    if (intendedPlayStateRef.current && video.paused) {
-      video.play().catch((err) => console.error("Play failed:", err));
-    }
-  }, [state.isPlaying, state.streamUrl, isReady]);
-
-  // Handle volume changes from main window
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    video.volume = state.volume;
-    video.muted = state.isMuted;
-  }, [state.volume, state.isMuted]);
-
-  // Send time updates back to main window (throttled to reduce event frequency)
-  // Also track time remaining for overlay countdown (only update state on threshold crossings)
-  const handleTimeUpdate = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    // Update ref (no re-render)
-    videoTimeRef.current = { currentTime: video.currentTime, duration: video.duration || 0 };
-
-    // Calculate time remaining and only update state when overlay visibility changes
-    const duration = video.duration || 0;
+    // Calculate time remaining for overlay
     if (duration > 0) {
-      const timeRemaining = Math.ceil(duration - video.currentTime);
-      // Update state only when:
-      // - Entering/leaving overlay zone (20s threshold)
-      // - During countdown (every second from 10 to 1)
+      const timeRemaining = Math.ceil(duration - currentTime);
       const shouldShowOverlay = timeRemaining <= OVERLAY_SHOW_THRESHOLD_SECONDS && timeRemaining > 0;
       setOverlayTimeRemaining((prev) => {
         if (!shouldShowOverlay) return null;
@@ -262,20 +182,45 @@ export function DetachedPlayer() {
     const now = Date.now();
     if (now - lastTimeUpdateRef.current >= TIME_UPDATE_THROTTLE_MS) {
       lastTimeUpdateRef.current = now;
-      windowManager.emitTimeUpdate(video.currentTime);
+      windowManager.emitTimeUpdate(currentTime);
     }
+  }, []);
+
+  // Handle duration change
+  const handleDurationChange = useCallback((duration: number) => {
+    if (duration > 0 && isFinite(duration)) {
+      windowManager.emitDurationUpdate(duration);
+    }
+  }, []);
+
+  // Handle video ended
+  const handleEnded = useCallback(() => {
+    log.info("Video ended, notifying main window");
+    windowManager.emitVideoEnded();
+  }, []);
+
+  // Handle clear seek
+  const handleClearSeek = useCallback(() => {
+    setSeekTime(null);
+  }, []);
+
+  // Handle autoplay blocked - notify main window
+  const handleAutoplayBlocked = useCallback(() => {
+    log.info("Autoplay blocked, notifying main window");
+    windowManager.emitAutoplayBlocked();
   }, []);
 
   // Emit final state before window closes
   useEffect(() => {
     const handleBeforeUnload = () => {
-      const video = videoRef.current;
-      if (video && state.streamUrl) {
+      if (state.streamUrl || state.videoId) {
         windowManager.emitFinalState({
           streamUrl: state.streamUrl,
-          isPlaying: !video.paused,
-          currentTime: video.currentTime,
-          duration: video.duration || state.duration,
+          videoId: state.videoId,
+          playbackMode: state.playbackMode,
+          isPlaying: intendedPlayStateRef.current,
+          currentTime: videoTimeRef.current.currentTime,
+          duration: videoTimeRef.current.duration || state.duration,
           volume: state.volume,
           isMuted: state.isMuted,
         });
@@ -284,70 +229,98 @@ export function DetachedPlayer() {
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [state.streamUrl, state.duration, state.volume, state.isMuted]);
+  }, [state.streamUrl, state.videoId, state.playbackMode, state.duration, state.volume, state.isMuted]);
 
-  // Handle video ended - notify main window to advance queue
-  const handleEnded = useCallback(() => {
-    log.info("Video ended, notifying main window");
-    windowManager.emitVideoEnded();
-  }, []);
-
-  // Handle loadedmetadata/durationchange - send duration to main window
-  // Using both events handles adaptive streaming where duration may update
-  const handleDurationChange = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || !video.duration || isNaN(video.duration) || !isReady) return;
-    log.debug(`Video duration: ${video.duration}`);
-    windowManager.emitDurationUpdate(video.duration);
-  }, [isReady]);
-
-  // Show current singer overlay when video changes (new streamUrl)
+  // Show current singer overlay when video changes
   useEffect(() => {
-    // Only show when we have a new video (not initial load)
+    const currentVideoId = state.videoId || state.streamUrl;
     if (
-      state.streamUrl &&
-      previousStreamUrlRef.current !== null &&
-      state.streamUrl !== previousStreamUrlRef.current &&
+      currentVideoId &&
+      previousVideoIdRef.current !== null &&
       state.currentSong?.singers &&
       state.currentSong.singers.length > 0
     ) {
+      log.debug(`Showing current singer overlay for ${state.currentSong.singers.length} singers`);
       setShowCurrentSingerOverlay(true);
       const timer = setTimeout(() => {
         setShowCurrentSingerOverlay(false);
       }, CURRENT_SINGER_OVERLAY_DURATION_MS);
       return () => clearTimeout(timer);
     }
-    previousStreamUrlRef.current = state.streamUrl;
-  }, [state.streamUrl, state.currentSong?.singers]);
+  }, [state.videoId, state.streamUrl, state.currentSong?.singers]);
+
+  // Handle volume changes from main window
+  useEffect(() => {
+    // Volume is handled by the player components
+  }, [state.volume, state.isMuted]);
 
   // Double-click for fullscreen
   const handleDoubleClick = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
     if (document.fullscreenElement) {
       document.exitFullscreen();
     } else {
-      video.requestFullscreen();
+      document.documentElement.requestFullscreen();
     }
   }, []);
 
+  // Determine what to play
+  const playbackMode = state.playbackMode || "youtube";
+  const canPlayYouTube = playbackMode === "youtube" && state.videoId;
+  const canPlayNative = playbackMode === "ytdlp" && state.streamUrl;
+  const hasContent = canPlayYouTube || canPlayNative;
+
+  // Debug logging
+  log.debug(`Render: playbackMode=${playbackMode}, videoId=${state.videoId}, isPlaying=${state.isPlaying}`);
+
+  // Determine initial seek time (for position restore on initial load)
+  const initialSeekTime = shouldRestorePosition && state.currentTime > MIN_RESTORE_POSITION_SECONDS
+    ? state.currentTime
+    : seekTime;
+
   return (
-    <div className="w-screen h-screen bg-black flex items-center justify-center relative">
-      <video
-        ref={videoRef}
-        className="w-full h-full object-contain"
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleDurationChange}
-        onDurationChange={handleDurationChange}
-        onCanPlay={handleCanPlay}
-        onEnded={handleEnded}
-        onDoubleClick={handleDoubleClick}
-        playsInline
-      />
-      {(!state.streamUrl || !isReady) && (
+    <div
+      className="w-screen h-screen bg-black flex items-center justify-center relative"
+      onDoubleClick={handleDoubleClick}
+    >
+      {canPlayYouTube && state.videoId && (
+        <YouTubePlayer
+          videoId={state.videoId}
+          isPlaying={state.isPlaying}
+          volume={state.volume}
+          isMuted={state.isMuted}
+          seekTime={initialSeekTime}
+          onReady={handleReady}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleEnded}
+          onDurationChange={handleDurationChange}
+          onClearSeek={handleClearSeek}
+          onAutoplayBlocked={handleAutoplayBlocked}
+          className="w-full h-full"
+        />
+      )}
+      {canPlayNative && state.streamUrl && (
+        <NativePlayer
+          streamUrl={state.streamUrl}
+          isPlaying={state.isPlaying}
+          volume={state.volume}
+          isMuted={state.isMuted}
+          seekTime={initialSeekTime}
+          onReady={handleReady}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleEnded}
+          onDurationChange={handleDurationChange}
+          onClearSeek={handleClearSeek}
+          className="w-full h-full"
+        />
+      )}
+      {!hasContent && (
         <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-          <p>{state.streamUrl ? "Loading..." : "Waiting for video..."}</p>
+          <p>Waiting for video...</p>
+        </div>
+      )}
+      {!isReady && hasContent && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+          <p className="text-gray-400">Loading...</p>
         </div>
       )}
       {state.nextSong && overlayTimeRemaining !== null && overlayTimeRemaining > 0 && (

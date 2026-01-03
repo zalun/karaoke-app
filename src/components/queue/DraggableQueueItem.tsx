@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { QueueItem } from "../../stores/queueStore";
-import { useSessionStore } from "../../stores";
+import { useSessionStore, usePlayerStore, useSettingsStore, SETTINGS_KEYS } from "../../stores";
 import { SingerAvatar, SingerPicker } from "../singers";
 
 interface DraggableQueueItemProps {
@@ -32,6 +32,14 @@ export function DraggableQueueItem({
   const { session, getQueueItemSingerIds, getSingerById, loadQueueItemSingers } =
     useSessionStore();
 
+  // Check if video is non-embeddable (only relevant in YouTube mode)
+  const playbackMode = useSettingsStore((s) => s.getSetting(SETTINGS_KEYS.PLAYBACK_MODE));
+  const nonEmbeddableIds = usePlayerStore((s) => s.nonEmbeddableVideoIds);
+  const isNonEmbeddable =
+    playbackMode === "youtube" &&
+    !!item.video.youtubeId &&
+    nonEmbeddableIds.has(item.video.youtubeId);
+
   const assignedSingerIds = getQueueItemSingerIds(item.id);
   const assignedSingers = assignedSingerIds
     .map((id) => getSingerById(id))
@@ -47,7 +55,7 @@ export function DraggableQueueItem({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.5 : isNonEmbeddable ? 0.5 : 1,
   };
 
   return (
@@ -56,19 +64,35 @@ export function DraggableQueueItem({
       style={style}
       {...attributes}
       {...listeners}
-      className={`flex gap-2 p-2 rounded transition-colors bg-gray-700 cursor-grab active:cursor-grabbing touch-none ${
-        isDragging ? "shadow-lg ring-2 ring-blue-500" : "hover:bg-gray-600"
+      className={`flex gap-2 p-2 rounded transition-colors cursor-grab active:cursor-grabbing touch-none ${
+        isNonEmbeddable
+          ? "bg-gray-800 border border-gray-600"
+          : isDragging
+          ? "bg-gray-700 shadow-lg ring-2 ring-blue-500"
+          : "bg-gray-700 hover:bg-gray-600"
       }`}
+      title={isNonEmbeddable ? "This video doesn't allow embedding" : undefined}
     >
       {/* Index number */}
-      <span className="text-gray-400 w-6 flex items-center justify-center">
+      <span className={`w-6 flex items-center justify-center ${isNonEmbeddable ? "text-gray-500" : "text-gray-400"}`}>
         {index + 1}.
       </span>
 
       {/* Video info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-sm truncate flex-1">{item.video.title}</p>
+          <p className={`text-sm truncate flex-1 ${isNonEmbeddable ? "text-gray-500 line-through" : ""}`}>
+            {item.video.title}
+          </p>
+          {/* Non-embeddable warning icon */}
+          {isNonEmbeddable && (
+            <span
+              className="text-yellow-500 text-xs flex-shrink-0"
+              title="Embedding disabled by video owner"
+            >
+              ⚠
+            </span>
+          )}
           {/* Assigned singers avatars */}
           {assignedSingers.length > 0 && (
             <div className="flex -space-x-1">
@@ -89,7 +113,7 @@ export function DraggableQueueItem({
             </div>
           )}
         </div>
-        <p className="text-xs text-gray-400 truncate">
+        <p className={`text-xs truncate ${isNonEmbeddable ? "text-gray-500" : "text-gray-400"}`}>
           {item.video.artist}
           {item.video.duration && ` • ${formatDuration(item.video.duration)}`}
         </p>
@@ -102,11 +126,18 @@ export function DraggableQueueItem({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          onPlay();
+          if (!isNonEmbeddable) {
+            onPlay();
+          }
         }}
-        className="text-gray-400 hover:text-green-400 text-sm px-1"
-        aria-label="Play now"
-        title="Play now"
+        className={`text-sm px-1 ${
+          isNonEmbeddable
+            ? "text-gray-600 cursor-not-allowed"
+            : "text-gray-400 hover:text-green-400"
+        }`}
+        aria-label={isNonEmbeddable ? "Cannot play - embedding disabled" : "Play now"}
+        title={isNonEmbeddable ? "Cannot play - embedding disabled" : "Play now"}
+        disabled={isNonEmbeddable}
       >
         ▶
       </button>

@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect } from "react";
-import { usePlayerStore, useQueueStore, useSessionStore, playVideo, notify } from "../../stores";
+import { usePlayerStore, useQueueStore, useSessionStore, useSettingsStore, SETTINGS_KEYS, playVideo, notify } from "../../stores";
 import { windowManager, youtubeService, createLogger } from "../../services";
 
 const log = createLogger("PlayerControls");
@@ -35,6 +35,33 @@ export function PlayerControls() {
   // Subscribe to session singer state for reactive updates
   const { session, queueSingerAssignments, singers, loadQueueItemSingers } = useSessionStore();
 
+  // Subscribe to playback mode setting for reactive updates with runtime validation
+  const rawPlaybackMode = useSettingsStore((s) => s.getSetting(SETTINGS_KEYS.PLAYBACK_MODE));
+  // Validate and default to 'youtube' if invalid value in database
+  const playbackMode: "youtube" | "ytdlp" = rawPlaybackMode === "ytdlp" ? "ytdlp" : "youtube";
+
+  // When switching to yt-dlp mode, fetch stream URL for current video if not already set
+  useEffect(() => {
+    if (playbackMode !== "ytdlp" || !currentVideo?.youtubeId || currentVideo.streamUrl) return;
+
+    log.info(`Fetching stream URL for current video after mode switch to yt-dlp`);
+    const { setCurrentVideo, setIsLoading } = usePlayerStore.getState();
+    setIsLoading(true);
+
+    youtubeService.getStreamUrl(currentVideo.youtubeId)
+      .then((streamInfo) => {
+        setCurrentVideo({ ...currentVideo, streamUrl: streamInfo.url });
+        log.info(`Stream URL fetched for mode switch`);
+      })
+      .catch((err) => {
+        log.error("Failed to fetch stream URL after mode switch", err);
+        notify("error", "Failed to switch to yt-dlp mode");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [playbackMode, currentVideo?.youtubeId, currentVideo?.streamUrl]);
+
   // Load singers for current and next queue items when detached
   // Only load if singers aren't already loaded to avoid redundant queries
   useEffect(() => {
@@ -67,8 +94,14 @@ export function PlayerControls() {
         .map((s) => ({ id: s!.id, name: s!.name, color: s!.color }));
     };
 
+    const settingsState = useSettingsStore.getState();
+    const rawMode = settingsState.getSetting(SETTINGS_KEYS.PLAYBACK_MODE);
+    const playbackMode: "youtube" | "ytdlp" = rawMode === "ytdlp" ? "ytdlp" : "youtube";
+
     return {
       streamUrl: state.currentVideo?.streamUrl ?? null,
+      videoId: state.currentVideo?.youtubeId ?? null,
+      playbackMode,
       isPlaying: state.isPlaying,
       currentTime: state.currentTime,
       duration: state.duration,
@@ -208,6 +241,31 @@ export function PlayerControls() {
     };
   }, [isDetached]);
 
+  // Listen for autoplay blocked event from detached window
+  useEffect(() => {
+    if (!isDetached) return;
+
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForAutoplayBlocked(() => {
+      if (isMounted) {
+        notify("warning", "Autoplay blocked - click Play in the player window");
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unlistenFn?.();
+    };
+  }, [isDetached]);
+
   // Listen for state requests from detached window and respond with current state
   useEffect(() => {
     if (!isDetached) return;
@@ -218,7 +276,8 @@ export function PlayerControls() {
     windowManager.listenForStateRequest(() => {
       if (isMounted) {
         const state = buildPlayerState();
-        if (state.streamUrl) {
+        // Sync if we have either streamUrl (yt-dlp mode) or videoId (YouTube mode)
+        if (state.streamUrl || state.videoId) {
           windowManager.syncState(state);
         }
       }
@@ -240,12 +299,14 @@ export function PlayerControls() {
   // Note: currentTime is intentionally excluded from dependencies to prevent sync loops.
   // Time updates flow one-way: detached window → main window via listenForTimeUpdate.
   // queueSingerAssignments.size and singers.length are included to trigger re-sync when singers load.
+  // playbackMode is included to trigger re-sync when playback mode setting changes.
   // buildPlayerState is called inline (not in deps) since it reads fresh state via getState().
   useEffect(() => {
-    if (!isDetached || !currentVideo?.streamUrl) return;
+    // Support both yt-dlp mode (streamUrl) and YouTube mode (youtubeId)
+    if (!isDetached || (!currentVideo?.streamUrl && !currentVideo?.youtubeId)) return;
     windowManager.syncState(buildPlayerState());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDetached, currentVideo?.streamUrl, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length]);
+  }, [isDetached, currentVideo?.streamUrl, currentVideo?.youtubeId, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length, playbackMode]);
 
   // Send play/pause commands to detached window
   useEffect(() => {
@@ -260,7 +321,8 @@ export function PlayerControls() {
   }, [isDetached, seekTime]);
 
   const handleDetach = useCallback(async () => {
-    if (!currentVideo?.streamUrl) return;
+    // Support both yt-dlp mode (streamUrl) and YouTube mode (youtubeId)
+    if (!currentVideo?.streamUrl && !currentVideo?.youtubeId) return;
 
     log.info("Detaching player");
     // Pause before detaching - detached window will start paused
@@ -277,7 +339,7 @@ export function PlayerControls() {
     } else {
       log.error("Failed to detach player");
     }
-  }, [currentVideo?.streamUrl, setIsDetached, setIsPlaying, buildPlayerState]);
+  }, [currentVideo?.streamUrl, currentVideo?.youtubeId, setIsDetached, setIsPlaying, buildPlayerState]);
 
   const handleReattach = useCallback(async () => {
     log.info("Reattaching player");

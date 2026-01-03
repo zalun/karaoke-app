@@ -18,7 +18,7 @@ export function SingerOverlayDisplay({ singers }: SingerOverlayDisplayProps) {
   if (singers.length === 0) return null;
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+    <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
       <div className="bg-black/70 backdrop-blur-sm text-white px-6 py-4 rounded-xl animate-fade-in">
         <div className="flex flex-col items-center gap-3">
           {/* Singer avatars */}

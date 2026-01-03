@@ -115,6 +115,7 @@ const createMockWindowManager = () => ({
   listenForStateRequest: vi.fn((_cb: unknown) => Promise.resolve(() => {})),
   listenForFinalState: vi.fn((_cb: unknown) => Promise.resolve(() => {})),
   listenForVideoLoaded: vi.fn((_cb: unknown) => Promise.resolve(() => {})),
+  listenForAutoplayBlocked: vi.fn((_cb: unknown) => Promise.resolve(() => {})),
 });
 
 const createMockYoutubeService = () => ({
@@ -136,6 +137,14 @@ const mockNotify = vi.fn();
 // =============================================================================
 // Mock Definitions
 // =============================================================================
+
+// Mock settings store
+const mockSettingsStore = {
+  getSetting: vi.fn((key: string) => {
+    if (key === "playback_mode") return "youtube";
+    return null;
+  }),
+};
 
 vi.mock("../../stores", () => ({
   usePlayerStore: Object.assign(
@@ -174,6 +183,20 @@ vi.mock("../../stores", () => ({
       getState: () => mockSessionStore,
     }
   ),
+  useSettingsStore: Object.assign(
+    (selector?: (state: typeof mockSettingsStore) => unknown) => {
+      if (selector) {
+        return selector(mockSettingsStore);
+      }
+      return mockSettingsStore;
+    },
+    {
+      getState: () => mockSettingsStore,
+    }
+  ),
+  SETTINGS_KEYS: {
+    PLAYBACK_MODE: "playback_mode",
+  },
   playVideo: () => mockPlayVideo(),
   notify: (...args: unknown[]) => mockNotify(...args),
 }));
@@ -190,6 +213,7 @@ vi.mock("../../services", () => ({
     listenForStateRequest: (cb: unknown) => mockWindowManager.listenForStateRequest(cb),
     listenForFinalState: (cb: unknown) => mockWindowManager.listenForFinalState(cb),
     listenForVideoLoaded: (cb: unknown) => mockWindowManager.listenForVideoLoaded(cb),
+    listenForAutoplayBlocked: (cb: unknown) => mockWindowManager.listenForAutoplayBlocked(cb),
   },
   youtubeService: {
     getStreamUrl: (videoId: unknown) => mockYoutubeService.getStreamUrl(videoId),
