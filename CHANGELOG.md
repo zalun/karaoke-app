@@ -7,20 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-01-03
+
 ### Added
-- Settings dialog with tabbed interface (#102)
+- YouTube iframe as default playback mode (#123)
+  - No external dependencies required - works out of the box
+  - yt-dlp now optional, available in Settings > Advanced
+  - Autoplay handling with retry logic and "Click to Play" fallback
+  - Automatic skip for videos that block embedding (error 101/150)
+- Settings dialog with tabbed interface (#122)
   - Access via HomeKaraoke > Settings or ⌘,
   - Tabs: Playback, Display, Queue & History, Advanced, About
   - Settings persist to SQLite database
   - Arrow key navigation between tabs
   - Check for Updates button in About tab
   - Open Log Folder button in About tab
-  - Note: Settings UI only - functionality will be wired in future updates
+  - Video streaming mode setting in Advanced tab
 
 ### Changed
-- Update check now uses cached endpoint at homekaraoke.app (#107)
+- Update check now uses cached endpoint at homekaraoke.app (#121)
   - Avoids GitHub API rate limits (60 requests/hour per IP)
   - Falls back to GitHub API if cached endpoint is unavailable
+- DependencyCheck no longer blocks app startup when yt-dlp is missing
 
 ## [0.5.9] - 2026-01-01
 
