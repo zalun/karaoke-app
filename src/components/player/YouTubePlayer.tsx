@@ -112,7 +112,10 @@ export function YouTubePlayer({
         const playerId = `youtube-player-${Date.now()}`;
         const playerDiv = document.createElement("div");
         playerDiv.id = playerId;
-        containerRef.current.innerHTML = "";
+        // Clear container using DOM methods (safer than innerHTML = "")
+        while (containerRef.current.firstChild) {
+          containerRef.current.removeChild(containerRef.current.firstChild);
+        }
         containerRef.current.appendChild(playerDiv);
 
         player = new YT.Player(playerId, {

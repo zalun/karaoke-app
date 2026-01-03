@@ -3,6 +3,19 @@ import { createLogger } from "../../services";
 
 const log = createLogger("NativePlayer");
 
+/**
+ * Validates that a stream URL is safe to use in a video element.
+ * Prevents XSS by ensuring the URL is a valid HTTP(S) URL.
+ */
+function isValidStreamUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export interface NativePlayerProps {
   streamUrl: string;
   isPlaying: boolean;
@@ -139,6 +152,23 @@ export function NativePlayer({
   const handleLoadStart = useCallback(() => {
     setIsLoading(true);
   }, []);
+
+  // Validate stream URL for security
+  const isUrlValid = isValidStreamUrl(streamUrl);
+
+  if (!isUrlValid) {
+    log.error(`Invalid stream URL: ${streamUrl}`);
+    return (
+      <div className={`relative w-full h-full bg-black ${className || ""}`}>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center text-white p-4">
+            <p className="text-red-400 mb-2">Invalid Stream URL</p>
+            <p className="text-sm text-gray-400">The stream URL is not a valid HTTP(S) URL.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`relative w-full h-full bg-black ${className || ""}`}>
