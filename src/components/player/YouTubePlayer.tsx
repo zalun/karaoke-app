@@ -290,6 +290,32 @@ export function YouTubePlayer({
     };
   }, []); // Only run once on mount
 
+  // Style the YouTube iframe to prevent z-index issues
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Watch for iframe being added and style it
+    const observer = new MutationObserver(() => {
+      const iframe = container.querySelector("iframe");
+      if (iframe) {
+        iframe.style.position = "relative";
+        iframe.style.zIndex = "0";
+      }
+    });
+
+    observer.observe(container, { childList: true, subtree: true });
+
+    // Also style any existing iframe
+    const existingIframe = container.querySelector("iframe");
+    if (existingIframe) {
+      existingIframe.style.position = "relative";
+      existingIframe.style.zIndex = "0";
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
   // Handle video ID changes
   useEffect(() => {
     const player = playerRef.current;
@@ -409,11 +435,11 @@ export function YouTubePlayer({
   }, [isMuted, volume]);
 
   return (
-    <div className={`relative w-full h-full bg-black ${className || ""}`}>
+    <div className={`relative w-full h-full bg-black ${className || ""}`} style={{ isolation: "isolate" }}>
       <div
         ref={containerRef}
         className="w-full h-full"
-        style={{ pointerEvents: "none" }} // Prevent clicks on iframe
+        style={{ pointerEvents: "none", position: "relative", zIndex: 0 }} // Prevent clicks on iframe, contain z-index
       />
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">

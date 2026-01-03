@@ -16,7 +16,7 @@ interface NextSongOverlayProps {
 
 export function NextSongOverlay({ title, artist, countdown, singers }: NextSongOverlayProps) {
   return (
-    <div className="absolute bottom-4 right-4 bg-black/70 backdrop-blur-sm text-white px-4 py-3 rounded-lg max-w-xs pointer-events-none">
+    <div className="absolute bottom-4 right-4 z-20 bg-black/70 backdrop-blur-sm text-white px-4 py-3 rounded-lg max-w-xs pointer-events-none">
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-xs text-gray-400 mb-1">Up next</p>
