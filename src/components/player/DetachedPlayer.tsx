@@ -63,8 +63,8 @@ export function DetachedPlayer() {
         log.info(`State sync songs: currentSong=${newState.currentSong?.title ?? 'none'}, nextSong=${newState.nextSong?.title ?? 'none'}, currentSingers=${newState.currentSong?.singers?.length ?? 0}, nextSingers=${newState.nextSong?.singers?.length ?? 0}`);
         if (isMounted) {
           intendedPlayStateRef.current = newState.isPlaying;
-          // Preserve song data if new state has undefined values (race condition protection)
-          // This can happen when multiple effects trigger state sync in quick succession
+          // State sync now always includes song data from PlayerControls.buildPlayerState()
+          // The fallback to previous state is kept as a defensive measure
           setState((prevState) => ({
             ...newState,
             currentSong: newState.currentSong ?? prevState.currentSong,

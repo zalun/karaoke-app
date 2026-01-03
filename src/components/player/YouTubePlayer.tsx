@@ -3,13 +3,15 @@ import {
   loadYouTubeAPI,
   YouTubePlayerState,
   getYouTubeErrorMessage,
+  createAutoplayRetryHandler,
 } from "../../services/youtubeIframe";
 import { createLogger } from "../../services";
 
 const log = createLogger("YouTubePlayer");
 
 // Polling interval for time updates (YouTube API doesn't have continuous time events)
-const TIME_UPDATE_INTERVAL_MS = 250;
+// Using 500ms to reduce CPU usage while maintaining smooth progress bar updates
+const TIME_UPDATE_INTERVAL_MS = 500;
 
 export interface YouTubePlayerProps {
   videoId: string;
@@ -59,11 +61,23 @@ export function YouTubePlayer({
   isMutedRef.current = isMuted;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Track autoplay retry attempts
-  const autoplayRetryCountRef = useRef(0);
-  const MAX_AUTOPLAY_RETRIES = 3;
   // Show "Click to Play" fallback when autoplay fails
   const [showPlayButton, setShowPlayButton] = useState(false);
+
+  // Autoplay retry handler using utility
+  const autoplayRetryRef = useRef(createAutoplayRetryHandler({
+    maxRetries: 3,
+    baseDelayMs: 200,
+    onRetry: (attempt, delay) => {
+      log.info(`Autoplay retry attempt ${attempt}/3, delay: ${delay}ms`);
+    },
+    onMaxRetriesExceeded: () => {
+      log.warn("Autoplay failed after max retries, showing play button");
+      setShowPlayButton(true);
+      setIsLoading(false);
+      onAutoplayBlocked?.();
+    },
+  }));
 
   // Clear time update interval
   const clearTimeUpdateInterval = useCallback(() => {
@@ -187,8 +201,8 @@ export function YouTubePlayer({
               } else if (state === YouTubePlayerState.PLAYING) {
                 // Clear loading when video starts playing
                 setIsLoading(false);
-                // Autoplay succeeded, reset retry counter and hide play button
-                autoplayRetryCountRef.current = 0;
+                // Autoplay succeeded, reset retry handler and hide play button
+                autoplayRetryRef.current.reset();
                 setShowPlayButton(false);
 
                 // Handle pending unmute (autoplay workaround)
@@ -219,32 +233,19 @@ export function YouTubePlayer({
               } else if (state === YouTubePlayerState.UNSTARTED) {
                 // Video is cued but not playing - autoplay might have been blocked
                 if (isPlayingRef.current && isReadyRef.current) {
-                  autoplayRetryCountRef.current++;
-                  log.info(`UNSTARTED state with isPlaying=true, retry attempt ${autoplayRetryCountRef.current}/${MAX_AUTOPLAY_RETRIES}`);
-
-                  if (autoplayRetryCountRef.current <= MAX_AUTOPLAY_RETRIES) {
-                    // Retry with increasing delay
-                    const delay = autoplayRetryCountRef.current * 200;
-                    setTimeout(() => {
-                      if (!mounted || !playerRef.current) return;
-                      log.info(`Retrying playVideo() after ${delay}ms delay`);
-                      try {
-                        playerRef.current.mute();
-                        playerRef.current.playVideo();
-                        if (!isMutedRef.current) {
-                          pendingUnmuteRef.current = true;
-                        }
-                      } catch (err) {
-                        log.error("Retry playVideo() failed:", err);
+                  // Use retry handler to schedule retry with exponential backoff
+                  autoplayRetryRef.current.scheduleRetry(() => {
+                    if (!mounted || !playerRef.current) return;
+                    try {
+                      playerRef.current.mute();
+                      playerRef.current.playVideo();
+                      if (!isMutedRef.current) {
+                        pendingUnmuteRef.current = true;
                       }
-                    }, delay);
-                  } else {
-                    // Max retries exceeded, show "Click to Play" button
-                    log.warn("Autoplay failed after max retries, showing play button");
-                    setShowPlayButton(true);
-                    setIsLoading(false);
-                    onAutoplayBlocked?.();
-                  }
+                    } catch (err) {
+                      log.error("Retry playVideo() failed:", err);
+                    }
+                  });
                 }
               }
             },
@@ -260,8 +261,8 @@ export function YouTubePlayer({
             onAutoplayBlocked: () => {
               if (!mounted) return;
               log.warn("Autoplay was blocked by the browser - showing play button");
-              // Reset retry counter and show play button immediately
-              autoplayRetryCountRef.current = MAX_AUTOPLAY_RETRIES + 1;
+              // Mark retries as exhausted and show play button immediately
+              autoplayRetryRef.current.cleanup();
               setShowPlayButton(true);
               setIsLoading(false);
               onAutoplayBlocked?.();
@@ -285,6 +286,7 @@ export function YouTubePlayer({
     return () => {
       mounted = false;
       clearTimeUpdateInterval();
+      autoplayRetryRef.current.cleanup();
       if (player) {
         try {
           player.destroy();
@@ -333,7 +335,7 @@ export function YouTubePlayer({
       setIsLoading(true);
       setError(null);
       setShowPlayButton(false);
-      autoplayRetryCountRef.current = 0;
+      autoplayRetryRef.current.reset();
       lastVideoIdRef.current = videoId;
 
       try {
@@ -421,13 +423,17 @@ export function YouTubePlayer({
   }, [seekTime, onClearSeek]);
 
   // Manual play handler for when autoplay fails
+  /**
+   * Handle manual play when user clicks the "Click to Play" button.
+   * This is triggered after autoplay was blocked by the browser.
+   */
   const handleManualPlay = useCallback(() => {
     const player = playerRef.current;
     if (!player || !isReadyRef.current) return;
 
     log.info("Manual play triggered by user click");
     setShowPlayButton(false);
-    autoplayRetryCountRef.current = 0;
+    autoplayRetryRef.current.reset();
 
     try {
       // User interaction allows unmuted playback

@@ -28,18 +28,30 @@ export function loadYouTubeAPI(): Promise<typeof YT> {
       return;
     }
 
+    // Track timeout for cleanup
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let settled = false;
+
     // Set up the callback before loading the script
     const previousCallback = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
       log.info("YouTube IFrame API ready");
+      // Clear timeout since API loaded successfully
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       // Call any previous callback (unlikely but safe)
       if (previousCallback) {
         previousCallback();
       }
-      if (window.YT) {
-        resolve(window.YT);
-      } else {
-        reject(new Error("YouTube API loaded but YT is undefined"));
+      if (!settled) {
+        settled = true;
+        if (window.YT) {
+          resolve(window.YT);
+        } else {
+          reject(new Error("YouTube API loaded but YT is undefined"));
+        }
       }
     };
 
@@ -49,16 +61,24 @@ export function loadYouTubeAPI(): Promise<typeof YT> {
     script.async = true;
     script.onerror = () => {
       log.error("Failed to load YouTube IFrame API script");
-      apiLoadPromise = null; // Allow retry
-      reject(new Error("Failed to load YouTube IFrame API"));
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      if (!settled) {
+        settled = true;
+        apiLoadPromise = null; // Allow retry
+        reject(new Error("Failed to load YouTube IFrame API"));
+      }
     };
 
     log.debug("Loading YouTube IFrame API script");
     document.body.appendChild(script);
 
     // Timeout after 10 seconds
-    setTimeout(() => {
-      if (!window.YT?.Player) {
+    timeoutId = setTimeout(() => {
+      if (!settled && !window.YT?.Player) {
+        settled = true;
         log.error("YouTube IFrame API load timeout");
         apiLoadPromise = null; // Allow retry
         reject(new Error("YouTube IFrame API load timeout"));
@@ -104,4 +124,81 @@ export const YouTubeErrorCodes: Record<number, string> = {
  */
 export function getYouTubeErrorMessage(errorCode: number): string {
   return YouTubeErrorCodes[errorCode] || `Unknown error (code ${errorCode})`;
+}
+
+/**
+ * Configuration for autoplay retry behavior
+ */
+export interface AutoplayRetryConfig {
+  maxRetries: number;
+  baseDelayMs: number;
+  onRetry?: (attempt: number, delay: number) => void;
+  onMaxRetriesExceeded?: () => void;
+}
+
+/**
+ * Creates an autoplay retry handler for YouTube player.
+ * Manages retry attempts with exponential backoff.
+ */
+export function createAutoplayRetryHandler(config: AutoplayRetryConfig) {
+  let retryCount = 0;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  return {
+    /**
+     * Attempt to retry playback. Returns true if retry was scheduled, false if max retries exceeded.
+     */
+    scheduleRetry(playCallback: () => void): boolean {
+      retryCount++;
+
+      if (retryCount > config.maxRetries) {
+        config.onMaxRetriesExceeded?.();
+        return false;
+      }
+
+      const delay = retryCount * config.baseDelayMs;
+      config.onRetry?.(retryCount, delay);
+
+      timeoutId = setTimeout(() => {
+        playCallback();
+      }, delay);
+
+      return true;
+    },
+
+    /**
+     * Reset retry count (call when playback succeeds)
+     */
+    reset() {
+      retryCount = 0;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    },
+
+    /**
+     * Get current retry count
+     */
+    getRetryCount(): number {
+      return retryCount;
+    },
+
+    /**
+     * Check if max retries exceeded
+     */
+    isExhausted(): boolean {
+      return retryCount > config.maxRetries;
+    },
+
+    /**
+     * Cleanup pending timeouts
+     */
+    cleanup() {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    },
+  };
 }

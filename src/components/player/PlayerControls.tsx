@@ -35,8 +35,10 @@ export function PlayerControls() {
   // Subscribe to session singer state for reactive updates
   const { session, queueSingerAssignments, singers, loadQueueItemSingers } = useSessionStore();
 
-  // Subscribe to playback mode setting for reactive updates
-  const playbackMode = useSettingsStore((s) => s.getSetting(SETTINGS_KEYS.PLAYBACK_MODE));
+  // Subscribe to playback mode setting for reactive updates with runtime validation
+  const rawPlaybackMode = useSettingsStore((s) => s.getSetting(SETTINGS_KEYS.PLAYBACK_MODE));
+  // Validate and default to 'youtube' if invalid value in database
+  const playbackMode: "youtube" | "ytdlp" = rawPlaybackMode === "ytdlp" ? "ytdlp" : "youtube";
 
   // When switching to yt-dlp mode, fetch stream URL for current video if not already set
   useEffect(() => {
@@ -93,7 +95,8 @@ export function PlayerControls() {
     };
 
     const settingsState = useSettingsStore.getState();
-    const playbackMode = settingsState.getSetting(SETTINGS_KEYS.PLAYBACK_MODE) as "youtube" | "ytdlp";
+    const rawMode = settingsState.getSetting(SETTINGS_KEYS.PLAYBACK_MODE);
+    const playbackMode: "youtube" | "ytdlp" = rawMode === "ytdlp" ? "ytdlp" : "youtube";
 
     return {
       streamUrl: state.currentVideo?.streamUrl ?? null,

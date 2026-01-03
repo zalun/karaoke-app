@@ -72,10 +72,12 @@ export function VideoPlayer() {
     setIsDetached,
   } = usePlayerStore();
 
-  // Get playback mode from settings
-  const playbackMode = useSettingsStore((state) =>
+  // Get playback mode from settings with runtime validation
+  const rawPlaybackMode = useSettingsStore((state) =>
     state.getSetting(SETTINGS_KEYS.PLAYBACK_MODE)
-  ) as "youtube" | "ytdlp";
+  );
+  // Validate and default to 'youtube' if invalid value in database
+  const playbackMode: "youtube" | "ytdlp" = rawPlaybackMode === "ytdlp" ? "ytdlp" : "youtube";
 
   // Handle detach button click
   const handleDetach = useCallback(async () => {
@@ -154,30 +156,9 @@ export function VideoPlayer() {
     }
   }, [isPlaying, isDetached]);
 
-  // Sync state to detached window when video changes
-  const lastSyncedVideoIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!isDetached || !currentVideo) return;
-
-    // Only sync when video actually changes (avoid duplicate syncs)
-    const videoKey = currentVideo.youtubeId || currentVideo.streamUrl || currentVideo.id;
-    if (videoKey === lastSyncedVideoIdRef.current) return;
-    lastSyncedVideoIdRef.current = videoKey;
-
-    const playerState = {
-      streamUrl: currentVideo.streamUrl || null,
-      videoId: currentVideo.youtubeId || null,
-      playbackMode,
-      isPlaying: usePlayerStore.getState().isPlaying, // Get current state directly
-      currentTime: 0, // Start from beginning for new video
-      duration: currentVideo.duration || 0,
-      volume,
-      isMuted,
-    };
-
-    log.debug(`Syncing new video to detached window: ${currentVideo.title}`);
-    windowManager.syncState(playerState);
-  }, [isDetached, currentVideo, playbackMode, volume, isMuted]);
+  // Note: State syncing to detached window is handled by PlayerControls.tsx
+  // which includes full song info (currentSong, nextSong with singers).
+  // Removed redundant sync from here to avoid race conditions with incomplete state.
 
   // Handle seeking when detached
   useEffect(() => {
