@@ -35,6 +35,31 @@ export function PlayerControls() {
   // Subscribe to session singer state for reactive updates
   const { session, queueSingerAssignments, singers, loadQueueItemSingers } = useSessionStore();
 
+  // Subscribe to playback mode setting for reactive updates
+  const playbackMode = useSettingsStore((s) => s.getSetting(SETTINGS_KEYS.PLAYBACK_MODE));
+
+  // When switching to yt-dlp mode, fetch stream URL for current video if not already set
+  useEffect(() => {
+    if (playbackMode !== "ytdlp" || !currentVideo?.youtubeId || currentVideo.streamUrl) return;
+
+    log.info(`Fetching stream URL for current video after mode switch to yt-dlp`);
+    const { setCurrentVideo, setIsLoading } = usePlayerStore.getState();
+    setIsLoading(true);
+
+    youtubeService.getStreamUrl(currentVideo.youtubeId)
+      .then((streamInfo) => {
+        setCurrentVideo({ ...currentVideo, streamUrl: streamInfo.url });
+        log.info(`Stream URL fetched for mode switch`);
+      })
+      .catch((err) => {
+        log.error("Failed to fetch stream URL after mode switch", err);
+        notify("error", "Failed to switch to yt-dlp mode");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [playbackMode, currentVideo?.youtubeId, currentVideo?.streamUrl]);
+
   // Load singers for current and next queue items when detached
   // Only load if singers aren't already loaded to avoid redundant queries
   useEffect(() => {
@@ -271,13 +296,14 @@ export function PlayerControls() {
   // Note: currentTime is intentionally excluded from dependencies to prevent sync loops.
   // Time updates flow one-way: detached window → main window via listenForTimeUpdate.
   // queueSingerAssignments.size and singers.length are included to trigger re-sync when singers load.
+  // playbackMode is included to trigger re-sync when playback mode setting changes.
   // buildPlayerState is called inline (not in deps) since it reads fresh state via getState().
   useEffect(() => {
     // Support both yt-dlp mode (streamUrl) and YouTube mode (youtubeId)
     if (!isDetached || (!currentVideo?.streamUrl && !currentVideo?.youtubeId)) return;
     windowManager.syncState(buildPlayerState());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDetached, currentVideo?.streamUrl, currentVideo?.youtubeId, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length]);
+  }, [isDetached, currentVideo?.streamUrl, currentVideo?.youtubeId, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length, playbackMode]);
 
   // Send play/pause commands to detached window
   useEffect(() => {
