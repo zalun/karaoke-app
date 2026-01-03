@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo } from "react";
 import type { SearchResult } from "../../types";
-import { usePlayerStore, useFavoritesStore, type Video } from "../../stores";
+import { usePlayerStore, useFavoritesStore, useSettingsStore, SETTINGS_KEYS, type Video } from "../../stores";
 import { FavoriteStar } from "../favorites";
 
 function searchResultToVideo(result: SearchResult): Video {
@@ -52,9 +52,14 @@ export function SearchResults({
   displayedCount,
   onLoadMore,
 }: SearchResultsProps) {
-  const { currentVideo, isPlaying } = usePlayerStore();
+  const { currentVideo, isPlaying, nonEmbeddableVideoIds } = usePlayerStore();
   const { persistentSingers, loadPersistentSingers } = useFavoritesStore();
+  const playbackMode = useSettingsStore((s) => s.getSetting(SETTINGS_KEYS.PLAYBACK_MODE));
   const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Check if a video is non-embeddable (only relevant in YouTube mode)
+  const isNonEmbeddable = (videoId: string) =>
+    playbackMode === "youtube" && nonEmbeddableVideoIds.has(videoId);
 
   // Load persistent singers on mount
   useEffect(() => {
@@ -131,16 +136,20 @@ export function SearchResults({
     <div className="space-y-2">
       {displayedResults.map((result) => {
         const isCurrentlyPlaying = currentVideo?.id === result.id;
+        const videoNonEmbeddable = isNonEmbeddable(result.id);
 
         return (
           <div
             key={result.id}
-            onClick={() => onAddToQueue(result)}
-            className={`flex gap-3 p-3 rounded-lg transition-colors cursor-pointer ${
-              isCurrentlyPlaying
-                ? "bg-blue-900/50 border border-blue-600"
-                : "bg-gray-800 hover:bg-gray-700"
+            onClick={() => !videoNonEmbeddable && onAddToQueue(result)}
+            className={`flex gap-3 p-3 rounded-lg transition-colors ${
+              videoNonEmbeddable
+                ? "bg-gray-800 border border-gray-600 opacity-50 cursor-not-allowed"
+                : isCurrentlyPlaying
+                ? "bg-blue-900/50 border border-blue-600 cursor-pointer"
+                : "bg-gray-800 hover:bg-gray-700 cursor-pointer"
             }`}
+            title={videoNonEmbeddable ? "This video doesn't allow embedding" : undefined}
           >
             {/* Thumbnail */}
             <div className="w-32 h-20 flex-shrink-0 bg-gray-700 rounded overflow-hidden relative">
@@ -166,11 +175,32 @@ export function SearchResults({
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <h3 className={`font-medium text-sm truncate ${isCurrentlyPlaying ? "text-blue-300" : ""}`} title={result.title}>
-                {result.title}
-              </h3>
-              <p className="text-xs text-gray-400 truncate">{result.channel}</p>
-              <div className="flex gap-2 mt-1 text-xs text-gray-500">
+              <div className="flex items-center gap-2">
+                <h3
+                  className={`font-medium text-sm truncate flex-1 ${
+                    videoNonEmbeddable
+                      ? "text-gray-500 line-through"
+                      : isCurrentlyPlaying
+                      ? "text-blue-300"
+                      : ""
+                  }`}
+                  title={result.title}
+                >
+                  {result.title}
+                </h3>
+                {videoNonEmbeddable && (
+                  <span
+                    className="text-yellow-500 text-xs flex-shrink-0"
+                    title="Embedding disabled by video owner"
+                  >
+                    ⚠
+                  </span>
+                )}
+              </div>
+              <p className={`text-xs truncate ${videoNonEmbeddable ? "text-gray-500" : "text-gray-400"}`}>
+                {result.channel}
+              </p>
+              <div className={`flex gap-2 mt-1 text-xs ${videoNonEmbeddable ? "text-gray-600" : "text-gray-500"}`}>
                 <span>{formatDuration(result.duration)}</span>
                 {result.view_count && <span>• {formatViewCount(result.view_count)}</span>}
               </div>
@@ -178,39 +208,60 @@ export function SearchResults({
 
             {/* Actions */}
             <div className="flex items-center gap-2">
-              {persistentSingers.length > 0 && (
+              {persistentSingers.length > 0 && !videoNonEmbeddable && (
                 <FavoriteStar video={searchResultToVideo(result)} />
               )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onAddToQueue(result);
+                  if (!videoNonEmbeddable) {
+                    onAddToQueue(result);
+                  }
                 }}
-                className="w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded text-lg transition-colors"
-                aria-label="Add to queue"
-                title="Add to queue"
+                className={`w-8 h-8 flex items-center justify-center rounded text-lg transition-colors ${
+                  videoNonEmbeddable
+                    ? "bg-gray-700 text-gray-600 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+                aria-label={videoNonEmbeddable ? "Cannot add - embedding disabled" : "Add to queue"}
+                title={videoNonEmbeddable ? "Cannot add - embedding disabled" : "Add to queue"}
+                disabled={videoNonEmbeddable}
               >
                 +
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onPlayNext(result);
+                  if (!videoNonEmbeddable) {
+                    onPlayNext(result);
+                  }
                 }}
-                className="w-8 h-8 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded text-lg transition-colors"
-                aria-label="Play next"
-                title="Play next"
+                className={`w-8 h-8 flex items-center justify-center rounded text-lg transition-colors ${
+                  videoNonEmbeddable
+                    ? "bg-gray-700 text-gray-600 cursor-not-allowed"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
+                aria-label={videoNonEmbeddable ? "Cannot play - embedding disabled" : "Play next"}
+                title={videoNonEmbeddable ? "Cannot play - embedding disabled" : "Play next"}
+                disabled={videoNonEmbeddable}
               >
                 ⏭
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onPlay(result);
+                  if (!videoNonEmbeddable) {
+                    onPlay(result);
+                  }
                 }}
-                className="w-8 h-8 flex items-center justify-center bg-gray-600 hover:bg-gray-500 rounded text-lg transition-colors"
-                aria-label="Play now"
-                title="Play now"
+                className={`w-8 h-8 flex items-center justify-center rounded text-lg transition-colors ${
+                  videoNonEmbeddable
+                    ? "bg-gray-700 text-gray-600 cursor-not-allowed"
+                    : "bg-gray-600 hover:bg-gray-500"
+                }`}
+                aria-label={videoNonEmbeddable ? "Cannot play - embedding disabled" : "Play now"}
+                title={videoNonEmbeddable ? "Cannot play - embedding disabled" : "Play now"}
+                disabled={videoNonEmbeddable}
               >
                 ▶
               </button>

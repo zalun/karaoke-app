@@ -30,6 +30,8 @@ export interface SongInfo {
 
 export interface PlayerState {
   streamUrl: string | null;
+  videoId?: string | null;
+  playbackMode?: "youtube" | "ytdlp";
   isPlaying: boolean;
   currentTime: number;
   duration: number;

@@ -16,6 +16,7 @@ const ALLOWED_SETTING_KEYS: &[&str] = &[
     "history_limit",
     "clear_queue_on_exit",
     "debug_mode",
+    "playback_mode",
 ];
 
 /// Get the current debug mode state

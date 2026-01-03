@@ -1,6 +1,8 @@
 export { VideoPlayer } from "./VideoPlayer";
 export { PlayerControls } from "./PlayerControls";
 export { DetachedPlayer } from "./DetachedPlayer";
+export { YouTubePlayer } from "./YouTubePlayer";
+export { NativePlayer } from "./NativePlayer";
 export {
   NextSongOverlay,
   OVERLAY_SHOW_THRESHOLD_SECONDS,

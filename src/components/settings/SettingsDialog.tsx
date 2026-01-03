@@ -176,7 +176,11 @@ export function SettingsDialog() {
                   />
                 )}
                 {activeTab === "advanced" && (
-                  <AdvancedSettings onResetToDefaults={handleResetToDefaults} />
+                  <AdvancedSettings
+                    getSetting={getSetting}
+                    setSetting={setSetting}
+                    onResetToDefaults={handleResetToDefaults}
+                  />
                 )}
                 {activeTab === "about" && (
                   <AboutSettings onOpenLogFolder={handleOpenLogFolder} />
@@ -459,11 +463,15 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
 }
 
 function AdvancedSettings({
+  getSetting,
+  setSetting,
   onResetToDefaults,
-}: {
+}: SettingsSectionProps & {
   onResetToDefaults: () => void;
 }) {
   const [showConfirm, setShowConfirm] = useState(false);
+  const ytDlpAvailable = useSettingsStore((state) => state.ytDlpAvailable);
+  const handleChange = createSettingHandler(setSetting);
 
   const handleReset = () => {
     setShowConfirm(false);
@@ -474,11 +482,29 @@ function AdvancedSettings({
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Advanced</h4>
 
-      <div className="text-sm text-gray-400 mb-6">
-        Platform-specific settings will appear here in future updates.
-      </div>
+      {ytDlpAvailable && (
+        <SettingRow
+          label="Video Streaming Mode"
+          description="YouTube embed is simpler; yt-dlp provides higher quality and works offline"
+        >
+          <SelectInput
+            value={getSetting(SETTINGS_KEYS.PLAYBACK_MODE)}
+            options={[
+              { value: "youtube", label: "YouTube Embed" },
+              { value: "ytdlp", label: "yt-dlp (advanced)" },
+            ]}
+            onChange={(v) => handleChange(SETTINGS_KEYS.PLAYBACK_MODE, v)}
+          />
+        </SettingRow>
+      )}
 
-      <div className="pt-4 border-t border-gray-700">
+      {!ytDlpAvailable && (
+        <div className="text-sm text-gray-400 mb-6">
+          yt-dlp is not installed. Install it to enable advanced playback options.
+        </div>
+      )}
+
+      <div className="pt-4 border-t border-gray-700 mt-4">
         {showConfirm ? (
           <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
             <div className="flex items-start gap-3">

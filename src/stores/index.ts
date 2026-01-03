@@ -3,7 +3,9 @@ export {
   getStreamUrlWithCache,
   invalidatePrefetchIfStale,
   playVideo,
+  isEmbeddingError,
   PREFETCH_THRESHOLD_SECONDS,
+  EMBEDDING_ERROR_CODES,
   type Video,
 } from "./playerStore";
 export { useQueueStore, type QueueItem } from "./queueStore";
