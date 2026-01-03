@@ -23,6 +23,7 @@ export interface YouTubePlayerProps {
   onError?: (errorCode: number, message: string) => void;
   onDurationChange?: (duration: number) => void;
   onClearSeek?: () => void;
+  onAutoplayBlocked?: () => void;
   className?: string;
 }
 
@@ -38,6 +39,7 @@ export function YouTubePlayer({
   onError,
   onDurationChange,
   onClearSeek,
+  onAutoplayBlocked,
   className,
 }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -238,6 +240,7 @@ export function YouTubePlayer({
                     log.warn("Autoplay failed after max retries, showing play button");
                     setShowPlayButton(true);
                     setIsLoading(false);
+                    onAutoplayBlocked?.();
                   }
                 }
               }
@@ -258,6 +261,7 @@ export function YouTubePlayer({
               autoplayRetryCountRef.current = MAX_AUTOPLAY_RETRIES + 1;
               setShowPlayButton(true);
               setIsLoading(false);
+              onAutoplayBlocked?.();
             },
           },
         });

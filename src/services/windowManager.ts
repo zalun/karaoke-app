@@ -20,6 +20,7 @@ const PLAYER_EVENTS = {
   FINAL_STATE: "player:final-state",
   VIDEO_ENDED: "player:video-ended",
   VIDEO_LOADED: "player:video-loaded",
+  AUTOPLAY_BLOCKED: "player:autoplay-blocked",
 } as const;
 
 export interface SongInfo {
@@ -363,6 +364,19 @@ class WindowManager {
 
   async listenForVideoLoaded(callback: () => void): Promise<UnlistenFn> {
     return listen(PLAYER_EVENTS.VIDEO_LOADED, callback);
+  }
+
+  async emitAutoplayBlocked(): Promise<void> {
+    log.debug("emitAutoplayBlocked: autoplay was blocked in detached player");
+    try {
+      await emit(PLAYER_EVENTS.AUTOPLAY_BLOCKED);
+    } catch {
+      // Window might not exist anymore, ignore
+    }
+  }
+
+  async listenForAutoplayBlocked(callback: () => void): Promise<UnlistenFn> {
+    return listen(PLAYER_EVENTS.AUTOPLAY_BLOCKED, callback);
   }
 
   /**

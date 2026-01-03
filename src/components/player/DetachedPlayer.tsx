@@ -204,6 +204,12 @@ export function DetachedPlayer() {
     setSeekTime(null);
   }, []);
 
+  // Handle autoplay blocked - notify main window
+  const handleAutoplayBlocked = useCallback(() => {
+    log.info("Autoplay blocked, notifying main window");
+    windowManager.emitAutoplayBlocked();
+  }, []);
+
   // Emit final state before window closes
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -288,6 +294,7 @@ export function DetachedPlayer() {
           onEnded={handleEnded}
           onDurationChange={handleDurationChange}
           onClearSeek={handleClearSeek}
+          onAutoplayBlocked={handleAutoplayBlocked}
           className="w-full h-full"
         />
       )}

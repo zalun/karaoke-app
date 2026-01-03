@@ -213,6 +213,31 @@ export function PlayerControls() {
     };
   }, [isDetached]);
 
+  // Listen for autoplay blocked event from detached window
+  useEffect(() => {
+    if (!isDetached) return;
+
+    let isMounted = true;
+    let unlistenFn: (() => void) | undefined;
+
+    windowManager.listenForAutoplayBlocked(() => {
+      if (isMounted) {
+        notify("warning", "Autoplay blocked - click Play in the player window");
+      }
+    }).then((unlisten) => {
+      if (isMounted) {
+        unlistenFn = unlisten;
+      } else {
+        unlisten();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unlistenFn?.();
+    };
+  }, [isDetached]);
+
   // Listen for state requests from detached window and respond with current state
   useEffect(() => {
     if (!isDetached) return;
