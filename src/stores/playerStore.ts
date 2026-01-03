@@ -9,7 +9,8 @@ const log = createLogger("PlayerStore");
 const PREFETCH_CACHE_EXPIRY_MS = 5 * 60 * 60 * 1000;
 
 // YouTube error codes that indicate embedding is disabled
-export const EMBEDDING_ERROR_CODES = [101, 150];
+// 101, 150, 153 are all variants of "embedding not allowed"
+export const EMBEDDING_ERROR_CODES = [101, 150, 153];
 
 /**
  * Check if a YouTube error code indicates embedding is disabled

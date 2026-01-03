@@ -117,6 +117,7 @@ export const YouTubeErrorCodes: Record<number, string> = {
   100: "Video not found or has been removed",
   101: "Video owner does not allow embedding",
   150: "Video owner does not allow embedding (same as 101)",
+  153: "Video owner does not allow embedding (same as 101)",
 };
 
 /**
