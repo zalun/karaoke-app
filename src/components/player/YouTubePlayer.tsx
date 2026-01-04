@@ -147,7 +147,7 @@ export function YouTubePlayer({
             iv_load_policy: 3,
             playsinline: 1,
             enablejsapi: 1,
-            // Note: origin is set automatically by YouTube API
+            origin: window.location.origin,
           },
           events: {
             onReady: (event) => {

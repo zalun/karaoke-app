@@ -197,9 +197,35 @@ fn save_debug_preference(db: &Database, enabled: bool) {
     }
 }
 
+// Port for localhost server (used on macOS/Linux to fix YouTube embed issues)
+// YouTube iframe API requires HTTP protocol with valid Referer header
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+const LOCALHOST_PORT: u16 = 14200;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    // Use localhost plugin on macOS/Linux to serve app over HTTP
+    // This fixes YouTube iframe error 153 (tauri:// protocol lacks valid HTTP Referer)
+    // Windows already uses http://tauri.localhost which works fine
+    let mut context = tauri::generate_context!();
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        use tauri::utils::config::FrontendDist;
+        let url_str = format!("http://localhost:{}", LOCALHOST_PORT);
+        let url: url::Url = url_str.parse().expect("Invalid localhost URL");
+        context.config_mut().build.frontend_dist = Some(FrontendDist::Url(url));
+    }
+
+    let mut builder = tauri::Builder::default();
+
+    // Localhost plugin serves app over HTTP on macOS/Linux (fixes YouTube embed)
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        builder = builder.plugin(tauri_plugin_localhost::Builder::new(LOCALHOST_PORT).build());
+    }
+
+    builder
         .plugin(tauri_plugin_shell::init())
         // Configure logging with file + stdout + webview targets
         // File logs capture everything (debug level) for issue reporting
@@ -580,7 +606,7 @@ pub fn run() {
                 _ => {}
             }
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::Exit = event {
