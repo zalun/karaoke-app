@@ -147,8 +147,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await invoke("settings_reset_all", { defaults: SETTINGS_DEFAULTS });
       log.info("Settings reset to defaults");
 
-      // Update local state
-      set({ settings: { ...SETTINGS_DEFAULTS } });
+      // Update local state and clear yt-dlp check cache (forces re-check)
+      set({
+        settings: { ...SETTINGS_DEFAULTS },
+        ytDlpChecked: false,
+        ytDlpAvailable: false,
+        ytDlpChecking: false,
+      });
     } catch (error) {
       log.error("Failed to reset settings:", error);
       throw error;
