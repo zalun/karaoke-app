@@ -395,9 +395,9 @@ export function PlayerControls() {
   const { setIsLoading, setCurrentVideo } = usePlayerStore();
 
   const handleReload = useCallback(async () => {
-    // Get the current item from queue - this is the video being loaded/played
+    // Get the video to reload - prefer queue item, fall back to currentVideo from player store
     const currentItem = getCurrentItem();
-    const videoToReload = currentItem?.video;
+    const videoToReload = currentItem?.video || usePlayerStore.getState().currentVideo;
 
     if (!videoToReload?.youtubeId) return;
 
@@ -405,17 +405,34 @@ export function PlayerControls() {
     setIsLoading(true);
 
     try {
-      // Always fetch fresh URL (bypass cache)
-      const streamInfo = await youtubeService.getStreamUrl(videoToReload.youtubeId);
+      if (playbackMode === "ytdlp") {
+        // yt-dlp mode: fetch fresh stream URL
+        const streamInfo = await youtubeService.getStreamUrl(videoToReload.youtubeId);
 
-      // Check if video changed during fetch (user clicked Next/Previous)
-      const stillCurrent = getCurrentItem()?.video.youtubeId === videoToReload.youtubeId;
-      if (!stillCurrent) {
-        log.info("Video changed during reload, aborting");
-        return;
+        // Check if video changed during fetch (user clicked Next/Previous)
+        const currentVideoId = getCurrentItem()?.video.youtubeId || usePlayerStore.getState().currentVideo?.youtubeId;
+        if (currentVideoId !== videoToReload.youtubeId) {
+          log.info("Video changed during reload, aborting");
+          return;
+        }
+
+        setCurrentVideo({ ...videoToReload, streamUrl: streamInfo.url });
+      } else {
+        // YouTube mode: clear and restore video to force player re-initialization
+        setCurrentVideo(null);
+        // Small delay to ensure React processes the null state before setting new video
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // Verify video hasn't changed during delay (user clicked Next/Previous)
+        const currentVideoId = getCurrentItem()?.video.youtubeId || usePlayerStore.getState().currentVideo?.youtubeId;
+        if (currentVideoId && currentVideoId !== videoToReload.youtubeId) {
+          log.info("Video changed during reload, aborting");
+          return;
+        }
+
+        setCurrentVideo({ ...videoToReload });
       }
 
-      setCurrentVideo({ ...videoToReload, streamUrl: streamInfo.url });
       setIsPlaying(true);
       // Reset to beginning
       seekTo(0);
@@ -426,7 +443,7 @@ export function PlayerControls() {
     } finally {
       setIsLoading(false);
     }
-  }, [getCurrentItem, setIsLoading, setCurrentVideo, setIsPlaying, seekTo]);
+  }, [getCurrentItem, setIsLoading, setCurrentVideo, setIsPlaying, seekTo, playbackMode]);
 
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
@@ -441,8 +458,9 @@ export function PlayerControls() {
 
   const { isLoading } = usePlayerStore();
   const isDisabled = !currentVideo;
-  // Disable reload when detached since we can't sync the new URL to the detached window
-  const canReload = !!currentQueueItem?.video.youtubeId && !isDetached;
+  // Reload is enabled when there's a video (from currentVideo or currentQueueItem)
+  // Disable when detached since we can't sync the new URL to the detached window
+  const canReload = !!(currentVideo?.youtubeId || currentQueueItem?.video.youtubeId) && !isDetached;
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (

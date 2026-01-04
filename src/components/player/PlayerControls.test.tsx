@@ -238,6 +238,11 @@ function resetMocks() {
   mockYoutubeService = createMockYoutubeService();
   mockPlayVideo.mockClear();
   mockNotify.mockClear();
+  // Reset settings store to default (youtube mode)
+  mockSettingsStore.getSetting.mockImplementation((key: string) => {
+    if (key === "playback_mode") return "youtube";
+    return null;
+  });
 }
 
 function setupVideoPlaying(options: {
@@ -567,8 +572,12 @@ describe("PlayerControls", () => {
       expect(reloadButtonInOverlay).not.toBeDisabled();
     });
 
-    it("clicking reload fetches new URL and updates state", async () => {
+    it("clicking reload fetches new URL and updates state (ytdlp mode)", async () => {
       setupVideoPlaying();
+      // Set playback mode to ytdlp for this test
+      mockSettingsStore.getSetting.mockImplementation((key: string) =>
+        key === "playback_mode" ? "ytdlp" : null
+      );
       render(<PlayerControls />);
 
       const reloadButton = getMainReloadButton();
@@ -583,8 +592,31 @@ describe("PlayerControls", () => {
       });
     });
 
-    it("reload handles errors gracefully", async () => {
+    it("clicking reload re-initializes player (youtube mode)", async () => {
       setupVideoPlaying();
+      // Default is youtube mode
+      mockSettingsStore.getSetting.mockImplementation((key: string) =>
+        key === "playback_mode" ? "youtube" : null
+      );
+      render(<PlayerControls />);
+
+      const reloadButton = getMainReloadButton();
+      await userEvent.click(reloadButton!);
+
+      // YouTube mode clears and restores the video to force re-initialization
+      expect(mockPlayerStore.setCurrentVideo).toHaveBeenCalledWith(null);
+
+      await waitFor(() => {
+        expect(mockPlayerStore.setIsPlaying).toHaveBeenCalledWith(true);
+        expect(mockPlayerStore.seekTo).toHaveBeenCalledWith(0);
+      });
+    });
+
+    it("reload handles errors gracefully (ytdlp mode)", async () => {
+      setupVideoPlaying();
+      mockSettingsStore.getSetting.mockImplementation((key: string) =>
+        key === "playback_mode" ? "ytdlp" : null
+      );
       mockYoutubeService.getStreamUrl.mockRejectedValue(new Error("Network error"));
       render(<PlayerControls />);
 
@@ -597,10 +629,13 @@ describe("PlayerControls", () => {
       });
     });
 
-    it("reload sets loading state before and after fetch", async () => {
+    it("reload sets loading state before and after fetch (ytdlp mode)", async () => {
       setupVideoPlaying();
+      mockSettingsStore.getSetting.mockImplementation((key: string) =>
+        key === "playback_mode" ? "ytdlp" : null
+      );
 
-      let resolvePromise: (value: { url: string }) => void;
+      let resolvePromise: ((value: { url: string }) => void) | undefined;
       mockYoutubeService.getStreamUrl.mockImplementation(() =>
         new Promise(resolve => { resolvePromise = resolve; })
       );
@@ -634,7 +669,7 @@ describe("PlayerControls", () => {
     // Note: Component no longer uses setError - it uses notify() for user-facing errors.
     // The notification system handles error display separately from the error state.
 
-    it("reload does nothing when getCurrentItem returns null", async () => {
+    it("reload uses currentVideo fallback when getCurrentItem returns null", async () => {
       setupVideoPlaying();
       // Override getCurrentItem to return null (edge case: queue cleared during operation)
       mockQueueStore.getCurrentItem.mockReturnValue(null);
@@ -643,9 +678,11 @@ describe("PlayerControls", () => {
       const reloadButton = getMainReloadButton();
       await userEvent.click(reloadButton!);
 
-      // Should not attempt to fetch stream URL
-      expect(mockYoutubeService.getStreamUrl).not.toHaveBeenCalled();
-      expect(mockPlayerStore.setIsLoading).not.toHaveBeenCalled();
+      // Should still work using currentVideo fallback from playerStore
+      // In YouTube mode (default), it clears and restores the video
+      expect(mockPlayerStore.setIsLoading).toHaveBeenCalledWith(true);
+      // First call clears video (null), second call restores it
+      expect(mockPlayerStore.setCurrentVideo).toHaveBeenNthCalledWith(1, null);
     });
   });
 
