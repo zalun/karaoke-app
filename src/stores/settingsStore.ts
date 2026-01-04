@@ -145,11 +145,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       // Use batch command for single transaction
       await invoke("settings_reset_all", { defaults: SETTINGS_DEFAULTS });
+
+      // Clear the cached yt-dlp availability (not in defaults, so reset separately)
+      await invoke("settings_set", { key: SETTINGS_KEYS.YTDLP_AVAILABLE, value: "" });
+
       log.info("Settings reset to defaults");
 
       // Update local state and clear yt-dlp check cache (forces re-check)
       set({
-        settings: { ...SETTINGS_DEFAULTS },
+        settings: { ...SETTINGS_DEFAULTS, [SETTINGS_KEYS.YTDLP_AVAILABLE]: "" },
         ytDlpChecked: false,
         ytDlpAvailable: false,
         ytDlpChecking: false,
