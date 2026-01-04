@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "../services/logger";
+import { youtubeService } from "../services";
 
 const log = createLogger("SettingsStore");
 
@@ -20,6 +21,8 @@ export const SETTINGS_KEYS = {
   CLEAR_QUEUE_ON_EXIT: "clear_queue_on_exit",
   // Advanced
   PLAYBACK_MODE: "playback_mode", // 'youtube' | 'ytdlp'
+  // Internal (not shown in UI, used for caching)
+  YTDLP_AVAILABLE: "ytdlp_available", // 'true' | 'false' | '' (not checked)
 } as const;
 
 // Default values
@@ -48,8 +51,10 @@ interface SettingsState {
   isLoading: boolean;
   loadError: string | null;
 
-  // yt-dlp availability (detected at startup)
+  // yt-dlp availability (checked lazily when needed)
   ytDlpAvailable: boolean;
+  ytDlpChecked: boolean;
+  ytDlpChecking: boolean;
 
   // Actions
   openSettingsDialog: () => void;
@@ -59,7 +64,7 @@ interface SettingsState {
   getSetting: (key: string) => string;
   setSetting: (key: string, value: string) => Promise<void>;
   resetToDefaults: () => Promise<void>;
-  setYtDlpAvailable: (available: boolean) => void;
+  checkYtDlpAvailability: (forceRecheck?: boolean) => Promise<boolean>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -72,8 +77,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   isLoading: false,
   loadError: null,
 
-  // yt-dlp availability
+  // yt-dlp availability (checked lazily)
   ytDlpAvailable: false,
+  ytDlpChecked: false,
+  ytDlpChecking: false,
 
   // Actions
   openSettingsDialog: () => {
@@ -87,6 +94,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setActiveTab: (tab: SettingsTab) => {
     set({ activeTab: tab });
+    // Check yt-dlp availability when switching to Advanced tab
+    if (tab === "advanced" && !get().ytDlpChecked) {
+      get().checkYtDlpAvailability();
+    }
   },
 
   loadSettings: async () => {
@@ -139,8 +150,39 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  setYtDlpAvailable: (available: boolean) => {
-    log.debug(`yt-dlp availability set to: ${available}`);
-    set({ ytDlpAvailable: available });
+  checkYtDlpAvailability: async (forceRecheck = false) => {
+    // Skip if already checking
+    if (get().ytDlpChecking) {
+      return get().ytDlpAvailable;
+    }
+
+    // Check cached value from DB (unless force recheck)
+    if (!forceRecheck) {
+      const cached = get().getSetting(SETTINGS_KEYS.YTDLP_AVAILABLE);
+      if (cached === "true" || cached === "false") {
+        const available = cached === "true";
+        log.info(`Using cached yt-dlp availability: ${available}`);
+        set({ ytDlpAvailable: available, ytDlpChecked: true });
+        return available;
+      }
+    }
+
+    log.info("Checking yt-dlp availability on system");
+    set({ ytDlpChecking: true });
+
+    try {
+      const available = await youtubeService.checkAvailable();
+      log.info(`yt-dlp available: ${available}`);
+
+      // Cache result to DB
+      await get().setSetting(SETTINGS_KEYS.YTDLP_AVAILABLE, available ? "true" : "false");
+
+      set({ ytDlpAvailable: available, ytDlpChecked: true, ytDlpChecking: false });
+      return available;
+    } catch (err) {
+      log.warn("Failed to check yt-dlp availability", err);
+      set({ ytDlpAvailable: false, ytDlpChecked: true, ytDlpChecking: false });
+      return false;
+    }
   },
 }));
