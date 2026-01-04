@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- yt-dlp availability check is now lazy (#127)
+  - Only checks on startup if playback mode is set to 'ytdlp'
+  - Checks when opening Settings > Advanced tab (with loading indicator)
+  - Caches result to database to avoid redundant checks
+  - Added "Recheck" button for manual re-check after installing yt-dlp
+
 ## [0.6.0] - 2026-01-03
 
 ### Added

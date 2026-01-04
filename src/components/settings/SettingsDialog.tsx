@@ -471,6 +471,9 @@ function AdvancedSettings({
 }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const ytDlpAvailable = useSettingsStore((state) => state.ytDlpAvailable);
+  const ytDlpChecking = useSettingsStore((state) => state.ytDlpChecking);
+  const ytDlpChecked = useSettingsStore((state) => state.ytDlpChecked);
+  const checkYtDlpAvailability = useSettingsStore((state) => state.checkYtDlpAvailability);
   const handleChange = createSettingHandler(setSetting);
 
   const handleReset = () => {
@@ -478,11 +481,22 @@ function AdvancedSettings({
     onResetToDefaults();
   };
 
+  const handleRecheck = () => {
+    checkYtDlpAvailability(true); // force recheck
+  };
+
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Advanced</h4>
 
-      {ytDlpAvailable && (
+      {ytDlpChecking && (
+        <div className="text-sm text-gray-400 mb-6 flex items-center gap-2">
+          <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+          Investigating your system...
+        </div>
+      )}
+
+      {ytDlpChecked && ytDlpAvailable && (
         <SettingRow
           label="Video Streaming Mode"
           description="YouTube embed is simpler; yt-dlp provides higher quality and works offline"
@@ -498,9 +512,16 @@ function AdvancedSettings({
         </SettingRow>
       )}
 
-      {!ytDlpAvailable && (
+      {ytDlpChecked && !ytDlpAvailable && (
         <div className="text-sm text-gray-400 mb-6">
-          yt-dlp is not installed. Install it to enable advanced playback options.
+          yt-dlp is not installed.{" "}
+          <button
+            onClick={handleRecheck}
+            className="text-blue-400 hover:text-blue-300 underline"
+          >
+            Recheck
+          </button>{" "}
+          after installing to enable advanced playback options.
         </div>
       )}
 

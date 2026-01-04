@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Create a feature branch from the issue (never commit directly to main)
 - Create a pull request for code review before merging
 - Branch naming: `feature/<issue-number>-<description>` or `fix/<issue-number>-<description>`
+- **Avoid `git commit --amend`** - prefer separate commits for fixes/updates (easier to review)
 
 ## Build and Development Commands
 

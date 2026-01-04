@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "../services/logger";
+import { youtubeService } from "../services";
 
 const log = createLogger("SettingsStore");
 
@@ -20,6 +21,8 @@ export const SETTINGS_KEYS = {
   CLEAR_QUEUE_ON_EXIT: "clear_queue_on_exit",
   // Advanced
   PLAYBACK_MODE: "playback_mode", // 'youtube' | 'ytdlp'
+  // Internal (not shown in UI, used for caching)
+  YTDLP_AVAILABLE: "ytdlp_available", // 'true' | 'false' | '' (not checked)
 } as const;
 
 // Default values
@@ -38,6 +41,11 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
 
 export type SettingsTab = "playback" | "display" | "queue" | "advanced" | "about";
 
+// Module-level promise prevents race conditions in checkYtDlpAvailability.
+// Not stored in Zustand state because promises aren't serializable and we need
+// a single shared reference across all concurrent calls.
+let ytDlpCheckPromise: Promise<boolean> | null = null;
+
 interface SettingsState {
   // Dialog state
   showSettingsDialog: boolean;
@@ -48,8 +56,10 @@ interface SettingsState {
   isLoading: boolean;
   loadError: string | null;
 
-  // yt-dlp availability (detected at startup)
+  // yt-dlp availability (checked lazily when needed)
   ytDlpAvailable: boolean;
+  ytDlpChecked: boolean;
+  ytDlpChecking: boolean;
 
   // Actions
   openSettingsDialog: () => void;
@@ -59,7 +69,7 @@ interface SettingsState {
   getSetting: (key: string) => string;
   setSetting: (key: string, value: string) => Promise<void>;
   resetToDefaults: () => Promise<void>;
-  setYtDlpAvailable: (available: boolean) => void;
+  checkYtDlpAvailability: (forceRecheck?: boolean) => Promise<boolean>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -72,8 +82,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   isLoading: false,
   loadError: null,
 
-  // yt-dlp availability
+  // yt-dlp availability (checked lazily)
   ytDlpAvailable: false,
+  ytDlpChecked: false,
+  ytDlpChecking: false,
 
   // Actions
   openSettingsDialog: () => {
@@ -87,6 +99,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setActiveTab: (tab: SettingsTab) => {
     set({ activeTab: tab });
+    // Check yt-dlp availability when switching to Advanced tab
+    if (tab === "advanced" && !get().ytDlpChecked) {
+      get().checkYtDlpAvailability();
+    }
   },
 
   loadSettings: async () => {
@@ -129,18 +145,71 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       // Use batch command for single transaction
       await invoke("settings_reset_all", { defaults: SETTINGS_DEFAULTS });
+
+      // Clear the cached yt-dlp availability (not in defaults, so reset separately)
+      await invoke("settings_set", { key: SETTINGS_KEYS.YTDLP_AVAILABLE, value: "" });
+
       log.info("Settings reset to defaults");
 
-      // Update local state
-      set({ settings: { ...SETTINGS_DEFAULTS } });
+      // Update local state and clear yt-dlp check cache (forces re-check)
+      set({
+        settings: { ...SETTINGS_DEFAULTS, [SETTINGS_KEYS.YTDLP_AVAILABLE]: "" },
+        ytDlpChecked: false,
+        ytDlpAvailable: false,
+        ytDlpChecking: false,
+      });
     } catch (error) {
       log.error("Failed to reset settings:", error);
       throw error;
     }
   },
 
-  setYtDlpAvailable: (available: boolean) => {
-    log.debug(`yt-dlp availability set to: ${available}`);
-    set({ ytDlpAvailable: available });
+  checkYtDlpAvailability: async (forceRecheck = false) => {
+    // If a check is already in progress
+    if (ytDlpCheckPromise) {
+      if (!forceRecheck) {
+        // Return existing promise for concurrent calls
+        return ytDlpCheckPromise;
+      } else {
+        // Wait for current check to finish before rechecking
+        await ytDlpCheckPromise;
+      }
+    }
+
+    // Check cached value from DB (unless force recheck)
+    if (!forceRecheck) {
+      const cached = get().getSetting(SETTINGS_KEYS.YTDLP_AVAILABLE);
+      if (cached === "true" || cached === "false") {
+        const available = cached === "true";
+        log.info(`Using cached yt-dlp availability: ${available}`);
+        set({ ytDlpAvailable: available, ytDlpChecked: true });
+        return available;
+      }
+    }
+
+    log.info("Checking yt-dlp availability on system");
+    set({ ytDlpChecking: true });
+
+    // Create and store the promise to prevent race conditions
+    ytDlpCheckPromise = (async () => {
+      try {
+        const available = await youtubeService.checkAvailable();
+        log.info(`yt-dlp available: ${available}`);
+
+        // Cache result to DB
+        await get().setSetting(SETTINGS_KEYS.YTDLP_AVAILABLE, available ? "true" : "false");
+
+        set({ ytDlpAvailable: available, ytDlpChecked: true, ytDlpChecking: false });
+        return available;
+      } catch (err) {
+        log.warn("Failed to check yt-dlp availability", err);
+        set({ ytDlpAvailable: false, ytDlpChecked: true, ytDlpChecking: false });
+        return false;
+      } finally {
+        ytDlpCheckPromise = null;
+      }
+    })();
+
+    return ytDlpCheckPromise;
   },
 }));

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
-import { youtubeService, createLogger } from "../services";
-import { useSettingsStore } from "../stores";
+import { useEffect, useState } from "react";
+import { createLogger } from "../services";
+import { useSettingsStore, SETTINGS_KEYS } from "../stores";
 
 const log = createLogger("DependencyCheck");
 
@@ -9,37 +9,44 @@ interface DependencyCheckProps {
 }
 
 /**
- * DependencyCheck component - checks for yt-dlp availability but doesn't block.
- * YouTube iframe mode works without yt-dlp, so we just detect availability
- * and store it for the Advanced settings toggle.
+ * DependencyCheck component - loads settings and checks for yt-dlp only if needed.
+ * YouTube iframe mode (default) works without yt-dlp, so we skip the check.
+ * The yt-dlp check is also done lazily when opening Settings → Advanced.
  */
 export function DependencyCheck({ onReady }: DependencyCheckProps) {
-  const [checking, setChecking] = useState(true);
-  const { setYtDlpAvailable } = useSettingsStore();
-
-  const checkYtDlp = useCallback(async () => {
-    log.info("Checking yt-dlp availability");
-    setChecking(true);
-
-    try {
-      const available = await youtubeService.checkAvailable();
-      log.info(`yt-dlp available: ${available}`);
-      setYtDlpAvailable(available);
-    } catch (err) {
-      log.warn("Failed to check yt-dlp availability", err);
-      setYtDlpAvailable(false);
-    }
-
-    // Always continue to app - YouTube iframe mode doesn't require yt-dlp
-    setChecking(false);
-    onReady();
-  }, [onReady, setYtDlpAvailable]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { loadSettings, getSetting, checkYtDlpAvailability } = useSettingsStore();
 
   useEffect(() => {
-    checkYtDlp();
-  }, [checkYtDlp]);
+    const init = async () => {
+      try {
+        // Load settings from database first
+        await loadSettings();
 
-  if (checking) {
+        const playbackMode = getSetting(SETTINGS_KEYS.PLAYBACK_MODE);
+
+        if (playbackMode === "ytdlp") {
+          // Only check yt-dlp if user has it enabled
+          log.info("Playback mode is yt-dlp, checking availability");
+          await checkYtDlpAvailability();
+        } else {
+          log.info("Playback mode is YouTube iframe, skipping yt-dlp check");
+        }
+      } catch (err) {
+        log.error("Failed to initialize settings:", err);
+        // Continue anyway - app can still work with defaults
+      }
+
+      setIsLoading(false);
+      onReady();
+    };
+
+    init();
+    // Run only once on mount - Zustand store functions are stable references
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
@@ -50,6 +57,5 @@ export function DependencyCheck({ onReady }: DependencyCheckProps) {
     );
   }
 
-  // After checking, return null - component is only for initial check
   return null;
 }
