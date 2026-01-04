@@ -41,6 +41,9 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
 
 export type SettingsTab = "playback" | "display" | "queue" | "advanced" | "about";
 
+// Shared promise to prevent race conditions in checkYtDlpAvailability
+let ytDlpCheckPromise: Promise<boolean> | null = null;
+
 interface SettingsState {
   // Dialog state
   showSettingsDialog: boolean;
@@ -151,9 +154,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   checkYtDlpAvailability: async (forceRecheck = false) => {
-    // Skip if already checking
-    if (get().ytDlpChecking) {
-      return get().ytDlpAvailable;
+    // If a check is already in progress
+    if (ytDlpCheckPromise) {
+      if (!forceRecheck) {
+        // Return existing promise for concurrent calls
+        return ytDlpCheckPromise;
+      } else {
+        // Wait for current check to finish before rechecking
+        await ytDlpCheckPromise;
+      }
     }
 
     // Check cached value from DB (unless force recheck)
@@ -170,19 +179,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     log.info("Checking yt-dlp availability on system");
     set({ ytDlpChecking: true });
 
-    try {
-      const available = await youtubeService.checkAvailable();
-      log.info(`yt-dlp available: ${available}`);
+    // Create and store the promise to prevent race conditions
+    ytDlpCheckPromise = (async () => {
+      try {
+        const available = await youtubeService.checkAvailable();
+        log.info(`yt-dlp available: ${available}`);
 
-      // Cache result to DB
-      await get().setSetting(SETTINGS_KEYS.YTDLP_AVAILABLE, available ? "true" : "false");
+        // Cache result to DB
+        await get().setSetting(SETTINGS_KEYS.YTDLP_AVAILABLE, available ? "true" : "false");
 
-      set({ ytDlpAvailable: available, ytDlpChecked: true, ytDlpChecking: false });
-      return available;
-    } catch (err) {
-      log.warn("Failed to check yt-dlp availability", err);
-      set({ ytDlpAvailable: false, ytDlpChecked: true, ytDlpChecking: false });
-      return false;
-    }
+        set({ ytDlpAvailable: available, ytDlpChecked: true, ytDlpChecking: false });
+        return available;
+      } catch (err) {
+        log.warn("Failed to check yt-dlp availability", err);
+        set({ ytDlpAvailable: false, ytDlpChecked: true, ytDlpChecking: false });
+        return false;
+      } finally {
+        ytDlpCheckPromise = null;
+      }
+    })();
+
+    return ytDlpCheckPromise;
   },
 }));
