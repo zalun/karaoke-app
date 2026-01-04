@@ -42,6 +42,7 @@ export function DependencyCheck({ onReady }: DependencyCheckProps) {
     };
 
     init();
+    // Run only once on mount - Zustand store functions are stable references
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

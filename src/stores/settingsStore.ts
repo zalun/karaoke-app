@@ -41,7 +41,9 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
 
 export type SettingsTab = "playback" | "display" | "queue" | "advanced" | "about";
 
-// Shared promise to prevent race conditions in checkYtDlpAvailability
+// Module-level promise prevents race conditions in checkYtDlpAvailability.
+// Not stored in Zustand state because promises aren't serializable and we need
+// a single shared reference across all concurrent calls.
 let ytDlpCheckPromise: Promise<boolean> | null = null;
 
 interface SettingsState {
