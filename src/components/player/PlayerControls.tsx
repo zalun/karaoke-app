@@ -420,8 +420,16 @@ export function PlayerControls() {
       } else {
         // YouTube mode: clear and restore video to force player re-initialization
         setCurrentVideo(null);
-        // Use setTimeout to ensure React processes the null state before setting new video
+        // Small delay to ensure React processes the null state before setting new video
         await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // Verify video hasn't changed during delay (user clicked Next/Previous)
+        const currentVideoId = getCurrentItem()?.video.youtubeId || usePlayerStore.getState().currentVideo?.youtubeId;
+        if (currentVideoId && currentVideoId !== videoToReload.youtubeId) {
+          log.info("Video changed during reload, aborting");
+          return;
+        }
+
         setCurrentVideo({ ...videoToReload });
       }
 
