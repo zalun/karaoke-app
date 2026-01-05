@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from "react";
 import { createLogger } from "../../services";
 
 const log = createLogger("NativePlayer");
@@ -41,11 +41,17 @@ export interface NativePlayerProps {
   className?: string;
 }
 
+/** Ref handle for NativePlayer component */
+export interface NativePlayerRef {
+  /** Prime the video element for autoplay by triggering a play/pause with user gesture */
+  primeVideo: () => void;
+}
+
 /**
  * Native HTML5 video player component.
  * Used for playing videos via yt-dlp stream URLs.
  */
-export function NativePlayer({
+export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(function NativePlayer({
   streamUrl,
   isPlaying,
   volume,
@@ -61,7 +67,7 @@ export function NativePlayer({
   onAutoplayBlocked,
   onPrimed,
   className,
-}: NativePlayerProps) {
+}, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showPlayButton, setShowPlayButton] = useState(false);
@@ -70,8 +76,6 @@ export function NativePlayer({
     // Check localStorage to persist priming across page reloads
     return localStorage.getItem(VIDEO_PRIMED_KEY) === "true";
   });
-  // Show priming overlay only when we have no real content (dummy mode)
-  const [showPrimingOverlay, setShowPrimingOverlay] = useState(!isPrimed);
   const shouldPlayOnLoadRef = useRef(false);
   // Track if we're currently loading a new source to prevent play/pause interference
   const isLoadingSourceRef = useRef(false);
@@ -87,42 +91,34 @@ export function NativePlayer({
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
 
-  // Prime video element via user click on the overlay
-  const handlePrimeVideo = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
+  // Expose primeVideo method via ref for parent components
+  useImperativeHandle(ref, () => ({
+    primeVideo: () => {
+      const video = videoRef.current;
+      if (!video) return;
 
-    log.info("User clicked to prime video element");
+      log.info("Priming video element via ref");
 
-    // User interaction - try to "activate" the video element
-    // Just calling play() (even if it fails) registers the user gesture
-    video.muted = true;
-    video.play().then(() => {
-      video.pause();
-      video.currentTime = 0;
-      hasUserInteractionRef.current = true;
-      setIsPrimed(true);
-      setShowPrimingOverlay(false);
-      localStorage.setItem(VIDEO_PRIMED_KEY, "true");
-      log.info("Video element primed successfully via user click");
-      onPrimed?.();
-    }).catch((e) => {
-      // Even if play fails, the user gesture should enable future plays
-      hasUserInteractionRef.current = true;
-      setIsPrimed(true);
-      setShowPrimingOverlay(false);
-      localStorage.setItem(VIDEO_PRIMED_KEY, "true");
-      log.info(`Video priming completed (play failed: ${e.message}), user gesture registered`);
-      onPrimed?.();
-    });
-  }, [onPrimed]);
-
-  // Hide priming overlay once primed
-  useEffect(() => {
-    if (isPrimed) {
-      setShowPrimingOverlay(false);
-    }
-  }, [isPrimed]);
+      // User interaction - try to "activate" the video element
+      video.muted = true;
+      video.play().then(() => {
+        video.pause();
+        video.currentTime = 0;
+        hasUserInteractionRef.current = true;
+        setIsPrimed(true);
+        localStorage.setItem(VIDEO_PRIMED_KEY, "true");
+        log.info("Video element primed successfully");
+        onPrimed?.();
+      }).catch((e) => {
+        // Even if play fails, the user gesture should enable future plays
+        hasUserInteractionRef.current = true;
+        setIsPrimed(true);
+        localStorage.setItem(VIDEO_PRIMED_KEY, "true");
+        log.info(`Video priming completed (play failed: ${e.message}), user gesture registered`);
+        onPrimed?.();
+      });
+    },
+  }), [onPrimed]);
 
   // Handle source changes - reload when streamUrl or playbackKey changes
   useEffect(() => {
@@ -372,8 +368,9 @@ export function NativePlayer({
         </div>
       )}
       {/* Autoplay blocked overlay - show when autoplay fails on real content */}
+      {/* z-50 ensures it appears above other overlays like singer overlay */}
       {showPlayButton && !isLoading && !isDummyMode && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-50">
           <button
             onClick={handleManualPlay}
             className="flex flex-col items-center gap-4 p-8 rounded-xl bg-black/50 hover:bg-black/70 transition-colors cursor-pointer"
@@ -383,28 +380,10 @@ export function NativePlayer({
             </div>
             <p className="text-white text-lg">Click to Play</p>
             <p className="text-gray-400 text-sm">Autoplay was blocked by the browser</p>
-          </button>
-        </div>
-      )}
-      {/* Priming overlay - show in dummy mode when video hasn't been primed yet */}
-      {/* z-50 ensures it appears above other overlays like singer overlay */}
-      {isDummyMode && showPrimingOverlay && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-50">
-          <button
-            onClick={handlePrimeVideo}
-            className="flex flex-col items-center gap-4 p-8 rounded-xl bg-gray-800/90 hover:bg-gray-700/90 transition-colors cursor-pointer border border-gray-600"
-          >
-            <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
-              <span className="text-blue-400 text-3xl">🎤</span>
-            </div>
-            <p className="text-white text-lg font-medium">Click to Start</p>
-            <p className="text-gray-400 text-sm text-center max-w-xs">
-              Click here to enable video playback.<br/>
-              This allows local files to auto-play.
-            </p>
+            <p className="text-gray-500 text-xs mt-2">Web and local videos require separate activation</p>
           </button>
         </div>
       )}
     </div>
   );
-}
+});

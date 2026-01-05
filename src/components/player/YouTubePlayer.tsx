@@ -448,7 +448,7 @@ export function YouTubePlayer({
   }, [isMuted, volume]);
 
   return (
-    <div className={`relative w-full h-full bg-black ${className || ""}`} style={{ isolation: "isolate", zIndex: 0 }}>
+    <div className={`relative w-full h-full bg-black ${className || ""}`} style={{ isolation: "isolate", zIndex: showPlayButton ? 50 : 0 }}>
       <div
         ref={containerRef}
         className="w-full h-full"
@@ -470,8 +470,9 @@ export function YouTubePlayer({
           </div>
         </div>
       )}
+      {/* z-50 ensures it appears above other overlays like singer overlay */}
       {showPlayButton && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-50">
           <button
             onClick={handleManualPlay}
             className="flex flex-col items-center gap-4 p-8 rounded-xl bg-black/50 hover:bg-black/70 transition-colors cursor-pointer"
@@ -482,6 +483,7 @@ export function YouTubePlayer({
             </div>
             <p className="text-white text-lg">Click to Play</p>
             <p className="text-gray-400 text-sm">Autoplay was blocked by the browser</p>
+            <p className="text-gray-500 text-xs mt-2">Web and local videos require separate activation</p>
           </button>
         </div>
       )}

@@ -22,9 +22,12 @@ import {
 import { CurrentSingerOverlay } from "./CurrentSingerOverlay";
 import { MIN_RESTORE_POSITION_SECONDS } from "./DetachedPlayer";
 import { YouTubePlayer } from "./YouTubePlayer";
-import { NativePlayer } from "./NativePlayer";
+import { NativePlayer, type NativePlayerRef } from "./NativePlayer";
 
 const log = createLogger("VideoPlayer");
+
+// Key for localStorage to track if video playback has been enabled
+const PLAYBACK_ENABLED_KEY = "videoPlayer.playbackEnabled";
 
 // Detach/pop-out icon - two overlapping rectangles
 function DetachIcon({ className }: { className?: string }) {
@@ -54,6 +57,12 @@ export function VideoPlayer() {
   // Track previous detached state to detect reattachment
   const wasDetachedRef = useRef(false);
   const [isHovered, setIsHovered] = useState(false);
+  // Track if playback has been enabled via user click (persisted in localStorage)
+  const [isPlaybackEnabled, setIsPlaybackEnabled] = useState(() => {
+    return localStorage.getItem(PLAYBACK_ENABLED_KEY) === "true";
+  });
+  // Ref to NativePlayer for priming
+  const nativePlayerRef = useRef<NativePlayerRef | null>(null);
   const {
     currentVideo,
     isPlaying,
@@ -228,6 +237,17 @@ export function VideoPlayer() {
     setIsLoading(false);
     usedCachedUrlRef.current = false;
   }, [setIsLoading]);
+
+  // Handle enabling playback via user click
+  const handleEnablePlayback = useCallback(() => {
+    log.info("User clicked to enable playback");
+    // Prime the NativePlayer video element if available
+    nativePlayerRef.current?.primeVideo();
+    // Mark playback as enabled
+    setIsPlaybackEnabled(true);
+    localStorage.setItem(PLAYBACK_ENABLED_KEY, "true");
+    log.info("Playback enabled for YouTube and local files");
+  }, []);
 
   const handleEnded = useCallback(async () => {
     log.info("Video ended");
@@ -434,6 +454,7 @@ export function VideoPlayer() {
         {/* Always render NativePlayer in background for priming (dummy mode) */}
         <div className="absolute inset-0">
           <NativePlayer
+            ref={nativePlayerRef}
             streamUrl={undefined}
             isPlaying={false}
             volume={volume}
@@ -441,6 +462,26 @@ export function VideoPlayer() {
             seekTime={null}
           />
         </div>
+        {/* Click to Start overlay - shown on first load to enable playback */}
+        {!isPlaybackEnabled && !isDetached && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-50">
+            <button
+              onClick={handleEnablePlayback}
+              className="flex flex-col items-center gap-4 p-8 rounded-xl bg-gray-800/90 hover:bg-gray-700/90 transition-colors cursor-pointer border border-gray-600"
+            >
+              <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <span className="text-blue-400 text-3xl">🎤</span>
+              </div>
+              <p className="text-white text-lg font-medium">Click to Start</p>
+              <p className="text-gray-400 text-sm text-center max-w-xs">
+                Click here to enable video playback
+              </p>
+              <p className="text-gray-500 text-xs mt-1">
+                Web and local videos require separate activation
+              </p>
+            </button>
+          </div>
+        )}
         {/* Overlay content on top of NativePlayer */}
         <div className="relative z-10">
           {isLoading ? (
@@ -501,6 +542,7 @@ export function VideoPlayer() {
       {/* Hide when YouTube/yt-dlp is playing, but keep mounted for priming */}
       <div className={canPlayLocal ? "" : "hidden"}>
         <NativePlayer
+          ref={nativePlayerRef}
           streamUrl={localFileUrl}
           isPlaying={canPlayLocal && isPlaying}
           volume={volume}
