@@ -1,0 +1,286 @@
+import { create } from "zustand";
+import { invoke } from "@tauri-apps/api/core";
+import { createLogger } from "../services/logger";
+
+const log = createLogger("LibraryStore");
+
+// Types matching Rust structs
+export interface LibraryFolder {
+  id: number;
+  path: string;
+  name: string;
+  last_scan_at: string | null;
+  file_count: number;
+}
+
+export interface LibraryVideo {
+  file_path: string;
+  file_name: string;
+  title: string;
+  artist: string | null;
+  album: string | null;
+  duration: number | null;
+  has_lyrics: boolean;
+  youtube_id: string | null;
+  is_available: boolean;
+}
+
+export interface ScanOptions {
+  create_hkmeta: boolean;
+  fetch_song_info: boolean;
+  fetch_lyrics: boolean;
+}
+
+export interface ScanResult {
+  folder_id: number;
+  files_found: number;
+  hkmeta_created: number;
+  hkmeta_existing: number;
+  errors: string[];
+  duration_ms: number;
+}
+
+export interface LibraryStats {
+  total_folders: number;
+  total_files: number;
+  last_scan_at: string | null;
+}
+
+export type SearchMode = "youtube" | "local";
+
+interface LibraryState {
+  // Search mode
+  searchMode: SearchMode;
+
+  // Library data
+  folders: LibraryFolder[];
+  searchResults: LibraryVideo[];
+  stats: LibraryStats | null;
+
+  // Loading states
+  isLoadingFolders: boolean;
+  isSearching: boolean;
+  isScanning: boolean;
+  scanProgress: { current: number; total: number } | null;
+
+  // File availability cache (file_path -> is_available)
+  fileAvailabilityCache: Map<string, boolean>;
+
+  // Actions
+  setSearchMode: (mode: SearchMode) => void;
+  loadFolders: () => Promise<void>;
+  addFolder: (path: string) => Promise<LibraryFolder>;
+  removeFolder: (folderId: number) => Promise<void>;
+  scanFolder: (folderId: number, options?: Partial<ScanOptions>) => Promise<ScanResult>;
+  scanAll: (options?: Partial<ScanOptions>) => Promise<ScanResult[]>;
+  searchLibrary: (query: string, limit?: number) => Promise<void>;
+  clearSearchResults: () => void;
+  loadStats: () => Promise<void>;
+  checkFileAvailable: (filePath: string) => Promise<boolean>;
+  getCachedAvailability: (filePath: string) => boolean | undefined;
+}
+
+const DEFAULT_SCAN_OPTIONS: ScanOptions = {
+  create_hkmeta: true,
+  fetch_song_info: false,
+  fetch_lyrics: false,
+};
+
+export const useLibraryStore = create<LibraryState>((set, get) => ({
+  // Initial state
+  searchMode: "youtube",
+  folders: [],
+  searchResults: [],
+  stats: null,
+  isLoadingFolders: false,
+  isSearching: false,
+  isScanning: false,
+  scanProgress: null,
+  fileAvailabilityCache: new Map(),
+
+  // Actions
+  setSearchMode: (mode: SearchMode) => {
+    log.info(`Setting search mode to: ${mode}`);
+    set({ searchMode: mode, searchResults: [] });
+  },
+
+  loadFolders: async () => {
+    log.debug("Loading library folders");
+    set({ isLoadingFolders: true });
+
+    try {
+      const folders = await invoke<LibraryFolder[]>("library_get_folders");
+      log.debug(`Loaded ${folders.length} folders`);
+      set({ folders, isLoadingFolders: false });
+    } catch (error) {
+      log.error("Failed to load folders:", error);
+      set({ isLoadingFolders: false });
+      throw error;
+    }
+  },
+
+  addFolder: async (path: string) => {
+    log.info(`Adding folder: ${path}`);
+
+    try {
+      const folder = await invoke<LibraryFolder>("library_add_folder", { path });
+      log.info(`Added folder: ${folder.name} (id: ${folder.id})`);
+
+      set((state) => ({
+        folders: [...state.folders, folder],
+      }));
+
+      return folder;
+    } catch (error) {
+      log.error("Failed to add folder:", error);
+      throw error;
+    }
+  },
+
+  removeFolder: async (folderId: number) => {
+    log.info(`Removing folder: ${folderId}`);
+
+    try {
+      await invoke("library_remove_folder", { folderId });
+
+      set((state) => ({
+        folders: state.folders.filter((f) => f.id !== folderId),
+      }));
+
+      log.info(`Removed folder: ${folderId}`);
+    } catch (error) {
+      log.error("Failed to remove folder:", error);
+      throw error;
+    }
+  },
+
+  scanFolder: async (folderId: number, options?: Partial<ScanOptions>) => {
+    const folder = get().folders.find((f) => f.id === folderId);
+    log.info(`Scanning folder: ${folder?.name || folderId}`);
+    set({ isScanning: true, scanProgress: { current: 0, total: 1 } });
+
+    try {
+      const scanOptions = { ...DEFAULT_SCAN_OPTIONS, ...options };
+      const result = await invoke<ScanResult>("library_scan_folder", {
+        folderId,
+        options: scanOptions,
+      });
+
+      log.info(
+        `Scan complete: ${result.files_found} files found, ${result.hkmeta_created} hkmeta created`
+      );
+
+      // Update folder in state with new file count
+      set((state) => ({
+        folders: state.folders.map((f) =>
+          f.id === folderId
+            ? { ...f, file_count: result.files_found, last_scan_at: new Date().toISOString() }
+            : f
+        ),
+        isScanning: false,
+        scanProgress: null,
+      }));
+
+      return result;
+    } catch (error) {
+      log.error("Failed to scan folder:", error);
+      set({ isScanning: false, scanProgress: null });
+      throw error;
+    }
+  },
+
+  scanAll: async (options?: Partial<ScanOptions>) => {
+    const { folders } = get();
+    log.info(`Scanning all ${folders.length} folders`);
+    set({ isScanning: true, scanProgress: { current: 0, total: folders.length } });
+
+    try {
+      const scanOptions = { ...DEFAULT_SCAN_OPTIONS, ...options };
+      const results = await invoke<ScanResult[]>("library_scan_all", {
+        options: scanOptions,
+      });
+
+      log.info(`Scan all complete: ${results.length} folders scanned`);
+
+      // Reload folders to get updated stats
+      await get().loadFolders();
+
+      set({ isScanning: false, scanProgress: null });
+      return results;
+    } catch (error) {
+      log.error("Failed to scan all folders:", error);
+      set({ isScanning: false, scanProgress: null });
+      throw error;
+    }
+  },
+
+  searchLibrary: async (query: string, limit = 50) => {
+    if (!query.trim()) {
+      set({ searchResults: [] });
+      return;
+    }
+
+    log.debug(`Searching library for: "${query}" (limit: ${limit})`);
+    set({ isSearching: true });
+
+    try {
+      const results = await invoke<LibraryVideo[]>("library_search", {
+        query,
+        limit,
+      });
+
+      log.debug(`Found ${results.length} results`);
+
+      // Update file availability cache
+      const cache = new Map(get().fileAvailabilityCache);
+      for (const video of results) {
+        cache.set(video.file_path, video.is_available);
+      }
+
+      set({ searchResults: results, isSearching: false, fileAvailabilityCache: cache });
+    } catch (error) {
+      log.error("Failed to search library:", error);
+      set({ isSearching: false });
+      throw error;
+    }
+  },
+
+  clearSearchResults: () => {
+    set({ searchResults: [] });
+  },
+
+  loadStats: async () => {
+    log.debug("Loading library stats");
+
+    try {
+      const stats = await invoke<LibraryStats>("library_get_stats");
+      log.debug(`Stats: ${stats.total_folders} folders, ${stats.total_files} files`);
+      set({ stats });
+    } catch (error) {
+      log.error("Failed to load stats:", error);
+      throw error;
+    }
+  },
+
+  checkFileAvailable: async (filePath: string) => {
+    try {
+      const available = await invoke<boolean>("library_check_file", { filePath });
+
+      // Update cache
+      set((state) => {
+        const cache = new Map(state.fileAvailabilityCache);
+        cache.set(filePath, available);
+        return { fileAvailabilityCache: cache };
+      });
+
+      return available;
+    } catch (error) {
+      log.error("Failed to check file availability:", error);
+      return false;
+    }
+  },
+
+  getCachedAvailability: (filePath: string) => {
+    return get().fileAvailabilityCache.get(filePath);
+  },
+}));

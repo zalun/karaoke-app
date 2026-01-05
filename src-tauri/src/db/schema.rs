@@ -254,6 +254,17 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE sessions ADD COLUMN active_singer_id INTEGER REFERENCES singers(id) ON DELETE SET NULL;
     "#,
+    // Migration 8: Library folders for local file support (Issue #131)
+    r#"
+    CREATE TABLE IF NOT EXISTS library_folders (
+        id INTEGER PRIMARY KEY,
+        path TEXT UNIQUE NOT NULL,
+        name TEXT,
+        last_scan_at TEXT,
+        file_count INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

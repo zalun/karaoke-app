@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { usePlayerStore, useQueueStore, useSessionStore, useSettingsStore, SETTINGS_KEYS, playVideo, notify } from "../../stores";
 import { windowManager, youtubeService, createLogger } from "../../services";
 
@@ -98,10 +99,18 @@ export function PlayerControls() {
     const rawMode = settingsState.getSetting(SETTINGS_KEYS.PLAYBACK_MODE);
     const playbackMode: "youtube" | "ytdlp" = rawMode === "ytdlp" ? "ytdlp" : "youtube";
 
+    // For local files, convert file path to asset URL
+    let streamUrl = state.currentVideo?.streamUrl ?? null;
+    let effectivePlaybackMode = playbackMode;
+    if (state.currentVideo?.source === "local" && state.currentVideo?.filePath) {
+      streamUrl = convertFileSrc(state.currentVideo.filePath);
+      effectivePlaybackMode = "ytdlp"; // Local files use native player
+    }
+
     return {
-      streamUrl: state.currentVideo?.streamUrl ?? null,
+      streamUrl,
       videoId: state.currentVideo?.youtubeId ?? null,
-      playbackMode,
+      playbackMode: effectivePlaybackMode,
       isPlaying: state.isPlaying,
       currentTime: state.currentTime,
       duration: state.duration,
@@ -113,6 +122,8 @@ export function PlayerControls() {
       nextSong: next
         ? { title: next.video.title, artist: next.video.artist, singers: getSingers(next.id) }
         : undefined,
+      // Unique ID for each playback - changes even when replaying same video
+      playbackId: current?.id,
     };
   }, []);
 
@@ -302,11 +313,13 @@ export function PlayerControls() {
   // playbackMode is included to trigger re-sync when playback mode setting changes.
   // buildPlayerState is called inline (not in deps) since it reads fresh state via getState().
   useEffect(() => {
-    // Support both yt-dlp mode (streamUrl) and YouTube mode (youtubeId)
-    if (!isDetached || (!currentVideo?.streamUrl && !currentVideo?.youtubeId)) return;
+    // Support yt-dlp mode (streamUrl), YouTube mode (youtubeId), or local files (filePath)
+    const hasPlayableContent = currentVideo?.streamUrl || currentVideo?.youtubeId ||
+      (currentVideo?.source === "local" && currentVideo?.filePath);
+    if (!isDetached || !hasPlayableContent) return;
     windowManager.syncState(buildPlayerState());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDetached, currentVideo?.streamUrl, currentVideo?.youtubeId, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length, playbackMode]);
+  }, [isDetached, currentVideo?.streamUrl, currentVideo?.youtubeId, currentVideo?.source, currentVideo?.filePath, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length, playbackMode]);
 
   // Send play/pause commands to detached window
   useEffect(() => {
@@ -321,8 +334,10 @@ export function PlayerControls() {
   }, [isDetached, seekTime]);
 
   const handleDetach = useCallback(async () => {
-    // Support both yt-dlp mode (streamUrl) and YouTube mode (youtubeId)
-    if (!currentVideo?.streamUrl && !currentVideo?.youtubeId) return;
+    // Support yt-dlp mode (streamUrl), YouTube mode (youtubeId), or local files (filePath)
+    const hasPlayableContent = currentVideo?.streamUrl || currentVideo?.youtubeId ||
+      (currentVideo?.source === "local" && currentVideo?.filePath);
+    if (!hasPlayableContent) return;
 
     log.info("Detaching player");
     // Pause before detaching - detached window will start paused
@@ -339,7 +354,7 @@ export function PlayerControls() {
     } else {
       log.error("Failed to detach player");
     }
-  }, [currentVideo?.streamUrl, currentVideo?.youtubeId, setIsDetached, setIsPlaying, buildPlayerState]);
+  }, [currentVideo?.streamUrl, currentVideo?.youtubeId, currentVideo?.source, currentVideo?.filePath, setIsDetached, setIsPlaying, buildPlayerState]);
 
   const handleReattach = useCallback(async () => {
     log.info("Reattaching player");

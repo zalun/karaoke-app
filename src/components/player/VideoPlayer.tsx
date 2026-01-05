@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   usePlayerStore,
   useQueueStore,
@@ -84,10 +85,17 @@ export function VideoPlayer() {
     if (isDetached) return;
 
     log.info("Detaching player window");
+
+    // For local files, convert the file path to a URL for the detached player
+    let streamUrl = currentVideo?.streamUrl || null;
+    if (currentVideo?.source === "local" && currentVideo?.filePath) {
+      streamUrl = convertFileSrc(currentVideo.filePath);
+    }
+
     const playerState = {
-      streamUrl: currentVideo?.streamUrl || null,
+      streamUrl,
       videoId: currentVideo?.youtubeId || null,
-      playbackMode,
+      playbackMode: currentVideo?.source === "local" ? "ytdlp" : playbackMode, // Local files use native player
       isPlaying,
       currentTime,
       duration,
@@ -226,28 +234,41 @@ export function VideoPlayer() {
     const { playNextFromQueue } = useQueueStore.getState();
     const nextItem = playNextFromQueue();
 
-    if (nextItem && nextItem.video.youtubeId) {
-      log.info(`Auto-playing next: "${nextItem.video.title}"`);
-      setIsLoading(true);
+    if (nextItem) {
+      const isLocalFile = nextItem.video.source === "local" && nextItem.video.filePath;
+      const isYouTubeVideo = !!nextItem.video.youtubeId;
 
-      if (playbackMode === "ytdlp") {
-        // yt-dlp mode: fetch stream URL
-        try {
-          const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId);
-          usedCachedUrlRef.current = !!cachedUrl;
-
-          const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
-          setCurrentVideo({ ...nextItem.video, streamUrl });
-          setIsPlaying(true);
-        } catch (err) {
-          log.error("Failed to play next", err);
-          notify("error", "Failed to play next video");
-          setIsLoading(false);
-        }
-      } else {
-        // YouTube mode: just set the video, no stream URL needed
+      if (isLocalFile) {
+        // Local file: play directly
+        log.info(`Auto-playing next local file: "${nextItem.video.title}"`);
         setCurrentVideo(nextItem.video);
         setIsPlaying(true);
+      } else if (isYouTubeVideo) {
+        log.info(`Auto-playing next: "${nextItem.video.title}"`);
+        setIsLoading(true);
+
+        if (playbackMode === "ytdlp") {
+          // yt-dlp mode: fetch stream URL
+          try {
+            const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId!);
+            usedCachedUrlRef.current = !!cachedUrl;
+
+            const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId!);
+            setCurrentVideo({ ...nextItem.video, streamUrl });
+            setIsPlaying(true);
+          } catch (err) {
+            log.error("Failed to play next", err);
+            notify("error", "Failed to play next video");
+            setIsLoading(false);
+          }
+        } else {
+          // YouTube mode: just set the video, no stream URL needed
+          setCurrentVideo(nextItem.video);
+          setIsPlaying(true);
+        }
+      } else {
+        log.info("Next item has no playable source, stopping");
+        setIsPlaying(false);
       }
     } else {
       log.info("Queue empty, playback stopped");
@@ -302,21 +323,36 @@ export function VideoPlayer() {
         const { playNextFromQueue } = useQueueStore.getState();
         const nextItem = playNextFromQueue();
 
-        if (nextItem && nextItem.video.youtubeId) {
-          log.info(`Auto-skipping to: "${nextItem.video.title}"`);
-          if (playbackMode === "ytdlp") {
-            try {
-              const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
-              setCurrentVideo({ ...nextItem.video, streamUrl });
-              setIsPlaying(true);
-            } catch (err) {
-              log.error("Failed to play next after skip", err);
-              notify("error", "Failed to play next video");
-              setIsLoading(false);
-            }
-          } else {
+        if (nextItem) {
+          const isLocalFile = nextItem.video.source === "local" && nextItem.video.filePath;
+          const isYouTubeVideo = !!nextItem.video.youtubeId;
+
+          if (isLocalFile) {
+            log.info(`Auto-skipping to local file: "${nextItem.video.title}"`);
             setCurrentVideo(nextItem.video);
             setIsPlaying(true);
+            setIsLoading(false);
+          } else if (isYouTubeVideo) {
+            log.info(`Auto-skipping to: "${nextItem.video.title}"`);
+            if (playbackMode === "ytdlp") {
+              try {
+                const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId!);
+                setCurrentVideo({ ...nextItem.video, streamUrl });
+                setIsPlaying(true);
+              } catch (err) {
+                log.error("Failed to play next after skip", err);
+                notify("error", "Failed to play next video");
+                setIsLoading(false);
+              }
+            } else {
+              setCurrentVideo(nextItem.video);
+              setIsPlaying(true);
+            }
+          } else {
+            log.info("Next item has no playable source after skip");
+            setCurrentVideo(null);
+            setIsPlaying(false);
+            setIsLoading(false);
           }
         } else {
           log.info("No more videos in queue after skip");
@@ -370,29 +406,55 @@ export function VideoPlayer() {
   // Determine what to show
   const hasVideoId = !!currentVideo?.youtubeId;
   const hasStreamUrl = !!currentVideo?.streamUrl;
+  const hasLocalFile = currentVideo?.source === "local" && !!currentVideo?.filePath;
   const canPlayYouTube = playbackMode === "youtube" && hasVideoId;
   const canPlayNative = playbackMode === "ytdlp" && hasStreamUrl;
+  const canPlayLocal = hasLocalFile;
+
+  // Get the URL for local files (convert file path to URL that webview can access)
+  // Also check next queue item to preload and keep video element mounted
+  const nextLocalFilePath = nextQueueItem?.video.source === "local" ? nextQueueItem.video.filePath : null;
+
+  const localFileUrl = useMemo(() => {
+    if (hasLocalFile && currentVideo?.filePath) {
+      return convertFileSrc(currentVideo.filePath);
+    }
+    // If next item is local, preload it to keep video element mounted
+    if (nextLocalFilePath) {
+      return convertFileSrc(nextLocalFilePath);
+    }
+    // No local file - return undefined to enable "dummy mode" for priming
+    return undefined;
+  }, [hasLocalFile, currentVideo?.filePath, nextLocalFilePath]);
 
   // Show placeholder when no video or when detached (video plays in separate window)
-  if ((!canPlayYouTube && !canPlayNative) || isDetached) {
+  if ((!canPlayYouTube && !canPlayNative && !canPlayLocal) || isDetached) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-        {isLoading ? (
-          <div className="text-center text-white">
-            <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
-            <p>Loading video...</p>
-          </div>
-        ) : isDetached ? (
-          <div className="text-center text-gray-400">
-            <DetachIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p>Video playing in separate window</p>
-          </div>
-        ) : (
-          <div className="text-center text-gray-400">
-            <p className="text-4xl mb-2">🎤</p>
-            <p>Search for a song to start</p>
-          </div>
-        )}
+      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg relative overflow-hidden">
+        {/* Always render NativePlayer in background for priming (dummy mode) */}
+        <div className="absolute inset-0">
+          <NativePlayer
+            streamUrl={undefined}
+            isPlaying={false}
+            volume={volume}
+            isMuted={isMuted}
+            seekTime={null}
+          />
+        </div>
+        {/* Overlay content on top of NativePlayer */}
+        <div className="relative z-10">
+          {isLoading ? (
+            <div className="text-center text-white">
+              <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
+              <p>Loading video...</p>
+            </div>
+          ) : isDetached ? (
+            <div className="text-center text-gray-400">
+              <DetachIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>Video playing in separate window</p>
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -425,6 +487,7 @@ export function VideoPlayer() {
           volume={volume}
           isMuted={isMuted}
           seekTime={seekTime}
+          playbackKey={currentVideo.id}
           onReady={handleReady}
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleEnded}
@@ -433,6 +496,25 @@ export function VideoPlayer() {
           onClearSeek={clearSeek}
         />
       )}
+      {/* Always render NativePlayer to preserve user interaction context for autoplay */}
+      {/* In dummy mode (no URL), it shows a priming overlay; otherwise plays local files */}
+      {/* Hide when YouTube/yt-dlp is playing, but keep mounted for priming */}
+      <div className={canPlayLocal ? "" : "hidden"}>
+        <NativePlayer
+          streamUrl={localFileUrl}
+          isPlaying={canPlayLocal && isPlaying}
+          volume={volume}
+          isMuted={isMuted}
+          seekTime={canPlayLocal ? seekTime : null}
+          playbackKey={currentVideo?.id}
+          onReady={canPlayLocal ? handleReady : undefined}
+          onTimeUpdate={canPlayLocal ? handleTimeUpdate : undefined}
+          onEnded={canPlayLocal ? handleEnded : undefined}
+          onError={canPlayLocal ? (err) => handleError(err) : undefined}
+          onDurationChange={canPlayLocal ? handleDurationChange : undefined}
+          onClearSeek={canPlayLocal ? clearSeek : undefined}
+        />
+      </div>
       {/* Detach button - appears on hover */}
       {!isDetached && isHovered && (
         <button

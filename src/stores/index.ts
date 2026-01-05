@@ -27,3 +27,12 @@ export {
   SETTINGS_DEFAULTS,
   type SettingsTab,
 } from "./settingsStore";
+export {
+  useLibraryStore,
+  type LibraryFolder,
+  type LibraryVideo,
+  type ScanOptions,
+  type ScanResult,
+  type LibraryStats,
+  type SearchMode,
+} from "./libraryStore";

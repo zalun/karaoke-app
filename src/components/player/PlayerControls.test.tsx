@@ -575,9 +575,9 @@ describe("PlayerControls", () => {
     it("clicking reload fetches new URL and updates state (ytdlp mode)", async () => {
       setupVideoPlaying();
       // Set playback mode to ytdlp for this test
-      mockSettingsStore.getSetting.mockImplementation((key: string) =>
+      mockSettingsStore.getSetting.mockImplementation(((key: string) =>
         key === "playback_mode" ? "ytdlp" : null
-      );
+      ) as typeof mockSettingsStore.getSetting);
       render(<PlayerControls />);
 
       const reloadButton = getMainReloadButton();
@@ -614,9 +614,9 @@ describe("PlayerControls", () => {
 
     it("reload handles errors gracefully (ytdlp mode)", async () => {
       setupVideoPlaying();
-      mockSettingsStore.getSetting.mockImplementation((key: string) =>
+      mockSettingsStore.getSetting.mockImplementation(((key: string) =>
         key === "playback_mode" ? "ytdlp" : null
-      );
+      ) as typeof mockSettingsStore.getSetting);
       mockYoutubeService.getStreamUrl.mockRejectedValue(new Error("Network error"));
       render(<PlayerControls />);
 
@@ -631,9 +631,9 @@ describe("PlayerControls", () => {
 
     it("reload sets loading state before and after fetch (ytdlp mode)", async () => {
       setupVideoPlaying();
-      mockSettingsStore.getSetting.mockImplementation((key: string) =>
+      mockSettingsStore.getSetting.mockImplementation(((key: string) =>
         key === "playback_mode" ? "ytdlp" : null
-      );
+      ) as typeof mockSettingsStore.getSetting);
 
       let resolvePromise: ((value: { url: string }) => void) | undefined;
       mockYoutubeService.getStreamUrl.mockImplementation(() =>

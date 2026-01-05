@@ -40,6 +40,8 @@ export interface PlayerState {
   isMuted: boolean;
   currentSong?: SongInfo;
   nextSong?: SongInfo;
+  /** Unique ID for each playback session - changes even when replaying the same video */
+  playbackId?: string;
 }
 
 // Minimum number of pixels that must be visible on a display for a window to be considered "on screen"

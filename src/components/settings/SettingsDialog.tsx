@@ -5,15 +5,18 @@ import {
   Play,
   Monitor,
   List,
+  HardDrive,
   Wrench,
   Info,
   FolderOpen,
   RotateCcw,
   RefreshCw,
   AlertTriangle,
+  Trash2,
+  FolderPlus,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { useSettingsStore, SETTINGS_KEYS, notify } from "../../stores";
+import { useSettingsStore, useLibraryStore, SETTINGS_KEYS, notify } from "../../stores";
 import { updateService, createLogger } from "../../services";
 import type { SettingsTab } from "../../stores";
 
@@ -23,6 +26,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Play }[] = [
   { id: "playback", label: "Playback", icon: Play },
   { id: "display", label: "Display", icon: Monitor },
   { id: "queue", label: "Queue & History", icon: List },
+  { id: "library", label: "Library", icon: HardDrive },
   { id: "advanced", label: "Advanced", icon: Wrench },
   { id: "about", label: "About", icon: Info },
 ];
@@ -175,6 +179,7 @@ export function SettingsDialog() {
                     setSetting={setSetting}
                   />
                 )}
+                {activeTab === "library" && <LibrarySettings />}
                 {activeTab === "advanced" && (
                   <AdvancedSettings
                     getSetting={getSetting}
@@ -656,6 +661,264 @@ function AboutSettings({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function LibrarySettings() {
+  const {
+    folders,
+    stats,
+    isLoadingFolders,
+    isScanning,
+    loadFolders,
+    addFolder,
+    removeFolder,
+    scanFolder,
+    scanAll,
+    loadStats,
+  } = useLibraryStore();
+
+  const [scanOptions, setScanOptions] = useState({
+    createHkmeta: true,
+    fetchSongInfo: false,
+    fetchLyrics: false,
+  });
+
+  // Load folders and stats when tab is shown
+  useEffect(() => {
+    loadFolders();
+    loadStats();
+  }, [loadFolders, loadStats]);
+
+  const handleAddFolder = useCallback(async () => {
+    try {
+      // Use Tauri's file dialog
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Select folder to add to library",
+      });
+
+      if (selected && typeof selected === "string") {
+        await addFolder(selected);
+        notify("success", "Folder added to library");
+        loadStats();
+      }
+    } catch (error) {
+      log.error("Failed to add folder:", error);
+      notify("error", "Failed to add folder");
+    }
+  }, [addFolder, loadStats]);
+
+  const handleRemoveFolder = useCallback(
+    async (folderId: number, folderName: string) => {
+      try {
+        await removeFolder(folderId);
+        notify("success", `Removed "${folderName}" from library`);
+        loadStats();
+      } catch (error) {
+        log.error("Failed to remove folder:", error);
+        notify("error", "Failed to remove folder");
+      }
+    },
+    [removeFolder, loadStats]
+  );
+
+  const handleScanFolder = useCallback(
+    async (folderId: number) => {
+      try {
+        const result = await scanFolder(folderId, {
+          create_hkmeta: scanOptions.createHkmeta,
+          fetch_song_info: scanOptions.fetchSongInfo,
+          fetch_lyrics: scanOptions.fetchLyrics,
+        });
+        notify(
+          "success",
+          `Scan complete: ${result.files_found} files found`
+        );
+        loadStats();
+      } catch (error) {
+        log.error("Failed to scan folder:", error);
+        notify("error", "Failed to scan folder");
+      }
+    },
+    [scanFolder, scanOptions, loadStats]
+  );
+
+  const handleScanAll = useCallback(async () => {
+    try {
+      const results = await scanAll({
+        create_hkmeta: scanOptions.createHkmeta,
+        fetch_song_info: scanOptions.fetchSongInfo,
+        fetch_lyrics: scanOptions.fetchLyrics,
+      });
+      const totalFiles = results.reduce((sum, r) => sum + r.files_found, 0);
+      notify("success", `Scan complete: ${totalFiles} files found`);
+      loadStats();
+    } catch (error) {
+      log.error("Failed to scan all folders:", error);
+      notify("error", "Failed to scan folders");
+    }
+  }, [scanAll, scanOptions, loadStats]);
+
+  return (
+    <div>
+      <h4 className="text-lg font-medium text-white mb-4">Local Library</h4>
+
+      {/* Watched Folders */}
+      <div className="mb-6">
+        <div className="text-sm font-medium text-gray-300 mb-2">
+          Watched Folders
+        </div>
+
+        {isLoadingFolders ? (
+          <div className="text-gray-400 text-sm py-4">Loading folders...</div>
+        ) : folders.length === 0 ? (
+          <div className="bg-gray-700/30 rounded-lg p-4 text-center">
+            <FolderOpen size={32} className="mx-auto text-gray-500 mb-2" />
+            <p className="text-gray-400 text-sm">No folders configured</p>
+            <p className="text-gray-500 text-xs mt-1">
+              Add folders to search local karaoke files
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {folders.map((folder) => (
+              <div
+                key={folder.id}
+                className="flex items-center gap-2 bg-gray-700/50 rounded-lg p-3"
+              >
+                <FolderOpen size={18} className="text-green-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-white truncate">{folder.name}</div>
+                  <div className="text-xs text-gray-400 truncate">{folder.path}</div>
+                  <div className="text-xs text-gray-500">
+                    {folder.file_count} files
+                    {folder.last_scan_at &&
+                      ` · Last scan: ${new Date(folder.last_scan_at).toLocaleDateString()}`}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleScanFolder(folder.id)}
+                  disabled={isScanning}
+                  className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors"
+                >
+                  {isScanning ? "..." : "Rescan"}
+                </button>
+                <button
+                  onClick={() => handleRemoveFolder(folder.id, folder.name)}
+                  className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded transition-colors"
+                  title="Remove folder"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          onClick={handleAddFolder}
+          className="mt-3 flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors w-full justify-center"
+        >
+          <FolderPlus size={16} />
+          Add Folder...
+        </button>
+      </div>
+
+      {/* Rescan Options */}
+      <div className="mb-6">
+        <div className="text-sm font-medium text-gray-300 mb-2">
+          Rescan Options
+        </div>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={scanOptions.createHkmeta}
+              onChange={(e) =>
+                setScanOptions((prev) => ({
+                  ...prev,
+                  createHkmeta: e.target.checked,
+                }))
+              }
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-300">
+              Create .hkmeta.json files for new videos
+            </span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer opacity-50">
+            <input
+              type="checkbox"
+              checked={scanOptions.fetchSongInfo}
+              onChange={(e) =>
+                setScanOptions((prev) => ({
+                  ...prev,
+                  fetchSongInfo: e.target.checked,
+                }))
+              }
+              disabled
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-300">
+              Fetch song info (MusicBrainz/Discogs)
+              <span className="text-gray-500 ml-1">(coming soon)</span>
+            </span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer opacity-50">
+            <input
+              type="checkbox"
+              checked={scanOptions.fetchLyrics}
+              onChange={(e) =>
+                setScanOptions((prev) => ({
+                  ...prev,
+                  fetchLyrics: e.target.checked,
+                }))
+              }
+              disabled
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-300">
+              Fetch lyrics (Lrclib/Musixmatch/Genius/NetEase)
+              <span className="text-gray-500 ml-1">(coming soon)</span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      {/* Library Stats */}
+      <div className="mb-6">
+        <div className="text-sm font-medium text-gray-300 mb-2">
+          Library Stats
+        </div>
+        <div className="bg-gray-700/30 rounded-lg p-3 text-sm text-gray-400">
+          {stats ? (
+            <>
+              {stats.total_files} videos indexed · {stats.total_folders} folders
+              {stats.last_scan_at && (
+                <span className="ml-1">
+                  · Last scan: {new Date(stats.last_scan_at).toLocaleString()}
+                </span>
+              )}
+            </>
+          ) : (
+            "No stats available"
+          )}
+        </div>
+      </div>
+
+      {/* Rescan All Button */}
+      <button
+        onClick={handleScanAll}
+        disabled={isScanning || folders.length === 0}
+        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors w-full justify-center"
+      >
+        <RefreshCw size={16} className={isScanning ? "animate-spin" : ""} />
+        {isScanning ? "Scanning..." : "Rescan All Folders"}
+      </button>
     </div>
   );
 }
