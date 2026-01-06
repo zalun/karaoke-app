@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.7.0] - 2026-01-06
+
+### Added
+- Library browser now shows favorites star on each video (#139)
+- Library view automatically refreshes after rescan completes (#139)
+- Local build script for creating polished DMG releases (`scripts/build-and-release.sh`)
+
+### Changed
+- Navigation tabs styled as proper tab headers instead of buttons (#137)
+  - Player/Search/Library tabs (left panel)
+  - Queue/History tabs (right panel)
+  - Active tab visually connects to content panel
+  - Added accessibility attributes (role="tab", aria-selected)
+
 ## [0.6.3] - 2026-01-06
 
 ### Added
