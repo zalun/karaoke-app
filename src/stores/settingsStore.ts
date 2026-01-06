@@ -19,6 +19,8 @@ export const SETTINGS_KEYS = {
   // Queue & History
   HISTORY_LIMIT: "history_limit",
   CLEAR_QUEUE_ON_EXIT: "clear_queue_on_exit",
+  // Library
+  SEARCH_INCLUDE_LYRICS: "search_include_lyrics", // include lyrics in local search
   // Advanced
   PLAYBACK_MODE: "playback_mode", // 'youtube' | 'ytdlp'
   // Internal (not shown in UI, used for caching)
@@ -36,10 +38,11 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
   [SETTINGS_KEYS.REMEMBER_PLAYER_POSITION]: "true",
   [SETTINGS_KEYS.HISTORY_LIMIT]: "100",
   [SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT]: "never",
+  [SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS]: "true", // Default to including lyrics in search
   [SETTINGS_KEYS.PLAYBACK_MODE]: "youtube", // Default to YouTube embed
 };
 
-export type SettingsTab = "playback" | "display" | "queue" | "library" | "advanced" | "about";
+export type SettingsTab = "playback" | "display" | "queue" | "search" | "library" | "advanced" | "about";
 
 // Module-level promise prevents race conditions in checkYtDlpAvailability.
 // Not stored in Zustand state because promises aren't serializable and we need

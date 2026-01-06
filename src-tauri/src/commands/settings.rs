@@ -17,7 +17,8 @@ const ALLOWED_SETTING_KEYS: &[&str] = &[
     "clear_queue_on_exit",
     "debug_mode",
     "playback_mode",
-    "ytdlp_available", // cached yt-dlp check result
+    "ytdlp_available",          // cached yt-dlp check result
+    "search_include_lyrics",    // include lyrics content in local library search
 ];
 
 /// Get the current debug mode state

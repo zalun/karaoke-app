@@ -88,33 +88,43 @@ fn is_executable(path: &PathBuf) -> bool {
     }
 }
 
-/// Find the full path to yt-dlp binary by checking common locations.
+/// Find an executable by name in common binary locations.
 /// Returns the path if found and executable, None otherwise.
-pub fn find_ytdlp_path() -> Option<PathBuf> {
-    debug!("Searching for yt-dlp binary...");
+pub fn find_executable_in_path(name: &str) -> Option<PathBuf> {
+    debug!("Searching for {} binary...", name);
 
     // Check ~/.local/bin first (most likely for direct downloads)
     if let Some(local_bin) = get_local_bin_path() {
-        let path = PathBuf::from(&local_bin).join("yt-dlp");
-        debug!("Checking path: {:?}", path);
+        let path = PathBuf::from(&local_bin).join(name);
         if is_executable(&path) {
-            info!("Found yt-dlp at: {:?}", path);
+            debug!("Found {} at: {:?}", name, path);
             return Some(path);
         }
     }
 
     // Check common paths
     for bin_path in COMMON_BIN_PATHS {
-        let path = PathBuf::from(bin_path).join("yt-dlp");
-        debug!("Checking path: {:?}", path);
+        let path = PathBuf::from(bin_path).join(name);
         if is_executable(&path) {
-            info!("Found yt-dlp at: {:?}", path);
+            debug!("Found {} at: {:?}", name, path);
             return Some(path);
         }
     }
 
-    warn!("yt-dlp binary not found in any common locations");
+    debug!("{} binary not found in any common locations", name);
     None
+}
+
+/// Find the full path to yt-dlp binary by checking common locations.
+/// Returns the path if found and executable, None otherwise.
+pub fn find_ytdlp_path() -> Option<PathBuf> {
+    let path = find_executable_in_path("yt-dlp");
+    if let Some(ref p) = path {
+        info!("Found yt-dlp at: {:?}", p);
+    } else {
+        warn!("yt-dlp binary not found in any common locations");
+    }
+    path
 }
 
 /// Get the yt-dlp command name or path to use.

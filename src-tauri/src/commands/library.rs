@@ -1,8 +1,11 @@
 use crate::services::{LibraryFolder, LibraryScanner, LibraryStats, LibraryVideo, ScanOptions, ScanResult};
 use crate::AppState;
-use log::{debug, info};
+use log::{debug, info, warn};
 use rusqlite::params;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
+
+/// Maximum number of search results to return (prevents performance issues)
+const MAX_SEARCH_LIMIT: u32 = 1000;
 
 /// Forbidden system paths that should not be added to the library
 const FORBIDDEN_PATHS: &[&str] = &[
@@ -20,7 +23,7 @@ const FORBIDDEN_PATHS: &[&str] = &[
 
 /// Add a folder to the library
 #[tauri::command]
-pub fn library_add_folder(state: State<'_, AppState>, path: String) -> Result<LibraryFolder, String> {
+pub fn library_add_folder(app: AppHandle, state: State<'_, AppState>, path: String) -> Result<LibraryFolder, String> {
     info!("Adding library folder: {}", path);
 
     // Validate the path exists and is a directory
@@ -93,6 +96,21 @@ pub fn library_add_folder(state: State<'_, AppState>, path: String) -> Result<Li
                     },
                 )
                 .map_err(|e| format!("Failed to retrieve folder: {}", e))?;
+
+            // Add folder to asset protocol scope for thumbnails
+            let asset_scope = app.asset_protocol_scope();
+            if let Err(e) = asset_scope.allow_directory(&canonical_path, true) {
+                warn!("Failed to add {} to asset scope: {}", folder.path, e);
+            } else {
+                debug!("Added {} to asset protocol scope", folder.path);
+            }
+            // Also add .homekaraoke subdirectory for thumbnails
+            let homekaraoke_dir = canonical_path.join(".homekaraoke");
+            if let Err(e) = asset_scope.allow_directory(&homekaraoke_dir, true) {
+                warn!("Failed to add {:?} to asset scope: {}", homekaraoke_dir, e);
+            } else {
+                debug!("Added {:?} to asset protocol scope", homekaraoke_dir);
+            }
 
             info!("Added library folder: {} (id: {})", folder.path, folder.id);
             Ok(folder)
@@ -246,15 +264,18 @@ pub fn library_search(
     state: State<'_, AppState>,
     query: String,
     limit: u32,
+    include_lyrics: bool,
 ) -> Result<Vec<LibraryVideo>, String> {
-    debug!("Searching library for: {} (limit: {})", query, limit);
+    // Cap limit to prevent performance issues
+    let capped_limit = limit.min(MAX_SEARCH_LIMIT);
+    debug!("Searching library for: {} (limit: {}, include_lyrics: {})", query, capped_limit, include_lyrics);
 
     if query.trim().is_empty() {
         return Ok(Vec::new());
     }
 
     let folders = library_get_folders(state)?;
-    let results = LibraryScanner::search(&folders, &query, limit);
+    let results = LibraryScanner::search(&folders, &query, capped_limit, include_lyrics);
 
     debug!("Found {} results", results.len());
     Ok(results)
@@ -306,4 +327,96 @@ pub fn library_get_stats(state: State<'_, AppState>) -> Result<LibraryStats, Str
         }
         Err(e) => Err(format!("Failed to acquire database lock: {}", e)),
     }
+}
+
+/// Filters for browsing library
+#[derive(Debug, serde::Deserialize)]
+pub struct LibraryFilters {
+    pub folder_id: Option<i64>,
+    /// Decade filter (e.g., 1990 for 90s, matches years 1990-1999)
+    pub decade: Option<u32>,
+    pub has_lyrics: Option<bool>,
+    pub has_cdg: Option<bool>,
+}
+
+/// Sort options for browsing library
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LibrarySort {
+    TitleAsc,
+    TitleDesc,
+    ArtistAsc,
+    ArtistDesc,
+}
+
+impl Default for LibrarySort {
+    fn default() -> Self {
+        LibrarySort::TitleAsc
+    }
+}
+
+/// Result of browsing library
+#[derive(Debug, serde::Serialize)]
+pub struct LibraryBrowseResult {
+    pub videos: Vec<LibraryVideo>,
+    pub total: u32,
+}
+
+/// Browse all library files with filtering and sorting
+#[tauri::command]
+pub fn library_browse(
+    state: State<'_, AppState>,
+    filters: LibraryFilters,
+    sort: LibrarySort,
+    limit: u32,
+    offset: u32,
+) -> Result<LibraryBrowseResult, String> {
+    debug!("Browsing library with filters: {:?}, sort: {:?}, limit: {}, offset: {}", filters, sort, limit, offset);
+
+    // Get folders (optionally filtered)
+    let all_folders = library_get_folders(state)?;
+    let folders: Vec<LibraryFolder> = if let Some(folder_id) = filters.folder_id {
+        all_folders.into_iter().filter(|f| f.id == folder_id).collect()
+    } else {
+        all_folders
+    };
+
+    // Get all videos from the scanner
+    let all_videos = LibraryScanner::browse(&folders, filters.decade, filters.has_lyrics, filters.has_cdg);
+
+    // Sort videos
+    let mut sorted_videos = all_videos;
+    match sort {
+        LibrarySort::TitleAsc => sorted_videos.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase())),
+        LibrarySort::TitleDesc => sorted_videos.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase())),
+        LibrarySort::ArtistAsc => sorted_videos.sort_by(|a, b| {
+            a.artist.as_deref().unwrap_or("").to_lowercase().cmp(&b.artist.as_deref().unwrap_or("").to_lowercase())
+        }),
+        LibrarySort::ArtistDesc => sorted_videos.sort_by(|a, b| {
+            b.artist.as_deref().unwrap_or("").to_lowercase().cmp(&a.artist.as_deref().unwrap_or("").to_lowercase())
+        }),
+    }
+
+    let total = sorted_videos.len() as u32;
+
+    // Apply pagination
+    let videos: Vec<LibraryVideo> = sorted_videos
+        .into_iter()
+        .skip(offset as usize)
+        .take(limit as usize)
+        .collect();
+
+    debug!("Browse result: {} videos (total: {})", videos.len(), total);
+    Ok(LibraryBrowseResult { videos, total })
+}
+
+/// Get all decades that have videos in the library
+/// Returns decades as start years (e.g., 1980, 1990, 2000)
+#[tauri::command]
+pub fn library_get_decades(state: State<'_, AppState>) -> Result<Vec<u32>, String> {
+    debug!("Getting available decades");
+    let folders = library_get_folders(state)?;
+    let decades = LibraryScanner::get_available_decades(&folders);
+    debug!("Found {} decades: {:?}", decades.len(), decades);
+    Ok(decades)
 }

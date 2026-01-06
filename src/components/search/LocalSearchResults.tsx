@@ -1,5 +1,6 @@
 import { useRef, useEffect, useMemo, useState } from "react";
-import { FolderOpen, AlertTriangle } from "lucide-react";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { FolderOpen, AlertTriangle, Music } from "lucide-react";
 import type { LibraryVideo } from "../../stores";
 import { useLibraryStore } from "../../stores";
 import { MissingFileDialog } from "./MissingFileDialog";
@@ -127,12 +128,19 @@ export function LocalSearchResults({
                   : "bg-gray-800 hover:bg-gray-700"
               }`}
             >
-              {/* Icon */}
-              <div className="w-12 h-12 flex-shrink-0 bg-gray-700 rounded flex items-center justify-center">
+              {/* Thumbnail */}
+              <div className="w-16 h-12 flex-shrink-0 bg-gray-700 rounded flex items-center justify-center overflow-hidden">
                 {isUnavailable ? (
                   <AlertTriangle size={20} className="text-yellow-500" />
+                ) : video.thumbnail_path ? (
+                  <img
+                    src={convertFileSrc(video.thumbnail_path)}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
                 ) : (
-                  <FolderOpen size={20} className="text-green-500" />
+                  <Music size={20} className="text-gray-500" />
                 )}
               </div>
 
