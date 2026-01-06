@@ -12,9 +12,17 @@ const log = createLogger("LibraryBrowser");
 
 interface LibraryFilters {
   folder_id: number | null;
-  year: number | null;
+  decade: number | null;
   has_lyrics: boolean | null;
   has_cdg: boolean | null;
+}
+
+function formatDecade(decade: number): string {
+  if (decade >= 2000) {
+    return `${decade}s`;
+  }
+  // For decades like 1980, 1990 - show as "80s", "90s"
+  return `${decade.toString().slice(-2)}s`;
 }
 
 type LibrarySort = "title_asc" | "title_desc" | "artist_asc" | "artist_desc";
@@ -50,12 +58,13 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
 
   const [filters, setFilters] = useState<LibraryFilters>({
     folder_id: null,
-    year: null,
+    decade: null,
     has_lyrics: null,
     has_cdg: null,
   });
   const [sort, setSort] = useState<LibrarySort>("title_asc");
   const [missingFilePath, setMissingFilePath] = useState<string | null>(null);
+  const [availableDecades, setAvailableDecades] = useState<number[]>([]);
 
   const fetchVideos = useCallback(async (newOffset = 0) => {
     setIsLoading(true);
@@ -65,7 +74,7 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
       const result = await invoke<LibraryBrowseResult>("library_browse", {
         filters: {
           folder_id: filters.folder_id,
-          year: filters.year,
+          decade: filters.decade,
           has_lyrics: filters.has_lyrics,
           has_cdg: filters.has_cdg,
         },
@@ -91,9 +100,18 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
     }
   }, [filters, sort]);
 
-  // Load folders on mount
+  // Load folders and available decades on mount
   useEffect(() => {
     loadFolders();
+    // Load available decades
+    invoke<number[]>("library_get_decades")
+      .then((decades) => {
+        log.debug(`Loaded ${decades.length} available decades: ${decades.join(", ")}`);
+        setAvailableDecades(decades);
+      })
+      .catch((err) => {
+        log.error("Failed to load decades:", err);
+      });
   }, [loadFolders]);
 
   // Fetch videos when filters or sort changes
@@ -145,6 +163,23 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
             <option key={folder.id} value={folder.id}>{folder.name}</option>
           ))}
         </select>
+
+        {/* Decade filter */}
+        {availableDecades.length > 0 && (
+          <select
+            value={filters.decade ?? ""}
+            onChange={(e) => setFilters(prev => ({
+              ...prev,
+              decade: e.target.value ? Number(e.target.value) : null
+            }))}
+            className="bg-gray-700 text-sm rounded px-2 py-1 text-gray-200 border-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">All Decades</option>
+            {availableDecades.map((decade) => (
+              <option key={decade} value={decade}>{formatDecade(decade)}</option>
+            ))}
+          </select>
+        )}
 
         {/* Sort */}
         <select

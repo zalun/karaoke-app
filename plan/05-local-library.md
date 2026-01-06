@@ -98,18 +98,59 @@ New section in Settings dialog:
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-## Metadata Format
+## Metadata Storage
+
+### The `.homekaraoke` Directory
+
+All metadata and thumbnails are stored in a hidden `.homekaraoke` directory at the root of each library folder. This centralized approach keeps video files clean and makes metadata easy to manage.
+
+**Directory Structure:**
+
+```
+/Users/me/Music/Karaoke/           ← Library folder
+├── .homekaraoke/                  ← Hidden metadata directory
+│   ├── song.hkmeta.json           ← Metadata for song.mp4
+│   ├── song.thumb.jpg             ← Thumbnail for song.mp4
+│   └── subfolder/                 ← Mirrors directory structure
+│       ├── track.hkmeta.json      ← Metadata for subfolder/track.mp4
+│       └── track.thumb.jpg        ← Thumbnail for subfolder/track.mp4
+├── song.mp4
+└── subfolder/
+    └── track.mp4
+```
+
+**Path Mapping:**
+- Video: `/library/path/to/video.mp4`
+- Metadata: `/library/.homekaraoke/path/to/video.hkmeta.json`
+- Thumbnail: `/library/.homekaraoke/path/to/video.thumb.jpg`
+
+**Benefits:**
+- Keeps video folders clean (no sidecar files next to videos)
+- Easy to backup, delete, or regenerate all metadata
+- Works with read-only video folders (if `.homekaraoke` is writable)
+- Hidden from casual users (dot-prefix hides on macOS/Linux)
+
+### Backward Compatibility
+
+For libraries with existing sidecar `.hkmeta.json` files (pre-Phase 6):
+1. Scanner checks `.homekaraoke/` directory first (new location)
+2. Falls back to sidecar file next to video (legacy location)
+3. New metadata is always written to `.homekaraoke/`
+
+Legacy files are not migrated automatically—they continue to work until regenerated.
+
+### Thumbnails
+
+Thumbnails are generated during library scan using FFmpeg (if available):
+- Format: JPEG, 320px wide (aspect ratio preserved)
+- Position: 10% into video duration (minimum 1s, maximum 30s)
+- File naming: `{video-stem}.thumb.jpg`
+
+Thumbnail generation is optional and silently skips if FFmpeg is not installed.
 
 ### HomeKaraoke Metadata File (`.hkmeta.json`)
 
-Optional sidecar file for metadata. Placed alongside video file:
-
-```
-MyVideo.mp4
-MyVideo.hkmeta.json
-```
-
-**All fields are optional.** Schema:
+JSON file containing video metadata. **All fields are optional.** Schema:
 
 ```json
 {
@@ -272,14 +313,17 @@ pub struct LibraryVideo {
     pub duration: Option<u32>,
     pub has_lyrics: bool,
     pub youtube_id: Option<String>,
-    pub is_available: bool,  // File exists check
+    pub is_available: bool,      // File exists check
+    pub thumbnail_path: Option<String>,  // Path to .thumb.jpg in .homekaraoke/
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanOptions {
     pub create_hkmeta: bool,
-    pub fetch_song_info: bool,  // MusicBrainz → Discogs
-    pub fetch_lyrics: bool,     // Lrclib → Musixmatch → Genius → NetEase
+    pub fetch_song_info: bool,      // MusicBrainz → Discogs
+    pub fetch_lyrics: bool,         // Lrclib → Musixmatch → Genius → NetEase
+    pub regenerate: bool,           // Overwrite existing .hkmeta.json
+    pub generate_thumbnails: bool,  // Extract video thumbnails (requires FFmpeg)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -290,6 +334,8 @@ pub struct ScanResult {
     pub hkmeta_existing: u32,
     pub song_info_fetched: u32,
     pub lyrics_fetched: u32,
+    pub thumbnails_generated: u32,
+    pub thumbnails_failed: u32,
     pub errors: Vec<String>,
     pub duration_ms: u64,
 }

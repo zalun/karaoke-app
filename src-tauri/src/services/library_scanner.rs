@@ -511,10 +511,40 @@ impl LibraryScanner {
         results
     }
 
+    /// Get all unique decades that have videos in the library
+    /// Returns decades as start years (e.g., 1980, 1990, 2000)
+    pub fn get_available_decades(folders: &[LibraryFolder]) -> Vec<u32> {
+        let mut decades = std::collections::HashSet::new();
+
+        for folder in folders {
+            let path = Path::new(&folder.path);
+            if !path.exists() || !path.is_dir() {
+                continue;
+            }
+
+            let video_files = Self::find_video_files(path);
+
+            for file_path in video_files {
+                if let Some(hkmeta) = Self::load_hkmeta(path, &file_path) {
+                    if let Some(year) = hkmeta.year {
+                        // Convert year to decade (e.g., 1985 -> 1980)
+                        let decade = (year / 10) * 10;
+                        decades.insert(decade);
+                    }
+                }
+            }
+        }
+
+        let mut result: Vec<u32> = decades.into_iter().collect();
+        result.sort();
+        result
+    }
+
     /// Browse all files in folders with optional filters
+    /// decade_filter: filters by decade (e.g., 1990 matches years 1990-1999)
     pub fn browse(
         folders: &[LibraryFolder],
-        year_filter: Option<u32>,
+        decade_filter: Option<u32>,
         has_lyrics_filter: Option<bool>,
         has_cdg_filter: Option<bool>,
     ) -> Vec<LibraryVideo> {
@@ -546,14 +576,19 @@ impl LibraryScanner {
                     }
                 }
 
-                // Year filter requires loading hkmeta
-                if let Some(filter_year) = year_filter {
+                // Decade filter requires loading hkmeta
+                if let Some(filter_decade) = decade_filter {
                     if let Some(hkmeta) = Self::load_hkmeta(path, &file_path) {
-                        if hkmeta.year != Some(filter_year) {
-                            continue;
+                        if let Some(year) = hkmeta.year {
+                            // Check if year is in the decade (e.g., 1990-1999 for decade 1990)
+                            if year < filter_decade || year >= filter_decade + 10 {
+                                continue;
+                            }
+                        } else {
+                            continue; // No year info, skip
                         }
                     } else {
-                        continue; // No year info, skip
+                        continue; // No hkmeta, skip
                     }
                 }
 
