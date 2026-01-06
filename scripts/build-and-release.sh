@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-trap 'echo "Error at line $LINENO"' ERR
+trap 'echo "Error at line $LINENO: Command \"$BASH_COMMAND\" failed with exit code $?"' ERR
 
 # Build, sign, notarize, and upload to GitHub release
 #
@@ -62,6 +62,16 @@ DMG_PATH="src-tauri/target/release/bundle/dmg/${DMG_NAME}"
 echo "==> Building HomeKaraoke ${VERSION}..."
 npm run tauri build
 
+# Verify DMG was created
+if [ ! -f "$DMG_PATH" ]; then
+    echo "Error: DMG not found at $DMG_PATH"
+    echo "Build may have failed or architecture mismatch. Available DMGs:"
+    ls -la src-tauri/target/release/bundle/dmg/ 2>/dev/null || echo "  No DMGs found"
+    exit 1
+fi
+
+echo "==> DMG found: $DMG_PATH"
+
 echo "==> Notarizing DMG..."
 xcrun notarytool submit "$DMG_PATH" \
     --apple-id "$APPLE_ID" \
@@ -74,6 +84,12 @@ xcrun stapler staple "$DMG_PATH"
 
 echo "==> Validating notarization..."
 xcrun stapler validate "$DMG_PATH"
+
+# Check if release exists, create if not
+if ! gh release view "$VERSION" &>/dev/null; then
+    echo "==> Release ${VERSION} not found, creating it..."
+    gh release create "$VERSION" --title "$VERSION" --notes "Release $VERSION" --draft
+fi
 
 echo "==> Deleting existing ${DMG_NAME} from release ${VERSION}..."
 gh release delete-asset "$VERSION" "$DMG_NAME" --yes 2>/dev/null || echo "No existing asset to delete"

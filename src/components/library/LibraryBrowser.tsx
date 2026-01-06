@@ -138,6 +138,8 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
   const prevScanTimeRef = useRef<number | null>(null);
 
   // Refresh when a library scan completes
+  // Note: fetchVideos is in deps and recreates on filter/sort changes, but prevScanTimeRef
+  // ensures we only refresh when lastScanCompletedAt actually changes to a new value
   useEffect(() => {
     if (lastScanCompletedAt && lastScanCompletedAt !== prevScanTimeRef.current) {
       prevScanTimeRef.current = lastScanCompletedAt;
@@ -228,6 +230,9 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
 
         {/* Active singer selector */}
         <ActiveSingerSelector />
+
+        {/* Total count */}
+        <span className="text-sm text-gray-400">{total} videos</span>
       </div>
 
       {/* Loading state */}
