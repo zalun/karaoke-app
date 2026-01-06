@@ -4,6 +4,15 @@ import { createLogger } from "../services/logger";
 
 const log = createLogger("LibraryStore");
 
+// Cache TTL for file availability (1 minute)
+const FILE_AVAILABILITY_CACHE_TTL_MS = 60_000;
+
+/** Cache entry with timestamp for TTL */
+interface CacheEntry {
+  available: boolean;
+  timestamp: number;
+}
+
 // Types matching Rust structs
 export interface LibraryFolder {
   id: number;
@@ -63,8 +72,8 @@ interface LibraryState {
   isScanning: boolean;
   scanProgress: { current: number; total: number } | null;
 
-  // File availability cache (file_path -> is_available)
-  fileAvailabilityCache: Map<string, boolean>;
+  // File availability cache (file_path -> {available, timestamp}) with TTL
+  fileAvailabilityCache: Map<string, CacheEntry>;
 
   // Actions
   setSearchMode: (mode: SearchMode) => void;
@@ -231,10 +240,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
       log.debug(`Found ${results.length} results`);
 
-      // Update file availability cache
+      // Update file availability cache with timestamps
       const cache = new Map(get().fileAvailabilityCache);
+      const now = Date.now();
       for (const video of results) {
-        cache.set(video.file_path, video.is_available);
+        cache.set(video.file_path, { available: video.is_available, timestamp: now });
       }
 
       set({ searchResults: results, isSearching: false, fileAvailabilityCache: cache });
@@ -266,10 +276,10 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
       const available = await invoke<boolean>("library_check_file", { filePath });
 
-      // Update cache
+      // Update cache with timestamp
       set((state) => {
         const cache = new Map(state.fileAvailabilityCache);
-        cache.set(filePath, available);
+        cache.set(filePath, { available, timestamp: Date.now() });
         return { fileAvailabilityCache: cache };
       });
 
@@ -281,6 +291,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
 
   getCachedAvailability: (filePath: string) => {
-    return get().fileAvailabilityCache.get(filePath);
+    const cached = get().fileAvailabilityCache.get(filePath);
+    if (!cached) return undefined;
+
+    // Check if cache entry has expired
+    if (Date.now() - cached.timestamp > FILE_AVAILABILITY_CACHE_TTL_MS) {
+      return undefined; // Expired, return undefined to trigger fresh check
+    }
+
+    return cached.available;
   },
 }));

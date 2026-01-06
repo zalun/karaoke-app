@@ -23,11 +23,30 @@ import { CurrentSingerOverlay } from "./CurrentSingerOverlay";
 import { MIN_RESTORE_POSITION_SECONDS } from "./DetachedPlayer";
 import { YouTubePlayer } from "./YouTubePlayer";
 import { NativePlayer, type NativePlayerRef } from "./NativePlayer";
+import { Z_INDEX_PRIMING_OVERLAY } from "../../styles/zIndex";
 
 const log = createLogger("VideoPlayer");
 
 // Key for localStorage to track if video playback has been enabled
 const PLAYBACK_ENABLED_KEY = "videoPlayer.playbackEnabled";
+
+/** Safely get a value from localStorage (handles private browsing / quota errors) */
+function safeLocalStorageGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** Safely set a value in localStorage (handles private browsing / quota errors) */
+function safeLocalStorageSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore errors (e.g., private browsing mode, quota exceeded)
+  }
+}
 
 // Detach/pop-out icon - two overlapping rectangles
 function DetachIcon({ className }: { className?: string }) {
@@ -59,7 +78,7 @@ export function VideoPlayer() {
   const [isHovered, setIsHovered] = useState(false);
   // Track if playback has been enabled via user click (persisted in localStorage)
   const [isPlaybackEnabled, setIsPlaybackEnabled] = useState(() => {
-    return localStorage.getItem(PLAYBACK_ENABLED_KEY) === "true";
+    return safeLocalStorageGet(PLAYBACK_ENABLED_KEY) === "true";
   });
   // Ref to NativePlayer for priming
   const nativePlayerRef = useRef<NativePlayerRef | null>(null);
@@ -245,7 +264,7 @@ export function VideoPlayer() {
     nativePlayerRef.current?.primeVideo();
     // Mark playback as enabled
     setIsPlaybackEnabled(true);
-    localStorage.setItem(PLAYBACK_ENABLED_KEY, "true");
+    safeLocalStorageSet(PLAYBACK_ENABLED_KEY, "true");
     log.info("Playback enabled for YouTube and local files");
   }, []);
 
@@ -464,7 +483,7 @@ export function VideoPlayer() {
         </div>
         {/* Click to Start overlay - shown on first load to enable playback */}
         {!isPlaybackEnabled && !isDetached && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-50">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80" style={{ zIndex: Z_INDEX_PRIMING_OVERLAY }}>
             <button
               onClick={handleEnablePlayback}
               className="flex flex-col items-center gap-4 p-8 rounded-xl bg-gray-800/90 hover:bg-gray-700/90 transition-colors cursor-pointer border border-gray-600"

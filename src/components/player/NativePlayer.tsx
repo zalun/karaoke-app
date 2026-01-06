@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from "react";
 import { createLogger } from "../../services";
+import { Z_INDEX_PLAY_OVERLAY } from "../../styles/zIndex";
 
 const log = createLogger("NativePlayer");
 
@@ -19,6 +20,24 @@ function isValidStreamUrl(url: string): boolean {
 
 // Key for localStorage to track if video element has been primed
 const VIDEO_PRIMED_KEY = "nativePlayer.videoPrimed";
+
+/** Safely get a value from localStorage (handles private browsing / quota errors) */
+function safeLocalStorageGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** Safely set a value in localStorage (handles private browsing / quota errors) */
+function safeLocalStorageSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore errors (e.g., private browsing mode, quota exceeded)
+  }
+}
 
 export interface NativePlayerProps {
   /** Stream URL to play. If empty/undefined, renders video element for priming only. */
@@ -74,7 +93,7 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
   // Track if video element has been primed for autoplay
   const [isPrimed, setIsPrimed] = useState(() => {
     // Check localStorage to persist priming across page reloads
-    return localStorage.getItem(VIDEO_PRIMED_KEY) === "true";
+    return safeLocalStorageGet(VIDEO_PRIMED_KEY) === "true";
   });
   const shouldPlayOnLoadRef = useRef(false);
   // Track if we're currently loading a new source to prevent play/pause interference
@@ -106,14 +125,14 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
         video.currentTime = 0;
         hasUserInteractionRef.current = true;
         setIsPrimed(true);
-        localStorage.setItem(VIDEO_PRIMED_KEY, "true");
+        safeLocalStorageSet(VIDEO_PRIMED_KEY, "true");
         log.info("Video element primed successfully");
         onPrimed?.();
       }).catch((e) => {
         // Even if play fails, the user gesture should enable future plays
         hasUserInteractionRef.current = true;
         setIsPrimed(true);
-        localStorage.setItem(VIDEO_PRIMED_KEY, "true");
+        safeLocalStorageSet(VIDEO_PRIMED_KEY, "true");
         log.info(`Video priming completed (play failed: ${e.message}), user gesture registered`);
         onPrimed?.();
       });
@@ -368,9 +387,9 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
         </div>
       )}
       {/* Autoplay blocked overlay - show when autoplay fails on real content */}
-      {/* z-50 ensures it appears above other overlays like singer overlay */}
+      {/* Uses Z_INDEX_PLAY_OVERLAY to appear above singer overlay */}
       {showPlayButton && !isLoading && !isDummyMode && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-50">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60" style={{ zIndex: Z_INDEX_PLAY_OVERLAY }}>
           <button
             onClick={handleManualPlay}
             className="flex flex-col items-center gap-4 p-8 rounded-xl bg-black/50 hover:bg-black/70 transition-colors cursor-pointer"

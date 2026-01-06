@@ -4,6 +4,20 @@ use log::{debug, info};
 use rusqlite::params;
 use tauri::State;
 
+/// Forbidden system paths that should not be added to the library
+const FORBIDDEN_PATHS: &[&str] = &[
+    "/System",
+    "/Library",
+    "/private",
+    "/bin",
+    "/sbin",
+    "/usr",
+    "/var",
+    "/etc",
+    "/dev",
+    "/tmp",
+];
+
 /// Add a folder to the library
 #[tauri::command]
 pub fn library_add_folder(state: State<'_, AppState>, path: String) -> Result<LibraryFolder, String> {
@@ -18,8 +32,24 @@ pub fn library_add_folder(state: State<'_, AppState>, path: String) -> Result<Li
         return Err(format!("Path is not a directory: {}", path));
     }
 
+    // Canonicalize path to resolve symlinks and prevent path traversal
+    let canonical_path = path_obj
+        .canonicalize()
+        .map_err(|e| format!("Invalid path: {}", e))?;
+    let canonical_str = canonical_path.to_string_lossy();
+
+    // Validate against forbidden system paths
+    for forbidden in FORBIDDEN_PATHS {
+        if canonical_str.starts_with(forbidden) {
+            return Err("Cannot add system directories to library".to_string());
+        }
+    }
+
+    // Use canonical path for storage
+    let path = canonical_str.to_string();
+
     // Extract folder name from path
-    let name = path_obj
+    let name = canonical_path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| path.clone());

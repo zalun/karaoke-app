@@ -7,6 +7,9 @@ use std::time::Instant;
 /// Supported video file extensions
 const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mkv", "webm", "avi", "mov"];
 
+/// Maximum recursion depth for directory scanning (prevents stack overflow)
+const MAX_SCAN_DEPTH: usize = 20;
+
 /// Library folder stored in database
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LibraryFolder {
@@ -175,17 +178,38 @@ impl LibraryScanner {
         result
     }
 
-    /// Find all video files recursively
+    /// Find all video files recursively with depth limiting
     fn find_video_files(dir: &Path) -> Vec<PathBuf> {
+        Self::find_video_files_with_depth(dir, 0)
+    }
+
+    /// Internal helper for recursive file finding with depth tracking
+    fn find_video_files_with_depth(dir: &Path, depth: usize) -> Vec<PathBuf> {
         let mut files = Vec::new();
+
+        // Prevent excessive recursion
+        if depth > MAX_SCAN_DEPTH {
+            warn!(
+                "Max scan depth ({}) exceeded at: {}",
+                MAX_SCAN_DEPTH,
+                dir.display()
+            );
+            return files;
+        }
 
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
 
+                // Skip symlinks to prevent infinite loops
+                if path.is_symlink() {
+                    debug!("Skipping symlink: {}", path.display());
+                    continue;
+                }
+
                 if path.is_dir() {
-                    // Recurse into subdirectories
-                    files.extend(Self::find_video_files(&path));
+                    // Recurse into subdirectories with incremented depth
+                    files.extend(Self::find_video_files_with_depth(&path, depth + 1));
                 } else if Self::is_video_file(&path) {
                     files.push(path);
                 }

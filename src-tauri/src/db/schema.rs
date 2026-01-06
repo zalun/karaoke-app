@@ -265,6 +265,10 @@ const MIGRATIONS: &[&str] = &[
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     "#,
+    // Migration 9: Add index on library_folders.last_scan_at for efficient stale folder queries
+    r#"
+    CREATE INDEX IF NOT EXISTS idx_library_folders_last_scan ON library_folders(last_scan_at);
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
