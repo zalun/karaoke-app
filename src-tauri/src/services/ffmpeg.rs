@@ -6,6 +6,7 @@
 use log::{debug, info, warn};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::OnceLock;
 use tokio::process::Command;
 
 use super::ytdlp::{get_expanded_path, find_executable_in_path};
@@ -22,17 +23,23 @@ const MIN_THUMBNAIL_TIMESTAMP_SECS: u32 = 1;
 /// Maximum timestamp for smart thumbnail extraction (avoid spoilers in long videos)
 const MAX_THUMBNAIL_TIMESTAMP_SECS: u32 = 30;
 
+/// Cached ffmpeg path (looked up once on first use)
+static FFMPEG_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+
+/// Cached ffprobe path (looked up once on first use)
+static FFPROBE_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+
 pub struct FfmpegService;
 
 impl FfmpegService {
-    /// Find the ffmpeg binary path
+    /// Find the ffmpeg binary path (cached after first lookup)
     pub fn find_ffmpeg_path() -> Option<PathBuf> {
-        find_executable_in_path("ffmpeg")
+        FFMPEG_PATH.get_or_init(|| find_executable_in_path("ffmpeg")).clone()
     }
 
-    /// Find the ffprobe binary path
+    /// Find the ffprobe binary path (cached after first lookup)
     pub fn find_ffprobe_path() -> Option<PathBuf> {
-        find_executable_in_path("ffprobe")
+        FFPROBE_PATH.get_or_init(|| find_executable_in_path("ffprobe")).clone()
     }
 
     /// Check if ffmpeg is available on the system
@@ -119,7 +126,7 @@ impl FfmpegService {
         // Ensure parent directory exists
         if let Some(parent) = output_path.parent() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create thumbnail directory: {}", e))?;
+                .map_err(|e| format!("Failed to create thumbnail directory {:?}: {}", parent, e))?;
         }
 
         let output = Command::new(&ffmpeg_path)

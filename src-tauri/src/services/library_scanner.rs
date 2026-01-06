@@ -365,10 +365,20 @@ impl LibraryScanner {
     /// Creates a subdirectory structure that mirrors the video's relative path
     fn get_homekaraoke_dir(library_path: &Path, video_path: &Path) -> PathBuf {
         // Calculate relative path from library root to video's parent directory
-        let relative = video_path
-            .parent()
-            .and_then(|p| p.strip_prefix(library_path).ok())
-            .unwrap_or(Path::new(""));
+        let relative = if let Some(parent) = video_path.parent() {
+            match parent.strip_prefix(library_path) {
+                Ok(rel) => rel.to_path_buf(),
+                Err(_) => {
+                    warn!(
+                        "Video path {:?} is not under library path {:?}, using root .homekaraoke",
+                        video_path, library_path
+                    );
+                    PathBuf::new()
+                }
+            }
+        } else {
+            PathBuf::new()
+        };
         library_path.join(".homekaraoke").join(relative)
     }
 
