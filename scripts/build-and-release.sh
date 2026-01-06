@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+trap 'echo "Error at line $LINENO"' ERR
 
 # Build, sign, notarize, and upload to GitHub release
 #
@@ -19,8 +20,20 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
+# Validate version format
+if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Error: Invalid version format. Expected vX.Y.Z (e.g., v0.6.3)"
+    exit 1
+fi
+
 # Strip 'v' prefix for filename matching
 VERSION_NUM="${VERSION#v}"
+
+# Detect architecture
+ARCH=$(uname -m)
+if [ "$ARCH" = "arm64" ]; then
+    ARCH="aarch64"
+fi
 
 # Check required environment variables
 if [ -z "$APPLE_ID" ]; then
@@ -38,7 +51,7 @@ if [ -z "$APPLE_TEAM_ID" ]; then
     exit 1
 fi
 
-DMG_NAME="HomeKaraoke_${VERSION_NUM}_aarch64.dmg"
+DMG_NAME="HomeKaraoke_${VERSION_NUM}_${ARCH}.dmg"
 DMG_PATH="src-tauri/target/release/bundle/dmg/${DMG_NAME}"
 
 echo "==> Building HomeKaraoke ${VERSION}..."

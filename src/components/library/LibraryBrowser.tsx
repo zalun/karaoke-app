@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Music, FolderOpen, Filter, AlertTriangle } from "lucide-react";
@@ -134,9 +134,13 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
     fetchVideos(0);
   }, [fetchVideos]);
 
+  // Track previous scan time to avoid triggering on mount
+  const prevScanTimeRef = useRef<number | null>(null);
+
   // Refresh when a library scan completes
   useEffect(() => {
-    if (lastScanCompletedAt) {
+    if (lastScanCompletedAt && lastScanCompletedAt !== prevScanTimeRef.current) {
+      prevScanTimeRef.current = lastScanCompletedAt;
       log.debug("Library scan completed, refreshing view");
       fetchVideos(0);
       // Also reload available decades as new videos may have added new decades
@@ -144,7 +148,7 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
         .then(setAvailableDecades)
         .catch((err) => log.error("Failed to reload decades:", err));
     }
-  }, [lastScanCompletedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lastScanCompletedAt, fetchVideos]);
 
   const handleLoadMore = () => {
     if (!isLoading && videos.length < total) {
