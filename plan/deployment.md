@@ -47,6 +47,50 @@ Watch the workflow: https://github.com/zalun/karaoke-app/actions
 
 The release will appear at: https://github.com/zalun/karaoke-app/releases
 
+## Local Build Script
+
+The GitHub CI/CD workflow produces functional DMGs, but the locally-built DMG has a nicer appearance (custom background, icon arrangement). Use the `scripts/build-and-release.sh` script to build, notarize, and upload a polished DMG.
+
+### Prerequisites
+
+1. Apple Developer credentials configured as environment variables
+2. GitHub CLI (`gh`) authenticated
+3. Git tag already pushed (the script uploads to an existing release)
+
+### Usage
+
+```bash
+# Set required environment variables
+export APPLE_ID="your@email.com"
+export APPLE_PASSWORD="xxxx-xxxx-xxxx-xxxx"  # App-specific password
+export APPLE_TEAM_ID="DCXDSQYXM7"
+
+# Run the build script
+./scripts/build-and-release.sh v0.6.4
+```
+
+### What the Script Does
+
+1. Validates version format (vX.Y.Z)
+2. Detects architecture (Apple Silicon or Intel)
+3. Builds the app with `npm run tauri build`
+4. Verifies the DMG was created
+5. Submits to Apple for notarization (waits for completion)
+6. Staples the notarization ticket to the DMG
+7. Creates the GitHub release if it doesn't exist
+8. Uploads the notarized DMG to the release
+
+### Workflow: Replacing CI Build with Local Build
+
+After CI creates a release with its DMG:
+
+```bash
+# 1. Build and upload the nicer local DMG
+./scripts/build-and-release.sh v0.6.4
+
+# The script automatically replaces the existing DMG asset
+```
+
 ## Apple Notarization
 
 ### Quick Reference: Local Notarization Commands
