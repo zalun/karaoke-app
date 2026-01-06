@@ -334,6 +334,14 @@ impl LibraryScanner {
                     continue;
                 }
 
+                // Skip .homekaraoke metadata directories
+                if let Some(name) = path.file_name() {
+                    if name == ".homekaraoke" {
+                        debug!("Skipping metadata directory: {}", path.display());
+                        continue;
+                    }
+                }
+
                 if path.is_dir() {
                     // Recurse into subdirectories with incremented depth
                     files.extend(Self::find_video_files_with_depth(&path, depth + 1));
