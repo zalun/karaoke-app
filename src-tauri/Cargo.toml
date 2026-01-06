@@ -33,7 +33,8 @@ url = "2"
 urlencoding = "2"
 keepawake = "0.5"
 sha2 = "0.10"
-# Use rustls-tls instead of native-tls to fix macOS connection issues with some APIs (e.g., Lrclib)
+# Use rustls-tls instead of native-tls to fix macOS TLS connection timeouts with Lrclib API
+# See: https://github.com/zalun/karaoke-app/issues/133
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
