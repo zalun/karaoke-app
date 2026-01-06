@@ -82,6 +82,9 @@ interface LibraryState {
   isScanning: boolean;
   scanProgress: { current: number; total: number } | null;
 
+  // Timestamp of last completed scan (used to trigger view refreshes)
+  lastScanCompletedAt: number | null;
+
   // File availability cache (file_path -> {available, timestamp}) with TTL
   fileAvailabilityCache: Map<string, CacheEntry>;
 
@@ -117,6 +120,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   isSearching: false,
   isScanning: false,
   scanProgress: null,
+  lastScanCompletedAt: null,
   fileAvailabilityCache: new Map(),
 
   // Actions
@@ -195,7 +199,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         `Scan complete: ${result.files_found} files found, ${result.hkmeta_created} hkmeta created`
       );
 
-      // Update folder in state with new file count
+      // Update folder in state with new file count and signal scan completion
       set((state) => ({
         folders: state.folders.map((f) =>
           f.id === folderId
@@ -204,6 +208,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         ),
         isScanning: false,
         scanProgress: null,
+        lastScanCompletedAt: Date.now(),
       }));
 
       return result;
@@ -230,7 +235,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       // Reload folders to get updated stats
       await get().loadFolders();
 
-      set({ isScanning: false, scanProgress: null });
+      // Signal scan completion to trigger view refreshes
+      set({ isScanning: false, scanProgress: null, lastScanCompletedAt: Date.now() });
       return results;
     } catch (error) {
       log.error("Failed to scan all folders:", error);
