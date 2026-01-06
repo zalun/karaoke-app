@@ -101,6 +101,13 @@ pub fn library_add_folder(app: AppHandle, state: State<'_, AppState>, path: Stri
             } else {
                 debug!("Added {} to asset protocol scope", folder.path);
             }
+            // Also add .homekaraoke subdirectory for thumbnails
+            let homekaraoke_dir = canonical_path.join(".homekaraoke");
+            if let Err(e) = asset_scope.allow_directory(&homekaraoke_dir, true) {
+                warn!("Failed to add {:?} to asset scope: {}", homekaraoke_dir, e);
+            } else {
+                debug!("Added {:?} to asset protocol scope", homekaraoke_dir);
+            }
 
             info!("Added library folder: {} (id: {})", folder.path, folder.id);
             Ok(folder)

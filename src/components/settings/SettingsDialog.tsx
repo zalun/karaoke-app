@@ -778,10 +778,11 @@ function LibrarySettings() {
           regenerate: scanOptions.regenerate,
           generate_thumbnails: scanOptions.generateThumbnails,
         });
-        notify(
-          "success",
-          `Scan complete: ${result.files_found} files found`
-        );
+        let message = `Scan complete: ${result.files_found} files found`;
+        if (result.thumbnails_failed > 0) {
+          message += ` (${result.thumbnails_failed} thumbnail failures)`;
+        }
+        notify("success", message);
         loadStats();
       } catch (error) {
         log.error("Failed to scan folder:", error);
@@ -801,7 +802,12 @@ function LibrarySettings() {
         generate_thumbnails: scanOptions.generateThumbnails,
       });
       const totalFiles = results.reduce((sum, r) => sum + r.files_found, 0);
-      notify("success", `Scan complete: ${totalFiles} files found`);
+      const totalThumbFailed = results.reduce((sum, r) => sum + r.thumbnails_failed, 0);
+      let message = `Scan complete: ${totalFiles} files found`;
+      if (totalThumbFailed > 0) {
+        message += ` (${totalThumbFailed} thumbnail failures)`;
+      }
+      notify("success", message);
       loadStats();
     } catch (error) {
       log.error("Failed to scan all folders:", error);

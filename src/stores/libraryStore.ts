@@ -53,6 +53,8 @@ export interface ScanResult {
   files_found: number;
   hkmeta_created: number;
   hkmeta_existing: number;
+  thumbnails_generated: number;
+  thumbnails_failed: number;
   errors: string[];
   duration_ms: number;
 }

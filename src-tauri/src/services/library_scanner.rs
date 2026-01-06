@@ -61,6 +61,8 @@ pub struct ScanResult {
     pub files_found: u32,
     pub hkmeta_created: u32,
     pub hkmeta_existing: u32,
+    pub thumbnails_generated: u32,
+    pub thumbnails_failed: u32,
     pub errors: Vec<String>,
     pub duration_ms: u64,
 }
@@ -128,6 +130,8 @@ impl LibraryScanner {
             files_found: 0,
             hkmeta_created: 0,
             hkmeta_existing: 0,
+            thumbnails_generated: 0,
+            thumbnails_failed: 0,
             errors: Vec::new(),
             duration_ms: 0,
         };
@@ -268,17 +272,19 @@ impl LibraryScanner {
                 // Only generate if thumbnail doesn't exist (or regenerating)
                 if !thumbnail_path.exists() || options.regenerate {
                     if let Some(ref rt) = runtime {
-                        rt.block_on(async {
-                            match FfmpegService::extract_thumbnail_smart(file_path, &thumbnail_path).await {
-                                Ok(_) => {
-                                    debug!("Generated thumbnail for {:?}", file_path);
-                                }
-                                Err(e) => {
-                                    // Don't fail the scan for thumbnail errors
-                                    debug!("Failed to generate thumbnail for {:?}: {}", file_path, e);
-                                }
+                        let thumbnail_result = rt.block_on(
+                            FfmpegService::extract_thumbnail_smart(file_path, &thumbnail_path)
+                        );
+                        match thumbnail_result {
+                            Ok(_) => {
+                                result.thumbnails_generated += 1;
+                                debug!("Generated thumbnail for {:?}", file_path);
                             }
-                        });
+                            Err(e) => {
+                                result.thumbnails_failed += 1;
+                                debug!("Failed to generate thumbnail for {:?}: {}", file_path, e);
+                            }
+                        }
                     }
                 }
             }
@@ -286,10 +292,12 @@ impl LibraryScanner {
 
         result.duration_ms = start.elapsed().as_millis() as u64;
         info!(
-            "Scan complete: {} files, {} hkmeta created, {} hkmeta existing, {} errors in {}ms",
+            "Scan complete: {} files, {} hkmeta created, {} hkmeta existing, {} thumbnails ({} failed), {} errors in {}ms",
             result.files_found,
             result.hkmeta_created,
             result.hkmeta_existing,
+            result.thumbnails_generated,
+            result.thumbnails_failed,
             result.errors.len(),
             result.duration_ms
         );
