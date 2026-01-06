@@ -100,7 +100,10 @@ impl FfmpegService {
             .ok_or_else(|| "ffmpeg not found".to_string())?;
 
         let timestamp = timestamp_secs.unwrap_or(DEFAULT_THUMBNAIL_TIMESTAMP_SECS);
-        let timestamp_str = format!("00:00:{:02}", timestamp.min(59));
+        let hours = timestamp / 3600;
+        let mins = (timestamp % 3600) / 60;
+        let secs = timestamp % 60;
+        let timestamp_str = format!("{:02}:{:02}:{:02}", hours, mins, secs);
 
         debug!(
             "Extracting thumbnail from {:?} at {} to {:?}",

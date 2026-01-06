@@ -334,8 +334,6 @@ pub enum LibrarySort {
     TitleDesc,
     ArtistAsc,
     ArtistDesc,
-    YearAsc,
-    YearDesc,
 }
 
 impl Default for LibrarySort {
@@ -383,13 +381,6 @@ pub fn library_browse(
         }),
         LibrarySort::ArtistDesc => sorted_videos.sort_by(|a, b| {
             b.artist.as_deref().unwrap_or("").to_lowercase().cmp(&a.artist.as_deref().unwrap_or("").to_lowercase())
-        }),
-        LibrarySort::YearAsc => sorted_videos.sort_by(|a, b| {
-            // Need to get year from hkmeta - for now sort by title
-            a.title.to_lowercase().cmp(&b.title.to_lowercase())
-        }),
-        LibrarySort::YearDesc => sorted_videos.sort_by(|a, b| {
-            b.title.to_lowercase().cmp(&a.title.to_lowercase())
         }),
     }
 

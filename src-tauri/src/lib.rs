@@ -440,14 +440,17 @@ pub fn run() {
                 info!("Got AppState, querying library folders");
                 if let Ok(db) = state.db.lock() {
                     let conn = db.connection();
-                    let mut stmt = conn
-                        .prepare("SELECT path FROM library_folders")
-                        .expect("Failed to prepare query");
-                    let paths: Vec<String> = stmt
-                        .query_map([], |row| row.get(0))
-                        .ok()
-                        .map(|rows| rows.filter_map(|r| r.ok()).collect())
-                        .unwrap_or_default();
+                    let paths: Vec<String> = match conn.prepare("SELECT path FROM library_folders") {
+                        Ok(mut stmt) => stmt
+                            .query_map([], |row| row.get(0))
+                            .ok()
+                            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+                            .unwrap_or_default(),
+                        Err(e) => {
+                            warn!("Failed to query library folders for asset scope: {}", e);
+                            Vec::new()
+                        }
+                    };
 
                     info!("Found {} library folders to add to asset scope", paths.len());
                     let asset_scope = app.asset_protocol_scope();
