@@ -10,6 +10,9 @@ const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mkv", "webm", "avi", "mov"];
 /// Maximum recursion depth for directory scanning (prevents stack overflow)
 const MAX_SCAN_DEPTH: usize = 20;
 
+/// Maximum .hkmeta.json file size in bytes (1MB) to prevent DoS attacks
+const MAX_HKMETA_SIZE: u64 = 1024 * 1024;
+
 /// Library folder stored in database
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LibraryFolder {
@@ -295,17 +298,22 @@ impl LibraryScanner {
         let hkmeta_path = Self::get_hkmeta_path(video_path);
 
         if hkmeta_path.exists() {
-            if let Ok(content) = fs::read_to_string(&hkmeta_path) {
-                if let Ok(hkmeta) = serde_json::from_str::<HkMeta>(&content) {
-                    let (parsed_title, parsed_artist) = Self::parse_filename(video_path);
-                    return (
-                        hkmeta.title.unwrap_or(parsed_title),
-                        hkmeta.artist.or(parsed_artist),
-                        hkmeta.album,
-                        hkmeta.duration,
-                        hkmeta.lyrics.is_some(),
-                        hkmeta.source.and_then(|s| s.youtube_id),
-                    );
+            // Check file size before reading to prevent DoS
+            if let Ok(metadata) = fs::metadata(&hkmeta_path) {
+                if metadata.len() > MAX_HKMETA_SIZE {
+                    warn!("Skipping oversized .hkmeta.json ({} bytes): {:?}", metadata.len(), hkmeta_path);
+                } else if let Ok(content) = fs::read_to_string(&hkmeta_path) {
+                    if let Ok(hkmeta) = serde_json::from_str::<HkMeta>(&content) {
+                        let (parsed_title, parsed_artist) = Self::parse_filename(video_path);
+                        return (
+                            hkmeta.title.unwrap_or(parsed_title),
+                            hkmeta.artist.or(parsed_artist),
+                            hkmeta.album,
+                            hkmeta.duration,
+                            hkmeta.lyrics.is_some(),
+                            hkmeta.source.and_then(|s| s.youtube_id),
+                        );
+                    }
                 }
             }
         }
@@ -360,6 +368,16 @@ impl LibraryScanner {
 
         if !hkmeta_path.exists() {
             return None;
+        }
+
+        // Check file size before reading to prevent DoS
+        match fs::metadata(&hkmeta_path) {
+            Ok(metadata) if metadata.len() > MAX_HKMETA_SIZE => {
+                warn!("Skipping oversized .hkmeta.json ({} bytes): {:?}", metadata.len(), hkmeta_path);
+                return None;
+            }
+            Err(_) => return None,
+            _ => {}
         }
 
         match fs::read_to_string(&hkmeta_path) {
