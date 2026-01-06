@@ -27,12 +27,8 @@
         "enable": true,
         "scope": {
           "allow": [
-            "**",
             "$AUDIO/**",
-            "$VIDEO/**",
-            "$DOCUMENT/**",
-            "$HOME/**",
-            "/*/**"
+            "$VIDEO/**"
           ],
           "deny": []
         }
