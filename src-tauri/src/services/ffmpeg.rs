@@ -16,6 +16,12 @@ const THUMBNAIL_WIDTH: u32 = 320;
 /// Default timestamp for thumbnail extraction (5 seconds into video)
 const DEFAULT_THUMBNAIL_TIMESTAMP_SECS: u32 = 5;
 
+/// Minimum timestamp for smart thumbnail extraction (avoid black intro frames)
+const MIN_THUMBNAIL_TIMESTAMP_SECS: u32 = 1;
+
+/// Maximum timestamp for smart thumbnail extraction (avoid spoilers in long videos)
+const MAX_THUMBNAIL_TIMESTAMP_SECS: u32 = 30;
+
 pub struct FfmpegService;
 
 impl FfmpegService {
@@ -161,9 +167,9 @@ impl FfmpegService {
     ) -> Result<(), String> {
         // Try to get duration first
         let timestamp = if let Some(duration) = Self::get_duration(video_path).await {
-            // Use 10% of duration, but at least 1 second and at most 30 seconds
+            // Use 10% of duration, clamped to reasonable bounds
             let ten_percent = duration / 10;
-            ten_percent.max(1).min(30)
+            ten_percent.max(MIN_THUMBNAIL_TIMESTAMP_SECS).min(MAX_THUMBNAIL_TIMESTAMP_SECS)
         } else {
             DEFAULT_THUMBNAIL_TIMESTAMP_SECS
         };

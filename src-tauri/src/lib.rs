@@ -463,13 +463,12 @@ pub fn run() {
                             info!("Added {} to asset protocol scope", path);
                         }
                         // Also explicitly allow the .homekaraoke subdirectory
+                        // Add regardless of whether it exists - it may be created during scanning
                         let homekaraoke_dir = folder_path.join(".homekaraoke");
-                        if homekaraoke_dir.exists() {
-                            if let Err(e) = asset_scope.allow_directory(&homekaraoke_dir, true) {
-                                warn!("Failed to add {:?} to asset scope: {}", homekaraoke_dir, e);
-                            } else {
-                                info!("Added {:?} to asset protocol scope", homekaraoke_dir);
-                            }
+                        if let Err(e) = asset_scope.allow_directory(&homekaraoke_dir, true) {
+                            warn!("Failed to add {:?} to asset scope: {}", homekaraoke_dir, e);
+                        } else {
+                            info!("Added {:?} to asset protocol scope", homekaraoke_dir);
                         }
                     }
                 } else {
