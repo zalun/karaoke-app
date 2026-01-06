@@ -37,6 +37,14 @@ const log = createLogger("App");
 type PanelTab = "queue" | "history";
 type MainTab = "player" | "search" | "library";
 
+/** Returns className for tab buttons based on active state */
+function getTabClassName(isActive: boolean): string {
+  const base = "flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg";
+  const active = "bg-gray-800 text-white border-t border-l border-r border-gray-700";
+  const inactive = "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700";
+  return `${base} ${isActive ? active : inactive}`;
+}
+
 const RESULTS_PER_PAGE = 15;
 const MAX_SEARCH_RESULTS = 50;
 
@@ -411,34 +419,28 @@ function App() {
           {/* Main Tabs + Content - wrapped together for connected tab styling */}
           <div className="flex-1 flex flex-col min-h-0">
             {/* Tabs */}
-            <div className="flex shrink-0">
+            <div className="flex shrink-0" role="tablist">
               <button
+                role="tab"
+                aria-selected={mainTab === "player"}
                 onClick={() => setMainTab("player")}
-                className={`flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg ${
-                  mainTab === "player"
-                    ? "bg-gray-800 text-white border-t border-l border-r border-gray-700"
-                    : "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700"
-                }`}
+                className={getTabClassName(mainTab === "player")}
               >
                 Player
               </button>
               <button
+                role="tab"
+                aria-selected={mainTab === "search"}
                 onClick={() => setMainTab("search")}
-                className={`flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg ${
-                  mainTab === "search"
-                    ? "bg-gray-800 text-white border-t border-l border-r border-gray-700"
-                    : "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700"
-                }`}
+                className={getTabClassName(mainTab === "search")}
               >
                 Search
               </button>
               <button
+                role="tab"
+                aria-selected={mainTab === "library"}
                 onClick={() => setMainTab("library")}
-                className={`flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg ${
-                  mainTab === "library"
-                    ? "bg-gray-800 text-white border-t border-l border-r border-gray-700"
-                    : "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700"
-                }`}
+                className={getTabClassName(mainTab === "library")}
               >
                 Library
               </button>
@@ -514,24 +516,20 @@ function App() {
           {/* Queue/History Panel */}
           <div className="flex-1 flex flex-col min-h-0">
             {/* Tabs */}
-            <div className="flex shrink-0">
+            <div className="flex shrink-0" role="tablist">
               <button
+                role="tab"
+                aria-selected={activeTab === "queue"}
                 onClick={() => setActiveTab("queue")}
-                className={`flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg ${
-                  activeTab === "queue"
-                    ? "bg-gray-800 text-white border-t border-l border-r border-gray-700"
-                    : "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700"
-                }`}
+                className={getTabClassName(activeTab === "queue")}
               >
                 Queue
               </button>
               <button
+                role="tab"
+                aria-selected={activeTab === "history"}
                 onClick={() => setActiveTab("history")}
-                className={`flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg ${
-                  activeTab === "history"
-                    ? "bg-gray-800 text-white border-t border-l border-r border-gray-700"
-                    : "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700"
-                }`}
+                className={getTabClassName(activeTab === "history")}
               >
                 History
               </button>
