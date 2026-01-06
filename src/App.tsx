@@ -37,6 +37,14 @@ const log = createLogger("App");
 type PanelTab = "queue" | "history";
 type MainTab = "player" | "search" | "library";
 
+/** Returns className for tab buttons based on active state */
+function getTabClassName(isActive: boolean): string {
+  const base = "flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg";
+  const active = "bg-gray-800 text-white border-t border-l border-r border-gray-700";
+  const inactive = "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700";
+  return `${base} ${isActive ? active : inactive}`;
+}
+
 const RESULTS_PER_PAGE = 15;
 const MAX_SEARCH_RESULTS = 50;
 
@@ -408,42 +416,38 @@ function App() {
           {/* Player Controls - always visible, disabled when no video */}
           <PlayerControls />
 
-          {/* Main Tabs - always visible */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMainTab("player")}
-              className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                mainTab === "player"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              Player
-            </button>
-            <button
-              onClick={() => setMainTab("search")}
-              className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                mainTab === "search"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              Search
-            </button>
-            <button
-              onClick={() => setMainTab("library")}
-              className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                mainTab === "library"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              Library
-            </button>
-          </div>
+          {/* Main Tabs + Content - wrapped together for connected tab styling */}
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Tabs */}
+            <div className="flex shrink-0" role="tablist">
+              <button
+                role="tab"
+                aria-selected={mainTab === "player"}
+                onClick={() => setMainTab("player")}
+                className={getTabClassName(mainTab === "player")}
+              >
+                Player
+              </button>
+              <button
+                role="tab"
+                aria-selected={mainTab === "search"}
+                onClick={() => setMainTab("search")}
+                className={getTabClassName(mainTab === "search")}
+              >
+                Search
+              </button>
+              <button
+                role="tab"
+                aria-selected={mainTab === "library"}
+                onClick={() => setMainTab("library")}
+                className={getTabClassName(mainTab === "library")}
+              >
+                Library
+              </button>
+            </div>
 
-          {/* Content - views stay mounted to avoid interrupting playback */}
-          <div className="flex-1 min-h-0 relative">
+            {/* Content - views stay mounted to avoid interrupting playback */}
+            <div className="flex-1 min-h-0 relative bg-gray-800 rounded-b-lg p-4 border border-t-0 border-gray-700">
             {/* Video Player - hidden but stays mounted when not on player tab */}
             <div className={`h-full ${mainTab === "player" ? "" : "hidden"}`}>
               {currentVideo ? (
@@ -501,6 +505,7 @@ function App() {
               />
             </div>
           </div>
+          </div>
         </div>
 
         {/* Right: Session + Queue/History Panel */}
@@ -509,33 +514,31 @@ function App() {
           <SessionBar />
 
           {/* Queue/History Panel */}
-          <div className="bg-gray-800 rounded-lg p-4 flex-1 overflow-auto flex flex-col">
+          <div className="flex-1 flex flex-col min-h-0">
             {/* Tabs */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex shrink-0" role="tablist">
               <button
+                role="tab"
+                aria-selected={activeTab === "queue"}
                 onClick={() => setActiveTab("queue")}
-                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                  activeTab === "queue"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
+                className={getTabClassName(activeTab === "queue")}
               >
                 Queue
               </button>
               <button
+                role="tab"
+                aria-selected={activeTab === "history"}
                 onClick={() => setActiveTab("history")}
-                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                  activeTab === "history"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
+                className={getTabClassName(activeTab === "history")}
               >
                 History
               </button>
             </div>
 
             {/* Panel content */}
-            {activeTab === "queue" ? <QueuePanel /> : <HistoryPanel />}
+            <div className="bg-gray-800 rounded-b-lg p-4 flex-1 overflow-auto flex flex-col border border-t-0 border-gray-700">
+              {activeTab === "queue" ? <QueuePanel /> : <HistoryPanel />}
+            </div>
           </div>
         </div>
       </div>
