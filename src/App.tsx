@@ -408,42 +408,44 @@ function App() {
           {/* Player Controls - always visible, disabled when no video */}
           <PlayerControls />
 
-          {/* Main Tabs - always visible */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMainTab("player")}
-              className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                mainTab === "player"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              Player
-            </button>
-            <button
-              onClick={() => setMainTab("search")}
-              className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                mainTab === "search"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              Search
-            </button>
-            <button
-              onClick={() => setMainTab("library")}
-              className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                mainTab === "library"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              Library
-            </button>
-          </div>
+          {/* Main Tabs + Content - wrapped together for connected tab styling */}
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Tabs */}
+            <div className="flex shrink-0">
+              <button
+                onClick={() => setMainTab("player")}
+                className={`flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg ${
+                  mainTab === "player"
+                    ? "bg-gray-800 text-white border-t border-l border-r border-gray-700"
+                    : "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700"
+                }`}
+              >
+                Player
+              </button>
+              <button
+                onClick={() => setMainTab("search")}
+                className={`flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg ${
+                  mainTab === "search"
+                    ? "bg-gray-800 text-white border-t border-l border-r border-gray-700"
+                    : "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700"
+                }`}
+              >
+                Search
+              </button>
+              <button
+                onClick={() => setMainTab("library")}
+                className={`flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg ${
+                  mainTab === "library"
+                    ? "bg-gray-800 text-white border-t border-l border-r border-gray-700"
+                    : "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700"
+                }`}
+              >
+                Library
+              </button>
+            </div>
 
-          {/* Content - views stay mounted to avoid interrupting playback */}
-          <div className="flex-1 min-h-0 relative">
+            {/* Content - views stay mounted to avoid interrupting playback */}
+            <div className="flex-1 min-h-0 relative bg-gray-800 rounded-b-lg p-4 border border-t-0 border-gray-700">
             {/* Video Player - hidden but stays mounted when not on player tab */}
             <div className={`h-full ${mainTab === "player" ? "" : "hidden"}`}>
               {currentVideo ? (
@@ -501,6 +503,7 @@ function App() {
               />
             </div>
           </div>
+          </div>
         </div>
 
         {/* Right: Session + Queue/History Panel */}
@@ -509,25 +512,25 @@ function App() {
           <SessionBar />
 
           {/* Queue/History Panel */}
-          <div className="bg-gray-800 rounded-lg p-4 flex-1 overflow-auto flex flex-col">
+          <div className="flex-1 flex flex-col min-h-0">
             {/* Tabs */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex shrink-0">
               <button
                 onClick={() => setActiveTab("queue")}
-                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                className={`flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg ${
                   activeTab === "queue"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    ? "bg-gray-800 text-white border-t border-l border-r border-gray-700"
+                    : "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700"
                 }`}
               >
                 Queue
               </button>
               <button
                 onClick={() => setActiveTab("history")}
-                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                className={`flex-1 py-2 px-4 font-medium transition-colors rounded-t-lg ${
                   activeTab === "history"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    ? "bg-gray-800 text-white border-t border-l border-r border-gray-700"
+                    : "bg-gray-900 text-gray-400 hover:text-gray-300 border-b border-gray-700"
                 }`}
               >
                 History
@@ -535,7 +538,9 @@ function App() {
             </div>
 
             {/* Panel content */}
-            {activeTab === "queue" ? <QueuePanel /> : <HistoryPanel />}
+            <div className="bg-gray-800 rounded-b-lg p-4 flex-1 overflow-auto flex flex-col border border-t-0 border-gray-700">
+              {activeTab === "queue" ? <QueuePanel /> : <HistoryPanel />}
+            </div>
           </div>
         </div>
       </div>
