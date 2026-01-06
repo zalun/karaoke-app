@@ -305,29 +305,49 @@ impl MetadataFetcher {
     }
 }
 
-impl Default for MetadataFetcher {
-    fn default() -> Self {
-        Self::new().expect("Failed to create MetadataFetcher")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_escape_lucene() {
+    fn test_escape_lucene_plain_text() {
+        assert_eq!(MetadataFetcher::escape_lucene("Queen"), "Queen");
         assert_eq!(
-            MetadataFetcher::escape_lucene("Queen"),
-            "Queen"
+            MetadataFetcher::escape_lucene("Bohemian Rhapsody"),
+            "Bohemian Rhapsody"
         );
+    }
+
+    #[test]
+    fn test_escape_lucene_special_chars() {
+        assert_eq!(MetadataFetcher::escape_lucene("AC/DC"), "AC\\/DC");
+        assert_eq!(MetadataFetcher::escape_lucene("What's Up?"), "What's Up\\?");
+        assert_eq!(MetadataFetcher::escape_lucene("Rock & Roll"), "Rock \\& Roll");
+        assert_eq!(MetadataFetcher::escape_lucene("(I Can't Get No) Satisfaction"), "\\(I Can't Get No\\) Satisfaction");
+    }
+
+    #[test]
+    fn test_escape_lucene_all_special_chars() {
+        // Test all Lucene special characters: + - & | ! ( ) { } [ ] ^ " ~ * ? : \ /
+        let input = "+-&|!(){}[]^\"~*?:\\/";
+        let expected = "\\+\\-\\&\\|\\!\\(\\)\\{\\}\\[\\]\\^\\\"\\~\\*\\?\\:\\\\\\/";
+        assert_eq!(MetadataFetcher::escape_lucene(input), expected);
+    }
+
+    #[test]
+    fn test_escape_lucene_malicious_input() {
+        // Potential injection attempts should be escaped
         assert_eq!(
-            MetadataFetcher::escape_lucene("AC/DC"),
-            "AC\\/DC"
+            MetadataFetcher::escape_lucene("title:\"exploit\" OR artist:*"),
+            "title\\:\\\"exploit\\\" OR artist\\:\\*"
         );
-        assert_eq!(
-            MetadataFetcher::escape_lucene("What's Up?"),
-            "What's Up\\?"
-        );
+    }
+
+    #[test]
+    fn test_escape_lucene_unicode() {
+        // Unicode characters should pass through unchanged
+        assert_eq!(MetadataFetcher::escape_lucene("日本語"), "日本語");
+        assert_eq!(MetadataFetcher::escape_lucene("Müller"), "Müller");
+        assert_eq!(MetadataFetcher::escape_lucene("Beyoncé"), "Beyoncé");
     }
 }

@@ -162,8 +162,16 @@ impl LibraryScanner {
         };
 
         // Create tokio runtime for async operations if needed
+        // Note: For large libraries (1000+ files), scanning can take hours due to
+        // MusicBrainz rate limiting (1 req/sec). Consider batching or background processing.
         let runtime = if fetcher.is_some() {
-            Some(tokio::runtime::Runtime::new().ok())
+            match tokio::runtime::Runtime::new() {
+                Ok(rt) => Some(rt),
+                Err(e) => {
+                    warn!("Failed to create tokio runtime for metadata fetching: {}", e);
+                    None
+                }
+            }
         } else {
             None
         };
@@ -179,22 +187,21 @@ impl LibraryScanner {
                 let (title, artist) = Self::parse_filename(file_path);
 
                 // Fetch metadata if enabled
-                let (song_info, mut lyrics) = if let (Some(ref fetcher), Some(Some(ref rt))) =
-                    (&fetcher, &runtime)
-                {
-                    rt.block_on(async {
-                        fetcher
-                            .fetch_all(
-                                &title,
-                                artist.as_deref(),
-                                options.fetch_song_info,
-                                options.fetch_lyrics,
-                            )
-                            .await
-                    })
-                } else {
-                    (None, None)
-                };
+                let (song_info, mut lyrics) =
+                    if let (Some(ref fetcher), Some(ref rt)) = (&fetcher, &runtime) {
+                        rt.block_on(async {
+                            fetcher
+                                .fetch_all(
+                                    &title,
+                                    artist.as_deref(),
+                                    options.fetch_song_info,
+                                    options.fetch_lyrics,
+                                )
+                                .await
+                        })
+                    } else {
+                        (None, None)
+                    };
 
                 // Check for companion .lrc file as fallback if no lyrics from API
                 if lyrics.is_none() {
@@ -676,5 +683,31 @@ mod tests {
             hkmeta,
             Path::new("/music/Queen - Bohemian Rhapsody.hkmeta.json")
         );
+    }
+
+    #[test]
+    fn test_parse_filename_artist_with_hyphen() {
+        // Artist names with hyphens should use rfind to get the last " - "
+        let path = Path::new("/music/AC-DC - Back In Black.mp4");
+        let (title, artist) = LibraryScanner::parse_filename(path);
+        assert_eq!(title, "Back In Black");
+        assert_eq!(artist, Some("AC-DC".to_string()));
+    }
+
+    #[test]
+    fn test_parse_filename_multiple_hyphens() {
+        // Multiple " - " separators - should split on the last one
+        let path = Path::new("/music/Twenty One Pilots - Heathens - From Suicide Squad.mp4");
+        let (title, artist) = LibraryScanner::parse_filename(path);
+        assert_eq!(title, "From Suicide Squad");
+        assert_eq!(artist, Some("Twenty One Pilots - Heathens".to_string()));
+    }
+
+    #[test]
+    fn test_cdg_companion_detection() {
+        // CDG detection relies on file system, so we test the path logic
+        let video = Path::new("/music/karaoke.mp4");
+        let cdg_path = video.with_extension("cdg");
+        assert_eq!(cdg_path, Path::new("/music/karaoke.cdg"));
     }
 }
