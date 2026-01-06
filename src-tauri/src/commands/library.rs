@@ -4,6 +4,9 @@ use log::{debug, info, warn};
 use rusqlite::params;
 use tauri::{AppHandle, Manager, State};
 
+/// Maximum number of search results to return (prevents performance issues)
+const MAX_SEARCH_LIMIT: u32 = 1000;
+
 /// Forbidden system paths that should not be added to the library
 const FORBIDDEN_PATHS: &[&str] = &[
     "/System",
@@ -263,14 +266,16 @@ pub fn library_search(
     limit: u32,
     include_lyrics: bool,
 ) -> Result<Vec<LibraryVideo>, String> {
-    debug!("Searching library for: {} (limit: {}, include_lyrics: {})", query, limit, include_lyrics);
+    // Cap limit to prevent performance issues
+    let capped_limit = limit.min(MAX_SEARCH_LIMIT);
+    debug!("Searching library for: {} (limit: {}, include_lyrics: {})", query, capped_limit, include_lyrics);
 
     if query.trim().is_empty() {
         return Ok(Vec::new());
     }
 
     let folders = library_get_folders(state)?;
-    let results = LibraryScanner::search(&folders, &query, limit, include_lyrics);
+    let results = LibraryScanner::search(&folders, &query, capped_limit, include_lyrics);
 
     debug!("Found {} results", results.len());
     Ok(results)

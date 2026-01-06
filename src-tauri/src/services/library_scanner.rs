@@ -404,11 +404,13 @@ impl LibraryScanner {
 
     /// Search files by query across all folders
     /// If include_lyrics is true, also searches within lyrics content
+    /// Note: Results are returned in folder order (first-come). Once limit is reached,
+    /// remaining folders are not searched.
     pub fn search(folders: &[LibraryFolder], query: &str, limit: u32, include_lyrics: bool) -> Vec<LibraryVideo> {
         let query_lower = query.to_lowercase();
         let mut results = Vec::new();
 
-        for folder in folders {
+        'outer: for folder in folders {
             let path = Path::new(&folder.path);
             if !path.exists() || !path.is_dir() {
                 continue;
@@ -418,7 +420,7 @@ impl LibraryScanner {
 
             for file_path in video_files {
                 if results.len() >= limit as usize {
-                    break;
+                    break 'outer;
                 }
 
                 // Load metadata
@@ -441,6 +443,10 @@ impl LibraryScanner {
                     file_name.to_lowercase()
                 );
 
+                // Check for early match on basic fields (title/artist/filename)
+                // before loading full hkmeta which may contain large lyrics content
+                let basic_match = searchable.contains(&query_lower);
+
                 // Add additional metadata fields from hkmeta
                 if let Some(hkmeta) = Self::load_hkmeta(path, &file_path) {
                     if let Some(year) = hkmeta.year {
@@ -461,8 +467,10 @@ impl LibraryScanner {
                             searchable.push_str(&tag.to_lowercase());
                         }
                     }
-                    // Optionally include lyrics in search
-                    if include_lyrics {
+                    // Only include lyrics in search if no basic match found
+                    // This optimization avoids loading/processing large lyrics content
+                    // when the file already matches on title/artist/filename
+                    if include_lyrics && !basic_match {
                         if let Some(lyrics) = &hkmeta.lyrics {
                             if let Some(content) = &lyrics.content {
                                 searchable.push(' ');
