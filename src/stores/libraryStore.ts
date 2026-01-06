@@ -13,6 +13,9 @@ interface CacheEntry {
   timestamp: number;
 }
 
+// Track in-flight file availability requests to prevent duplicate concurrent requests
+const pendingFileChecks = new Map<string, Promise<boolean>>();
+
 // Types matching Rust structs
 export interface LibraryFolder {
   id: number;
@@ -273,21 +276,37 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
 
   checkFileAvailable: async (filePath: string) => {
-    try {
-      const available = await invoke<boolean>("library_check_file", { filePath });
-
-      // Update cache with timestamp
-      set((state) => {
-        const cache = new Map(state.fileAvailabilityCache);
-        cache.set(filePath, { available, timestamp: Date.now() });
-        return { fileAvailabilityCache: cache };
-      });
-
-      return available;
-    } catch (error) {
-      log.error("Failed to check file availability:", error);
-      return false;
+    // Check if there's already an in-flight request for this file
+    const pending = pendingFileChecks.get(filePath);
+    if (pending) {
+      log.debug(`Reusing pending check for: ${filePath}`);
+      return pending;
     }
+
+    // Create and track the promise
+    const checkPromise = (async () => {
+      try {
+        const available = await invoke<boolean>("library_check_file", { filePath });
+
+        // Update cache with timestamp
+        set((state) => {
+          const cache = new Map(state.fileAvailabilityCache);
+          cache.set(filePath, { available, timestamp: Date.now() });
+          return { fileAvailabilityCache: cache };
+        });
+
+        return available;
+      } catch (error) {
+        log.error("Failed to check file availability:", error);
+        return false;
+      } finally {
+        // Clean up pending request
+        pendingFileChecks.delete(filePath);
+      }
+    })();
+
+    pendingFileChecks.set(filePath, checkPromise);
+    return checkPromise;
   },
 
   getCachedAvailability: (filePath: string) => {

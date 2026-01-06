@@ -273,24 +273,42 @@ function App() {
   // Local file handlers
   const handleLocalPlay = useCallback(
     async (video: LibraryVideo) => {
-      if (!video.is_available) return;
+      if (!video.is_available) {
+        notify("error", "File is not available");
+        return;
+      }
 
       log.info(`Playing local file: "${video.title}"`);
       setIsLoading(true);
       setSearchError(null);
 
-      const pendingVideo = {
-        id: video.file_path,
-        title: video.title,
-        artist: video.artist || undefined,
-        duration: video.duration || undefined,
-        source: "local" as const,
-        filePath: video.file_path,
-      };
+      try {
+        // Re-check file availability before playing (file could have been moved/deleted)
+        const stillAvailable = await useLibraryStore.getState().checkFileAvailable(video.file_path);
+        if (!stillAvailable) {
+          log.warn(`File no longer available: "${video.file_path}"`);
+          notify("error", "File is no longer available");
+          setIsLoading(false);
+          return;
+        }
 
-      setCurrentVideo(pendingVideo);
-      playDirect(pendingVideo);
-      setIsPlaying(true);
+        const pendingVideo = {
+          id: video.file_path,
+          title: video.title,
+          artist: video.artist || undefined,
+          duration: video.duration || undefined,
+          source: "local" as const,
+          filePath: video.file_path,
+        };
+
+        setCurrentVideo(pendingVideo);
+        playDirect(pendingVideo);
+        setIsPlaying(true);
+      } catch (error) {
+        log.error("Failed to play local file:", error);
+        notify("error", "Failed to play file");
+        setIsLoading(false);
+      }
     },
     [setCurrentVideo, setIsPlaying, setIsLoading, playDirect]
   );
