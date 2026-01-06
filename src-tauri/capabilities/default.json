@@ -25,6 +25,15 @@
       "identifier": "fs:allow-read-file",
       "allow": [{ "path": "**" }]
     },
-    "fs:default"
+    "fs:default",
+    {
+      "identifier": "core:app:default"
+    },
+    {
+      "identifier": "core:resources:default"
+    },
+    {
+      "identifier": "core:path:default"
+    }
   ]
 }

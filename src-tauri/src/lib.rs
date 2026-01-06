@@ -336,6 +336,7 @@ pub fn run() {
             commands::library_scan_folder,
             commands::library_scan_all,
             commands::library_search,
+            commands::library_browse,
             commands::library_check_file,
             commands::library_get_stats,
         ])
@@ -432,6 +433,48 @@ pub fn run() {
                 #[cfg(target_os = "macos")]
                 display_event_thread: Mutex::new(None),
             });
+
+            // Add library folders to asset protocol scope for thumbnails
+            info!("Setting up asset protocol scope for library folders...");
+            if let Some(state) = app.try_state::<AppState>() {
+                info!("Got AppState, querying library folders");
+                if let Ok(db) = state.db.lock() {
+                    let conn = db.connection();
+                    let mut stmt = conn
+                        .prepare("SELECT path FROM library_folders")
+                        .expect("Failed to prepare query");
+                    let paths: Vec<String> = stmt
+                        .query_map([], |row| row.get(0))
+                        .ok()
+                        .map(|rows| rows.filter_map(|r| r.ok()).collect())
+                        .unwrap_or_default();
+
+                    info!("Found {} library folders to add to asset scope", paths.len());
+                    let asset_scope = app.asset_protocol_scope();
+                    for path in paths {
+                        let folder_path = std::path::Path::new(&path);
+                        // Allow the library folder
+                        if let Err(e) = asset_scope.allow_directory(folder_path, true) {
+                            warn!("Failed to add {} to asset scope: {}", path, e);
+                        } else {
+                            info!("Added {} to asset protocol scope", path);
+                        }
+                        // Also explicitly allow the .homekaraoke subdirectory
+                        let homekaraoke_dir = folder_path.join(".homekaraoke");
+                        if homekaraoke_dir.exists() {
+                            if let Err(e) = asset_scope.allow_directory(&homekaraoke_dir, true) {
+                                warn!("Failed to add {:?} to asset scope: {}", homekaraoke_dir, e);
+                            } else {
+                                info!("Added {:?} to asset protocol scope", homekaraoke_dir);
+                            }
+                        }
+                    }
+                } else {
+                    warn!("Failed to lock database for asset scope setup");
+                }
+            } else {
+                warn!("AppState not available for asset scope setup");
+            }
 
             // Spawn media event polling thread (macOS and Linux)
             #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]

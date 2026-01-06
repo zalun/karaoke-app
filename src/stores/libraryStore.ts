@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "../services/logger";
+import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 
 const log = createLogger("LibraryStore");
 
@@ -36,12 +37,15 @@ export interface LibraryVideo {
   has_cdg: boolean;
   youtube_id: string | null;
   is_available: boolean;
+  thumbnail_path: string | null;
 }
 
 export interface ScanOptions {
   create_hkmeta: boolean;
   fetch_song_info: boolean;
   fetch_lyrics: boolean;
+  regenerate: boolean;
+  generate_thumbnails: boolean;
 }
 
 export interface ScanResult {
@@ -95,8 +99,10 @@ interface LibraryState {
 
 const DEFAULT_SCAN_OPTIONS: ScanOptions = {
   create_hkmeta: true,
-  fetch_song_info: false,
-  fetch_lyrics: false,
+  fetch_song_info: true,
+  fetch_lyrics: true,
+  regenerate: false,
+  generate_thumbnails: true,
 };
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
@@ -237,13 +243,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       return;
     }
 
-    log.debug(`Searching library for: "${query}" (limit: ${limit})`);
+    // Get include_lyrics setting from settings store
+    const includeLyrics = useSettingsStore.getState().getSetting(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS) === "true";
+
+    log.debug(`Searching library for: "${query}" (limit: ${limit}, includeLyrics: ${includeLyrics})`);
     set({ isSearching: true });
 
     try {
       const results = await invoke<LibraryVideo[]>("library_search", {
         query,
         limit,
+        includeLyrics,
       });
 
       log.debug(`Found ${results.length} results`);

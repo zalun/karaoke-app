@@ -1,3 +1,4 @@
+use crate::services::ffmpeg::FfmpegService;
 use crate::services::metadata_fetcher::{LyricsResult, MetadataFetcher, SongInfo};
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
@@ -37,6 +38,8 @@ pub struct LibraryVideo {
     pub has_cdg: bool,
     pub youtube_id: Option<String>,
     pub is_available: bool,
+    /// Path to the video thumbnail (if generated)
+    pub thumbnail_path: Option<String>,
 }
 
 /// Scan options
@@ -45,6 +48,10 @@ pub struct ScanOptions {
     pub create_hkmeta: bool,
     pub fetch_song_info: bool,
     pub fetch_lyrics: bool,
+    /// Regenerate existing .hkmeta.json files (re-fetch from APIs)
+    pub regenerate: bool,
+    /// Generate thumbnails for videos (requires ffmpeg)
+    pub generate_thumbnails: bool,
 }
 
 /// Result of scanning a folder
@@ -161,14 +168,15 @@ impl LibraryScanner {
             None
         };
 
-        // Create tokio runtime for async operations if needed
+        // Create tokio runtime for async operations if needed (metadata fetching or thumbnail generation)
         // Note: For large libraries (1000+ files), scanning can take hours due to
         // MusicBrainz rate limiting (1 req/sec). Consider batching or background processing.
-        let runtime = if fetcher.is_some() {
+        let needs_runtime = fetcher.is_some() || options.generate_thumbnails;
+        let runtime = if needs_runtime {
             match tokio::runtime::Runtime::new() {
                 Ok(rt) => Some(rt),
                 Err(e) => {
-                    warn!("Failed to create tokio runtime for metadata fetching: {}", e);
+                    warn!("Failed to create tokio runtime: {}", e);
                     None
                 }
             }
@@ -176,13 +184,18 @@ impl LibraryScanner {
             None
         };
 
+        // Check ffmpeg availability once if thumbnail generation is enabled
+        let ffmpeg_available = options.generate_thumbnails && FfmpegService::is_available();
+
         // Process each file
         for file_path in &video_files {
-            let hkmeta_path = Self::get_hkmeta_path(file_path);
+            // Check for existing hkmeta in either new or legacy location
+            let existing_hkmeta = Self::find_hkmeta_path(path, file_path);
 
-            if hkmeta_path.exists() {
+            // Skip if exists and not regenerating
+            if existing_hkmeta.is_some() && !options.regenerate {
                 result.hkmeta_existing += 1;
-            } else if options.create_hkmeta {
+            } else if options.create_hkmeta || options.regenerate {
                 // Parse filename first
                 let (title, artist) = Self::parse_filename(file_path);
 
@@ -216,7 +229,7 @@ impl LibraryScanner {
                 }
 
                 // Create .hkmeta.json with fetched metadata
-                match Self::create_hkmeta_with_metadata(file_path, &title, artist, song_info, lyrics)
+                match Self::create_hkmeta_with_metadata(path, file_path, &title, artist, song_info, lyrics)
                 {
                     Ok(_) => {
                         result.hkmeta_created += 1;
@@ -227,6 +240,27 @@ impl LibraryScanner {
                             "Failed to create .hkmeta.json for {:?}: {}",
                             file_path, e
                         ));
+                    }
+                }
+            }
+
+            // Generate thumbnail if enabled and ffmpeg is available
+            if ffmpeg_available {
+                let thumbnail_path = Self::get_thumbnail_path(path, file_path);
+                // Only generate if thumbnail doesn't exist (or regenerating)
+                if !thumbnail_path.exists() || options.regenerate {
+                    if let Some(ref rt) = runtime {
+                        rt.block_on(async {
+                            match FfmpegService::extract_thumbnail_smart(file_path, &thumbnail_path).await {
+                                Ok(_) => {
+                                    debug!("Generated thumbnail for {:?}", file_path);
+                                }
+                                Err(e) => {
+                                    // Don't fail the scan for thumbnail errors
+                                    debug!("Failed to generate thumbnail for {:?}: {}", file_path, e);
+                                }
+                            }
+                        });
                     }
                 }
             }
@@ -294,15 +328,57 @@ impl LibraryScanner {
             .unwrap_or(false)
     }
 
-    /// Get the .hkmeta.json path for a video file
-    fn get_hkmeta_path(video_path: &Path) -> PathBuf {
+    /// Get the legacy sidecar path for .hkmeta.json (next to video file)
+    fn get_legacy_hkmeta_path(video_path: &Path) -> PathBuf {
         let stem = video_path.file_stem().unwrap_or_default();
         let parent = video_path.parent().unwrap_or(Path::new("."));
         parent.join(format!("{}.hkmeta.json", stem.to_string_lossy()))
     }
 
+    /// Get the .homekaraoke directory for a library folder
+    /// Creates a subdirectory structure that mirrors the video's relative path
+    fn get_homekaraoke_dir(library_path: &Path, video_path: &Path) -> PathBuf {
+        // Calculate relative path from library root to video's parent directory
+        let relative = video_path
+            .parent()
+            .and_then(|p| p.strip_prefix(library_path).ok())
+            .unwrap_or(Path::new(""));
+        library_path.join(".homekaraoke").join(relative)
+    }
+
+    /// Get path for .hkmeta.json file in .homekaraoke directory
+    fn get_hkmeta_path(library_path: &Path, video_path: &Path) -> PathBuf {
+        let stem = video_path.file_stem().unwrap_or_default();
+        let dir = Self::get_homekaraoke_dir(library_path, video_path);
+        dir.join(format!("{}.hkmeta.json", stem.to_string_lossy()))
+    }
+
+    /// Get path for thumbnail file in .homekaraoke directory
+    fn get_thumbnail_path(library_path: &Path, video_path: &Path) -> PathBuf {
+        let stem = video_path.file_stem().unwrap_or_default();
+        let dir = Self::get_homekaraoke_dir(library_path, video_path);
+        dir.join(format!("{}.thumb.jpg", stem.to_string_lossy()))
+    }
+
+    /// Find and load .hkmeta.json from either new or legacy location
+    /// Checks .homekaraoke directory first, falls back to legacy sidecar location
+    fn find_hkmeta_path(library_path: &Path, video_path: &Path) -> Option<PathBuf> {
+        // Try new location first
+        let new_path = Self::get_hkmeta_path(library_path, video_path);
+        if new_path.exists() {
+            return Some(new_path);
+        }
+        // Fall back to legacy sidecar location
+        let legacy_path = Self::get_legacy_hkmeta_path(video_path);
+        if legacy_path.exists() {
+            return Some(legacy_path);
+        }
+        None
+    }
+
     /// Search files by query across all folders
-    pub fn search(folders: &[LibraryFolder], query: &str, limit: u32) -> Vec<LibraryVideo> {
+    /// If include_lyrics is true, also searches within lyrics content
+    pub fn search(folders: &[LibraryFolder], query: &str, limit: u32, include_lyrics: bool) -> Vec<LibraryVideo> {
         let query_lower = query.to_lowercase();
         let mut results = Vec::new();
 
@@ -320,8 +396,8 @@ impl LibraryScanner {
                 }
 
                 // Load metadata
-                let (title, artist, album, duration, has_lyrics, has_cdg, youtube_id) =
-                    Self::load_metadata(&file_path);
+                let (title, artist, album, duration, has_lyrics, has_cdg, youtube_id, thumbnail_path) =
+                    Self::load_metadata(path, &file_path);
 
                 // Search in title, artist, album, and filename
                 let file_name = file_path
@@ -330,13 +406,45 @@ impl LibraryScanner {
                     .to_string_lossy()
                     .to_string();
 
-                let searchable = format!(
+                // Build searchable string with all metadata fields
+                let mut searchable = format!(
                     "{} {} {} {}",
                     title.to_lowercase(),
                     artist.as_deref().unwrap_or("").to_lowercase(),
                     album.as_deref().unwrap_or("").to_lowercase(),
                     file_name.to_lowercase()
                 );
+
+                // Add additional metadata fields from hkmeta
+                if let Some(hkmeta) = Self::load_hkmeta(path, &file_path) {
+                    if let Some(year) = hkmeta.year {
+                        searchable.push(' ');
+                        searchable.push_str(&year.to_string());
+                    }
+                    if let Some(genre) = &hkmeta.genre {
+                        searchable.push(' ');
+                        searchable.push_str(&genre.to_lowercase());
+                    }
+                    if let Some(language) = &hkmeta.language {
+                        searchable.push(' ');
+                        searchable.push_str(&language.to_lowercase());
+                    }
+                    if let Some(tags) = &hkmeta.tags {
+                        for tag in tags {
+                            searchable.push(' ');
+                            searchable.push_str(&tag.to_lowercase());
+                        }
+                    }
+                    // Optionally include lyrics in search
+                    if include_lyrics {
+                        if let Some(lyrics) = &hkmeta.lyrics {
+                            if let Some(content) = &lyrics.content {
+                                searchable.push(' ');
+                                searchable.push_str(&content.to_lowercase());
+                            }
+                        }
+                    }
+                }
 
                 if searchable.contains(&query_lower) {
                     results.push(LibraryVideo {
@@ -350,6 +458,7 @@ impl LibraryScanner {
                         has_cdg,
                         youtube_id,
                         is_available: true, // We just found it, so it's available
+                        thumbnail_path,
                     });
                 }
             }
@@ -358,15 +467,108 @@ impl LibraryScanner {
         results
     }
 
-    /// Load metadata from .hkmeta.json or parse from filename
-    /// Returns: (title, artist, album, duration, has_lyrics, has_cdg, youtube_id)
-    fn load_metadata(video_path: &Path) -> (String, Option<String>, Option<String>, Option<u32>, bool, bool, Option<String>) {
-        let hkmeta_path = Self::get_hkmeta_path(video_path);
+    /// Browse all files in folders with optional filters
+    pub fn browse(
+        folders: &[LibraryFolder],
+        year_filter: Option<u32>,
+        has_lyrics_filter: Option<bool>,
+        has_cdg_filter: Option<bool>,
+    ) -> Vec<LibraryVideo> {
+        let mut results = Vec::new();
 
+        for folder in folders {
+            let path = Path::new(&folder.path);
+            if !path.exists() || !path.is_dir() {
+                continue;
+            }
+
+            let video_files = Self::find_video_files(path);
+
+            for file_path in video_files {
+                // Load metadata
+                let (title, artist, album, duration, has_lyrics, has_cdg, youtube_id, thumbnail_path) =
+                    Self::load_metadata(path, &file_path);
+
+                // Apply filters
+                if let Some(filter_has_lyrics) = has_lyrics_filter {
+                    if has_lyrics != filter_has_lyrics {
+                        continue;
+                    }
+                }
+
+                if let Some(filter_has_cdg) = has_cdg_filter {
+                    if has_cdg != filter_has_cdg {
+                        continue;
+                    }
+                }
+
+                // Year filter requires loading hkmeta
+                if let Some(filter_year) = year_filter {
+                    if let Some(hkmeta) = Self::load_hkmeta(path, &file_path) {
+                        if hkmeta.year != Some(filter_year) {
+                            continue;
+                        }
+                    } else {
+                        continue; // No year info, skip
+                    }
+                }
+
+                let file_name = file_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+
+                results.push(LibraryVideo {
+                    file_path: file_path.to_string_lossy().to_string(),
+                    file_name,
+                    title,
+                    artist,
+                    album,
+                    duration,
+                    has_lyrics,
+                    has_cdg,
+                    youtube_id,
+                    is_available: true,
+                    thumbnail_path,
+                });
+            }
+        }
+
+        results
+    }
+
+    /// Load HkMeta from .hkmeta.json file (checks both new and legacy locations)
+    fn load_hkmeta(library_path: &Path, video_path: &Path) -> Option<HkMeta> {
+        let hkmeta_path = Self::find_hkmeta_path(library_path, video_path)?;
+
+        // Check file size before reading
+        let metadata = fs::metadata(&hkmeta_path).ok()?;
+        if metadata.len() > MAX_HKMETA_SIZE {
+            warn!("Skipping oversized .hkmeta.json ({} bytes): {:?}", metadata.len(), hkmeta_path);
+            return None;
+        }
+
+        let content = fs::read_to_string(&hkmeta_path).ok()?;
+        serde_json::from_str::<HkMeta>(&content).ok()
+    }
+
+    /// Load metadata from .hkmeta.json or parse from filename
+    /// Returns: (title, artist, album, duration, has_lyrics, has_cdg, youtube_id, thumbnail_path)
+    fn load_metadata(library_path: &Path, video_path: &Path) -> (String, Option<String>, Option<String>, Option<u32>, bool, bool, Option<String>, Option<String>) {
         // Check for CDG companion file (MP3+G karaoke format)
         let has_cdg = Self::has_cdg_companion(video_path);
 
-        if hkmeta_path.exists() {
+        // Check for thumbnail
+        let thumbnail_path = Self::get_thumbnail_path(library_path, video_path);
+        let thumbnail = if thumbnail_path.exists() {
+            Some(thumbnail_path.to_string_lossy().to_string())
+        } else {
+            None
+        };
+
+        // Try to load from .hkmeta.json (new location first, then legacy)
+        if let Some(hkmeta_path) = Self::find_hkmeta_path(library_path, video_path) {
             // Check file size before reading to prevent DoS
             if let Ok(metadata) = fs::metadata(&hkmeta_path) {
                 if metadata.len() > MAX_HKMETA_SIZE {
@@ -388,6 +590,7 @@ impl LibraryScanner {
                             hkmeta.lyrics.is_some(),
                             has_cdg || has_cdg_from_meta,
                             hkmeta.source.and_then(|s| s.youtube_id),
+                            thumbnail,
                         );
                     }
                 }
@@ -400,7 +603,7 @@ impl LibraryScanner {
 
         // Fall back to filename parsing
         let (title, artist) = Self::parse_filename(video_path);
-        (title, artist, None, None, has_lyrics, has_cdg, None)
+        (title, artist, None, None, has_lyrics, has_cdg, None, thumbnail)
     }
 
     /// Parse filename for artist and title
@@ -440,13 +643,10 @@ impl LibraryScanner {
         (stem, None)
     }
 
-    /// Read .hkmeta.json sidecar file
-    pub fn read_hkmeta(video_path: &Path) -> Option<HkMeta> {
-        let hkmeta_path = Self::get_hkmeta_path(video_path);
-
-        if !hkmeta_path.exists() {
-            return None;
-        }
+    /// Read .hkmeta.json sidecar file (checks both new and legacy locations)
+    #[allow(dead_code)]
+    pub fn read_hkmeta(library_path: &Path, video_path: &Path) -> Option<HkMeta> {
+        let hkmeta_path = Self::find_hkmeta_path(library_path, video_path)?;
 
         // Check file size before reading to prevent DoS
         match fs::metadata(&hkmeta_path) {
@@ -474,7 +674,8 @@ impl LibraryScanner {
     }
 
     /// Create .hkmeta.json from parsed filename
-    fn create_hkmeta_from_filename(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    #[allow(dead_code)]
+    fn create_hkmeta_from_filename(library_path: &Path, video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         let (title, artist) = Self::parse_filename(video_path);
 
         let hkmeta = HkMeta {
@@ -484,7 +685,11 @@ impl LibraryScanner {
             ..Default::default()
         };
 
-        let hkmeta_path = Self::get_hkmeta_path(video_path);
+        let hkmeta_path = Self::get_hkmeta_path(library_path, video_path);
+        // Ensure the .homekaraoke directory exists
+        if let Some(parent) = hkmeta_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
         let content = serde_json::to_string_pretty(&hkmeta)?;
         fs::write(&hkmeta_path, content)?;
 
@@ -493,6 +698,7 @@ impl LibraryScanner {
 
     /// Create .hkmeta.json with fetched metadata from APIs
     fn create_hkmeta_with_metadata(
+        library_path: &Path,
         video_path: &Path,
         title: &str,
         artist: Option<String>,
@@ -558,7 +764,11 @@ impl LibraryScanner {
             }
         }
 
-        let hkmeta_path = Self::get_hkmeta_path(video_path);
+        let hkmeta_path = Self::get_hkmeta_path(library_path, video_path);
+        // Ensure the .homekaraoke directory exists
+        if let Some(parent) = hkmeta_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
         let content = serde_json::to_string_pretty(&hkmeta)?;
         fs::write(&hkmeta_path, content)?;
 
@@ -679,8 +889,38 @@ mod tests {
 
     #[test]
     fn test_get_hkmeta_path() {
+        let library = Path::new("/music");
         let video = Path::new("/music/Queen - Bohemian Rhapsody.mp4");
-        let hkmeta = LibraryScanner::get_hkmeta_path(video);
+        let hkmeta = LibraryScanner::get_hkmeta_path(library, video);
+        assert_eq!(
+            hkmeta,
+            Path::new("/music/.homekaraoke/Queen - Bohemian Rhapsody.hkmeta.json")
+        );
+
+        // Test with subdirectory
+        let video2 = Path::new("/music/Queen/Bohemian Rhapsody.mp4");
+        let hkmeta2 = LibraryScanner::get_hkmeta_path(library, video2);
+        assert_eq!(
+            hkmeta2,
+            Path::new("/music/.homekaraoke/Queen/Bohemian Rhapsody.hkmeta.json")
+        );
+    }
+
+    #[test]
+    fn test_get_thumbnail_path() {
+        let library = Path::new("/music");
+        let video = Path::new("/music/Queen - Bohemian Rhapsody.mp4");
+        let thumb = LibraryScanner::get_thumbnail_path(library, video);
+        assert_eq!(
+            thumb,
+            Path::new("/music/.homekaraoke/Queen - Bohemian Rhapsody.thumb.jpg")
+        );
+    }
+
+    #[test]
+    fn test_get_legacy_hkmeta_path() {
+        let video = Path::new("/music/Queen - Bohemian Rhapsody.mp4");
+        let hkmeta = LibraryScanner::get_legacy_hkmeta_path(video);
         assert_eq!(
             hkmeta,
             Path::new("/music/Queen - Bohemian Rhapsody.hkmeta.json")

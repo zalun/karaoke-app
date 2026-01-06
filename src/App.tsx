@@ -17,6 +17,7 @@ import {
 import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
 import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector } from "./components/search";
+import { LibraryBrowser } from "./components/library";
 import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
@@ -34,7 +35,7 @@ import type { SearchResult } from "./types";
 const log = createLogger("App");
 
 type PanelTab = "queue" | "history";
-type MainTab = "player" | "search";
+type MainTab = "player" | "search" | "library";
 
 const RESULTS_PER_PAGE = 15;
 const MAX_SEARCH_RESULTS = 50;
@@ -401,77 +402,103 @@ function App() {
       <div className="h-full grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left: Main content area */}
         <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
-          {/* Search Bar */}
+          {/* Search Bar - always visible */}
           <SearchBar onSearch={handleSearch} isLoading={isSearching} />
 
           {/* Player Controls - always visible, disabled when no video */}
           <PlayerControls />
 
-          {/* Tabs - only show when video is loaded */}
-          {currentVideo && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMainTab("player")}
-                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                  mainTab === "player"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
-              >
-                Now Playing
-              </button>
-              <button
-                onClick={() => setMainTab("search")}
-                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                  mainTab === "search"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
-              >
-                Search Results
-              </button>
-            </div>
-          )}
+          {/* Main Tabs - always visible */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setMainTab("player")}
+              className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                mainTab === "player"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+            >
+              Player
+            </button>
+            <button
+              onClick={() => setMainTab("search")}
+              className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                mainTab === "search"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+            >
+              Search
+            </button>
+            <button
+              onClick={() => setMainTab("library")}
+              className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                mainTab === "library"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+            >
+              Library
+            </button>
+          </div>
 
-          {/* Content - both views stay mounted to avoid interrupting playback */}
+          {/* Content - views stay mounted to avoid interrupting playback */}
           <div className="flex-1 min-h-0 relative">
-            {/* Video Player - hidden but stays mounted when on search tab */}
-            {currentVideo && (
-              <div className={`h-full ${mainTab === "player" ? "" : "hidden"}`}>
+            {/* Video Player - hidden but stays mounted when not on player tab */}
+            <div className={`h-full ${mainTab === "player" ? "" : "hidden"}`}>
+              {currentVideo ? (
                 <VideoPlayerArea />
-              </div>
-            )}
-            {/* Search Results - hidden when on player tab */}
-            <div className={`h-full overflow-auto ${mainTab === "search" || !currentVideo ? "" : "hidden"}`}>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                  <div className="text-6xl mb-4">🎤</div>
+                  <p className="text-lg">No video playing</p>
+                  <p className="text-sm mt-2">Search for a song or browse your library</p>
+                </div>
+              )}
+            </div>
+
+            {/* Search Results - visible when on search tab */}
+            <div className={`h-full flex flex-col ${mainTab === "search" ? "" : "hidden"}`}>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-semibold">
                   {searchMode === "local" ? "Local Files" : "Search Results"}
                 </h2>
                 <ActiveSingerSelector />
               </div>
-              {searchMode === "local" ? (
-                <LocalSearchResults
-                  results={localSearchResults}
-                  isLoading={isLocalSearching}
-                  error={searchError}
-                  onPlay={handleLocalPlay}
-                  onAddToQueue={handleLocalAddToQueue}
-                  onPlayNext={handleLocalPlayNext}
-                  displayedCount={displayedCount}
-                  onLoadMore={handleLoadMore}
-                />
-              ) : (
-                <SearchResults
-                  results={searchResults}
-                  isLoading={isSearching}
-                  error={searchError}
-                  onPlay={handlePlay}
-                  onAddToQueue={handleAddToQueue}
-                  onPlayNext={handlePlayNext}
-                  displayedCount={displayedCount}
-                  onLoadMore={handleLoadMore}
-                />
-              )}
+              <div className="flex-1 overflow-auto">
+                {searchMode === "local" ? (
+                  <LocalSearchResults
+                    results={localSearchResults}
+                    isLoading={isLocalSearching}
+                    error={searchError}
+                    onPlay={handleLocalPlay}
+                    onAddToQueue={handleLocalAddToQueue}
+                    onPlayNext={handleLocalPlayNext}
+                    displayedCount={displayedCount}
+                    onLoadMore={handleLoadMore}
+                  />
+                ) : (
+                  <SearchResults
+                    results={searchResults}
+                    isLoading={isSearching}
+                    error={searchError}
+                    onPlay={handlePlay}
+                    onAddToQueue={handleAddToQueue}
+                    onPlayNext={handlePlayNext}
+                    displayedCount={displayedCount}
+                    onLoadMore={handleLoadMore}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Library Browser - visible when on library tab */}
+            <div className={`h-full ${mainTab === "library" ? "" : "hidden"}`}>
+              <LibraryBrowser
+                onPlay={handleLocalPlay}
+                onAddToQueue={handleLocalAddToQueue}
+                onPlayNext={handleLocalPlayNext}
+              />
             </div>
           </div>
         </div>

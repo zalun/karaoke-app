@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Trash2,
   FolderPlus,
+  Search,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore, useLibraryStore, SETTINGS_KEYS, notify } from "../../stores";
@@ -26,6 +27,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Play }[] = [
   { id: "playback", label: "Playback", icon: Play },
   { id: "display", label: "Display", icon: Monitor },
   { id: "queue", label: "Queue & History", icon: List },
+  { id: "search", label: "Search", icon: Search },
   { id: "library", label: "Library", icon: HardDrive },
   { id: "advanced", label: "Advanced", icon: Wrench },
   { id: "about", label: "About", icon: Info },
@@ -175,6 +177,12 @@ export function SettingsDialog() {
                 )}
                 {activeTab === "queue" && (
                   <QueueSettings
+                    getSetting={getSetting}
+                    setSetting={setSetting}
+                  />
+                )}
+                {activeTab === "search" && (
+                  <SearchSettings
                     getSetting={getSetting}
                     setSetting={setSetting}
                   />
@@ -467,6 +475,38 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
   );
 }
 
+function SearchSettings({ getSetting, setSetting }: SettingsSectionProps) {
+  return (
+    <div>
+      <h4 className="text-lg font-medium text-white mb-4">Search</h4>
+
+      <div className="mb-6">
+        <div className="text-sm font-medium text-gray-300 mb-2">
+          Local Library Search
+        </div>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={getSetting(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS) === "true"}
+              onChange={(e) =>
+                setSetting(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS, e.target.checked ? "true" : "false")
+              }
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-300">
+              Include lyrics in search
+            </span>
+          </label>
+          <p className="text-xs text-gray-500 ml-6">
+            When enabled, search will also match lyrics content from .hkmeta.json files
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdvancedSettings({
   getSetting,
   setSetting,
@@ -681,8 +721,10 @@ function LibrarySettings() {
 
   const [scanOptions, setScanOptions] = useState({
     createHkmeta: true,
-    fetchSongInfo: false,
-    fetchLyrics: false,
+    fetchSongInfo: true,
+    fetchLyrics: true,
+    regenerate: false,
+    generateThumbnails: true,
   });
 
   // Load folders and stats when tab is shown
@@ -733,6 +775,8 @@ function LibrarySettings() {
           create_hkmeta: scanOptions.createHkmeta,
           fetch_song_info: scanOptions.fetchSongInfo,
           fetch_lyrics: scanOptions.fetchLyrics,
+          regenerate: scanOptions.regenerate,
+          generate_thumbnails: scanOptions.generateThumbnails,
         });
         notify(
           "success",
@@ -753,6 +797,8 @@ function LibrarySettings() {
         create_hkmeta: scanOptions.createHkmeta,
         fetch_song_info: scanOptions.fetchSongInfo,
         fetch_lyrics: scanOptions.fetchLyrics,
+        regenerate: scanOptions.regenerate,
+        generate_thumbnails: scanOptions.generateThumbnails,
       });
       const totalFiles = results.reduce((sum, r) => sum + r.files_found, 0);
       notify("success", `Scan complete: ${totalFiles} files found`);
@@ -880,6 +926,38 @@ function LibrarySettings() {
             />
             <span className="text-sm text-gray-300">
               Fetch lyrics from Lrclib
+            </span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={scanOptions.regenerate}
+              onChange={(e) =>
+                setScanOptions((prev) => ({
+                  ...prev,
+                  regenerate: e.target.checked,
+                }))
+              }
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-300">
+              Regenerate existing metadata
+            </span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={scanOptions.generateThumbnails}
+              onChange={(e) =>
+                setScanOptions((prev) => ({
+                  ...prev,
+                  generateThumbnails: e.target.checked,
+                }))
+              }
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-300">
+              Generate thumbnails (requires ffmpeg)
             </span>
           </label>
         </div>
