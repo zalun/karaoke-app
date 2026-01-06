@@ -2,10 +2,11 @@ import { useEffect, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Music, FolderOpen, Filter, AlertTriangle } from "lucide-react";
-import type { LibraryVideo, LibraryFolder } from "../../stores";
+import type { LibraryVideo, LibraryFolder, Video } from "../../stores";
 import { useLibraryStore } from "../../stores";
 import { MissingFileDialog } from "../search/MissingFileDialog";
 import { ActiveSingerSelector } from "../search/ActiveSingerSelector";
+import { FavoriteStar } from "../favorites";
 import { createLogger } from "../../services/logger";
 
 const log = createLogger("LibraryBrowser");
@@ -47,8 +48,22 @@ function formatDuration(seconds?: number | null): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+/** Convert LibraryVideo to Video for use with FavoriteStar */
+function libraryVideoToVideo(video: LibraryVideo): Video {
+  return {
+    id: video.file_path,
+    title: video.title,
+    artist: video.artist ?? undefined,
+    duration: video.duration ?? undefined,
+    thumbnailUrl: video.thumbnail_path ? convertFileSrc(video.thumbnail_path) : undefined,
+    source: "local",
+    filePath: video.file_path,
+    youtubeId: video.youtube_id ?? undefined,
+  };
+}
+
 export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrowserProps) {
-  const { folders, loadFolders } = useLibraryStore();
+  const { folders, loadFolders, lastScanCompletedAt } = useLibraryStore();
 
   const [videos, setVideos] = useState<LibraryVideo[]>([]);
   const [total, setTotal] = useState(0);
@@ -118,6 +133,18 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
   useEffect(() => {
     fetchVideos(0);
   }, [fetchVideos]);
+
+  // Refresh when a library scan completes
+  useEffect(() => {
+    if (lastScanCompletedAt) {
+      log.debug("Library scan completed, refreshing view");
+      fetchVideos(0);
+      // Also reload available decades as new videos may have added new decades
+      invoke<number[]>("library_get_decades")
+        .then(setAvailableDecades)
+        .catch((err) => log.error("Failed to reload decades:", err));
+    }
+  }, [lastScanCompletedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLoadMore = () => {
     if (!isLoading && videos.length < total) {
@@ -197,9 +224,6 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
 
         {/* Active singer selector */}
         <ActiveSingerSelector />
-
-        {/* Total count */}
-        <span className="text-sm text-gray-400">{total} videos</span>
       </div>
 
       {/* Loading state */}
@@ -330,6 +354,7 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
                     >
                       ▶
                     </button>
+                    <FavoriteStar video={libraryVideoToVideo(video)} />
                   </div>
                 </div>
               );
