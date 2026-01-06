@@ -34,7 +34,8 @@ const PLAYBACK_ENABLED_KEY = "videoPlayer.playbackEnabled";
 function safeLocalStorageGet(key: string): string | null {
   try {
     return localStorage.getItem(key);
-  } catch {
+  } catch (error) {
+    log.debug(`localStorage read failed for key ${key}:`, error);
     return null;
   }
 }
@@ -43,8 +44,8 @@ function safeLocalStorageGet(key: string): string | null {
 function safeLocalStorageSet(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
-  } catch {
-    // Ignore errors (e.g., private browsing mode, quota exceeded)
+  } catch (error) {
+    log.debug(`localStorage write failed for key ${key}:`, error);
   }
 }
 

@@ -247,14 +247,16 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
       log.debug(`Found ${results.length} results`);
 
-      // Update file availability cache with timestamps
-      const cache = new Map(get().fileAvailabilityCache);
+      // Update file availability cache with timestamps using functional update
+      // to prevent race condition with concurrent searches
       const now = Date.now();
-      for (const video of results) {
-        cache.set(video.file_path, { available: video.is_available, timestamp: now });
-      }
-
-      set({ searchResults: results, isSearching: false, fileAvailabilityCache: cache });
+      set((state) => {
+        const cache = new Map(state.fileAvailabilityCache);
+        for (const video of results) {
+          cache.set(video.file_path, { available: video.is_available, timestamp: now });
+        }
+        return { searchResults: results, isSearching: false, fileAvailabilityCache: cache };
+      });
     } catch (error) {
       log.error("Failed to search library:", error);
       set({ isSearching: false });

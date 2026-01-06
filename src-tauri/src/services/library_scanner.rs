@@ -328,8 +328,8 @@ impl LibraryScanner {
             .to_string_lossy()
             .to_string();
 
-        // Try "Artist - Title" pattern
-        if let Some(idx) = stem.find(" - ") {
+        // Try "Artist - Title" pattern (use rfind to handle artists with hyphens like "AC-DC")
+        if let Some(idx) = stem.rfind(" - ") {
             let artist = stem[..idx].trim().to_string();
             let title = stem[idx + 3..].trim().to_string();
             if !artist.is_empty() && !title.is_empty() {

@@ -11,8 +11,15 @@ const log = createLogger("NativePlayer");
 function isValidStreamUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    // Allow HTTP(S) for remote streams and asset:// for local files (Tauri's convertFileSrc)
-    return parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "asset:";
+    // Allow HTTP(S) for remote streams
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return true;
+    }
+    // Allow asset:// only from Tauri's expected hostnames (convertFileSrc output)
+    if (parsed.protocol === "asset:") {
+      return parsed.hostname === "localhost" || parsed.hostname === "asset.localhost";
+    }
+    return false;
   } catch {
     return false;
   }
@@ -25,7 +32,8 @@ const VIDEO_PRIMED_KEY = "nativePlayer.videoPrimed";
 function safeLocalStorageGet(key: string): string | null {
   try {
     return localStorage.getItem(key);
-  } catch {
+  } catch (error) {
+    log.debug(`localStorage read failed for key ${key}:`, error);
     return null;
   }
 }
@@ -34,8 +42,8 @@ function safeLocalStorageGet(key: string): string | null {
 function safeLocalStorageSet(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
-  } catch {
-    // Ignore errors (e.g., private browsing mode, quota exceeded)
+  } catch (error) {
+    log.debug(`localStorage write failed for key ${key}:`, error);
   }
 }
 
