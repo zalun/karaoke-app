@@ -168,7 +168,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   scanFolder: async (folderId: number, options?: Partial<ScanOptions>) => {
     const folder = get().folders.find((f) => f.id === folderId);
-    log.info(`Scanning folder: ${folder?.name || folderId}`);
+    if (!folder) {
+      log.error(`Folder not found: ${folderId}`);
+      throw new Error(`Folder ${folderId} not found`);
+    }
+    log.info(`Scanning folder: ${folder.name}`);
     set({ isScanning: true, scanProgress: { current: 0, total: 1 } });
 
     try {

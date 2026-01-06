@@ -38,9 +38,15 @@ pub fn library_add_folder(state: State<'_, AppState>, path: String) -> Result<Li
         .map_err(|e| format!("Invalid path: {}", e))?;
     let canonical_str = canonical_path.to_string_lossy();
 
-    // Validate against forbidden system paths
+    // Prevent adding root directory
+    if canonical_str == "/" {
+        return Err("Cannot add root directory to library".to_string());
+    }
+
+    // Validate against forbidden system paths (case-insensitive for macOS)
+    let canonical_lower = canonical_str.to_lowercase();
     for forbidden in FORBIDDEN_PATHS {
-        if canonical_str.starts_with(forbidden) {
+        if canonical_lower.starts_with(&forbidden.to_lowercase()) {
             return Err("Cannot add system directories to library".to_string());
         }
     }
