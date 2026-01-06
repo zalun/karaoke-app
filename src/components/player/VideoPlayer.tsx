@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   usePlayerStore,
   useQueueStore,
@@ -21,9 +22,32 @@ import {
 import { CurrentSingerOverlay } from "./CurrentSingerOverlay";
 import { MIN_RESTORE_POSITION_SECONDS } from "./DetachedPlayer";
 import { YouTubePlayer } from "./YouTubePlayer";
-import { NativePlayer } from "./NativePlayer";
+import { NativePlayer, type NativePlayerRef } from "./NativePlayer";
+import { Z_INDEX_PRIMING_OVERLAY } from "../../styles/zIndex";
 
 const log = createLogger("VideoPlayer");
+
+// Key for localStorage to track if video playback has been enabled
+const PLAYBACK_ENABLED_KEY = "videoPlayer.playbackEnabled";
+
+/** Safely get a value from localStorage (handles private browsing / quota errors) */
+function safeLocalStorageGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    log.debug(`localStorage read failed for key ${key}:`, error);
+    return null;
+  }
+}
+
+/** Safely set a value in localStorage (handles private browsing / quota errors) */
+function safeLocalStorageSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    log.debug(`localStorage write failed for key ${key}:`, error);
+  }
+}
 
 // Detach/pop-out icon - two overlapping rectangles
 function DetachIcon({ className }: { className?: string }) {
@@ -53,6 +77,12 @@ export function VideoPlayer() {
   // Track previous detached state to detect reattachment
   const wasDetachedRef = useRef(false);
   const [isHovered, setIsHovered] = useState(false);
+  // Track if playback has been enabled via user click (persisted in localStorage)
+  const [isPlaybackEnabled, setIsPlaybackEnabled] = useState(() => {
+    return safeLocalStorageGet(PLAYBACK_ENABLED_KEY) === "true";
+  });
+  // Ref to NativePlayer for priming
+  const nativePlayerRef = useRef<NativePlayerRef | null>(null);
   const {
     currentVideo,
     isPlaying,
@@ -84,10 +114,17 @@ export function VideoPlayer() {
     if (isDetached) return;
 
     log.info("Detaching player window");
+
+    // For local files, convert the file path to a URL for the detached player
+    let streamUrl = currentVideo?.streamUrl || null;
+    if (currentVideo?.source === "local" && currentVideo?.filePath) {
+      streamUrl = convertFileSrc(currentVideo.filePath);
+    }
+
     const playerState = {
-      streamUrl: currentVideo?.streamUrl || null,
+      streamUrl,
       videoId: currentVideo?.youtubeId || null,
-      playbackMode,
+      playbackMode: currentVideo?.source === "local" ? "ytdlp" : playbackMode, // Local files use native player
       isPlaying,
       currentTime,
       duration,
@@ -221,33 +258,57 @@ export function VideoPlayer() {
     usedCachedUrlRef.current = false;
   }, [setIsLoading]);
 
+  // Handle enabling playback via user click
+  const handleEnablePlayback = useCallback(() => {
+    log.info("User clicked to enable playback");
+    // Prime the NativePlayer video element if available
+    nativePlayerRef.current?.primeVideo();
+    // Mark playback as enabled
+    setIsPlaybackEnabled(true);
+    safeLocalStorageSet(PLAYBACK_ENABLED_KEY, "true");
+    log.info("Playback enabled for YouTube and local files");
+  }, []);
+
   const handleEnded = useCallback(async () => {
     log.info("Video ended");
     const { playNextFromQueue } = useQueueStore.getState();
     const nextItem = playNextFromQueue();
 
-    if (nextItem && nextItem.video.youtubeId) {
-      log.info(`Auto-playing next: "${nextItem.video.title}"`);
-      setIsLoading(true);
+    if (nextItem) {
+      const isLocalFile = nextItem.video.source === "local" && nextItem.video.filePath;
+      const isYouTubeVideo = !!nextItem.video.youtubeId;
 
-      if (playbackMode === "ytdlp") {
-        // yt-dlp mode: fetch stream URL
-        try {
-          const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId);
-          usedCachedUrlRef.current = !!cachedUrl;
-
-          const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
-          setCurrentVideo({ ...nextItem.video, streamUrl });
-          setIsPlaying(true);
-        } catch (err) {
-          log.error("Failed to play next", err);
-          notify("error", "Failed to play next video");
-          setIsLoading(false);
-        }
-      } else {
-        // YouTube mode: just set the video, no stream URL needed
+      if (isLocalFile) {
+        // Local file: play directly
+        log.info(`Auto-playing next local file: "${nextItem.video.title}"`);
         setCurrentVideo(nextItem.video);
         setIsPlaying(true);
+      } else if (isYouTubeVideo) {
+        log.info(`Auto-playing next: "${nextItem.video.title}"`);
+        setIsLoading(true);
+
+        if (playbackMode === "ytdlp") {
+          // yt-dlp mode: fetch stream URL
+          try {
+            const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId!);
+            usedCachedUrlRef.current = !!cachedUrl;
+
+            const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId!);
+            setCurrentVideo({ ...nextItem.video, streamUrl });
+            setIsPlaying(true);
+          } catch (err) {
+            log.error("Failed to play next", err);
+            notify("error", "Failed to play next video");
+            setIsLoading(false);
+          }
+        } else {
+          // YouTube mode: just set the video, no stream URL needed
+          setCurrentVideo(nextItem.video);
+          setIsPlaying(true);
+        }
+      } else {
+        log.info("Next item has no playable source, stopping");
+        setIsPlaying(false);
       }
     } else {
       log.info("Queue empty, playback stopped");
@@ -302,21 +363,36 @@ export function VideoPlayer() {
         const { playNextFromQueue } = useQueueStore.getState();
         const nextItem = playNextFromQueue();
 
-        if (nextItem && nextItem.video.youtubeId) {
-          log.info(`Auto-skipping to: "${nextItem.video.title}"`);
-          if (playbackMode === "ytdlp") {
-            try {
-              const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId);
-              setCurrentVideo({ ...nextItem.video, streamUrl });
-              setIsPlaying(true);
-            } catch (err) {
-              log.error("Failed to play next after skip", err);
-              notify("error", "Failed to play next video");
-              setIsLoading(false);
-            }
-          } else {
+        if (nextItem) {
+          const isLocalFile = nextItem.video.source === "local" && nextItem.video.filePath;
+          const isYouTubeVideo = !!nextItem.video.youtubeId;
+
+          if (isLocalFile) {
+            log.info(`Auto-skipping to local file: "${nextItem.video.title}"`);
             setCurrentVideo(nextItem.video);
             setIsPlaying(true);
+            setIsLoading(false);
+          } else if (isYouTubeVideo) {
+            log.info(`Auto-skipping to: "${nextItem.video.title}"`);
+            if (playbackMode === "ytdlp") {
+              try {
+                const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId!);
+                setCurrentVideo({ ...nextItem.video, streamUrl });
+                setIsPlaying(true);
+              } catch (err) {
+                log.error("Failed to play next after skip", err);
+                notify("error", "Failed to play next video");
+                setIsLoading(false);
+              }
+            } else {
+              setCurrentVideo(nextItem.video);
+              setIsPlaying(true);
+            }
+          } else {
+            log.info("Next item has no playable source after skip");
+            setCurrentVideo(null);
+            setIsPlaying(false);
+            setIsLoading(false);
           }
         } else {
           log.info("No more videos in queue after skip");
@@ -370,29 +446,76 @@ export function VideoPlayer() {
   // Determine what to show
   const hasVideoId = !!currentVideo?.youtubeId;
   const hasStreamUrl = !!currentVideo?.streamUrl;
+  const hasLocalFile = currentVideo?.source === "local" && !!currentVideo?.filePath;
   const canPlayYouTube = playbackMode === "youtube" && hasVideoId;
   const canPlayNative = playbackMode === "ytdlp" && hasStreamUrl;
+  const canPlayLocal = hasLocalFile;
+
+  // Get the URL for local files (convert file path to URL that webview can access)
+  // Also check next queue item to preload and keep video element mounted
+  const nextLocalFilePath = nextQueueItem?.video.source === "local" ? nextQueueItem.video.filePath : null;
+
+  const localFileUrl = useMemo(() => {
+    if (hasLocalFile && currentVideo?.filePath) {
+      return convertFileSrc(currentVideo.filePath);
+    }
+    // If next item is local, preload it to keep video element mounted
+    if (nextLocalFilePath) {
+      return convertFileSrc(nextLocalFilePath);
+    }
+    // No local file - return undefined to enable "dummy mode" for priming
+    return undefined;
+  }, [hasLocalFile, currentVideo?.filePath, nextLocalFilePath]);
 
   // Show placeholder when no video or when detached (video plays in separate window)
-  if ((!canPlayYouTube && !canPlayNative) || isDetached) {
+  if ((!canPlayYouTube && !canPlayNative && !canPlayLocal) || isDetached) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-        {isLoading ? (
-          <div className="text-center text-white">
-            <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
-            <p>Loading video...</p>
-          </div>
-        ) : isDetached ? (
-          <div className="text-center text-gray-400">
-            <DetachIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p>Video playing in separate window</p>
-          </div>
-        ) : (
-          <div className="text-center text-gray-400">
-            <p className="text-4xl mb-2">🎤</p>
-            <p>Search for a song to start</p>
+      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg relative overflow-hidden">
+        {/* Always render NativePlayer in background for priming (dummy mode) */}
+        <div className="absolute inset-0">
+          <NativePlayer
+            ref={nativePlayerRef}
+            streamUrl={undefined}
+            isPlaying={false}
+            volume={volume}
+            isMuted={isMuted}
+            seekTime={null}
+          />
+        </div>
+        {/* Click to Start overlay - shown on first load to enable playback */}
+        {!isPlaybackEnabled && !isDetached && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80" style={{ zIndex: Z_INDEX_PRIMING_OVERLAY }}>
+            <button
+              onClick={handleEnablePlayback}
+              className="flex flex-col items-center gap-4 p-8 rounded-xl bg-gray-800/90 hover:bg-gray-700/90 transition-colors cursor-pointer border border-gray-600"
+            >
+              <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <span className="text-blue-400 text-3xl">🎤</span>
+              </div>
+              <p className="text-white text-lg font-medium">Click to Start</p>
+              <p className="text-gray-400 text-sm text-center max-w-xs">
+                Click here to enable video playback
+              </p>
+              <p className="text-gray-500 text-xs mt-1">
+                Web and local videos require separate activation
+              </p>
+            </button>
           </div>
         )}
+        {/* Overlay content on top of NativePlayer */}
+        <div className="relative z-10">
+          {isLoading ? (
+            <div className="text-center text-white">
+              <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
+              <p>Loading video...</p>
+            </div>
+          ) : isDetached ? (
+            <div className="text-center text-gray-400">
+              <DetachIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>Video playing in separate window</p>
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -425,6 +548,7 @@ export function VideoPlayer() {
           volume={volume}
           isMuted={isMuted}
           seekTime={seekTime}
+          playbackKey={currentVideo.id}
           onReady={handleReady}
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleEnded}
@@ -433,6 +557,26 @@ export function VideoPlayer() {
           onClearSeek={clearSeek}
         />
       )}
+      {/* Always render NativePlayer to preserve user interaction context for autoplay */}
+      {/* In dummy mode (no URL), it shows a priming overlay; otherwise plays local files */}
+      {/* Hide when YouTube/yt-dlp is playing, but keep mounted for priming */}
+      <div className={canPlayLocal ? "" : "hidden"}>
+        <NativePlayer
+          ref={nativePlayerRef}
+          streamUrl={localFileUrl}
+          isPlaying={canPlayLocal && isPlaying}
+          volume={volume}
+          isMuted={isMuted}
+          seekTime={canPlayLocal ? seekTime : null}
+          playbackKey={currentVideo?.id}
+          onReady={canPlayLocal ? handleReady : undefined}
+          onTimeUpdate={canPlayLocal ? handleTimeUpdate : undefined}
+          onEnded={canPlayLocal ? handleEnded : undefined}
+          onError={canPlayLocal ? (err) => handleError(err) : undefined}
+          onDurationChange={canPlayLocal ? handleDurationChange : undefined}
+          onClearSeek={canPlayLocal ? clearSeek : undefined}
+        />
+      </div>
       {/* Detach button - appears on hover */}
       {!isDetached && isHovered && (
         <button

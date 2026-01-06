@@ -1,3 +1,4 @@
+pub mod library_scanner;
 pub mod ytdlp;
 
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
@@ -6,6 +7,9 @@ pub mod media_controls;
 #[cfg(target_os = "macos")]
 pub mod display_watcher;
 
+pub use library_scanner::{
+    LibraryFolder, LibraryScanner, LibraryStats, LibraryVideo, ScanOptions, ScanResult,
+};
 pub use ytdlp::{get_expanded_path, YtDlpService};
 
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]

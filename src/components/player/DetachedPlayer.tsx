@@ -59,7 +59,7 @@ export function DetachedPlayer() {
     const setupListeners = async () => {
       const stateListener = await windowManager.listenForStateSync((newState) => {
         stateReceived = true;
-        log.info(`State sync received: videoId=${newState.videoId}, isPlaying=${newState.isPlaying}, playbackMode=${newState.playbackMode}`);
+        log.info(`State sync received: videoId=${newState.videoId}, streamUrl=${newState.streamUrl?.substring(0, 50)}..., isPlaying=${newState.isPlaying}, playbackMode=${newState.playbackMode}`);
         log.info(`State sync songs: currentSong=${newState.currentSong?.title ?? 'none'}, nextSong=${newState.nextSong?.title ?? 'none'}, currentSingers=${newState.currentSong?.singers?.length ?? 0}, nextSingers=${newState.nextSong?.singers?.length ?? 0}`);
         if (isMounted) {
           intendedPlayStateRef.current = newState.isPlaying;
@@ -298,26 +298,26 @@ export function DetachedPlayer() {
           className="w-full h-full"
         />
       )}
-      {canPlayNative && state.streamUrl && (
+      {/* Always render NativePlayer to preserve user interaction context for autoplay */}
+      {/* Show when playing native content OR when no content (for priming overlay) */}
+      {/* Hide only when YouTube is playing */}
+      <div className={canPlayNative || !hasContent ? "w-full h-full absolute inset-0" : "hidden"}>
         <NativePlayer
-          streamUrl={state.streamUrl}
-          isPlaying={state.isPlaying}
+          streamUrl={canPlayNative && state.streamUrl ? state.streamUrl : undefined}
+          isPlaying={canPlayNative ? state.isPlaying : false}
           volume={state.volume}
           isMuted={state.isMuted}
-          seekTime={initialSeekTime}
-          onReady={handleReady}
-          onTimeUpdate={handleTimeUpdate}
-          onEnded={handleEnded}
-          onDurationChange={handleDurationChange}
-          onClearSeek={handleClearSeek}
+          seekTime={canPlayNative ? initialSeekTime : null}
+          playbackKey={state.playbackId}
+          onReady={canPlayNative ? handleReady : undefined}
+          onTimeUpdate={canPlayNative ? handleTimeUpdate : undefined}
+          onEnded={canPlayNative ? handleEnded : undefined}
+          onDurationChange={canPlayNative ? handleDurationChange : undefined}
+          onClearSeek={canPlayNative ? handleClearSeek : undefined}
+          onAutoplayBlocked={canPlayNative ? handleAutoplayBlocked : undefined}
           className="w-full h-full"
         />
-      )}
-      {!hasContent && (
-        <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-          <p>Waiting for video...</p>
-        </div>
-      )}
+      </div>
       {!isReady && hasContent && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">
           <p className="text-gray-400">Loading...</p>

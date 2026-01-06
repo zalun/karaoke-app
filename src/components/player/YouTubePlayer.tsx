@@ -6,6 +6,7 @@ import {
   createAutoplayRetryHandler,
 } from "../../services/youtubeIframe";
 import { createLogger } from "../../services";
+import { Z_INDEX_PLAY_OVERLAY, Z_INDEX_VIDEO } from "../../styles/zIndex";
 
 const log = createLogger("YouTubePlayer");
 
@@ -448,7 +449,7 @@ export function YouTubePlayer({
   }, [isMuted, volume]);
 
   return (
-    <div className={`relative w-full h-full bg-black ${className || ""}`} style={{ isolation: "isolate", zIndex: 0 }}>
+    <div className={`relative w-full h-full bg-black ${className || ""}`} style={{ isolation: "isolate", zIndex: showPlayButton ? Z_INDEX_PLAY_OVERLAY : Z_INDEX_VIDEO }}>
       <div
         ref={containerRef}
         className="w-full h-full"
@@ -470,8 +471,9 @@ export function YouTubePlayer({
           </div>
         </div>
       )}
+      {/* Uses Z_INDEX_PLAY_OVERLAY to appear above singer overlay */}
       {showPlayButton && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60" style={{ zIndex: Z_INDEX_PLAY_OVERLAY }}>
           <button
             onClick={handleManualPlay}
             className="flex flex-col items-center gap-4 p-8 rounded-xl bg-black/50 hover:bg-black/70 transition-colors cursor-pointer"
@@ -482,6 +484,7 @@ export function YouTubePlayer({
             </div>
             <p className="text-white text-lg">Click to Play</p>
             <p className="text-gray-400 text-sm">Autoplay was blocked by the browser</p>
+            <p className="text-gray-500 text-xs mt-2">Web and local videos require separate activation</p>
           </button>
         </div>
       )}

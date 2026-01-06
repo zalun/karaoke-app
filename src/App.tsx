@@ -16,14 +16,14 @@ import {
 } from "@dnd-kit/sortable";
 import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
-import { SearchBar, SearchResults, ActiveSingerSelector } from "./components/search";
+import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector } from "./components/search";
 import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
 import { SettingsDialog } from "./components/settings";
-import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, getStreamUrlWithCache, notify, type QueueItem } from "./stores";
+import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, getStreamUrlWithCache, notify, type QueueItem, type LibraryVideo } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star } from "lucide-react";
 import { youtubeService, createLogger } from "./services";
@@ -50,6 +50,13 @@ function App() {
 
   const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { addToQueue, addToQueueNext, playDirect } = useQueueStore();
+  const {
+    searchMode,
+    searchResults: localSearchResults,
+    isSearching: isLocalSearching,
+    searchLibrary,
+    loadFolders,
+  } = useLibraryStore();
 
   // Initialize macOS Now Playing media controls
   useMediaControls();
@@ -101,26 +108,48 @@ function App() {
     };
   }, [openLoadFavoritesDialog, openManageFavoritesDialog, openSettingsDialog]);
 
+  // Load library folders on mount
+  useEffect(() => {
+    loadFolders().catch((err) => {
+      log.error("Failed to load library folders:", err);
+    });
+  }, [loadFolders]);
+
   const handleSearch = useCallback(async (query: string) => {
-    log.info(`Searching for: "${query}"`);
-    setIsSearching(true);
-    setSearchError(null);
+    log.info(`Searching for: "${query}" (mode: ${searchMode})`);
     setDisplayedCount(RESULTS_PER_PAGE); // Reset pagination on new search
 
-    try {
-      const results = await youtubeService.search(query, MAX_SEARCH_RESULTS);
-      log.info(`Search returned ${results.length} results`);
-      setSearchResults(results);
-    } catch (err) {
-      log.error("Search failed", err);
-      setSearchError(
-        err instanceof Error ? err.message : "Search failed. Is yt-dlp installed?"
-      );
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
+    if (searchMode === "local") {
+      // Local library search
+      setSearchError(null);
+      try {
+        await searchLibrary(query, MAX_SEARCH_RESULTS);
+      } catch (err) {
+        log.error("Local search failed", err);
+        setSearchError(
+          err instanceof Error ? err.message : "Local search failed"
+        );
+      }
+    } else {
+      // YouTube search
+      setIsSearching(true);
+      setSearchError(null);
+
+      try {
+        const results = await youtubeService.search(query, MAX_SEARCH_RESULTS);
+        log.info(`Search returned ${results.length} results`);
+        setSearchResults(results);
+      } catch (err) {
+        log.error("Search failed", err);
+        setSearchError(
+          err instanceof Error ? err.message : "Search failed. Is yt-dlp installed?"
+        );
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
     }
-  }, []);
+  }, [searchMode, searchLibrary]);
 
   const handleLoadMore = useCallback(() => {
     setDisplayedCount((prev) => {
@@ -241,6 +270,115 @@ function App() {
     [currentVideo, handlePlay, addToQueueNext]
   );
 
+  // Local file handlers
+  const handleLocalPlay = useCallback(
+    async (video: LibraryVideo) => {
+      if (!video.is_available) {
+        notify("error", "File is not available");
+        return;
+      }
+
+      log.info(`Playing local file: "${video.title}"`);
+      setIsLoading(true);
+      setSearchError(null);
+
+      try {
+        // Re-check file availability before playing (file could have been moved/deleted)
+        const stillAvailable = await useLibraryStore.getState().checkFileAvailable(video.file_path);
+        if (!stillAvailable) {
+          log.warn(`File no longer available: "${video.file_path}"`);
+          notify("error", "File is no longer available");
+          setIsLoading(false);
+          return;
+        }
+
+        const pendingVideo = {
+          id: video.file_path,
+          title: video.title,
+          artist: video.artist || undefined,
+          duration: video.duration || undefined,
+          source: "local" as const,
+          filePath: video.file_path,
+        };
+
+        setCurrentVideo(pendingVideo);
+        playDirect(pendingVideo);
+        setIsPlaying(true);
+      } catch (error) {
+        log.error("Failed to play local file:", error);
+        notify("error", "Failed to play file");
+        setIsLoading(false);
+      }
+    },
+    [setCurrentVideo, setIsPlaying, setIsLoading, playDirect]
+  );
+
+  const handleLocalAddToQueue = useCallback(
+    async (video: LibraryVideo) => {
+      if (!video.is_available) return;
+
+      log.info(`Adding local file to queue: "${video.title}"`);
+      const queueItem = addToQueue({
+        id: video.file_path,
+        title: video.title,
+        artist: video.artist || undefined,
+        duration: video.duration || undefined,
+        source: "local",
+        filePath: video.file_path,
+      });
+
+      // Auto-assign active singer if set
+      const { activeSingerId, assignSingerToQueueItem, getSingerById } = useSessionStore.getState();
+      if (activeSingerId && queueItem) {
+        try {
+          await assignSingerToQueueItem(queueItem.id, activeSingerId);
+          log.debug(`Auto-assigned singer ${activeSingerId} to queue item ${queueItem.id}`);
+        } catch (error) {
+          log.error("Failed to auto-assign singer:", error);
+          const singer = getSingerById(activeSingerId);
+          notify("warning", `Could not assign ${singer?.name || "singer"} to song`);
+        }
+      }
+    },
+    [addToQueue]
+  );
+
+  const handleLocalPlayNext = useCallback(
+    async (video: LibraryVideo) => {
+      if (!video.is_available) return;
+
+      // If nothing is playing, start playback immediately
+      if (!currentVideo) {
+        handleLocalPlay(video);
+        return;
+      }
+
+      log.info(`Adding local file to play next: "${video.title}"`);
+      const queueItem = addToQueueNext({
+        id: video.file_path,
+        title: video.title,
+        artist: video.artist || undefined,
+        duration: video.duration || undefined,
+        source: "local",
+        filePath: video.file_path,
+      });
+
+      // Auto-assign active singer if set
+      const { activeSingerId, assignSingerToQueueItem, getSingerById } = useSessionStore.getState();
+      if (activeSingerId && queueItem) {
+        try {
+          await assignSingerToQueueItem(queueItem.id, activeSingerId);
+          log.debug(`Auto-assigned singer ${activeSingerId} to queue item ${queueItem.id}`);
+        } catch (error) {
+          log.error("Failed to auto-assign singer:", error);
+          const singer = getSingerById(activeSingerId);
+          notify("warning", `Could not assign ${singer?.name || "singer"} to song`);
+        }
+      }
+    },
+    [currentVideo, handleLocalPlay, addToQueueNext]
+  );
+
   if (!dependenciesReady) {
     return <DependencyCheck onReady={() => setDependenciesReady(true)} />;
   }
@@ -306,19 +444,34 @@ function App() {
             {/* Search Results - hidden when on player tab */}
             <div className={`h-full overflow-auto ${mainTab === "search" || !currentVideo ? "" : "hidden"}`}>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold">Search Results</h2>
+                <h2 className="text-lg font-semibold">
+                  {searchMode === "local" ? "Local Files" : "Search Results"}
+                </h2>
                 <ActiveSingerSelector />
               </div>
-              <SearchResults
-                results={searchResults}
-                isLoading={isSearching}
-                error={searchError}
-                onPlay={handlePlay}
-                onAddToQueue={handleAddToQueue}
-                onPlayNext={handlePlayNext}
-                displayedCount={displayedCount}
-                onLoadMore={handleLoadMore}
-              />
+              {searchMode === "local" ? (
+                <LocalSearchResults
+                  results={localSearchResults}
+                  isLoading={isLocalSearching}
+                  error={searchError}
+                  onPlay={handleLocalPlay}
+                  onAddToQueue={handleLocalAddToQueue}
+                  onPlayNext={handleLocalPlayNext}
+                  displayedCount={displayedCount}
+                  onLoadMore={handleLoadMore}
+                />
+              ) : (
+                <SearchResults
+                  results={searchResults}
+                  isLoading={isSearching}
+                  error={searchError}
+                  onPlay={handlePlay}
+                  onAddToQueue={handleAddToQueue}
+                  onPlayNext={handlePlayNext}
+                  displayedCount={displayedCount}
+                  onLoadMore={handleLoadMore}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -445,7 +598,18 @@ function QueuePanel() {
   const handlePlayFromQueue = useCallback(
     async (index: number) => {
       const item = playFromQueue(index);
-      if (item && item.video.youtubeId) {
+      if (!item) return;
+
+      // Handle local files
+      if (item.video.source === "local" && item.video.filePath) {
+        queueLog.info(`Playing local file from queue: "${item.video.title}"`);
+        setCurrentVideo(item.video);
+        setIsPlaying(true);
+        return;
+      }
+
+      // Handle YouTube videos
+      if (item.video.youtubeId) {
         queueLog.info(`Playing from queue: "${item.video.title}"`);
         setIsLoading(true);
         try {
@@ -582,7 +746,18 @@ function HistoryPanel() {
   const handlePlayFromHistory = useCallback(
     async (index: number) => {
       const item = playFromHistory(index);
-      if (item && item.video.youtubeId) {
+      if (!item) return;
+
+      // Handle local files
+      if (item.video.source === "local" && item.video.filePath) {
+        historyLog.info(`Playing local file from history: "${item.video.title}"`);
+        setCurrentVideo(item.video);
+        setIsPlaying(true);
+        return;
+      }
+
+      // Handle YouTube videos
+      if (item.video.youtubeId) {
         historyLog.info(`Playing from history: "${item.video.title}"`);
         setIsLoading(true);
         try {

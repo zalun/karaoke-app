@@ -227,6 +227,8 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         // Configure logging with file + stdout + webview targets
         // File logs capture everything (debug level) for issue reporting
         // Stdout uses info level by default
@@ -327,6 +329,15 @@ pub fn run() {
             commands::window_clear_states,
             // Update check command
             commands::update_check,
+            // Library commands
+            commands::library_add_folder,
+            commands::library_remove_folder,
+            commands::library_get_folders,
+            commands::library_scan_folder,
+            commands::library_scan_all,
+            commands::library_search,
+            commands::library_check_file,
+            commands::library_get_stats,
         ])
         .setup(|app| {
             info!("Starting HomeKaraoke application");

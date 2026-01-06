@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Local video library support (Phase 5a) (#131)
+  - Add folders from Settings > Library tab to scan for video files
+  - Search local files with "Local" toggle in search bar
+  - Supported formats: mp4, mkv, avi, webm, mov, m4v, wmv, flv
+  - Filename parsing extracts artist/title (e.g., "Artist - Title.mp4")
+  - Optional .hkmeta.json sidecar files for custom metadata
+  - Missing file detection with visual feedback
+  - Click-to-start overlay for browser autoplay compliance
+
+### Security
+- Path traversal protection with canonicalization
+- System directory blocking (cannot add /System, /Library, etc.)
+- Recursion depth limiting for directory scanning
+- Symlink detection to prevent infinite loops
+
 ## [0.6.1] - 2026-01-04
 
 ### Changed
