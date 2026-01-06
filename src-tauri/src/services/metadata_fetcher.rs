@@ -112,6 +112,15 @@ impl MetadataFetcher {
         title: &str,
         artist: Option<&str>,
     ) -> Option<SongInfo> {
+        // Skip if title is empty or whitespace-only
+        if title.trim().is_empty() {
+            debug!("Skipping MusicBrainz search: empty title");
+            return None;
+        }
+
+        // Filter out empty artist
+        let artist = artist.filter(|a| !a.trim().is_empty());
+
         // Build search query
         let query = if let Some(artist) = artist {
             format!(
@@ -202,6 +211,15 @@ impl MetadataFetcher {
         title: &str,
         artist: Option<&str>,
     ) -> Option<LyricsResult> {
+        // Skip if title is empty or whitespace-only
+        if title.trim().is_empty() {
+            debug!("Skipping Lrclib search: empty title");
+            return None;
+        }
+
+        // Filter out empty artist
+        let artist = artist.filter(|a| !a.trim().is_empty());
+
         // Build search URL
         let url = if let Some(artist) = artist {
             format!(

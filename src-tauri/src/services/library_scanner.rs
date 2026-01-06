@@ -706,6 +706,16 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_filename_hyphenated_artist_with_subtitle() {
+        // Complex case: hyphenated artist AND subtitle
+        // "Artist-Name - Title - Subtitle" → splits on first " - "
+        let path = Path::new("/music/Twenty-One Pilots - Heathens - Live Version.mp4");
+        let (title, artist) = LibraryScanner::parse_filename(path);
+        assert_eq!(title, "Heathens - Live Version");
+        assert_eq!(artist, Some("Twenty-One Pilots".to_string()));
+    }
+
+    #[test]
     fn test_cdg_companion_detection() {
         // CDG detection relies on file system, so we test the path logic
         let video = Path::new("/music/karaoke.mp4");
