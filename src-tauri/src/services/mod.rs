@@ -1,4 +1,5 @@
 pub mod library_scanner;
+pub mod metadata_fetcher;
 pub mod ytdlp;
 
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
@@ -10,6 +11,7 @@ pub mod display_watcher;
 pub use library_scanner::{
     LibraryFolder, LibraryScanner, LibraryStats, LibraryVideo, ScanOptions, ScanResult,
 };
+pub use metadata_fetcher::{LyricsResult, MetadataFetcher, SongInfo};
 pub use ytdlp::{get_expanded_path, YtDlpService};
 
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]

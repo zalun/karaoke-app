@@ -33,6 +33,7 @@ export interface LibraryVideo {
   album: string | null;
   duration: number | null;
   has_lyrics: boolean;
+  has_cdg: boolean;
   youtube_id: string | null;
   is_available: boolean;
 }

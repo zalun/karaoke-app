@@ -1,3 +1,4 @@
+use crate::services::metadata_fetcher::{LyricsResult, MetadataFetcher, SongInfo};
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -33,6 +34,7 @@ pub struct LibraryVideo {
     pub album: Option<String>,
     pub duration: Option<u32>,
     pub has_lyrics: bool,
+    pub has_cdg: bool,
     pub youtube_id: Option<String>,
     pub is_available: bool,
 }
@@ -145,6 +147,35 @@ impl LibraryScanner {
             result.files_found, folder.path
         );
 
+        // Create metadata fetcher if needed
+        let needs_fetching = options.fetch_song_info || options.fetch_lyrics;
+        let fetcher = if needs_fetching {
+            match MetadataFetcher::new() {
+                Ok(f) => Some(f),
+                Err(e) => {
+                    warn!("Failed to create metadata fetcher: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        // Create tokio runtime for async operations if needed
+        // Note: For large libraries (1000+ files), scanning can take hours due to
+        // MusicBrainz rate limiting (1 req/sec). Consider batching or background processing.
+        let runtime = if fetcher.is_some() {
+            match tokio::runtime::Runtime::new() {
+                Ok(rt) => Some(rt),
+                Err(e) => {
+                    warn!("Failed to create tokio runtime for metadata fetching: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         // Process each file
         for file_path in &video_files {
             let hkmeta_path = Self::get_hkmeta_path(file_path);
@@ -152,8 +183,41 @@ impl LibraryScanner {
             if hkmeta_path.exists() {
                 result.hkmeta_existing += 1;
             } else if options.create_hkmeta {
-                // Create .hkmeta.json with parsed filename
-                match Self::create_hkmeta_from_filename(file_path) {
+                // Parse filename first
+                let (title, artist) = Self::parse_filename(file_path);
+
+                // Fetch metadata if enabled
+                let (song_info, mut lyrics) =
+                    if let (Some(ref fetcher), Some(ref rt)) = (&fetcher, &runtime) {
+                        rt.block_on(async {
+                            fetcher
+                                .fetch_all(
+                                    &title,
+                                    artist.as_deref(),
+                                    options.fetch_song_info,
+                                    options.fetch_lyrics,
+                                )
+                                .await
+                        })
+                    } else {
+                        (None, None)
+                    };
+
+                // Check for companion .lrc file as fallback if no lyrics from API
+                if lyrics.is_none() {
+                    if let Some(lrc_content) = Self::read_lrc_file(file_path) {
+                        debug!("Found companion .lrc file for {:?}", file_path);
+                        lyrics = Some(LyricsResult {
+                            synced_lyrics: Some(lrc_content),
+                            plain_lyrics: None,
+                            duration: None,
+                        });
+                    }
+                }
+
+                // Create .hkmeta.json with fetched metadata
+                match Self::create_hkmeta_with_metadata(file_path, &title, artist, song_info, lyrics)
+                {
                     Ok(_) => {
                         result.hkmeta_created += 1;
                         debug!("Created .hkmeta.json for {:?}", file_path);
@@ -256,7 +320,7 @@ impl LibraryScanner {
                 }
 
                 // Load metadata
-                let (title, artist, album, duration, has_lyrics, youtube_id) =
+                let (title, artist, album, duration, has_lyrics, has_cdg, youtube_id) =
                     Self::load_metadata(&file_path);
 
                 // Search in title, artist, album, and filename
@@ -283,6 +347,7 @@ impl LibraryScanner {
                         album,
                         duration,
                         has_lyrics,
+                        has_cdg,
                         youtube_id,
                         is_available: true, // We just found it, so it's available
                     });
@@ -294,8 +359,12 @@ impl LibraryScanner {
     }
 
     /// Load metadata from .hkmeta.json or parse from filename
-    fn load_metadata(video_path: &Path) -> (String, Option<String>, Option<String>, Option<u32>, bool, Option<String>) {
+    /// Returns: (title, artist, album, duration, has_lyrics, has_cdg, youtube_id)
+    fn load_metadata(video_path: &Path) -> (String, Option<String>, Option<String>, Option<u32>, bool, bool, Option<String>) {
         let hkmeta_path = Self::get_hkmeta_path(video_path);
+
+        // Check for CDG companion file (MP3+G karaoke format)
+        let has_cdg = Self::has_cdg_companion(video_path);
 
         if hkmeta_path.exists() {
             // Check file size before reading to prevent DoS
@@ -305,12 +374,19 @@ impl LibraryScanner {
                 } else if let Ok(content) = fs::read_to_string(&hkmeta_path) {
                     if let Ok(hkmeta) = serde_json::from_str::<HkMeta>(&content) {
                         let (parsed_title, parsed_artist) = Self::parse_filename(video_path);
+                        // Check for CDG tag in metadata or companion file
+                        let has_cdg_from_meta = hkmeta
+                            .tags
+                            .as_ref()
+                            .map(|tags| tags.iter().any(|t| t.to_lowercase() == "cdg"))
+                            .unwrap_or(false);
                         return (
                             hkmeta.title.unwrap_or(parsed_title),
                             hkmeta.artist.or(parsed_artist),
                             hkmeta.album,
                             hkmeta.duration,
                             hkmeta.lyrics.is_some(),
+                            has_cdg || has_cdg_from_meta,
                             hkmeta.source.and_then(|s| s.youtube_id),
                         );
                     }
@@ -324,7 +400,7 @@ impl LibraryScanner {
 
         // Fall back to filename parsing
         let (title, artist) = Self::parse_filename(video_path);
-        (title, artist, None, None, has_lyrics, None)
+        (title, artist, None, None, has_lyrics, has_cdg, None)
     }
 
     /// Parse filename for artist and title
@@ -336,8 +412,10 @@ impl LibraryScanner {
             .to_string_lossy()
             .to_string();
 
-        // Try "Artist - Title" pattern (use rfind to handle artists with hyphens like "AC-DC")
-        if let Some(idx) = stem.rfind(" - ") {
+        // Try "Artist - Title" pattern (use find to split on first separator)
+        // This handles "Artist - Title - Subtitle" correctly but not "AC-DC - Title"
+        // For hyphenated artists, use .hkmeta.json or "Title (Artist).mp4" format
+        if let Some(idx) = stem.find(" - ") {
             let artist = stem[..idx].trim().to_string();
             let title = stem[idx + 3..].trim().to_string();
             if !artist.is_empty() && !title.is_empty() {
@@ -413,9 +491,152 @@ impl LibraryScanner {
         Ok(())
     }
 
+    /// Create .hkmeta.json with fetched metadata from APIs
+    fn create_hkmeta_with_metadata(
+        video_path: &Path,
+        title: &str,
+        artist: Option<String>,
+        song_info: Option<SongInfo>,
+        lyrics_result: Option<LyricsResult>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Start with parsed filename data
+        let mut hkmeta = HkMeta {
+            version: Some(1),
+            title: Some(title.to_string()),
+            artist: artist.clone(),
+            ..Default::default()
+        };
+
+        // Check for CDG companion file and add tag if found
+        if Self::has_cdg_companion(video_path) {
+            hkmeta.tags = Some(vec!["cdg".to_string()]);
+        }
+
+        // Merge in MusicBrainz song info if available
+        if let Some(info) = song_info {
+            // Duration from API (in milliseconds, convert to seconds)
+            if let Some(duration_ms) = info.duration_ms {
+                hkmeta.duration = Some(duration_ms / 1000);
+            }
+
+            // Album from first release
+            if info.album.is_some() {
+                hkmeta.album = info.album;
+            }
+
+            // Year from release date
+            if info.year.is_some() {
+                hkmeta.year = info.year;
+            }
+
+            // Use artist credit from API if we didn't have one from filename
+            if hkmeta.artist.is_none() && info.artist_credit.is_some() {
+                hkmeta.artist = info.artist_credit;
+            }
+        }
+
+        // Add lyrics if available
+        if let Some(lyrics) = lyrics_result {
+            // Prefer synced lyrics over plain
+            if let Some(synced) = lyrics.synced_lyrics {
+                hkmeta.lyrics = Some(HkMetaLyrics {
+                    format: Some("lrc".to_string()),
+                    content: Some(synced),
+                });
+            } else if let Some(plain) = lyrics.plain_lyrics {
+                hkmeta.lyrics = Some(HkMetaLyrics {
+                    format: Some("plain".to_string()),
+                    content: Some(plain),
+                });
+            }
+
+            // Use duration from lyrics API if we don't have one yet
+            if hkmeta.duration.is_none() {
+                if let Some(duration) = lyrics.duration {
+                    hkmeta.duration = Some(duration);
+                }
+            }
+        }
+
+        let hkmeta_path = Self::get_hkmeta_path(video_path);
+        let content = serde_json::to_string_pretty(&hkmeta)?;
+        fs::write(&hkmeta_path, content)?;
+
+        info!(
+            "Created .hkmeta.json for {:?}: title={:?}, artist={:?}, album={:?}, year={:?}, has_lyrics={}, has_cdg={}",
+            video_path.file_name(),
+            hkmeta.title,
+            hkmeta.artist,
+            hkmeta.album,
+            hkmeta.year,
+            hkmeta.lyrics.is_some(),
+            hkmeta.tags.is_some()
+        );
+
+        Ok(())
+    }
+
     /// Check if a file exists
     pub fn check_file_exists(file_path: &str) -> bool {
         Path::new(file_path).exists()
+    }
+
+    /// Check for companion .cdg file (MP3+G karaoke format)
+    fn has_cdg_companion(video_path: &Path) -> bool {
+        let cdg_path = video_path.with_extension("cdg");
+        if cdg_path.exists() {
+            debug!("Found CDG companion file: {:?}", cdg_path);
+            return true;
+        }
+
+        // Also check for uppercase .CDG
+        let stem = video_path.file_stem().unwrap_or_default();
+        let parent = video_path.parent().unwrap_or(Path::new("."));
+        let cdg_upper = parent.join(format!("{}.CDG", stem.to_string_lossy()));
+        if cdg_upper.exists() {
+            debug!("Found CDG companion file (uppercase): {:?}", cdg_upper);
+            return true;
+        }
+
+        false
+    }
+
+    /// Read companion .lrc file for a video
+    /// Returns the content of the LRC file if it exists and is readable
+    fn read_lrc_file(video_path: &Path) -> Option<String> {
+        let lrc_path = video_path.with_extension("lrc");
+
+        if !lrc_path.exists() {
+            return None;
+        }
+
+        // Check file size (LRC files should be small, limit to 1MB)
+        match fs::metadata(&lrc_path) {
+            Ok(metadata) if metadata.len() > MAX_HKMETA_SIZE => {
+                warn!(
+                    "Skipping oversized .lrc file ({} bytes): {:?}",
+                    metadata.len(),
+                    lrc_path
+                );
+                return None;
+            }
+            Err(e) => {
+                warn!("Failed to read .lrc metadata: {}", e);
+                return None;
+            }
+            _ => {}
+        }
+
+        match fs::read_to_string(&lrc_path) {
+            Ok(content) => {
+                info!("Read companion .lrc file: {:?}", lrc_path);
+                Some(content)
+            }
+            Err(e) => {
+                warn!("Failed to read .lrc file {:?}: {}", lrc_path, e);
+                None
+            }
+        }
     }
 }
 
@@ -464,5 +685,41 @@ mod tests {
             hkmeta,
             Path::new("/music/Queen - Bohemian Rhapsody.hkmeta.json")
         );
+    }
+
+    #[test]
+    fn test_parse_filename_artist_with_hyphen() {
+        // "AC-DC" has a hyphen but NOT " - " (space-hyphen-space), so it parses correctly
+        let path = Path::new("/music/AC-DC - Back In Black.mp4");
+        let (title, artist) = LibraryScanner::parse_filename(path);
+        assert_eq!(title, "Back In Black");
+        assert_eq!(artist, Some("AC-DC".to_string()));
+    }
+
+    #[test]
+    fn test_parse_filename_multiple_hyphens() {
+        // Multiple " - " separators - splits on first one for correct Artist/Title-Subtitle
+        let path = Path::new("/music/Twenty One Pilots - Heathens - From Suicide Squad.mp4");
+        let (title, artist) = LibraryScanner::parse_filename(path);
+        assert_eq!(title, "Heathens - From Suicide Squad");
+        assert_eq!(artist, Some("Twenty One Pilots".to_string()));
+    }
+
+    #[test]
+    fn test_parse_filename_hyphenated_artist_with_subtitle() {
+        // Complex case: hyphenated artist AND subtitle
+        // "Artist-Name - Title - Subtitle" → splits on first " - "
+        let path = Path::new("/music/Twenty-One Pilots - Heathens - Live Version.mp4");
+        let (title, artist) = LibraryScanner::parse_filename(path);
+        assert_eq!(title, "Heathens - Live Version");
+        assert_eq!(artist, Some("Twenty-One Pilots".to_string()));
+    }
+
+    #[test]
+    fn test_cdg_companion_detection() {
+        // CDG detection relies on file system, so we test the path logic
+        let video = Path::new("/music/karaoke.mp4");
+        let cdg_path = video.with_extension("cdg");
+        assert_eq!(cdg_path, Path::new("/music/karaoke.cdg"));
     }
 }
