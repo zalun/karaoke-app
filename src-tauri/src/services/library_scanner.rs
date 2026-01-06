@@ -228,8 +228,26 @@ impl LibraryScanner {
                     }
                 }
 
+                // Detect duration using ffprobe if we don't have it from API
+                let api_has_duration = song_info.as_ref().map(|s| s.duration_ms.is_some()).unwrap_or(false)
+                    || lyrics.as_ref().map(|l| l.duration.is_some()).unwrap_or(false);
+
+                let detected_duration = if !api_has_duration && ffmpeg_available {
+                    if let Some(ref rt) = runtime {
+                        let duration = rt.block_on(FfmpegService::get_duration(file_path));
+                        if let Some(d) = duration {
+                            debug!("Detected duration via ffprobe for {:?}: {}s", file_path, d);
+                        }
+                        duration
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
                 // Create .hkmeta.json with fetched metadata
-                match Self::create_hkmeta_with_metadata(path, file_path, &title, artist, song_info, lyrics)
+                match Self::create_hkmeta_with_metadata(path, file_path, &title, artist, song_info, lyrics, detected_duration)
                 {
                     Ok(_) => {
                         result.hkmeta_created += 1;
@@ -704,6 +722,7 @@ impl LibraryScanner {
         artist: Option<String>,
         song_info: Option<SongInfo>,
         lyrics_result: Option<LyricsResult>,
+        detected_duration: Option<u32>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Start with parsed filename data
         let mut hkmeta = HkMeta {
@@ -764,6 +783,11 @@ impl LibraryScanner {
             }
         }
 
+        // Use ffprobe-detected duration if we still don't have one
+        if hkmeta.duration.is_none() && detected_duration.is_some() {
+            hkmeta.duration = detected_duration;
+        }
+
         let hkmeta_path = Self::get_hkmeta_path(library_path, video_path);
         // Ensure the .homekaraoke directory exists
         if let Some(parent) = hkmeta_path.parent() {
@@ -773,12 +797,13 @@ impl LibraryScanner {
         fs::write(&hkmeta_path, content)?;
 
         info!(
-            "Created .hkmeta.json for {:?}: title={:?}, artist={:?}, album={:?}, year={:?}, has_lyrics={}, has_cdg={}",
+            "Created .hkmeta.json for {:?}: title={:?}, artist={:?}, album={:?}, year={:?}, duration={:?}s, has_lyrics={}, has_cdg={}",
             video_path.file_name(),
             hkmeta.title,
             hkmeta.artist,
             hkmeta.album,
             hkmeta.year,
+            hkmeta.duration,
             hkmeta.lyrics.is_some(),
             hkmeta.tags.is_some()
         );

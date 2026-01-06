@@ -235,8 +235,6 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
                   )}
                   <div className="flex gap-2 mt-1 text-xs text-gray-500">
                     <span>{formatDuration(video.duration)}</span>
-                    {video.has_lyrics && <span>• Lyrics</span>}
-                    {video.has_cdg && <span>• CDG</span>}
                   </div>
 
                   {/* Actions on hover */}
@@ -250,13 +248,15 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
                           onAddToQueue(video);
                         }
                       }}
-                      className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${
+                      className={`w-8 h-8 flex items-center justify-center rounded text-lg transition-colors ${
                         isUnavailable
                           ? "bg-gray-700 text-gray-500"
-                          : "bg-green-600 hover:bg-green-700 text-white"
+                          : "bg-green-600 hover:bg-green-700"
                       }`}
+                      aria-label={isUnavailable ? "File missing" : "Add to queue"}
+                      title={isUnavailable ? "File missing" : "Add to queue"}
                     >
-                      + Queue
+                      +
                     </button>
                     <button
                       onClick={(e) => {
@@ -267,13 +267,15 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
                           onPlayNext(video);
                         }
                       }}
-                      className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${
+                      className={`w-8 h-8 flex items-center justify-center rounded text-lg transition-colors ${
                         isUnavailable
                           ? "bg-gray-700 text-gray-500"
-                          : "bg-blue-600 hover:bg-blue-700 text-white"
+                          : "bg-blue-600 hover:bg-blue-700"
                       }`}
+                      aria-label={isUnavailable ? "File missing" : "Play next"}
+                      title={isUnavailable ? "File missing" : "Play next"}
                     >
-                      Next
+                      ⏭
                     </button>
                     <button
                       onClick={(e) => {
@@ -282,14 +284,16 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
                           onPlay(video);
                         }
                       }}
-                      className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${
+                      className={`w-8 h-8 flex items-center justify-center rounded text-lg transition-colors ${
                         isUnavailable
                           ? "bg-gray-700 text-gray-500"
-                          : "bg-gray-600 hover:bg-gray-500 text-white"
+                          : "bg-gray-600 hover:bg-gray-500"
                       }`}
+                      aria-label={isUnavailable ? "Cannot play" : "Play now"}
+                      title={isUnavailable ? "Cannot play" : "Play now"}
                       disabled={isUnavailable}
                     >
-                      Play
+                      ▶
                     </button>
                   </div>
                 </div>
