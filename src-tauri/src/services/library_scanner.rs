@@ -412,8 +412,10 @@ impl LibraryScanner {
             .to_string_lossy()
             .to_string();
 
-        // Try "Artist - Title" pattern (use rfind to handle artists with hyphens like "AC-DC")
-        if let Some(idx) = stem.rfind(" - ") {
+        // Try "Artist - Title" pattern (use find to split on first separator)
+        // This handles "Artist - Title - Subtitle" correctly but not "AC-DC - Title"
+        // For hyphenated artists, use .hkmeta.json or "Title (Artist).mp4" format
+        if let Some(idx) = stem.find(" - ") {
             let artist = stem[..idx].trim().to_string();
             let title = stem[idx + 3..].trim().to_string();
             if !artist.is_empty() && !title.is_empty() {
@@ -687,7 +689,7 @@ mod tests {
 
     #[test]
     fn test_parse_filename_artist_with_hyphen() {
-        // Artist names with hyphens should use rfind to get the last " - "
+        // "AC-DC" has a hyphen but NOT " - " (space-hyphen-space), so it parses correctly
         let path = Path::new("/music/AC-DC - Back In Black.mp4");
         let (title, artist) = LibraryScanner::parse_filename(path);
         assert_eq!(title, "Back In Black");
@@ -696,11 +698,11 @@ mod tests {
 
     #[test]
     fn test_parse_filename_multiple_hyphens() {
-        // Multiple " - " separators - should split on the last one
+        // Multiple " - " separators - splits on first one for correct Artist/Title-Subtitle
         let path = Path::new("/music/Twenty One Pilots - Heathens - From Suicide Squad.mp4");
         let (title, artist) = LibraryScanner::parse_filename(path);
-        assert_eq!(title, "From Suicide Squad");
-        assert_eq!(artist, Some("Twenty One Pilots - Heathens".to_string()));
+        assert_eq!(title, "Heathens - From Suicide Squad");
+        assert_eq!(artist, Some("Twenty One Pilots".to_string()));
     }
 
     #[test]

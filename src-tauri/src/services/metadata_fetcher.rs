@@ -249,7 +249,7 @@ impl MetadataFetcher {
         let lyrics = LyricsResult {
             synced_lyrics: result.synced_lyrics,
             plain_lyrics: result.plain_lyrics,
-            duration: result.duration.map(|d| d as u32),
+            duration: result.duration.map(|d| d.round() as u32),
         };
 
         info!(
@@ -277,7 +277,7 @@ impl MetadataFetcher {
 
         if fetch_song_info {
             song_info = self.fetch_song_info(title, artist).await;
-            // Rate limit for MusicBrainz
+            // Rate limit for MusicBrainz - delay after every request (API counts all requests)
             sleep(Duration::from_millis(MUSICBRAINZ_RATE_LIMIT_MS)).await;
         }
 
