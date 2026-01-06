@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Enhanced metadata fetching for local library (Phase 5b) (#133)
+  - Fetch song info from MusicBrainz (duration, album, year, artist credit)
+  - Fetch synced lyrics from Lrclib API
+  - Read companion .lrc files as fallback for lyrics
+  - Detect MP3+G CDG companion files (shows has_cdg indicator)
+  - Options enabled in Settings > Library > Rescan Options
+
 ## [0.6.2] - 2026-01-06
 
 ### Added

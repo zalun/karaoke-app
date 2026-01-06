@@ -850,7 +850,7 @@ function LibrarySettings() {
               Create .hkmeta.json files for new videos
             </span>
           </label>
-          <label className="flex items-center gap-2 cursor-pointer opacity-50">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={scanOptions.fetchSongInfo}
@@ -860,15 +860,13 @@ function LibrarySettings() {
                   fetchSongInfo: e.target.checked,
                 }))
               }
-              disabled
               className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
             />
             <span className="text-sm text-gray-300">
-              Fetch song info (MusicBrainz/Discogs)
-              <span className="text-gray-500 ml-1">(coming soon)</span>
+              Fetch song info from MusicBrainz
             </span>
           </label>
-          <label className="flex items-center gap-2 cursor-pointer opacity-50">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={scanOptions.fetchLyrics}
@@ -878,12 +876,10 @@ function LibrarySettings() {
                   fetchLyrics: e.target.checked,
                 }))
               }
-              disabled
               className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
             />
             <span className="text-sm text-gray-300">
-              Fetch lyrics (Lrclib/Musixmatch/Genius/NetEase)
-              <span className="text-gray-500 ml-1">(coming soon)</span>
+              Fetch lyrics from Lrclib
             </span>
           </label>
         </div>
