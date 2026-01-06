@@ -29,9 +29,14 @@ fi
 # Strip 'v' prefix for filename matching
 VERSION_NUM="${VERSION#v}"
 
-# Detect architecture
+# Detect architecture (default to Apple Silicon)
 ARCH=$(uname -m)
-if [ "$ARCH" = "arm64" ]; then
+if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
+    ARCH="aarch64"
+elif [ "$ARCH" = "x86_64" ]; then
+    ARCH="x86_64"
+else
+    # Default to Apple Silicon for unknown architectures
     ARCH="aarch64"
 fi
 
