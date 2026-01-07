@@ -36,6 +36,8 @@ sha2 = "0.10"
 # Use rustls-tls instead of native-tls to fix macOS TLS connection timeouts with Lrclib API
 # See: https://github.com/zalun/karaoke-app/issues/133
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+regex = "1"
+lazy_static = "1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.24"

@@ -91,6 +91,69 @@ impl FfmpegService {
             .map(|d| d.round() as u32)
     }
 
+    /// Get year from video metadata using ffprobe
+    ///
+    /// Extracts year from embedded metadata tags (date, year, creation_time).
+    /// Returns None if ffprobe is not available or no year metadata is found.
+    pub async fn get_year(video_path: &Path) -> Option<u32> {
+        let ffprobe_path = Self::find_ffprobe_path()?;
+
+        debug!("Getting year metadata for: {:?}", video_path);
+
+        // Query for various date/year tags
+        let output = Command::new(&ffprobe_path)
+            .arg("-v")
+            .arg("error")
+            .arg("-show_entries")
+            .arg("format_tags=date,year,creation_time,DATE,YEAR,TDRC,TYER")
+            .arg("-of")
+            .arg("csv=p=0:s=,")
+            .arg(video_path)
+            .env("PATH", get_expanded_path())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Parse the output - try to extract a 4-digit year from any tag value
+        for value in stdout.split(',') {
+            let value = value.trim();
+            if value.is_empty() {
+                continue;
+            }
+
+            // Try direct 4-digit year
+            if value.len() == 4 {
+                if let Ok(year) = value.parse::<u32>() {
+                    if year >= 1900 && year <= 2099 {
+                        debug!("Year {} extracted from ffprobe metadata: {:?}", year, video_path);
+                        return Some(year);
+                    }
+                }
+            }
+
+            // Try extracting year from date formats like "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS"
+            if value.len() >= 4 {
+                let year_part = &value[..4];
+                if let Ok(year) = year_part.parse::<u32>() {
+                    if year >= 1900 && year <= 2099 {
+                        debug!("Year {} extracted from date in ffprobe metadata: {:?}", year, video_path);
+                        return Some(year);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
     /// Extract a thumbnail from a video file
     ///
     /// Extracts a single frame at the specified timestamp (or 5 seconds by default).
