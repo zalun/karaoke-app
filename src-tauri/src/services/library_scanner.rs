@@ -1,10 +1,39 @@
 use crate::services::ffmpeg::FfmpegService;
 use crate::services::metadata_fetcher::{LyricsResult, MetadataFetcher, SongInfo};
 use log::{debug, info, warn};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::Instant;
+
+/// Valid year range for song release dates
+const MIN_VALID_YEAR: u32 = 1900;
+const MAX_VALID_YEAR: u32 = 2099;
+
+/// Regex patterns for extracting year from filename (lazily compiled)
+/// Priority order: (YYYY), [YYYY], delimited YYYY, trailing YYYY
+static YEAR_PATTERN_PARENS: OnceLock<Regex> = OnceLock::new();
+static YEAR_PATTERN_BRACKETS: OnceLock<Regex> = OnceLock::new();
+static YEAR_PATTERN_DELIMITED: OnceLock<Regex> = OnceLock::new();
+static YEAR_PATTERN_TRAILING: OnceLock<Regex> = OnceLock::new();
+
+fn year_pattern_parens() -> &'static Regex {
+    YEAR_PATTERN_PARENS.get_or_init(|| Regex::new(r"\((\d{4})\)").expect("Invalid parens year regex"))
+}
+
+fn year_pattern_brackets() -> &'static Regex {
+    YEAR_PATTERN_BRACKETS.get_or_init(|| Regex::new(r"\[(\d{4})\]").expect("Invalid brackets year regex"))
+}
+
+fn year_pattern_delimited() -> &'static Regex {
+    YEAR_PATTERN_DELIMITED.get_or_init(|| Regex::new(r"[_\s-](\d{4})[_\s-]").expect("Invalid delimited year regex"))
+}
+
+fn year_pattern_trailing() -> &'static Regex {
+    YEAR_PATTERN_TRAILING.get_or_init(|| Regex::new(r"[_\s-](\d{4})$").expect("Invalid trailing year regex"))
+}
 
 /// Supported video file extensions
 const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mkv", "webm", "avi", "mov"];
@@ -250,8 +279,30 @@ impl LibraryScanner {
                     None
                 };
 
+                // Detect year using fallback chain: filename → ffprobe → (MusicBrainz handled in create_hkmeta)
+                let detected_year = {
+                    // 1. Try filename parsing first (instant, no I/O)
+                    let year_from_filename = Self::parse_year_from_filename(file_path);
+                    if year_from_filename.is_some() {
+                        year_from_filename
+                    } else if ffmpeg_available {
+                        // 2. Try ffprobe metadata tags
+                        if let Some(ref rt) = runtime {
+                            let year = rt.block_on(FfmpegService::get_year(file_path));
+                            if let Some(y) = year {
+                                debug!("Detected year via ffprobe for {:?}: {}", file_path, y);
+                            }
+                            year
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                };
+
                 // Create .hkmeta.json with fetched metadata
-                match Self::create_hkmeta_with_metadata(path, file_path, &title, artist, song_info, lyrics, detected_duration)
+                match Self::create_hkmeta_with_metadata(path, file_path, &title, artist, song_info, lyrics, detected_duration, detected_year)
                 {
                     Ok(_) => {
                         result.hkmeta_created += 1;
@@ -730,6 +781,44 @@ impl LibraryScanner {
         (stem, None)
     }
 
+    /// Parse year from filename using common patterns
+    /// Returns year if found (valid range: 1900-2099)
+    /// Patterns checked in priority order:
+    /// - (YYYY) - e.g., "Artist - Title (2023).mp4"
+    /// - [YYYY] - e.g., "Artist - Title [1985].mp4"
+    /// - delimited YYYY - e.g., "Artist - Title - 2020 - Karaoke.mp4"
+    /// - trailing YYYY - e.g., "Artist - Title - 2020.mp4"
+    pub fn parse_year_from_filename(video_path: &Path) -> Option<u32> {
+        let stem = video_path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy();
+
+        // Try patterns in priority order
+        let patterns: &[&Regex] = &[
+            year_pattern_parens(),
+            year_pattern_brackets(),
+            year_pattern_delimited(),
+            year_pattern_trailing(),
+        ];
+
+        for pattern in patterns {
+            if let Some(caps) = pattern.captures(&stem) {
+                if let Some(year_match) = caps.get(1) {
+                    if let Ok(year) = year_match.as_str().parse::<u32>() {
+                        // Valid range: 1900-2099
+                        if year >= MIN_VALID_YEAR && year <= MAX_VALID_YEAR {
+                            debug!("Year {} extracted from filename: {:?}", year, video_path);
+                            return Some(year);
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
     /// Read .hkmeta.json sidecar file (checks both new and legacy locations)
     #[allow(dead_code)]
     pub fn read_hkmeta(library_path: &Path, video_path: &Path) -> Option<HkMeta> {
@@ -792,6 +881,7 @@ impl LibraryScanner {
         song_info: Option<SongInfo>,
         lyrics_result: Option<LyricsResult>,
         detected_duration: Option<u32>,
+        detected_year: Option<u32>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Start with parsed filename data
         let mut hkmeta = HkMeta {
@@ -818,8 +908,10 @@ impl LibraryScanner {
                 hkmeta.album = info.album;
             }
 
-            // Year from release date
-            if info.year.is_some() {
+            // Year: prefer detected_year (filename/ffprobe), fallback to MusicBrainz
+            if detected_year.is_some() {
+                hkmeta.year = detected_year;
+            } else if info.year.is_some() {
                 hkmeta.year = info.year;
             }
 
@@ -855,6 +947,11 @@ impl LibraryScanner {
         // Use ffprobe-detected duration if we still don't have one
         if hkmeta.duration.is_none() && detected_duration.is_some() {
             hkmeta.duration = detected_duration;
+        }
+
+        // Use detected year (filename/ffprobe) if we still don't have one
+        if hkmeta.year.is_none() && detected_year.is_some() {
+            hkmeta.year = detected_year;
         }
 
         let hkmeta_path = Self::get_hkmeta_path(library_path, video_path);
@@ -1055,5 +1152,77 @@ mod tests {
         let video = Path::new("/music/karaoke.mp4");
         let cdg_path = video.with_extension("cdg");
         assert_eq!(cdg_path, Path::new("/music/karaoke.cdg"));
+    }
+
+    // Tests for parse_year_from_filename
+
+    #[test]
+    fn test_parse_year_parentheses() {
+        // Year in parentheses: (YYYY)
+        let path = Path::new("/music/Artist - Song Title (1985).mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(1985));
+    }
+
+    #[test]
+    fn test_parse_year_brackets() {
+        // Year in brackets: [YYYY]
+        let path = Path::new("/music/Artist - Song Title [2020].mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(2020));
+    }
+
+    #[test]
+    fn test_parse_year_delimited() {
+        // Year delimited by spaces/hyphens/underscores
+        let path = Path::new("/music/Artist - Song Title - 2015 - Karaoke.mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(2015));
+    }
+
+    #[test]
+    fn test_parse_year_trailing() {
+        // Year at end of filename
+        let path = Path::new("/music/Artist - Song Title - 2018.mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(2018));
+    }
+
+    #[test]
+    fn test_parse_year_priority_parens_over_brackets() {
+        // Parentheses should take priority over brackets
+        let path = Path::new("/music/Song [1985] (2023).mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(2023));
+    }
+
+    #[test]
+    fn test_parse_year_invalid_range_too_old() {
+        // Year before 1900 should be rejected
+        let path = Path::new("/music/Song (1850).mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), None);
+    }
+
+    #[test]
+    fn test_parse_year_invalid_range_too_new() {
+        // Year after 2099 should be rejected
+        let path = Path::new("/music/Song (2150).mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), None);
+    }
+
+    #[test]
+    fn test_parse_year_no_year() {
+        // Filename without year
+        let path = Path::new("/music/Artist - Song Title.mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), None);
+    }
+
+    #[test]
+    fn test_parse_year_not_a_year() {
+        // 4-digit number that's not a valid year (e.g., track number)
+        let path = Path::new("/music/Artist - 0001 Song Title.mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), None);
+    }
+
+    #[test]
+    fn test_parse_year_underscore_delimited() {
+        // Year with underscores
+        let path = Path::new("/music/Artist_Song_2010_Karaoke.mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(2010));
     }
 }
