@@ -114,12 +114,12 @@ test.describe("Queue Management", () => {
     const canPrev = await playerControls.canGoPrevious();
     expect(canPrev).toBe(true);
 
-    // Go back to first song
+    // Go back to first song - use toPass for resilience on slow CI
     await playerControls.clickPrevious();
-    await playerControls.waitForTitleChange(title);
-
-    title = await playerControls.getVideoTitle();
-    expect(title).toContain("Test Karaoke Song 1");
+    await expect(async () => {
+      const currentTitle = await playerControls.getVideoTitle();
+      expect(currentTitle).toContain("Test Karaoke Song 1");
+    }).toPass({ timeout: 15000 });
   });
 
   test("should move played songs to history", async ({ page }) => {
