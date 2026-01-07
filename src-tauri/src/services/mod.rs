@@ -9,12 +9,10 @@ pub mod media_controls;
 #[cfg(target_os = "macos")]
 pub mod display_watcher;
 
-pub use ffmpeg::FfmpegService;
 pub use library_scanner::{
     LibraryFolder, LibraryScanner, LibraryStats, LibraryVideo, ScanOptions, ScanResult,
 };
-pub use metadata_fetcher::{LyricsResult, MetadataFetcher, SongInfo};
-pub use ytdlp::{find_executable_in_path, get_expanded_path, YtDlpService};
+pub use ytdlp::{get_expanded_path, YtDlpService};
 
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 pub use media_controls::MediaControlsService;

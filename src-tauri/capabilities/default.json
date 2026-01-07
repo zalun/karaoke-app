@@ -19,7 +19,7 @@
     "core:event:default",
     "core:webview:allow-create-webview-window",
     "log:default",
-    "shell:allow-open",
+    "opener:allow-reveal-item-in-dir",
     "dialog:default",
     {
       "identifier": "fs:allow-read-file",
