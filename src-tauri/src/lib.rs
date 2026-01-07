@@ -23,7 +23,7 @@ use std::time::Duration;
 use tauri::menu::{AboutMetadata, CheckMenuItem, Menu, MenuItemKind, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
-use tauri_plugin_shell::ShellExt;
+use tauri_plugin_opener::OpenerExt;
 
 pub struct AppState {
     pub db: Mutex<Database>,
@@ -226,7 +226,7 @@ pub fn run() {
     }
 
     builder
-        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         // Configure logging with file + stdout + webview targets
@@ -628,8 +628,8 @@ pub fn run() {
                     let log_dir = &state.log_dir;
                     info!("Opening log directory: {:?}", log_dir);
 
-                    // Use Tauri's shell plugin for cross-platform file manager opening
-                    if let Err(e) = app.shell().open(log_dir.to_string_lossy(), None) {
+                    // Use Tauri's opener plugin for cross-platform file manager opening
+                    if let Err(e) = app.opener().reveal_item_in_dir(log_dir) {
                         log::error!("Failed to open log directory: {}", e);
                     }
                 }
