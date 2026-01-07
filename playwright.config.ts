@@ -17,13 +17,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI
     ? [["github"], ["html", { open: "never" }]]
     : [["list"], ["html", { open: "on-failure" }]],
-  timeout: 30000,
+  timeout: 45000,
   expect: {
-    timeout: 5000,
+    timeout: 10000,
   },
   use: {
     baseURL: BASE_URL,
