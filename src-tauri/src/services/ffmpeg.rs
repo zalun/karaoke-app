@@ -140,8 +140,9 @@ impl FfmpegService {
             }
 
             // Try extracting year from date formats like "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS"
-            if value.len() >= 4 {
-                let year_part = &value[..4];
+            // Use chars() to safely handle UTF-8 multi-byte characters
+            let year_part: String = value.chars().take(4).collect();
+            if year_part.len() == 4 {
                 if let Ok(year) = year_part.parse::<u32>() {
                     if year >= 1900 && year <= 2099 {
                         debug!("Year {} extracted from date in ffprobe metadata: {:?}", year, video_path);
