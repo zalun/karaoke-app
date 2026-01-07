@@ -1,20 +1,34 @@
 use crate::services::ffmpeg::FfmpegService;
 use crate::services::metadata_fetcher::{LyricsResult, MetadataFetcher, SongInfo};
-use lazy_static::lazy_static;
 use log::{debug, info, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::Instant;
 
-lazy_static! {
-    /// Regex patterns for extracting year from filename
-    /// Priority order: (YYYY), [YYYY], delimited YYYY, trailing YYYY
-    static ref YEAR_PATTERN_PARENS: Regex = Regex::new(r"\((\d{4})\)").unwrap();
-    static ref YEAR_PATTERN_BRACKETS: Regex = Regex::new(r"\[(\d{4})\]").unwrap();
-    static ref YEAR_PATTERN_DELIMITED: Regex = Regex::new(r"[_\s-](\d{4})[_\s-]").unwrap();
-    static ref YEAR_PATTERN_TRAILING: Regex = Regex::new(r"[_\s-](\d{4})$").unwrap();
+/// Regex patterns for extracting year from filename (lazily compiled)
+/// Priority order: (YYYY), [YYYY], delimited YYYY, trailing YYYY
+static YEAR_PATTERN_PARENS: OnceLock<Regex> = OnceLock::new();
+static YEAR_PATTERN_BRACKETS: OnceLock<Regex> = OnceLock::new();
+static YEAR_PATTERN_DELIMITED: OnceLock<Regex> = OnceLock::new();
+static YEAR_PATTERN_TRAILING: OnceLock<Regex> = OnceLock::new();
+
+fn year_pattern_parens() -> &'static Regex {
+    YEAR_PATTERN_PARENS.get_or_init(|| Regex::new(r"\((\d{4})\)").unwrap())
+}
+
+fn year_pattern_brackets() -> &'static Regex {
+    YEAR_PATTERN_BRACKETS.get_or_init(|| Regex::new(r"\[(\d{4})\]").unwrap())
+}
+
+fn year_pattern_delimited() -> &'static Regex {
+    YEAR_PATTERN_DELIMITED.get_or_init(|| Regex::new(r"[_\s-](\d{4})[_\s-]").unwrap())
+}
+
+fn year_pattern_trailing() -> &'static Regex {
+    YEAR_PATTERN_TRAILING.get_or_init(|| Regex::new(r"[_\s-](\d{4})$").unwrap())
 }
 
 /// Supported video file extensions
@@ -778,10 +792,10 @@ impl LibraryScanner {
 
         // Try patterns in priority order
         let patterns: &[&Regex] = &[
-            &YEAR_PATTERN_PARENS,
-            &YEAR_PATTERN_BRACKETS,
-            &YEAR_PATTERN_DELIMITED,
-            &YEAR_PATTERN_TRAILING,
+            year_pattern_parens(),
+            year_pattern_brackets(),
+            year_pattern_delimited(),
+            year_pattern_trailing(),
         ];
 
         for pattern in patterns {
