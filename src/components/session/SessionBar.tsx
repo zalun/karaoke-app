@@ -486,7 +486,7 @@ export function SessionBar() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => openLoadFavoritesDialog()}
+            onClick={openLoadFavoritesDialog}
             className="p-1.5 text-yellow-500 hover:bg-gray-700 rounded transition-colors"
             title="Load Favorites to Queue"
           >
