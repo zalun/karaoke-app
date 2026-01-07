@@ -1149,4 +1149,76 @@ mod tests {
         let cdg_path = video.with_extension("cdg");
         assert_eq!(cdg_path, Path::new("/music/karaoke.cdg"));
     }
+
+    // Tests for parse_year_from_filename
+
+    #[test]
+    fn test_parse_year_parentheses() {
+        // Year in parentheses: (YYYY)
+        let path = Path::new("/music/Artist - Song Title (1985).mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(1985));
+    }
+
+    #[test]
+    fn test_parse_year_brackets() {
+        // Year in brackets: [YYYY]
+        let path = Path::new("/music/Artist - Song Title [2020].mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(2020));
+    }
+
+    #[test]
+    fn test_parse_year_delimited() {
+        // Year delimited by spaces/hyphens/underscores
+        let path = Path::new("/music/Artist - Song Title - 2015 - Karaoke.mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(2015));
+    }
+
+    #[test]
+    fn test_parse_year_trailing() {
+        // Year at end of filename
+        let path = Path::new("/music/Artist - Song Title - 2018.mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(2018));
+    }
+
+    #[test]
+    fn test_parse_year_priority_parens_over_brackets() {
+        // Parentheses should take priority over brackets
+        let path = Path::new("/music/Song [1985] (2023).mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(2023));
+    }
+
+    #[test]
+    fn test_parse_year_invalid_range_too_old() {
+        // Year before 1900 should be rejected
+        let path = Path::new("/music/Song (1850).mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), None);
+    }
+
+    #[test]
+    fn test_parse_year_invalid_range_too_new() {
+        // Year after 2099 should be rejected
+        let path = Path::new("/music/Song (2150).mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), None);
+    }
+
+    #[test]
+    fn test_parse_year_no_year() {
+        // Filename without year
+        let path = Path::new("/music/Artist - Song Title.mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), None);
+    }
+
+    #[test]
+    fn test_parse_year_not_a_year() {
+        // 4-digit number that's not a valid year (e.g., track number)
+        let path = Path::new("/music/Artist - 0001 Song Title.mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), None);
+    }
+
+    #[test]
+    fn test_parse_year_underscore_delimited() {
+        // Year with underscores
+        let path = Path::new("/music/Artist_Song_2010_Karaoke.mp4");
+        assert_eq!(LibraryScanner::parse_year_from_filename(&path), Some(2010));
+    }
 }

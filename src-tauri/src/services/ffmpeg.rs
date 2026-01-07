@@ -113,10 +113,18 @@ impl FfmpegService {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .await
-            .ok()?;
+            .await;
+
+        let output = match output {
+            Ok(o) => o,
+            Err(e) => {
+                debug!("Failed to run ffprobe for year extraction: {}", e);
+                return None;
+            }
+        };
 
         if !output.status.success() {
+            debug!("ffprobe returned non-zero status for year extraction: {:?}", video_path);
             return None;
         }
 
@@ -140,7 +148,7 @@ impl FfmpegService {
             }
 
             // Try extracting year from date formats like "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS"
-            // Use chars() to safely handle UTF-8 multi-byte characters
+            // Take first 4 characters safely (handles any UTF-8 string)
             let year_part: String = value.chars().take(4).collect();
             if year_part.len() == 4 {
                 if let Ok(year) = year_part.parse::<u32>() {
