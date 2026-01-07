@@ -263,12 +263,15 @@ version:
 
 # Bump version (updates all 3 files) - use: just bump 0.8.0
 bump new_version:
-    @echo "Bumping version to {{new_version}}..."
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Bumping version to {{new_version}}..."
     jq '.version = "{{new_version}}"' package.json > package.json.tmp && mv package.json.tmp package.json
     jq '.version = "{{new_version}}"' src-tauri/tauri.conf.json > src-tauri/tauri.conf.json.tmp && mv src-tauri/tauri.conf.json.tmp src-tauri/tauri.conf.json
-    sed -i '' 's/^version = ".*"/version = "{{new_version}}"/' src-tauri/Cargo.toml
-    @echo "Version bumped to {{new_version}}"
-    @just version
+    # Cross-platform sed: create temp file and move (works on both macOS and Linux)
+    sed 's/^version = ".*"/version = "{{new_version}}"/' src-tauri/Cargo.toml > src-tauri/Cargo.toml.tmp && mv src-tauri/Cargo.toml.tmp src-tauri/Cargo.toml
+    echo "Version bumped to {{new_version}}"
+    just version
 
 # Create git tag for release
 tag version:
@@ -385,13 +388,13 @@ info:
     @echo "Rust: $(rustc --version)"
     @echo "Cargo: $(cargo --version)"
 
-# Open GitHub repo (if configured)
+# Open GitHub repo in browser
 github:
-    open "$(git remote get-url origin | sed 's/git@github.com:/https:\/\/github.com\//' | sed 's/\.git$//')"
+    gh browse
 
-# Open GitHub issues
+# Open GitHub issues in browser
 issues:
-    open "$(git remote get-url origin | sed 's/git@github.com:/https:\/\/github.com\//' | sed 's/\.git$//')/issues"
+    gh browse --issues
 
 # Create GitHub issue (requires gh CLI)
 issue-create title:

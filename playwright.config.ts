@@ -8,6 +8,10 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * @see https://playwright.dev/docs/test-configuration
  */
+
+const PORT = process.env.VITE_PORT || "1420";
+const BASE_URL = `http://localhost:${PORT}`;
+
 export default defineConfig({
   testDir: "./tests/e2e/specs",
   fullyParallel: true,
@@ -22,7 +26,7 @@ export default defineConfig({
     timeout: 5000,
   },
   use: {
-    baseURL: "http://localhost:1420",
+    baseURL: BASE_URL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "on-first-retry",
@@ -40,7 +44,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run dev",
-    url: "http://localhost:1420",
+    url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

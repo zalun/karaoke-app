@@ -72,17 +72,12 @@ test.describe("Error Handling", () => {
     // Try to play - should fail when fetching stream URL
     await mainPage.clickPlayOnResult(0);
 
-    // Should show error in notification or search area
-    // The exact error handling depends on implementation
-    // Wait for either error message or video load to fail
-    await page.waitForTimeout(500);
-
-    // Video should not be successfully loaded
-    const title = await playerControls.getVideoTitle();
-    // Either still "No video selected" or cleared on error
-    expect(
-      title === "No video selected" || title === ""
-    ).toBeTruthy();
+    // Wait for error to be processed - check for error notification or unchanged player state
+    await expect(async () => {
+      const title = await playerControls.getVideoTitle();
+      // Video should not be loaded - title should still be default
+      expect(title).toBe("No video selected");
+    }).toPass({ timeout: 2000 });
   });
 
   test("should handle search with no results gracefully", async ({ page }) => {
@@ -147,7 +142,12 @@ test.describe("Error Handling", () => {
 
     // First play attempt fails
     await mainPage.clickPlayOnResult(0);
-    await page.waitForTimeout(500);
+
+    // Wait for error to be processed - player should still show no video
+    await expect(async () => {
+      const title = await playerControls.getVideoTitle();
+      expect(title).toBe("No video selected");
+    }).toPass({ timeout: 2000 });
 
     // Update mock config dynamically to allow successful playback
     await updateMockConfig(page, {
