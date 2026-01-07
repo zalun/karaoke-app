@@ -12,7 +12,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build and Development Commands
 
+This project uses a `justfile` for common tasks. Run `just` or `just --list` to see all available commands.
+
 ```bash
+# Preferred (using just)
+just dev                   # Start development (Vite + Tauri window)
+just build                 # Production build (creates .app and .dmg)
+just test                  # Run unit tests
+just e2e                   # Run E2E tests
+just lint                  # ESLint
+just check                 # Quick health check (typecheck + lint + cargo check)
+just ci                    # Full CI simulation (lint + typecheck + all tests)
+
+# Direct npm/cargo commands also work
 npm run tauri dev          # Start development (Vite + Tauri window)
 npm run tauri build        # Production build (creates .app and .dmg)
 npm run dev                # Vite dev server only (no Tauri window)
