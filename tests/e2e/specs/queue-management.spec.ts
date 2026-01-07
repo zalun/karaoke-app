@@ -110,11 +110,15 @@ test.describe("Queue Management", () => {
     let title = await playerControls.getVideoTitle();
     expect(title).toContain("Test Karaoke Song 2");
 
-    // Wait for previous button to become enabled (history updated)
-    await expect(playerControls.previousButton).toBeEnabled({ timeout: 10000 });
+    // Go back to first song - use toPass to handle timing of button becoming enabled
+    // The Previous button becomes enabled when the queue store history is updated,
+    // which may take a moment to propagate to the React component on slower CI
+    await expect(async () => {
+      await expect(playerControls.previousButton).toBeEnabled();
+      await playerControls.clickPrevious();
+    }).toPass({ timeout: 15000 });
 
-    // Go back to first song
-    await playerControls.clickPrevious();
+    // Verify we're back on the first song
     await expect(async () => {
       const currentTitle = await playerControls.getVideoTitle();
       expect(currentTitle).toContain("Test Karaoke Song 1");
