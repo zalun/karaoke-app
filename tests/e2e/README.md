@@ -68,6 +68,12 @@ This means:
 - **Window position/size persistence** - Native window management
 - **Keyboard shortcuts** - Global shortcuts require native handling
 
+### Skipped Tests
+
+Some tests are skipped due to flakiness in CI environments:
+
+- **"should navigate back to previous song"** - The Previous button state depends on complex timing between Zustand store updates and React re-renders. The mocked IPC layer doesn't perfectly replicate this timing. This functionality is tested via unit tests.
+
 ## Mock System
 
 The Tauri mock system (`fixtures/tauri-mocks.ts`) intercepts all Tauri IPC calls and provides mock responses. Key features:
