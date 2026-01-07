@@ -337,7 +337,6 @@ pub fn run() {
             commands::library_scan_all,
             commands::library_search,
             commands::library_browse,
-            commands::library_get_decades,
             commands::library_check_file,
             commands::library_get_stats,
         ])

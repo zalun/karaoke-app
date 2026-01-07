@@ -333,8 +333,6 @@ pub fn library_get_stats(state: State<'_, AppState>) -> Result<LibraryStats, Str
 #[derive(Debug, serde::Deserialize)]
 pub struct LibraryFilters {
     pub folder_id: Option<i64>,
-    /// Decade filter (e.g., 1990 for 90s, matches years 1990-1999)
-    pub decade: Option<u32>,
     pub has_lyrics: Option<bool>,
     pub has_cdg: Option<bool>,
 }
@@ -382,7 +380,7 @@ pub fn library_browse(
     };
 
     // Get all videos from the scanner
-    let all_videos = LibraryScanner::browse(&folders, filters.decade, filters.has_lyrics, filters.has_cdg);
+    let all_videos = LibraryScanner::browse(&folders, filters.has_lyrics, filters.has_cdg);
 
     // Sort videos
     let mut sorted_videos = all_videos;
@@ -408,15 +406,4 @@ pub fn library_browse(
 
     debug!("Browse result: {} videos (total: {})", videos.len(), total);
     Ok(LibraryBrowseResult { videos, total })
-}
-
-/// Get all decades that have videos in the library
-/// Returns decades as start years (e.g., 1980, 1990, 2000)
-#[tauri::command]
-pub fn library_get_decades(state: State<'_, AppState>) -> Result<Vec<u32>, String> {
-    debug!("Getting available decades");
-    let folders = library_get_folders(state)?;
-    let decades = LibraryScanner::get_available_decades(&folders);
-    debug!("Found {} decades: {:?}", decades.len(), decades);
-    Ok(decades)
 }
