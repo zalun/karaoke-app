@@ -196,7 +196,7 @@ export function SessionBar() {
     }
   };
 
-  const { persistentSingers, loadPersistentSingers } = useFavoritesStore();
+  const { persistentSingers, loadPersistentSingers, openLoadFavoritesDialog } = useFavoritesStore();
   const [showPersistentDropdown, setShowPersistentDropdown] = useState(false);
 
   // Persistent singers not yet in session
@@ -484,14 +484,23 @@ export function SessionBar() {
           </button>
         </div>
 
-        <button
-          onClick={handleEndSession}
-          disabled={isLoading}
-          className="p-1.5 bg-red-600/80 hover:bg-red-600 disabled:bg-gray-600 text-white rounded transition-colors"
-          title="End Session"
-        >
-          <Square size={16} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openLoadFavoritesDialog()}
+            className="p-1.5 text-yellow-500 hover:bg-gray-700 rounded transition-colors"
+            title="Load Favorites to Queue"
+          >
+            <Star size={16} />
+          </button>
+          <button
+            onClick={handleEndSession}
+            disabled={isLoading}
+            className="p-1.5 bg-red-600/80 hover:bg-red-600 disabled:bg-gray-600 text-white rounded transition-colors"
+            title="End Session"
+          >
+            <Square size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Expandable singers panel */}
