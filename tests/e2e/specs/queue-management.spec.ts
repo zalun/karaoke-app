@@ -81,12 +81,9 @@ test.describe("Queue Management", () => {
     await mainPage.clickAddToQueueOnResult(1);
     await page.waitForTimeout(100);
 
-    // Click next
+    // Click next - wait for title to change from first song
     await playerControls.clickNext();
-    await page.waitForTimeout(200);
-
-    // Wait for new video to load
-    await playerControls.waitForVideoLoaded();
+    await playerControls.waitForTitleChange(title);
 
     // Should now show second song
     title = await playerControls.getVideoTitle();
@@ -100,6 +97,7 @@ test.describe("Queue Management", () => {
     // Play first video
     await mainPage.clickPlayOnResult(0);
     await playerControls.waitForVideoLoaded();
+    const firstTitle = await playerControls.getVideoTitle();
 
     // Add second to queue
     await mainPage.clickAddToQueueOnResult(1);
@@ -107,8 +105,7 @@ test.describe("Queue Management", () => {
 
     // Go to next (second song)
     await playerControls.clickNext();
-    await page.waitForTimeout(200);
-    await playerControls.waitForVideoLoaded();
+    await playerControls.waitForTitleChange(firstTitle);
 
     let title = await playerControls.getVideoTitle();
     expect(title).toContain("Test Karaoke Song 2");
@@ -119,8 +116,7 @@ test.describe("Queue Management", () => {
 
     // Go back to first song
     await playerControls.clickPrevious();
-    await page.waitForTimeout(200);
-    await playerControls.waitForVideoLoaded();
+    await playerControls.waitForTitleChange(title);
 
     title = await playerControls.getVideoTitle();
     expect(title).toContain("Test Karaoke Song 1");
@@ -133,13 +129,13 @@ test.describe("Queue Management", () => {
     // Play first video
     await mainPage.clickPlayOnResult(0);
     await playerControls.waitForVideoLoaded();
+    const firstTitle = await playerControls.getVideoTitle();
 
     // Add second to queue and play it
     await mainPage.clickAddToQueueOnResult(1);
     await page.waitForTimeout(100);
     await playerControls.clickNext();
-    await page.waitForTimeout(200);
-    await playerControls.waitForVideoLoaded();
+    await playerControls.waitForTitleChange(firstTitle);
 
     // Switch to history tab - first song should be there
     await mainPage.switchToHistoryTab();
@@ -206,6 +202,7 @@ test.describe("Queue Management", () => {
     // Play first video
     await mainPage.clickPlayOnResult(0);
     await playerControls.waitForVideoLoaded();
+    const firstTitle = await playerControls.getVideoTitle();
 
     // Add second to end of queue
     await mainPage.clickAddToQueueOnResult(1);
@@ -215,10 +212,9 @@ test.describe("Queue Management", () => {
     await mainPage.clickPlayNextOnResult(2);
     await page.waitForTimeout(100);
 
-    // Go to next song
+    // Go to next song - wait for title to change
     await playerControls.clickNext();
-    await page.waitForTimeout(200);
-    await playerControls.waitForVideoLoaded();
+    await playerControls.waitForTitleChange(firstTitle);
 
     // Should be the third song (Play Next), not second (Add to Queue)
     const title = await playerControls.getVideoTitle();

@@ -174,7 +174,22 @@ export class PlayerControls {
         const title = document.querySelector('[data-testid="player-controls"] p.font-medium');
         return title && title.textContent !== "No video selected";
       },
-      { timeout: 10000 }
+      { timeout: 15000 }
+    );
+  }
+
+  /**
+   * Wait for the video title to change to a different value.
+   * @param previousTitle - The previous title to wait to change from
+   */
+  async waitForTitleChange(previousTitle: string): Promise<void> {
+    await this.page.waitForFunction(
+      (prevTitle) => {
+        const title = document.querySelector('[data-testid="player-controls"] p.font-medium');
+        return title && title.textContent !== prevTitle && title.textContent !== "No video selected";
+      },
+      previousTitle,
+      { timeout: 15000 }
     );
   }
 

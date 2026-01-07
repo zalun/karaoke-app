@@ -139,8 +139,7 @@ test.describe("Player Controls", () => {
     await mainPage.clickAddToQueueOnResult(1);
     await page.waitForTimeout(100);
     await playerControls.clickNext();
-    await page.waitForTimeout(200);
-    await playerControls.waitForVideoLoaded();
+    await playerControls.waitForTitleChange(title);
 
     // Title should change
     title = await playerControls.getVideoTitle();
