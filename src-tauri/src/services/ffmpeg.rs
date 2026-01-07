@@ -23,6 +23,10 @@ const MIN_THUMBNAIL_TIMESTAMP_SECS: u32 = 1;
 /// Maximum timestamp for smart thumbnail extraction (avoid spoilers in long videos)
 const MAX_THUMBNAIL_TIMESTAMP_SECS: u32 = 30;
 
+/// Valid year range for song release dates
+const MIN_VALID_YEAR: u32 = 1900;
+const MAX_VALID_YEAR: u32 = 2099;
+
 /// Cached ffmpeg path (looked up once on first use)
 static FFMPEG_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 
@@ -140,7 +144,7 @@ impl FfmpegService {
             // Try direct 4-digit year
             if value.len() == 4 {
                 if let Ok(year) = value.parse::<u32>() {
-                    if year >= 1900 && year <= 2099 {
+                    if year >= MIN_VALID_YEAR && year <= MAX_VALID_YEAR {
                         debug!("Year {} extracted from ffprobe metadata: {:?}", year, video_path);
                         return Some(year);
                     }
@@ -152,7 +156,7 @@ impl FfmpegService {
             let year_part: String = value.chars().take(4).collect();
             if year_part.len() == 4 {
                 if let Ok(year) = year_part.parse::<u32>() {
-                    if year >= 1900 && year <= 2099 {
+                    if year >= MIN_VALID_YEAR && year <= MAX_VALID_YEAR {
                         debug!("Year {} extracted from date in ffprobe metadata: {:?}", year, video_path);
                         return Some(year);
                     }

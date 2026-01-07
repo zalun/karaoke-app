@@ -8,6 +8,10 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Instant;
 
+/// Valid year range for song release dates
+const MIN_VALID_YEAR: u32 = 1900;
+const MAX_VALID_YEAR: u32 = 2099;
+
 /// Regex patterns for extracting year from filename (lazily compiled)
 /// Priority order: (YYYY), [YYYY], delimited YYYY, trailing YYYY
 static YEAR_PATTERN_PARENS: OnceLock<Regex> = OnceLock::new();
@@ -16,19 +20,19 @@ static YEAR_PATTERN_DELIMITED: OnceLock<Regex> = OnceLock::new();
 static YEAR_PATTERN_TRAILING: OnceLock<Regex> = OnceLock::new();
 
 fn year_pattern_parens() -> &'static Regex {
-    YEAR_PATTERN_PARENS.get_or_init(|| Regex::new(r"\((\d{4})\)").unwrap())
+    YEAR_PATTERN_PARENS.get_or_init(|| Regex::new(r"\((\d{4})\)").expect("Invalid parens year regex"))
 }
 
 fn year_pattern_brackets() -> &'static Regex {
-    YEAR_PATTERN_BRACKETS.get_or_init(|| Regex::new(r"\[(\d{4})\]").unwrap())
+    YEAR_PATTERN_BRACKETS.get_or_init(|| Regex::new(r"\[(\d{4})\]").expect("Invalid brackets year regex"))
 }
 
 fn year_pattern_delimited() -> &'static Regex {
-    YEAR_PATTERN_DELIMITED.get_or_init(|| Regex::new(r"[_\s-](\d{4})[_\s-]").unwrap())
+    YEAR_PATTERN_DELIMITED.get_or_init(|| Regex::new(r"[_\s-](\d{4})[_\s-]").expect("Invalid delimited year regex"))
 }
 
 fn year_pattern_trailing() -> &'static Regex {
-    YEAR_PATTERN_TRAILING.get_or_init(|| Regex::new(r"[_\s-](\d{4})$").unwrap())
+    YEAR_PATTERN_TRAILING.get_or_init(|| Regex::new(r"[_\s-](\d{4})$").expect("Invalid trailing year regex"))
 }
 
 /// Supported video file extensions
@@ -803,7 +807,7 @@ impl LibraryScanner {
                 if let Some(year_match) = caps.get(1) {
                     if let Ok(year) = year_match.as_str().parse::<u32>() {
                         // Valid range: 1900-2099
-                        if year >= 1900 && year <= 2099 {
+                        if year >= MIN_VALID_YEAR && year <= MAX_VALID_YEAR {
                             debug!("Year {} extracted from filename: {:?}", year, video_path);
                             return Some(year);
                         }
