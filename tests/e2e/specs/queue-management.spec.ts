@@ -103,18 +103,17 @@ test.describe("Queue Management", () => {
     await mainPage.clickAddToQueueOnResult(1);
     await page.waitForTimeout(100);
 
-    // Go to next (second song)
+    // Go to next (second song) - wait for title change
     await playerControls.clickNext();
     await playerControls.waitForTitleChange(firstTitle);
 
     let title = await playerControls.getVideoTitle();
     expect(title).toContain("Test Karaoke Song 2");
 
-    // Now previous should be enabled
-    const canPrev = await playerControls.canGoPrevious();
-    expect(canPrev).toBe(true);
+    // Wait for previous button to become enabled (history updated)
+    await expect(playerControls.previousButton).toBeEnabled({ timeout: 10000 });
 
-    // Go back to first song - use toPass for resilience on slow CI
+    // Go back to first song
     await playerControls.clickPrevious();
     await expect(async () => {
       const currentTitle = await playerControls.getVideoTitle();
