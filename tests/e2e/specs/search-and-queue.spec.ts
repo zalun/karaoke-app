@@ -56,42 +56,36 @@ test.describe("Search and Queue Flow", () => {
     expect(isActive).toBe(true);
   });
 
-  test("should add video to queue from search results", async ({ page }) => {
+  test("should add video to queue from search results", async () => {
     await mainPage.search("test");
     await mainPage.waitForSearchResults();
 
     // Add first result to queue
     await mainPage.clickAddToQueueOnResult(0);
 
-    // Switch to queue tab
+    // Switch to queue tab and verify queue has one item
     await mainPage.switchToQueueTab();
-
-    // Wait a moment for queue to update
-    await page.waitForTimeout(100);
-
-    // Verify queue has one item
-    const isEmpty = await mainPage.isQueueEmpty();
-    expect(isEmpty).toBe(false);
+    await expect(async () => {
+      const isEmpty = await mainPage.isQueueEmpty();
+      expect(isEmpty).toBe(false);
+    }).toPass({ timeout: 5000 });
   });
 
-  test("should add multiple videos to queue", async ({ page }) => {
+  test("should add multiple videos to queue", async () => {
     await mainPage.search("test");
     await mainPage.waitForSearchResults();
 
     // Add multiple results to queue
     await mainPage.clickAddToQueueOnResult(0);
-    await page.waitForTimeout(50);
     await mainPage.clickAddToQueueOnResult(1);
-    await page.waitForTimeout(50);
     await mainPage.clickAddToQueueOnResult(2);
 
-    // Switch to queue tab
+    // Switch to queue tab and verify queue is not empty
     await mainPage.switchToQueueTab();
-    await page.waitForTimeout(100);
-
-    // Queue should not be empty
-    const isEmpty = await mainPage.isQueueEmpty();
-    expect(isEmpty).toBe(false);
+    await expect(async () => {
+      const isEmpty = await mainPage.isQueueEmpty();
+      expect(isEmpty).toBe(false);
+    }).toPass({ timeout: 5000 });
   });
 
   test("should handle empty search results", async ({ page }) => {
@@ -110,7 +104,7 @@ test.describe("Search and Queue Flow", () => {
     await expect(page.locator("text=No results")).toBeVisible();
   });
 
-  test("should clear queue", async ({ page }) => {
+  test("should clear queue", async () => {
     await mainPage.search("test");
     await mainPage.waitForSearchResults();
 
@@ -118,21 +112,19 @@ test.describe("Search and Queue Flow", () => {
     await mainPage.clickAddToQueueOnResult(0);
     await mainPage.clickAddToQueueOnResult(1);
 
-    // Switch to queue tab
+    // Switch to queue tab and verify queue is not empty
     await mainPage.switchToQueueTab();
-    await page.waitForTimeout(100);
+    await expect(async () => {
+      const isEmpty = await mainPage.isQueueEmpty();
+      expect(isEmpty).toBe(false);
+    }).toPass({ timeout: 5000 });
 
-    // Verify queue is not empty
-    let isEmpty = await mainPage.isQueueEmpty();
-    expect(isEmpty).toBe(false);
-
-    // Clear queue
+    // Clear queue and verify it's now empty
     await mainPage.clearQueue();
-    await page.waitForTimeout(100);
-
-    // Verify queue is now empty
-    isEmpty = await mainPage.isQueueEmpty();
-    expect(isEmpty).toBe(true);
+    await expect(async () => {
+      const isEmpty = await mainPage.isQueueEmpty();
+      expect(isEmpty).toBe(true);
+    }).toPass({ timeout: 5000 });
   });
 
   test("should switch between tabs", async () => {

@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Library browser now shows favorites star on each video (#139)
 - Library view automatically refreshes after rescan completes (#139)
 - Local build script for creating polished DMG releases (`scripts/build-and-release.sh`)
+- Playwright E2E tests with 104 test cases across Chromium/WebKit (#125)
+  - Test coverage for search, queue management, player controls, error handling
+  - Tauri API mock infrastructure for browser-based testing
+  - Comprehensive testing guide at `tests/e2e/GUIDE.md`
+- Justfile with 70+ development workflow commands
 
 ### Changed
 - Navigation tabs styled as proper tab headers instead of buttons (#137)

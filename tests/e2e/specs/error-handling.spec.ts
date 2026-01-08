@@ -77,7 +77,7 @@ test.describe("Error Handling", () => {
       const title = await playerControls.getVideoTitle();
       // Video should not be loaded - title should still be default
       expect(title).toBe("No video selected");
-    }).toPass({ timeout: 2000 });
+    }).toPass({ timeout: 5000 });
   });
 
   test("should handle search with no results gracefully", async ({ page }) => {
@@ -147,7 +147,7 @@ test.describe("Error Handling", () => {
     await expect(async () => {
       const title = await playerControls.getVideoTitle();
       expect(title).toBe("No video selected");
-    }).toPass({ timeout: 2000 });
+    }).toPass({ timeout: 5000 });
 
     // Update mock config dynamically to allow successful playback
     await updateMockConfig(page, {

@@ -137,3 +137,21 @@ Tests run on GitHub Actions for every PR:
 - Workers: 2 (parallel)
 - Retries: 2 on failure
 - Artifacts: Screenshots and videos on failure
+
+### Browser Choice Rationale
+
+We test on both **Chromium** and **WebKit**:
+
+- **WebKit**: Tauri uses WKWebView on macOS, so WebKit provides the closest match to production behavior. This is our primary browser for catching real-world issues.
+
+- **Chromium**: Provides broader compatibility testing and catches issues that might affect the app if rendered differently. Also useful for debugging since Chrome DevTools are more familiar to most developers.
+
+To save CI time, you could make Chromium optional by modifying `playwright.config.ts`:
+
+```typescript
+projects: [
+  { name: "webkit", use: { ...devices["Desktop Safari"] } },
+  // Uncomment for broader testing:
+  // { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+],
+```
