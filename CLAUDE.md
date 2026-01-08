@@ -12,13 +12,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build and Development Commands
 
+This project uses a `justfile` for common tasks. Run `just` or `just --list` to see all available commands.
+
 ```bash
+# Preferred (using just)
+just dev                   # Start development (Vite + Tauri window)
+just build                 # Production build (creates .app and .dmg)
+just test                  # Run unit tests
+just e2e                   # Run E2E tests
+just lint                  # ESLint
+just check                 # Quick health check (typecheck + lint + cargo check)
+just ci                    # Full CI simulation (lint + typecheck + all tests)
+
+# Direct npm/cargo commands also work
 npm run tauri dev          # Start development (Vite + Tauri window)
 npm run tauri build        # Production build (creates .app and .dmg)
 npm run dev                # Vite dev server only (no Tauri window)
 npm run build              # Frontend build only (tsc + vite)
 npm run lint               # ESLint
 ```
+
+## E2E Testing
+
+**See [`tests/e2e/GUIDE.md`](./tests/e2e/GUIDE.md) for comprehensive E2E testing patterns and lessons learned.**
+
+Key principles:
+- **Mock Tauri IPC**: Tests run in browser with mocked `__TAURI_INTERNALS__`
+- **Use `toPass()` for timing**: Never use fixed `waitForTimeout()` - always retry-based assertions
+- **Page Object Model**: Keep selectors in `tests/e2e/pages/`, not in test files
+- **CI is slower**: Use generous timeouts (45s test, 10s expect, 15s for video loads)
+
+Quick reference:
+```bash
+just e2e              # Run all E2E tests
+just e2e-ui           # Run with Playwright UI (debugging)
+just e2e-grep "name"  # Run tests matching pattern
+```
+
+When writing E2E tests:
+1. Inject mocks BEFORE `page.goto()` - app reads settings on startup
+2. Use `data-testid` attributes for stable selectors
+3. Wait for specific state changes, not arbitrary timeouts
+4. Document skipped tests with clear reasoning
 
 ## Architecture
 
