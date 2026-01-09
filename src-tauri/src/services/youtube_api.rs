@@ -355,11 +355,7 @@ impl YouTubeApiService {
     /// Parse ISO 8601 duration format (e.g., "PT4M13S") to seconds
     fn parse_iso8601_duration(duration: &str) -> Option<u64> {
         // Format: PT#H#M#S (hours, minutes, seconds are optional)
-        if !duration.starts_with("PT") {
-            return None;
-        }
-
-        let duration = &duration[2..]; // Remove "PT" prefix
+        let duration = duration.strip_prefix("PT")?;
         let mut seconds: u64 = 0;
         let mut current_num = String::new();
 
