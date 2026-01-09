@@ -562,10 +562,13 @@ function AdvancedSettings({
     setTestMessage("");
 
     try {
-      const valid = await youtubeService.validateApiKey(apiKey);
+      // Save the key first, then test the saved key
+      // SECURITY: Key is read from database on backend, not passed via IPC
+      await setSetting(SETTINGS_KEYS.YOUTUBE_API_KEY, apiKey);
+      const valid = await youtubeService.validateApiKey();
       if (valid) {
         setTestStatus("success");
-        setTestMessage("API key is valid");
+        setTestMessage("API key saved and validated");
       } else {
         setTestStatus("error");
         setTestMessage("Invalid API key");
@@ -624,14 +627,14 @@ function AdvancedSettings({
           <div className="flex gap-2">
             <button
               onClick={handleSaveKey}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded transition-colors"
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors"
             >
               Save
             </button>
             <button
               onClick={handleTestKey}
               disabled={testStatus === "testing"}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm rounded transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm rounded transition-colors flex items-center gap-2"
             >
               {testStatus === "testing" ? (
                 <>
@@ -639,7 +642,7 @@ function AdvancedSettings({
                   Testing...
                 </>
               ) : (
-                "Test"
+                "Save & Test"
               )}
             </button>
           </div>

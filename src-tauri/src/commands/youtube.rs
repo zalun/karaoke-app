@@ -351,14 +351,32 @@ pub async fn youtube_api_search(
     Ok(results)
 }
 
-/// Validate a YouTube API key
+/// Validate the currently saved YouTube API key
+///
+/// SECURITY: API key is read from database, not passed as parameter,
+/// to avoid exposing it in Tauri IPC logs.
 #[tauri::command]
-pub async fn youtube_validate_api_key(api_key: String) -> Result<bool, YouTubeError> {
-    debug!("youtube_validate_api_key: validating key");
+pub async fn youtube_validate_api_key(
+    state: State<'_, AppState>,
+) -> Result<bool, YouTubeError> {
+    debug!("youtube_validate_api_key: validating saved key");
 
-    if api_key.trim().is_empty() {
-        return Err(YouTubeError::Config("API key cannot be empty".to_string()));
-    }
+    // Read API key from database (not from parameter for security)
+    let api_key = {
+        let db = state
+            .db
+            .lock()
+            .map_err(|e| {
+                log::error!("Database mutex poisoned: {}", e);
+                YouTubeError::Config("Database error - please restart the app".to_string())
+            })?;
+        db.get_setting("youtube_api_key")
+            .map_err(|e| YouTubeError::Config(format!("Failed to get API key: {}", e)))?
+    };
+
+    let api_key = api_key
+        .filter(|k| !k.trim().is_empty())
+        .ok_or_else(|| YouTubeError::Config("No API key saved. Please save your API key first.".to_string()))?;
 
     let service = YouTubeApiService::new(api_key)
         .map_err(|e| YouTubeError::Config(e))?;

@@ -26,10 +26,11 @@ export const youtubeService = {
   },
 
   /**
-   * Validate a YouTube Data API key
+   * Validate the currently saved YouTube API key
+   * SECURITY: Key is read from database on backend, not passed as parameter
    */
-  async validateApiKey(apiKey: string): Promise<boolean> {
-    return invoke<boolean>("youtube_validate_api_key", { apiKey });
+  async validateApiKey(): Promise<boolean> {
+    return invoke<boolean>("youtube_validate_api_key");
   },
 
   /**
