@@ -1,10 +1,12 @@
 use crate::services::{
     get_expanded_path,
     ytdlp::{SearchResult, StreamInfo, VideoInfo},
-    YtDlpService,
+    YouTubeApiService, YtDlpService,
 };
-use log::{debug, info};
+use crate::AppState;
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
+use tauri::State;
 use thiserror::Error;
 
 /// Error type for YouTube-related commands.
@@ -15,6 +17,10 @@ pub enum YouTubeError {
     #[error("{0}")]
     YtDlp(#[from] crate::services::ytdlp::YtDlpError),
 
+    /// YouTube Data API error
+    #[error("{0}")]
+    Api(#[from] crate::services::youtube_api::YouTubeApiError),
+
     /// Command execution error
     #[error("{0}")]
     Command(String),
@@ -22,6 +28,10 @@ pub enum YouTubeError {
     /// Installation error
     #[error("Installation failed: {0}")]
     Installation(String),
+
+    /// Configuration error
+    #[error("{0}")]
+    Config(String),
 }
 
 impl Serialize for YouTubeError {
@@ -35,8 +45,10 @@ impl Serialize for YouTubeError {
 
         let error_type = match self {
             YouTubeError::YtDlp(_) => "ytdlp",
+            YouTubeError::Api(_) => "api",
             YouTubeError::Command(_) => "command",
             YouTubeError::Installation(_) => "installation",
+            YouTubeError::Config(_) => "config",
         };
 
         state.serialize_field("type", error_type)?;
@@ -292,5 +304,142 @@ pub async fn youtube_install_ytdlp(method: String) -> Result<InstallResult, YouT
             message: "Unknown installation method".to_string(),
             output: String::new(),
         }),
+    }
+}
+
+/// Search YouTube using the Data API v3
+///
+/// Requires a valid API key to be configured in settings.
+#[tauri::command]
+pub async fn youtube_api_search(
+    state: State<'_, AppState>,
+    query: String,
+    max_results: Option<u32>,
+) -> Result<Vec<SearchResult>, YouTubeError> {
+    let max = max_results.unwrap_or(10);
+    debug!("youtube_api_search: query='{}', max_results={}", query, max);
+
+    // Get API key from settings
+    // SECURITY: Never log the API key - it should remain secret
+    let api_key = {
+        let db = state
+            .db
+            .lock()
+            .map_err(|e| {
+                log::error!("Database mutex poisoned: {}", e);
+                YouTubeError::Config("Database error - please restart the app".to_string())
+            })?;
+        db.get_setting("youtube_api_key")
+            .map_err(|e| YouTubeError::Config(format!("Failed to get API key: {}", e)))?
+    };
+
+    // Validate API key exists and is not empty (combined check)
+    let api_key = api_key
+        .filter(|k| !k.trim().is_empty())
+        .ok_or_else(|| YouTubeError::Config("YouTube API key not configured".to_string()))?;
+
+    let service = YouTubeApiService::new(api_key)
+        .map_err(|e| YouTubeError::Config(e))?;
+
+    let results = service.search(&query, max).await?;
+
+    info!(
+        "youtube_api_search: found {} results for '{}'",
+        results.len(),
+        query
+    );
+    Ok(results)
+}
+
+/// Validate the currently saved YouTube API key
+///
+/// SECURITY: API key is read from database, not passed as parameter,
+/// to avoid exposing it in Tauri IPC logs.
+#[tauri::command]
+pub async fn youtube_validate_api_key(
+    state: State<'_, AppState>,
+) -> Result<bool, YouTubeError> {
+    debug!("youtube_validate_api_key: validating saved key");
+
+    // Read API key from database (not from parameter for security)
+    let api_key = {
+        let db = state
+            .db
+            .lock()
+            .map_err(|e| {
+                log::error!("Database mutex poisoned: {}", e);
+                YouTubeError::Config("Database error - please restart the app".to_string())
+            })?;
+        db.get_setting("youtube_api_key")
+            .map_err(|e| YouTubeError::Config(format!("Failed to get API key: {}", e)))?
+    };
+
+    let api_key = api_key
+        .filter(|k| !k.trim().is_empty())
+        .ok_or_else(|| YouTubeError::Config("No API key saved. Please save your API key first.".to_string()))?;
+
+    let service = YouTubeApiService::new(api_key)
+        .map_err(|e| YouTubeError::Config(e))?;
+
+    let valid = service.validate_key().await?;
+
+    info!("youtube_validate_api_key: key valid={}", valid);
+    Ok(valid)
+}
+
+/// Get the current search method based on configuration
+///
+/// Returns:
+/// - "api" if YouTube API key is configured
+/// - "ytdlp" if yt-dlp is available but no API key
+/// - "none" if neither is available
+#[tauri::command]
+pub async fn youtube_get_search_method(
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    debug!("youtube_get_search_method: checking available methods");
+
+    // Acquire database lock once and read both settings
+    let (search_method, api_key) = {
+        let db = state
+            .db
+            .lock()
+            .map_err(|e| {
+                log::error!("Database mutex poisoned: {}", e);
+                "Database error - please restart the app".to_string()
+            })?;
+        let method = db
+            .get_setting("youtube_search_method")
+            .map_err(|e| format!("Failed to get search method: {}", e))?;
+        let key = db
+            .get_setting("youtube_api_key")
+            .map_err(|e| format!("Failed to get API key: {}", e))?;
+        (method, key)
+    };
+
+    let method = search_method.unwrap_or_else(|| "api".to_string());
+    let has_api_key = api_key.map(|k| !k.trim().is_empty()).unwrap_or(false);
+
+    // Check if the chosen method is available
+    match method.as_str() {
+        "ytdlp" => {
+            // Check if yt-dlp is available
+            let service = YtDlpService::new();
+            if service.is_available().await {
+                info!("youtube_get_search_method: using 'ytdlp'");
+                return Ok("ytdlp".to_string());
+            }
+            warn!("youtube_get_search_method: yt-dlp method requested but not available");
+            Ok("none".to_string())
+        }
+        // Default to YouTube API (including "api" and any unknown values)
+        _ => {
+            if has_api_key {
+                info!("youtube_get_search_method: using 'api'");
+                return Ok("api".to_string());
+            }
+            warn!("youtube_get_search_method: API method but no key configured");
+            Ok("none".to_string())
+        }
     }
 }

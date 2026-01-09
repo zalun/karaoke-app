@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Added
+- YouTube Data API v3 for search (#149)
+  - Official API replaces yt-dlp as default search method
+  - Configure API key in Settings > YouTube tab
+  - ~100 free searches per day with Google Cloud API key
+  - Automatic fallback to yt-dlp if API key not configured
+  - Video duration fetched via batch API call for efficiency
+- Created GitHub issues for future settings (#152-160)
+  - Playback: Video Quality, Autoplay, Default Volume, Prefetch
+  - Display: Next Song Overlay, Singer Announcement, Player Position
+  - Queue: History Limit, Clear on Exit
+
+### Changed
+- Settings reorganized: YouTube configuration moved to dedicated "YouTube" tab
+- Unimplemented settings hidden until features are ready
+- yt-dlp marked as "Unofficial" option in settings
+
 ## [0.7.0] - 2026-01-06
 
 ### Added

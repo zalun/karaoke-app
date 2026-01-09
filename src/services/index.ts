@@ -25,3 +25,12 @@ export {
   YouTubeErrorCodes,
   getYouTubeErrorMessage,
 } from "./youtubeIframe";
+
+/**
+ * Extract error message from unknown error type
+ * @param err - The caught error (unknown type)
+ * @param fallback - Fallback message if error is not an Error instance
+ */
+export function getErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}

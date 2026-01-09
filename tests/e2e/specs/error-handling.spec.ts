@@ -42,7 +42,7 @@ test.describe("Error Handling", () => {
   test("should show error when search fails", async ({ page }) => {
     await injectTauriMocks(page, {
       shouldFailSearch: true,
-      ytdlpAvailable: true,
+      hasApiKey: true, // API is configured by default
     });
 
     await page.goto("/");
@@ -50,9 +50,9 @@ test.describe("Error Handling", () => {
 
     await mainPage.search("test query");
 
-    // Should show error message
+    // Should show error message (YouTube API error)
     await expect(
-      page.locator("text=Search failed - yt-dlp not available")
+      page.locator("text=YouTube API search failed")
     ).toBeVisible({ timeout: 5000 });
   });
 

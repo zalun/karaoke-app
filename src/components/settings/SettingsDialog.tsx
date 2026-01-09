@@ -6,7 +6,6 @@ import {
   Monitor,
   List,
   HardDrive,
-  Wrench,
   Info,
   FolderOpen,
   RotateCcw,
@@ -14,11 +13,16 @@ import {
   AlertTriangle,
   Trash2,
   FolderPlus,
-  Search,
+  Youtube,
+  Eye,
+  EyeOff,
+  CheckCircle,
+  XCircle,
+  ExternalLink,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore, useLibraryStore, SETTINGS_KEYS, notify } from "../../stores";
-import { updateService, createLogger } from "../../services";
+import { updateService, createLogger, youtubeService } from "../../services";
 import type { SettingsTab } from "../../stores";
 
 const log = createLogger("SettingsDialog");
@@ -27,9 +31,8 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Play }[] = [
   { id: "playback", label: "Playback", icon: Play },
   { id: "display", label: "Display", icon: Monitor },
   { id: "queue", label: "Queue & History", icon: List },
-  { id: "search", label: "Search", icon: Search },
   { id: "library", label: "Library", icon: HardDrive },
-  { id: "advanced", label: "Advanced", icon: Wrench },
+  { id: "advanced", label: "YouTube", icon: Youtube },
   { id: "about", label: "About", icon: Info },
 ];
 
@@ -181,13 +184,12 @@ export function SettingsDialog() {
                     setSetting={setSetting}
                   />
                 )}
-                {activeTab === "search" && (
-                  <SearchSettings
+                {activeTab === "library" && (
+                  <LibrarySettings
                     getSetting={getSetting}
                     setSetting={setSetting}
                   />
                 )}
-                {activeTab === "library" && <LibrarySettings />}
                 {activeTab === "advanced" && (
                   <AdvancedSettings
                     getSetting={getSetting}
@@ -246,7 +248,7 @@ function SettingRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between py-3 border-b border-gray-700 last:border-b-0">
+    <div className="flex items-start justify-between py-3">
       <div className="flex-1 pr-4">
         <div className="text-sm font-medium text-white">{label}</div>
         {description && (
@@ -282,6 +284,7 @@ function SelectInput({
   );
 }
 
+/* TODO: Uncomment when implementing settings that use toggles (Issues #153, #158)
 function ToggleSwitch({
   checked,
   onChange,
@@ -304,17 +307,21 @@ function ToggleSwitch({
     </button>
   );
 }
+*/
 
-function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
-  const handleChange = createSettingHandler(setSetting);
-
+function PlaybackSettings(_: SettingsSectionProps) {
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Playback</h4>
 
+      <div className="text-gray-400 text-sm">
+        Playback settings are coming soon.
+      </div>
+
+      {/* TODO: Implement these settings - Issue #152: Video Quality
       <SettingRow
         label="Video Quality"
-        description="Maximum quality for YouTube videos (not yet implemented)"
+        description="Maximum quality for YouTube videos"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.VIDEO_QUALITY)}
@@ -327,10 +334,12 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
           onChange={(v) => handleChange(SETTINGS_KEYS.VIDEO_QUALITY, v)}
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #153: Autoplay Next Song
       <SettingRow
         label="Autoplay Next Song"
-        description="Automatically play the next song in queue (not yet implemented)"
+        description="Automatically play the next song in queue"
       >
         <ToggleSwitch
           checked={getSetting(SETTINGS_KEYS.AUTOPLAY_NEXT) === "true"}
@@ -339,10 +348,12 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
           }
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #154: Default Volume
       <SettingRow
         label="Default Volume"
-        description="Volume level when app starts (not yet implemented)"
+        description="Volume level when app starts"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.DEFAULT_VOLUME)}
@@ -356,10 +367,12 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
           onChange={(v) => handleChange(SETTINGS_KEYS.DEFAULT_VOLUME, v)}
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #155: Prefetch Next Video
       <SettingRow
         label="Prefetch Next Video"
-        description="Pre-load stream URL before current song ends (not yet implemented)"
+        description="Pre-load stream URL before current song ends"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.PREFETCH_SECONDS)}
@@ -372,20 +385,24 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
           onChange={(v) => handleChange(SETTINGS_KEYS.PREFETCH_SECONDS, v)}
         />
       </SettingRow>
+      */}
     </div>
   );
 }
 
-function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
-  const handleChange = createSettingHandler(setSetting);
-
+function DisplaySettings(_: SettingsSectionProps) {
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Display</h4>
 
+      <div className="text-gray-400 text-sm">
+        Display settings are coming soon.
+      </div>
+
+      {/* TODO: Issue #156: Next Song Overlay
       <SettingRow
         label="Next Song Overlay"
-        description="Show upcoming song info before current song ends (not yet implemented)"
+        description="Show upcoming song info before current song ends"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS)}
@@ -400,10 +417,12 @@ function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
           }
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #157: Singer Announcement
       <SettingRow
         label="Singer Announcement"
-        description="Duration to show current singer name (not yet implemented)"
+        description="Duration to show current singer name"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.SINGER_ANNOUNCEMENT_SECONDS)}
@@ -418,10 +437,12 @@ function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
           }
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #158: Remember Player Position
       <SettingRow
         label="Remember Player Position"
-        description="Restore detached player window position (not yet implemented)"
+        description="Restore detached player window position"
       >
         <ToggleSwitch
           checked={getSetting(SETTINGS_KEYS.REMEMBER_PLAYER_POSITION) === "true"}
@@ -430,20 +451,24 @@ function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
           }
         />
       </SettingRow>
+      */}
     </div>
   );
 }
 
-function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
-  const handleChange = createSettingHandler(setSetting);
-
+function QueueSettings(_: SettingsSectionProps) {
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Queue & History</h4>
 
+      <div className="text-gray-400 text-sm">
+        Queue & History settings are coming soon.
+      </div>
+
+      {/* TODO: Issue #159: History Limit
       <SettingRow
         label="History Limit"
-        description="Maximum number of songs to keep in history (not yet implemented)"
+        description="Maximum number of songs to keep in history"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.HISTORY_LIMIT)}
@@ -456,10 +481,12 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
           onChange={(v) => handleChange(SETTINGS_KEYS.HISTORY_LIMIT, v)}
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #160: Clear Queue on Exit
       <SettingRow
         label="Clear Queue on Exit"
-        description="What to do with the queue when closing the app (not yet implemented)"
+        description="What to do with the queue when closing the app"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT)}
@@ -471,41 +498,11 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
           onChange={(v) => handleChange(SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT, v)}
         />
       </SettingRow>
+      */}
     </div>
   );
 }
 
-function SearchSettings({ getSetting, setSetting }: SettingsSectionProps) {
-  return (
-    <div>
-      <h4 className="text-lg font-medium text-white mb-4">Search</h4>
-
-      <div className="mb-6">
-        <div className="text-sm font-medium text-gray-300 mb-2">
-          Local Library Search
-        </div>
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={getSetting(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS) === "true"}
-              onChange={(e) =>
-                setSetting(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS, e.target.checked ? "true" : "false")
-              }
-              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-300">
-              Include lyrics in search
-            </span>
-          </label>
-          <p className="text-xs text-gray-500 ml-6">
-            When enabled, search will also match lyrics content from .hkmeta.json files
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function AdvancedSettings({
   getSetting,
@@ -515,11 +512,25 @@ function AdvancedSettings({
   onResetToDefaults: () => void;
 }) {
   const [showConfirm, setShowConfirm] = useState(false);
+  const [apiKey, setApiKey] = useState(getSetting(SETTINGS_KEYS.YOUTUBE_API_KEY) || "");
+  const [showKey, setShowKey] = useState(false);
+  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [testMessage, setTestMessage] = useState("");
   const ytDlpAvailable = useSettingsStore((state) => state.ytDlpAvailable);
   const ytDlpChecking = useSettingsStore((state) => state.ytDlpChecking);
   const ytDlpChecked = useSettingsStore((state) => state.ytDlpChecked);
   const checkYtDlpAvailability = useSettingsStore((state) => state.checkYtDlpAvailability);
   const handleChange = createSettingHandler(setSetting);
+
+  // Subscribe directly to the API key setting value for stable dependency
+  const storedApiKey = useSettingsStore(
+    (state) => state.settings[SETTINGS_KEYS.YOUTUBE_API_KEY] || ""
+  );
+
+  // Update local API key state when stored value changes
+  useEffect(() => {
+    setApiKey(storedApiKey);
+  }, [storedApiKey]);
 
   const handleReset = () => {
     setShowConfirm(false);
@@ -530,31 +541,187 @@ function AdvancedSettings({
     checkYtDlpAvailability(true); // force recheck
   };
 
+  const handleSaveKey = async () => {
+    try {
+      await setSetting(SETTINGS_KEYS.YOUTUBE_API_KEY, apiKey);
+      notify("success", "API key saved");
+    } catch (error) {
+      log.error("Failed to save API key:", error);
+      notify("error", "Failed to save API key");
+    }
+  };
+
+  const handleTestKey = async () => {
+    if (!apiKey.trim()) {
+      setTestStatus("error");
+      setTestMessage("Please enter an API key first");
+      return;
+    }
+
+    setTestStatus("testing");
+    setTestMessage("");
+
+    try {
+      // Save the key first, then test the saved key
+      // SECURITY: Key is read from database on backend, not passed via IPC
+      await setSetting(SETTINGS_KEYS.YOUTUBE_API_KEY, apiKey);
+      const valid = await youtubeService.validateApiKey();
+      if (valid) {
+        setTestStatus("success");
+        setTestMessage("API key saved and validated");
+      } else {
+        setTestStatus("error");
+        setTestMessage("Invalid API key");
+      }
+    } catch (error) {
+      setTestStatus("error");
+      const errorMsg = error instanceof Error ? error.message : "Validation failed";
+      setTestMessage(errorMsg);
+      log.error("API key validation failed:", error);
+    }
+  };
+
   return (
     <div>
-      <h4 className="text-lg font-medium text-white mb-4">Advanced</h4>
+      <h4 className="text-lg font-medium text-white mb-4">YouTube</h4>
 
+      {/* YouTube API Key Section */}
+      <div className="mb-6 p-4 bg-gray-700/30 rounded-lg">
+        <h5 className="text-sm font-medium text-gray-300 mb-2">
+          YouTube Data API Key
+        </h5>
+        <p className="text-xs text-gray-500 mb-3">
+          Required for YouTube search. Get a free API key from the{" "}
+          <a
+            href="https://console.cloud.google.com/apis/credentials"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"
+          >
+            Google Cloud Console
+            <ExternalLink size={12} />
+          </a>
+          . Free tier: ~100 searches/day.
+        </p>
+
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type={showKey ? "text" : "password"}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="AIza..."
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white pr-10 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+              >
+                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveKey}
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors"
+            >
+              Save
+            </button>
+            <button
+              onClick={handleTestKey}
+              disabled={testStatus === "testing"}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm rounded transition-colors flex items-center gap-2"
+            >
+              {testStatus === "testing" ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                "Save & Test"
+              )}
+            </button>
+          </div>
+
+          {/* Test result */}
+          {testStatus !== "idle" && testStatus !== "testing" && (
+            <div
+              className={`flex items-center gap-2 text-sm ${
+                testStatus === "success" ? "text-green-400" : "text-red-400"
+              }`}
+            >
+              {testStatus === "success" ? (
+                <CheckCircle size={16} />
+              ) : (
+                <XCircle size={16} />
+              )}
+              {testMessage}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Search Method Selection */}
+      <SettingRow
+        label="Search Method"
+        description="How to search for YouTube videos"
+      >
+        <SelectInput
+          value={getSetting(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD)}
+          options={[
+            { value: "api", label: "YouTube API" },
+            { value: "ytdlp", label: "yt-dlp" },
+          ]}
+          onChange={(v) => handleChange(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD, v)}
+        />
+      </SettingRow>
+
+      <div className="mb-6 text-xs text-gray-500">
+        <p className="mb-1">
+          <strong>YouTube API:</strong> Official API, ~100 searches/day free. Requires API key above.
+        </p>
+        <p>
+          <strong>yt-dlp:</strong> Unofficial. Requires yt-dlp installed.
+        </p>
+      </div>
+
+      {/* yt-dlp Status */}
       {ytDlpChecking && (
         <div className="text-sm text-gray-400 mb-6 flex items-center gap-2">
           <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
-          Investigating your system...
+          Checking yt-dlp availability...
         </div>
       )}
 
       {ytDlpChecked && ytDlpAvailable && (
-        <SettingRow
-          label="Video Streaming Mode"
-          description="YouTube embed is simpler; yt-dlp provides higher quality and works offline"
-        >
-          <SelectInput
-            value={getSetting(SETTINGS_KEYS.PLAYBACK_MODE)}
-            options={[
-              { value: "youtube", label: "YouTube Embed" },
-              { value: "ytdlp", label: "yt-dlp (advanced)" },
-            ]}
-            onChange={(v) => handleChange(SETTINGS_KEYS.PLAYBACK_MODE, v)}
-          />
-        </SettingRow>
+        <>
+          <SettingRow
+            label="Video Streaming Mode"
+            description="How to play YouTube videos"
+          >
+            <SelectInput
+              value={getSetting(SETTINGS_KEYS.PLAYBACK_MODE)}
+              options={[
+                { value: "youtube", label: "YouTube Embed" },
+                { value: "ytdlp", label: "yt-dlp" },
+              ]}
+              onChange={(v) => handleChange(SETTINGS_KEYS.PLAYBACK_MODE, v)}
+            />
+          </SettingRow>
+
+          <div className="mb-6 text-xs text-gray-500">
+            <p className="mb-1">
+              <strong>YouTube Embed:</strong> Simple and reliable. Uses YouTube's built-in player.
+            </p>
+            <p>
+              <strong>yt-dlp:</strong> Unofficial. Requires yt-dlp installed.
+            </p>
+          </div>
+        </>
       )}
 
       {ytDlpChecked && !ytDlpAvailable && (
@@ -566,11 +733,11 @@ function AdvancedSettings({
           >
             Recheck
           </button>{" "}
-          after installing to enable advanced playback options.
+          after installing to enable advanced playback and search options.
         </div>
       )}
 
-      <div className="pt-4 border-t border-gray-700 mt-4">
+      <div className="pt-4 mt-4">
         {showConfirm ? (
           <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
             <div className="flex items-start gap-3">
@@ -705,7 +872,7 @@ function AboutSettings({
   );
 }
 
-function LibrarySettings() {
+function LibrarySettings({ getSetting, setSetting }: SettingsSectionProps) {
   const {
     folders,
     stats,
@@ -718,6 +885,7 @@ function LibrarySettings() {
     scanAll,
     loadStats,
   } = useLibraryStore();
+  const handleChange = createSettingHandler(setSetting);
 
   const [scanOptions, setScanOptions] = useState({
     createHkmeta: true,
@@ -818,6 +986,31 @@ function LibrarySettings() {
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Local Library</h4>
+
+      {/* Search Options */}
+      <div className="mb-6">
+        <div className="text-sm font-medium text-gray-300 mb-2">
+          Search Options
+        </div>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={getSetting(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS) === "true"}
+              onChange={(e) =>
+                handleChange(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS, e.target.checked ? "true" : "false")
+              }
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-300">
+              Include lyrics in search
+            </span>
+          </label>
+          <p className="text-xs text-gray-500 ml-6">
+            When enabled, search will also match lyrics content from .hkmeta.json files
+          </p>
+        </div>
+      </div>
 
       {/* Watched Folders */}
       <div className="mb-6">

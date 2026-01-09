@@ -1,4 +1,5 @@
 import { useRef, useEffect, useMemo } from "react";
+import { Settings } from "lucide-react";
 import type { SearchResult } from "../../types";
 import { usePlayerStore, useFavoritesStore, useSettingsStore, SETTINGS_KEYS, type Video } from "../../stores";
 import { FavoriteStar } from "../favorites";
@@ -69,10 +70,10 @@ export function SearchResults({
   // Filter out channels/playlists (memoized to avoid recomputing on every render)
   const videoResults = useMemo(() => {
     return results.filter((result) => {
-      // Must have a duration (videos have duration, channels/playlists don't)
-      if (!result.duration || result.duration === 0) return false;
       // YouTube video IDs are exactly 11 characters
+      // (channels/playlists have different ID formats)
       if (result.id.length !== 11) return false;
+      // Duration is fetched via YouTube API (videos endpoint) or yt-dlp
       return true;
     });
   }, [results]);
@@ -117,6 +118,40 @@ export function SearchResults({
   }
 
   if (error) {
+    // Check if error is about configuration - show setup prompt
+    const isConfigError = error.includes("not configured");
+    const { openSettingsDialog, setActiveTab } = useSettingsStore.getState();
+
+    if (isConfigError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-8">
+          <Settings size={48} className="text-gray-500 mb-4" />
+          <div className="text-white font-medium mb-4">YouTube Search Not Configured</div>
+          <div className="text-gray-400 text-sm text-left mb-6 max-w-md">
+            <p className="mb-3">To enable YouTube search, you need a YouTube Data API key:</p>
+            <ol className="list-decimal list-inside space-y-1 text-gray-300">
+              <li>Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">Google Cloud Console</a></li>
+              <li>Create a new project (or select existing)</li>
+              <li>Enable "YouTube Data API v3" in APIs & Services &gt; Library</li>
+              <li>Go to APIs & Services &gt; Credentials</li>
+              <li>Click "Create Credentials" &gt; "API Key"</li>
+              <li>Copy the key and paste it in Settings &gt; Advanced</li>
+            </ol>
+            <p className="mt-3 text-gray-500 text-xs italic">Free tier: ~100 searches per day</p>
+          </div>
+          <button
+            onClick={() => {
+              setActiveTab("advanced");
+              openSettingsDialog();
+            }}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+          >
+            Open Advanced Settings
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-red-400">{error}</div>
