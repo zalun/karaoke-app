@@ -124,16 +124,21 @@ export function SearchResults({
 
     if (isConfigError) {
       return (
-        <div className="flex flex-col items-center justify-center py-12">
+        <div className="flex flex-col items-center justify-center py-8">
           <Settings size={48} className="text-gray-500 mb-4" />
-          <div className="text-white font-medium mb-2">YouTube Search Not Configured</div>
-          <p className="text-gray-400 text-sm text-center mb-4 max-w-md">
-            Add your YouTube API key in Settings to search for videos.
-            <br />
-            <span className="text-gray-500">
-              Alternatively, install yt-dlp for advanced streaming mode.
-            </span>
-          </p>
+          <div className="text-white font-medium mb-4">YouTube Search Not Configured</div>
+          <div className="text-gray-400 text-sm text-left mb-6 max-w-md">
+            <p className="mb-3">To enable YouTube search, you need a YouTube Data API key:</p>
+            <ol className="list-decimal list-inside space-y-1 text-gray-300">
+              <li>Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">Google Cloud Console</a></li>
+              <li>Create a new project (or select existing)</li>
+              <li>Enable "YouTube Data API v3" in APIs & Services &gt; Library</li>
+              <li>Go to APIs & Services &gt; Credentials</li>
+              <li>Click "Create Credentials" &gt; "API Key"</li>
+              <li>Copy the key and paste it in Settings &gt; YouTube</li>
+            </ol>
+            <p className="mt-3 text-gray-500 text-xs italic">Free tier: ~100 searches per day</p>
+          </div>
           <button
             onClick={() => {
               setActiveTab("youtube");
