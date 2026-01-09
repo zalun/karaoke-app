@@ -206,6 +206,10 @@ impl YouTubeApiService {
             return Err(YouTubeApiError::InvalidApiKey);
         }
 
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(YouTubeApiError::Network("Rate limited. Please wait before trying again.".to_string()));
+        }
+
         if !status.is_success() {
             return Err(YouTubeApiError::Network(format!(
                 "API returned status {}",
@@ -452,6 +456,7 @@ impl YouTubeApiService {
         // Fall back to HTTP status code
         match error.code {
             403 => YouTubeApiError::QuotaExceeded,
+            429 => YouTubeApiError::Network("Rate limited. Please wait before trying again.".to_string()),
             400 | 401 => YouTubeApiError::InvalidApiKey,
             _ => YouTubeApiError::Network(error.message.clone()),
         }
@@ -498,5 +503,25 @@ mod tests {
         // Invalid format
         assert_eq!(YouTubeApiService::parse_iso8601_duration("invalid"), None);
         assert_eq!(YouTubeApiService::parse_iso8601_duration("P1D"), None);
+    }
+
+    #[test]
+    fn test_parse_iso8601_duration_edge_cases() {
+        // Zero duration
+        assert_eq!(YouTubeApiService::parse_iso8601_duration("PT0S"), Some(0));
+        // Only hours
+        assert_eq!(YouTubeApiService::parse_iso8601_duration("PT1H"), Some(3600));
+        assert_eq!(YouTubeApiService::parse_iso8601_duration("PT2H"), Some(7200));
+        // Large values
+        assert_eq!(
+            YouTubeApiService::parse_iso8601_duration("PT10H30M15S"),
+            Some(37815)
+        );
+        // Empty after PT prefix (returns 0 which is valid)
+        assert_eq!(YouTubeApiService::parse_iso8601_duration("PT"), Some(0));
+        // Missing PT prefix
+        assert_eq!(YouTubeApiService::parse_iso8601_duration("4M13S"), None);
+        // Empty string
+        assert_eq!(YouTubeApiService::parse_iso8601_duration(""), None);
     }
 }

@@ -321,12 +321,14 @@ pub async fn youtube_api_search(
 
     // Get API key from settings
     // SECURITY: Never log the API key - it should remain secret
-    // Note: Using unwrap_or_else to recover from poisoned lock (if a thread panicked while holding it)
     let api_key = {
         let db = state
             .db
             .lock()
-            .unwrap_or_else(|e| e.into_inner());
+            .map_err(|e| {
+                log::error!("Database mutex poisoned: {}", e);
+                YouTubeError::Config("Database error - please restart the app".to_string())
+            })?;
         db.get_setting("youtube_api_key")
             .map_err(|e| YouTubeError::Config(format!("Failed to get API key: {}", e)))?
     };
@@ -380,12 +382,14 @@ pub async fn youtube_get_search_method(
     debug!("youtube_get_search_method: checking available methods");
 
     // Acquire database lock once and read both settings
-    // Note: Using unwrap_or_else to recover from poisoned lock (if a thread panicked while holding it)
     let (search_method, api_key) = {
         let db = state
             .db
             .lock()
-            .unwrap_or_else(|e| e.into_inner());
+            .map_err(|e| {
+                log::error!("Database mutex poisoned: {}", e);
+                "Database error - please restart the app".to_string()
+            })?;
         let method = db
             .get_setting("youtube_search_method")
             .map_err(|e| format!("Failed to get search method: {}", e))?;

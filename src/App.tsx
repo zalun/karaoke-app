@@ -27,7 +27,7 @@ import { SettingsDialog } from "./components/settings";
 import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, getStreamUrlWithCache, notify, type QueueItem, type LibraryVideo } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star } from "lucide-react";
-import { youtubeService, createLogger } from "./services";
+import { youtubeService, createLogger, getErrorMessage } from "./services";
 import { useMediaControls, useDisplayWatcher, useUpdateCheck } from "./hooks";
 import { NotificationBar } from "./components/notification";
 import type { SearchResult } from "./types";
@@ -135,9 +135,7 @@ function App() {
         await searchLibrary(query, MAX_SEARCH_RESULTS);
       } catch (err) {
         log.error("Local search failed", err);
-        setSearchError(
-          err instanceof Error ? err.message : "Local search failed"
-        );
+        setSearchError(getErrorMessage(err, "Local search failed"));
       }
     } else {
       // YouTube search
@@ -165,9 +163,7 @@ function App() {
         setSearchResults(results);
       } catch (err) {
         log.error("Search failed", err);
-        setSearchError(
-          err instanceof Error ? err.message : "Search failed"
-        );
+        setSearchError(getErrorMessage(err, "Search failed"));
         setSearchResults([]);
       } finally {
         setIsSearching(false);
@@ -212,9 +208,7 @@ function App() {
         log.info(`Now playing: ${result.title}`);
       } catch (err) {
         log.error("Failed to get stream URL", err);
-        setSearchError(
-          err instanceof Error ? err.message : "Failed to load video"
-        );
+        setSearchError(getErrorMessage(err, "Failed to load video"));
         setCurrentVideo(null); // Clear on error
         setIsLoading(false);
         setIsPlaying(false);

@@ -7,7 +7,7 @@ import { useLibraryStore } from "../../stores";
 import { MissingFileDialog } from "../search/MissingFileDialog";
 import { ActiveSingerSelector } from "../search/ActiveSingerSelector";
 import { FavoriteStar } from "../favorites";
-import { createLogger } from "../../services/logger";
+import { createLogger, getErrorMessage } from "../../services";
 
 const log = createLogger("LibraryBrowser");
 
@@ -97,7 +97,7 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
       setOffset(newOffset);
     } catch (err) {
       log.error("Failed to browse library:", err);
-      setError(err instanceof Error ? err.message : String(err));
+      setError(getErrorMessage(err, "Failed to browse library"));
     } finally {
       setIsLoading(false);
     }

@@ -5,7 +5,7 @@ import {
   getYouTubeErrorMessage,
   createAutoplayRetryHandler,
 } from "../../services/youtubeIframe";
-import { createLogger } from "../../services";
+import { createLogger, getErrorMessage } from "../../services";
 import { Z_INDEX_PLAY_OVERLAY, Z_INDEX_VIDEO } from "../../styles/zIndex";
 
 const log = createLogger("YouTubePlayer");
@@ -274,7 +274,7 @@ export function YouTubePlayer({
         playerRef.current = player;
       } catch (err) {
         if (!mounted) return;
-        const message = err instanceof Error ? err.message : "Failed to load YouTube player";
+        const message = getErrorMessage(err, "Failed to load YouTube player");
         log.error("Failed to initialize YouTube player", err);
         setError(message);
         setIsLoading(false);
