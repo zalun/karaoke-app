@@ -1,4 +1,5 @@
 import { useRef, useEffect, useMemo } from "react";
+import { Settings } from "lucide-react";
 import type { SearchResult } from "../../types";
 import { usePlayerStore, useFavoritesStore, useSettingsStore, SETTINGS_KEYS, type Video } from "../../stores";
 import { FavoriteStar } from "../favorites";
@@ -117,6 +118,35 @@ export function SearchResults({
   }
 
   if (error) {
+    // Check if error is about configuration - show setup prompt
+    const isConfigError = error.includes("not configured");
+    const { openSettingsDialog, setActiveTab } = useSettingsStore.getState();
+
+    if (isConfigError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Settings size={48} className="text-gray-500 mb-4" />
+          <div className="text-white font-medium mb-2">YouTube Search Not Configured</div>
+          <p className="text-gray-400 text-sm text-center mb-4 max-w-md">
+            Add your YouTube API key in Settings to search for videos.
+            <br />
+            <span className="text-gray-500">
+              Alternatively, install yt-dlp for advanced streaming mode.
+            </span>
+          </p>
+          <button
+            onClick={() => {
+              setActiveTab("youtube");
+              openSettingsDialog();
+            }}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+          >
+            Open YouTube Settings
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-red-400">{error}</div>

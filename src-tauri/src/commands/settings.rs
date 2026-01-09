@@ -19,6 +19,8 @@ const ALLOWED_SETTING_KEYS: &[&str] = &[
     "playback_mode",
     "ytdlp_available",          // cached yt-dlp check result
     "search_include_lyrics",    // include lyrics content in local library search
+    "youtube_api_key",          // YouTube Data API key
+    "youtube_search_method",    // "auto" | "api" | "ytdlp"
 ];
 
 /// Get the current debug mode state

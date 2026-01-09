@@ -145,13 +145,28 @@ function App() {
       setSearchError(null);
 
       try {
-        const results = await youtubeService.search(query, MAX_SEARCH_RESULTS);
+        // Determine which search method to use
+        const method = await youtubeService.getSearchMethod();
+        log.info(`YouTube search method: ${method}`);
+
+        if (method === "none") {
+          // No search method available - show setup prompt
+          setSearchError("YouTube search is not configured. Please add your YouTube API key in Settings > YouTube, or install yt-dlp for advanced mode.");
+          setSearchResults([]);
+          return;
+        }
+
+        // Use appropriate search method
+        const results = method === "api"
+          ? await youtubeService.apiSearch(query, MAX_SEARCH_RESULTS)
+          : await youtubeService.search(query, MAX_SEARCH_RESULTS);
+
         log.info(`Search returned ${results.length} results`);
         setSearchResults(results);
       } catch (err) {
         log.error("Search failed", err);
         setSearchError(
-          err instanceof Error ? err.message : "Search failed. Is yt-dlp installed?"
+          err instanceof Error ? err.message : "Search failed"
         );
         setSearchResults([]);
       } finally {

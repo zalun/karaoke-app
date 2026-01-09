@@ -15,10 +15,16 @@ import {
   Trash2,
   FolderPlus,
   Search,
+  Youtube,
+  Eye,
+  EyeOff,
+  CheckCircle,
+  XCircle,
+  ExternalLink,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore, useLibraryStore, SETTINGS_KEYS, notify } from "../../stores";
-import { updateService, createLogger } from "../../services";
+import { updateService, createLogger, youtubeService } from "../../services";
 import type { SettingsTab } from "../../stores";
 
 const log = createLogger("SettingsDialog");
@@ -28,6 +34,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Play }[] = [
   { id: "display", label: "Display", icon: Monitor },
   { id: "queue", label: "Queue & History", icon: List },
   { id: "search", label: "Search", icon: Search },
+  { id: "youtube", label: "YouTube", icon: Youtube },
   { id: "library", label: "Library", icon: HardDrive },
   { id: "advanced", label: "Advanced", icon: Wrench },
   { id: "about", label: "About", icon: Info },
@@ -183,6 +190,12 @@ export function SettingsDialog() {
                 )}
                 {activeTab === "search" && (
                   <SearchSettings
+                    getSetting={getSetting}
+                    setSetting={setSetting}
+                  />
+                )}
+                {activeTab === "youtube" && (
+                  <YouTubeSettings
                     getSetting={getSetting}
                     setSetting={setSetting}
                   />
@@ -502,6 +515,170 @@ function SearchSettings({ getSetting, setSetting }: SettingsSectionProps) {
             When enabled, search will also match lyrics content from .hkmeta.json files
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function YouTubeSettings({ getSetting, setSetting }: SettingsSectionProps) {
+  const [apiKey, setApiKey] = useState(getSetting(SETTINGS_KEYS.YOUTUBE_API_KEY) || "");
+  const [showKey, setShowKey] = useState(false);
+  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [testMessage, setTestMessage] = useState("");
+  const handleChange = createSettingHandler(setSetting);
+
+  // Update local state when settings change
+  useEffect(() => {
+    setApiKey(getSetting(SETTINGS_KEYS.YOUTUBE_API_KEY) || "");
+  }, [getSetting]);
+
+  const handleSaveKey = async () => {
+    try {
+      await setSetting(SETTINGS_KEYS.YOUTUBE_API_KEY, apiKey);
+      notify("success", "API key saved");
+    } catch (error) {
+      log.error("Failed to save API key:", error);
+      notify("error", "Failed to save API key");
+    }
+  };
+
+  const handleTestKey = async () => {
+    if (!apiKey.trim()) {
+      setTestStatus("error");
+      setTestMessage("Please enter an API key first");
+      return;
+    }
+
+    setTestStatus("testing");
+    setTestMessage("");
+
+    try {
+      const valid = await youtubeService.validateApiKey(apiKey);
+      if (valid) {
+        setTestStatus("success");
+        setTestMessage("API key is valid");
+      } else {
+        setTestStatus("error");
+        setTestMessage("Invalid API key");
+      }
+    } catch (error) {
+      setTestStatus("error");
+      const errorMsg = error instanceof Error ? error.message : "Validation failed";
+      setTestMessage(errorMsg);
+      log.error("API key validation failed:", error);
+    }
+  };
+
+  return (
+    <div>
+      <h4 className="text-lg font-medium text-white mb-4">YouTube</h4>
+
+      {/* API Key Section */}
+      <div className="mb-6 p-4 bg-gray-700/30 rounded-lg">
+        <h5 className="text-sm font-medium text-gray-300 mb-2">
+          YouTube Data API Key
+        </h5>
+        <p className="text-xs text-gray-500 mb-3">
+          Required for YouTube search. Get a free API key from the{" "}
+          <a
+            href="https://console.cloud.google.com/apis/credentials"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"
+          >
+            Google Cloud Console
+            <ExternalLink size={12} />
+          </a>
+          . Free tier: ~100 searches/day.
+        </p>
+
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type={showKey ? "text" : "password"}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="AIza..."
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white pr-10 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+              >
+                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveKey}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded transition-colors"
+            >
+              Save
+            </button>
+            <button
+              onClick={handleTestKey}
+              disabled={testStatus === "testing"}
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm rounded transition-colors flex items-center gap-2"
+            >
+              {testStatus === "testing" ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                "Test"
+              )}
+            </button>
+          </div>
+
+          {/* Test result */}
+          {testStatus !== "idle" && testStatus !== "testing" && (
+            <div
+              className={`flex items-center gap-2 text-sm ${
+                testStatus === "success" ? "text-green-400" : "text-red-400"
+              }`}
+            >
+              {testStatus === "success" ? (
+                <CheckCircle size={16} />
+              ) : (
+                <XCircle size={16} />
+              )}
+              {testMessage}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Search Method Selection */}
+      <SettingRow
+        label="Search Method"
+        description="How to search for YouTube videos"
+      >
+        <SelectInput
+          value={getSetting(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD)}
+          options={[
+            { value: "auto", label: "Auto (Recommended)" },
+            { value: "api", label: "YouTube API only" },
+            { value: "ytdlp", label: "yt-dlp only" },
+          ]}
+          onChange={(v) => handleChange(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD, v)}
+        />
+      </SettingRow>
+
+      <div className="mt-4 text-xs text-gray-500">
+        <p className="mb-2">
+          <strong>Auto:</strong> Uses YouTube API if key is configured, otherwise falls back to yt-dlp.
+        </p>
+        <p className="mb-2">
+          <strong>YouTube API:</strong> Official API, ~100 searches/day free. Requires API key.
+        </p>
+        <p>
+          <strong>yt-dlp:</strong> No API key needed, but requires yt-dlp to be installed.
+        </p>
       </div>
     </div>
   );
