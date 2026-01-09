@@ -8,6 +8,33 @@ use tokio::process::Command;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+/// Windows process creation flag to hide console window.
+/// See: https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+/// Extension trait to configure Command for silent execution on Windows.
+/// On Windows, this prevents a console window from briefly appearing.
+/// On other platforms, this is a no-op.
+pub trait CommandNoWindow {
+    fn no_window(&mut self) -> &mut Self;
+}
+
+impl CommandNoWindow for Command {
+    #[cfg(windows)]
+    fn no_window(&mut self) -> &mut Self {
+        self.creation_flags(CREATE_NO_WINDOW)
+    }
+
+    #[cfg(not(windows))]
+    fn no_window(&mut self) -> &mut Self {
+        self
+    }
+}
+
 /// Common installation paths for yt-dlp and other CLI tools.
 /// macOS .app bundles don't inherit the user's shell PATH, so we need to
 /// check these locations directly.
@@ -189,6 +216,7 @@ impl YtDlpService {
             let result = Command::new(&path)
                 .arg("--version")
                 .env("PATH", get_expanded_path())
+                .no_window()
                 .output()
                 .await
                 .map(|o| o.status.success())
@@ -245,6 +273,7 @@ impl YtDlpService {
             .arg("--flat-playlist")
             .arg("--no-warnings")
             .env("PATH", get_expanded_path())
+            .no_window()
             .output()
             .await
             .map_err(|e| {
@@ -323,6 +352,7 @@ impl YtDlpService {
             .arg("--get-url")
             .arg("--no-warnings")
             .env("PATH", get_expanded_path())
+            .no_window()
             .output()
             .await
             .map_err(|e| {
@@ -369,6 +399,7 @@ impl YtDlpService {
             .arg("--no-warnings")
             .arg("--no-download")
             .env("PATH", get_expanded_path())
+            .no_window()
             .output()
             .await
             .map_err(|e| {
