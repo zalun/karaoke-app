@@ -321,11 +321,12 @@ pub async fn youtube_api_search(
 
     // Get API key from settings
     // SECURITY: Never log the API key - it should remain secret
+    // Note: Using unwrap_or_else to recover from poisoned lock (if a thread panicked while holding it)
     let api_key = {
         let db = state
             .db
             .lock()
-            .map_err(|e| YouTubeError::Config(format!("Database lock failed: {}", e)))?;
+            .unwrap_or_else(|e| e.into_inner());
         db.get_setting("youtube_api_key")
             .map_err(|e| YouTubeError::Config(format!("Failed to get API key: {}", e)))?
     };
@@ -384,11 +385,12 @@ pub async fn youtube_get_search_method(
     debug!("youtube_get_search_method: checking available methods");
 
     // Acquire database lock once and read both settings
+    // Note: Using unwrap_or_else to recover from poisoned lock (if a thread panicked while holding it)
     let (search_method, api_key) = {
         let db = state
             .db
             .lock()
-            .map_err(|e| format!("Database lock failed: {}", e))?;
+            .unwrap_or_else(|e| e.into_inner());
         let method = db
             .get_setting("youtube_search_method")
             .map_err(|e| format!("Failed to get search method: {}", e))?;

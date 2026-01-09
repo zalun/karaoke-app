@@ -143,7 +143,7 @@ impl YouTubeApiService {
 
         let client = reqwest::Client::builder()
             .user_agent(USER_AGENT)
-            .timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(15))
             .build()
             .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 

@@ -37,6 +37,12 @@ export interface TauriMockConfig {
   shouldFailStreamUrl?: boolean;
   /** Initial playback mode setting */
   playbackMode?: "youtube" | "ytdlp";
+  /** Initial search method setting */
+  searchMethod?: "api" | "ytdlp";
+  /** Whether YouTube API key is configured */
+  hasApiKey?: boolean;
+  /** Whether API key validation should succeed */
+  apiKeyValid?: boolean;
   /** Initial queue state */
   queueState?: {
     queue: unknown[];
@@ -81,6 +87,8 @@ export async function injectTauriMocks(
       search_include_lyrics: "true",
       playback_mode: mockConfig.playbackMode || "youtube",
       ytdlp_available: mockConfig.ytdlpAvailable !== false ? "true" : "",
+      youtube_search_method: mockConfig.searchMethod || "api",
+      youtube_api_key: mockConfig.hasApiKey !== false ? "AIzaTestKey123456789" : "",
     };
 
     // In-memory settings store for tests
@@ -153,6 +161,29 @@ export async function injectTauriMocks(
 
           case "youtube_install_ytdlp":
             return { success: true, message: "Installed", output: "" };
+
+          // YouTube Data API commands
+          case "youtube_api_search":
+            if (config.shouldFailSearch) {
+              throw new Error("YouTube API search failed");
+            }
+            return config.searchResults || [];
+
+          case "youtube_validate_api_key":
+            if (config.apiKeyValid === false) {
+              throw new Error("Invalid API key");
+            }
+            return true;
+
+          case "youtube_get_search_method": {
+            const apiKey = settingsStore["youtube_api_key"];
+            const method = settingsStore["youtube_search_method"] || "api";
+            if (method === "ytdlp") {
+              return config.ytdlpAvailable !== false ? "ytdlp" : "none";
+            }
+            // Default to API mode
+            return apiKey ? "api" : "none";
+          }
 
           // Settings commands
           case "settings_get":
