@@ -151,7 +151,7 @@ function App() {
 
         if (method === "none") {
           // No search method available - show setup prompt
-          setSearchError("YouTube search is not configured. Please add your YouTube API key in Settings > YouTube, or install yt-dlp.");
+          setSearchError("YouTube search is not configured. Please add your YouTube API key in Settings > Advanced, or install yt-dlp.");
           setSearchResults([]);
           return;
         }

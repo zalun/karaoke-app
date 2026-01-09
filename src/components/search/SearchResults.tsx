@@ -73,7 +73,7 @@ export function SearchResults({
       // YouTube video IDs are exactly 11 characters
       // (channels/playlists have different ID formats)
       if (result.id.length !== 11) return false;
-      // Note: duration may be undefined for YouTube API results (only available via yt-dlp)
+      // Duration is fetched via YouTube API (videos endpoint) or yt-dlp
       return true;
     });
   }, [results]);
