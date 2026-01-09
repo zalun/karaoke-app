@@ -28,7 +28,7 @@ pub enum YouTubeApiError {
     #[error("Invalid API key or access denied")]
     InvalidApiKey,
 
-    #[error("Daily quota exceeded. Limit resets at midnight Pacific Time.")]
+    #[error("Daily quota exceeded. Limit resets at midnight Pacific Time. You can switch to yt-dlp mode in Settings > Advanced.")]
     QuotaExceeded,
 
     #[error("Network error: {0}")]

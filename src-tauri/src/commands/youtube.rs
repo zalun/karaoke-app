@@ -320,6 +320,7 @@ pub async fn youtube_api_search(
     debug!("youtube_api_search: query='{}', max_results={}", query, max);
 
     // Get API key from settings
+    // SECURITY: Never log the API key - it should remain secret
     let api_key = {
         let db = state
             .db

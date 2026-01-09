@@ -15,7 +15,6 @@ import {
   Trash2,
   FolderPlus,
   Search,
-  Youtube,
   Eye,
   EyeOff,
   CheckCircle,
@@ -34,7 +33,6 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Play }[] = [
   { id: "display", label: "Display", icon: Monitor },
   { id: "queue", label: "Queue & History", icon: List },
   { id: "search", label: "Search", icon: Search },
-  { id: "youtube", label: "YouTube", icon: Youtube },
   { id: "library", label: "Library", icon: HardDrive },
   { id: "advanced", label: "Advanced", icon: Wrench },
   { id: "about", label: "About", icon: Info },
@@ -190,12 +188,6 @@ export function SettingsDialog() {
                 )}
                 {activeTab === "search" && (
                   <SearchSettings
-                    getSetting={getSetting}
-                    setSetting={setSetting}
-                  />
-                )}
-                {activeTab === "youtube" && (
-                  <YouTubeSettings
                     getSetting={getSetting}
                     setSetting={setSetting}
                   />
@@ -520,17 +512,37 @@ function SearchSettings({ getSetting, setSetting }: SettingsSectionProps) {
   );
 }
 
-function YouTubeSettings({ getSetting, setSetting }: SettingsSectionProps) {
+function AdvancedSettings({
+  getSetting,
+  setSetting,
+  onResetToDefaults,
+}: SettingsSectionProps & {
+  onResetToDefaults: () => void;
+}) {
+  const [showConfirm, setShowConfirm] = useState(false);
   const [apiKey, setApiKey] = useState(getSetting(SETTINGS_KEYS.YOUTUBE_API_KEY) || "");
   const [showKey, setShowKey] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [testMessage, setTestMessage] = useState("");
+  const ytDlpAvailable = useSettingsStore((state) => state.ytDlpAvailable);
+  const ytDlpChecking = useSettingsStore((state) => state.ytDlpChecking);
+  const ytDlpChecked = useSettingsStore((state) => state.ytDlpChecked);
+  const checkYtDlpAvailability = useSettingsStore((state) => state.checkYtDlpAvailability);
   const handleChange = createSettingHandler(setSetting);
 
-  // Update local state when settings change
+  // Update local API key state when settings change
   useEffect(() => {
     setApiKey(getSetting(SETTINGS_KEYS.YOUTUBE_API_KEY) || "");
   }, [getSetting]);
+
+  const handleReset = () => {
+    setShowConfirm(false);
+    onResetToDefaults();
+  };
+
+  const handleRecheck = () => {
+    checkYtDlpAvailability(true); // force recheck
+  };
 
   const handleSaveKey = async () => {
     try {
@@ -571,9 +583,9 @@ function YouTubeSettings({ getSetting, setSetting }: SettingsSectionProps) {
 
   return (
     <div>
-      <h4 className="text-lg font-medium text-white mb-4">YouTube</h4>
+      <h4 className="text-lg font-medium text-white mb-4">Advanced</h4>
 
-      {/* API Key Section */}
+      {/* YouTube API Key Section */}
       <div className="mb-6 p-4 bg-gray-700/30 rounded-lg">
         <h5 className="text-sm font-medium text-gray-300 mb-2">
           YouTube Data API Key
@@ -655,13 +667,13 @@ function YouTubeSettings({ getSetting, setSetting }: SettingsSectionProps) {
 
       {/* Search Method Selection */}
       <SettingRow
-        label="Search Method"
+        label="YouTube Search Method"
         description="How to search for YouTube videos"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD)}
           options={[
-            { value: "auto", label: "Auto (Recommended)" },
+            { value: "auto", label: "Auto" },
             { value: "api", label: "YouTube API only" },
             { value: "ytdlp", label: "yt-dlp only" },
           ]}
@@ -669,52 +681,23 @@ function YouTubeSettings({ getSetting, setSetting }: SettingsSectionProps) {
         />
       </SettingRow>
 
-      <div className="mt-4 text-xs text-gray-500">
-        <p className="mb-2">
+      <div className="mb-6 text-xs text-gray-500">
+        <p className="mb-1">
           <strong>Auto:</strong> Uses YouTube API if key is configured, otherwise falls back to yt-dlp.
         </p>
-        <p className="mb-2">
+        <p className="mb-1">
           <strong>YouTube API:</strong> Official API, ~100 searches/day free. Requires API key.
         </p>
         <p>
           <strong>yt-dlp:</strong> No API key needed, but requires yt-dlp to be installed.
         </p>
       </div>
-    </div>
-  );
-}
 
-function AdvancedSettings({
-  getSetting,
-  setSetting,
-  onResetToDefaults,
-}: SettingsSectionProps & {
-  onResetToDefaults: () => void;
-}) {
-  const [showConfirm, setShowConfirm] = useState(false);
-  const ytDlpAvailable = useSettingsStore((state) => state.ytDlpAvailable);
-  const ytDlpChecking = useSettingsStore((state) => state.ytDlpChecking);
-  const ytDlpChecked = useSettingsStore((state) => state.ytDlpChecked);
-  const checkYtDlpAvailability = useSettingsStore((state) => state.checkYtDlpAvailability);
-  const handleChange = createSettingHandler(setSetting);
-
-  const handleReset = () => {
-    setShowConfirm(false);
-    onResetToDefaults();
-  };
-
-  const handleRecheck = () => {
-    checkYtDlpAvailability(true); // force recheck
-  };
-
-  return (
-    <div>
-      <h4 className="text-lg font-medium text-white mb-4">Advanced</h4>
-
+      {/* yt-dlp Status */}
       {ytDlpChecking && (
         <div className="text-sm text-gray-400 mb-6 flex items-center gap-2">
           <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
-          Investigating your system...
+          Checking yt-dlp availability...
         </div>
       )}
 
@@ -743,7 +726,7 @@ function AdvancedSettings({
           >
             Recheck
           </button>{" "}
-          after installing to enable advanced playback options.
+          after installing to enable advanced playback and search options.
         </div>
       )}
 

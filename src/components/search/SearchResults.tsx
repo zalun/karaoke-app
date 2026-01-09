@@ -70,10 +70,10 @@ export function SearchResults({
   // Filter out channels/playlists (memoized to avoid recomputing on every render)
   const videoResults = useMemo(() => {
     return results.filter((result) => {
-      // Must have a duration (videos have duration, channels/playlists don't)
-      if (!result.duration || result.duration === 0) return false;
       // YouTube video IDs are exactly 11 characters
+      // (channels/playlists have different ID formats)
       if (result.id.length !== 11) return false;
+      // Note: duration may be undefined for YouTube API results (only available via yt-dlp)
       return true;
     });
   }, [results]);
@@ -135,18 +135,18 @@ export function SearchResults({
               <li>Enable "YouTube Data API v3" in APIs & Services &gt; Library</li>
               <li>Go to APIs & Services &gt; Credentials</li>
               <li>Click "Create Credentials" &gt; "API Key"</li>
-              <li>Copy the key and paste it in Settings &gt; YouTube</li>
+              <li>Copy the key and paste it in Settings &gt; Advanced</li>
             </ol>
             <p className="mt-3 text-gray-500 text-xs italic">Free tier: ~100 searches per day</p>
           </div>
           <button
             onClick={() => {
-              setActiveTab("youtube");
+              setActiveTab("advanced");
               openSettingsDialog();
             }}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
           >
-            Open YouTube Settings
+            Open Advanced Settings
           </button>
         </div>
       );
