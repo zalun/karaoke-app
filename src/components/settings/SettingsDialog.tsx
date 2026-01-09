@@ -6,7 +6,6 @@ import {
   Monitor,
   List,
   HardDrive,
-  Wrench,
   Info,
   FolderOpen,
   RotateCcw,
@@ -15,6 +14,7 @@ import {
   Trash2,
   FolderPlus,
   Search,
+  Youtube,
   Eye,
   EyeOff,
   CheckCircle,
@@ -34,7 +34,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Play }[] = [
   { id: "queue", label: "Queue & History", icon: List },
   { id: "search", label: "Search", icon: Search },
   { id: "library", label: "Library", icon: HardDrive },
-  { id: "advanced", label: "Advanced", icon: Wrench },
+  { id: "advanced", label: "YouTube", icon: Youtube },
   { id: "about", label: "About", icon: Info },
 ];
 
@@ -192,7 +192,12 @@ export function SettingsDialog() {
                     setSetting={setSetting}
                   />
                 )}
-                {activeTab === "library" && <LibrarySettings />}
+                {activeTab === "library" && (
+                  <LibrarySettings
+                    getSetting={getSetting}
+                    setSetting={setSetting}
+                  />
+                )}
                 {activeTab === "advanced" && (
                   <AdvancedSettings
                     getSetting={getSetting}
@@ -251,7 +256,7 @@ function SettingRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between py-3 border-b border-gray-700 last:border-b-0">
+    <div className="flex items-start justify-between py-3">
       <div className="flex-1 pr-4">
         <div className="text-sm font-medium text-white">{label}</div>
         {description && (
@@ -480,33 +485,17 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
   );
 }
 
-function SearchSettings({ getSetting, setSetting }: SettingsSectionProps) {
+function SearchSettings({ }: SettingsSectionProps) {
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Search</h4>
 
-      <div className="mb-6">
-        <div className="text-sm font-medium text-gray-300 mb-2">
-          Local Library Search
-        </div>
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={getSetting(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS) === "true"}
-              onChange={(e) =>
-                setSetting(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS, e.target.checked ? "true" : "false")
-              }
-              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-300">
-              Include lyrics in search
-            </span>
-          </label>
-          <p className="text-xs text-gray-500 ml-6">
-            When enabled, search will also match lyrics content from .hkmeta.json files
-          </p>
-        </div>
+      <div className="text-gray-400 text-sm">
+        Search settings have been moved to more specific sections:
+        <ul className="mt-2 ml-4 list-disc text-gray-500">
+          <li>YouTube search configuration → YouTube tab</li>
+          <li>Local library search options → Library tab</li>
+        </ul>
       </div>
     </div>
   );
@@ -583,7 +572,7 @@ function AdvancedSettings({
 
   return (
     <div>
-      <h4 className="text-lg font-medium text-white mb-4">Advanced</h4>
+      <h4 className="text-lg font-medium text-white mb-4">YouTube</h4>
 
       {/* YouTube API Key Section */}
       <div className="mb-6 p-4 bg-gray-700/30 rounded-lg">
@@ -667,15 +656,14 @@ function AdvancedSettings({
 
       {/* Search Method Selection */}
       <SettingRow
-        label="YouTube Search Method"
+        label="Search Method"
         description="How to search for YouTube videos"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD)}
           options={[
-            { value: "auto", label: "Auto" },
-            { value: "api", label: "YouTube API only" },
-            { value: "ytdlp", label: "yt-dlp only" },
+            { value: "api", label: "YouTube API" },
+            { value: "ytdlp", label: "yt-dlp" },
           ]}
           onChange={(v) => handleChange(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD, v)}
         />
@@ -683,10 +671,7 @@ function AdvancedSettings({
 
       <div className="mb-6 text-xs text-gray-500">
         <p className="mb-1">
-          <strong>Auto:</strong> Uses YouTube API if key is configured, otherwise falls back to yt-dlp.
-        </p>
-        <p className="mb-1">
-          <strong>YouTube API:</strong> Official API, ~100 searches/day free. Requires API key.
+          <strong>YouTube API:</strong> Official API, ~100 searches/day free. Requires API key above.
         </p>
         <p>
           <strong>yt-dlp:</strong> No API key needed, but requires yt-dlp to be installed.
@@ -702,19 +687,30 @@ function AdvancedSettings({
       )}
 
       {ytDlpChecked && ytDlpAvailable && (
-        <SettingRow
-          label="Video Streaming Mode"
-          description="YouTube embed is simpler; yt-dlp provides higher quality and works offline"
-        >
-          <SelectInput
-            value={getSetting(SETTINGS_KEYS.PLAYBACK_MODE)}
-            options={[
-              { value: "youtube", label: "YouTube Embed" },
-              { value: "ytdlp", label: "yt-dlp (advanced)" },
-            ]}
-            onChange={(v) => handleChange(SETTINGS_KEYS.PLAYBACK_MODE, v)}
-          />
-        </SettingRow>
+        <>
+          <SettingRow
+            label="Video Streaming Mode"
+            description="How to play YouTube videos"
+          >
+            <SelectInput
+              value={getSetting(SETTINGS_KEYS.PLAYBACK_MODE)}
+              options={[
+                { value: "youtube", label: "YouTube Embed" },
+                { value: "ytdlp", label: "yt-dlp" },
+              ]}
+              onChange={(v) => handleChange(SETTINGS_KEYS.PLAYBACK_MODE, v)}
+            />
+          </SettingRow>
+
+          <div className="mb-6 text-xs text-gray-500">
+            <p className="mb-1">
+              <strong>YouTube Embed:</strong> Simple and reliable. Uses YouTube's built-in player.
+            </p>
+            <p>
+              <strong>yt-dlp:</strong> Higher quality options, works offline. Requires yt-dlp installed.
+            </p>
+          </div>
+        </>
       )}
 
       {ytDlpChecked && !ytDlpAvailable && (
@@ -730,7 +726,7 @@ function AdvancedSettings({
         </div>
       )}
 
-      <div className="pt-4 border-t border-gray-700 mt-4">
+      <div className="pt-4 mt-4">
         {showConfirm ? (
           <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
             <div className="flex items-start gap-3">
@@ -865,7 +861,7 @@ function AboutSettings({
   );
 }
 
-function LibrarySettings() {
+function LibrarySettings({ getSetting, setSetting }: SettingsSectionProps) {
   const {
     folders,
     stats,
@@ -878,6 +874,7 @@ function LibrarySettings() {
     scanAll,
     loadStats,
   } = useLibraryStore();
+  const handleChange = createSettingHandler(setSetting);
 
   const [scanOptions, setScanOptions] = useState({
     createHkmeta: true,
@@ -978,6 +975,31 @@ function LibrarySettings() {
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Local Library</h4>
+
+      {/* Search Options */}
+      <div className="mb-6">
+        <div className="text-sm font-medium text-gray-300 mb-2">
+          Search Options
+        </div>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={getSetting(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS) === "true"}
+              onChange={(e) =>
+                handleChange(SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS, e.target.checked ? "true" : "false")
+              }
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-300">
+              Include lyrics in search
+            </span>
+          </label>
+          <p className="text-xs text-gray-500 ml-6">
+            When enabled, search will also match lyrics content from .hkmeta.json files
+          </p>
+        </div>
+      </div>
 
       {/* Watched Folders */}
       <div className="mb-6">

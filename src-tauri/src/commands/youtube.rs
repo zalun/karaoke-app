@@ -398,44 +398,28 @@ pub async fn youtube_get_search_method(
         (method, key)
     };
 
-    let method = search_method.unwrap_or_else(|| "auto".to_string());
+    let method = search_method.unwrap_or_else(|| "api".to_string());
     let has_api_key = api_key.map(|k| !k.trim().is_empty()).unwrap_or(false);
 
-    // If user explicitly chose a method, check if it's available
+    // Check if the chosen method is available
     match method.as_str() {
-        "api" => {
-            if has_api_key {
-                info!("youtube_get_search_method: using 'api' (user preference)");
-                return Ok("api".to_string());
-            }
-            warn!("youtube_get_search_method: API method requested but no key configured");
-            return Ok("none".to_string());
-        }
         "ytdlp" => {
             // Check if yt-dlp is available
             let service = YtDlpService::new();
             if service.is_available().await {
-                info!("youtube_get_search_method: using 'ytdlp' (user preference)");
+                info!("youtube_get_search_method: using 'ytdlp'");
                 return Ok("ytdlp".to_string());
             }
             warn!("youtube_get_search_method: yt-dlp method requested but not available");
-            return Ok("none".to_string());
+            Ok("none".to_string())
         }
-        "auto" | _ => {
-            // Auto mode: prefer API if configured, fall back to yt-dlp
+        // Default to YouTube API (including "api" and any unknown values)
+        _ => {
             if has_api_key {
-                info!("youtube_get_search_method: using 'api' (auto, key configured)");
+                info!("youtube_get_search_method: using 'api'");
                 return Ok("api".to_string());
             }
-
-            // Fall back to yt-dlp
-            let service = YtDlpService::new();
-            if service.is_available().await {
-                info!("youtube_get_search_method: using 'ytdlp' (auto, fallback)");
-                return Ok("ytdlp".to_string());
-            }
-
-            info!("youtube_get_search_method: no search method available");
+            warn!("youtube_get_search_method: API method but no key configured");
             Ok("none".to_string())
         }
     }

@@ -42,7 +42,7 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
   [SETTINGS_KEYS.HISTORY_LIMIT]: "100",
   [SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT]: "never",
   [SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS]: "true", // Default to including lyrics in search
-  [SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD]: "auto", // Auto: API if key present, else yt-dlp
+  [SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD]: "api", // Default to YouTube API
   [SETTINGS_KEYS.PLAYBACK_MODE]: "youtube", // Default to YouTube embed
 };
 
