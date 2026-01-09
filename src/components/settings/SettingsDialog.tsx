@@ -13,7 +13,6 @@ import {
   AlertTriangle,
   Trash2,
   FolderPlus,
-  Search,
   Youtube,
   Eye,
   EyeOff,
@@ -32,7 +31,6 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Play }[] = [
   { id: "playback", label: "Playback", icon: Play },
   { id: "display", label: "Display", icon: Monitor },
   { id: "queue", label: "Queue & History", icon: List },
-  { id: "search", label: "Search", icon: Search },
   { id: "library", label: "Library", icon: HardDrive },
   { id: "advanced", label: "YouTube", icon: Youtube },
   { id: "about", label: "About", icon: Info },
@@ -186,12 +184,6 @@ export function SettingsDialog() {
                     setSetting={setSetting}
                   />
                 )}
-                {activeTab === "search" && (
-                  <SearchSettings
-                    getSetting={getSetting}
-                    setSetting={setSetting}
-                  />
-                )}
                 {activeTab === "library" && (
                   <LibrarySettings
                     getSetting={getSetting}
@@ -292,6 +284,7 @@ function SelectInput({
   );
 }
 
+/* TODO: Uncomment when implementing settings that use toggles (Issues #153, #158)
 function ToggleSwitch({
   checked,
   onChange,
@@ -314,17 +307,21 @@ function ToggleSwitch({
     </button>
   );
 }
+*/
 
-function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
-  const handleChange = createSettingHandler(setSetting);
-
+function PlaybackSettings(_: SettingsSectionProps) {
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Playback</h4>
 
+      <div className="text-gray-400 text-sm">
+        Playback settings are coming soon.
+      </div>
+
+      {/* TODO: Implement these settings - Issue #152: Video Quality
       <SettingRow
         label="Video Quality"
-        description="Maximum quality for YouTube videos (not yet implemented)"
+        description="Maximum quality for YouTube videos"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.VIDEO_QUALITY)}
@@ -337,10 +334,12 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
           onChange={(v) => handleChange(SETTINGS_KEYS.VIDEO_QUALITY, v)}
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #153: Autoplay Next Song
       <SettingRow
         label="Autoplay Next Song"
-        description="Automatically play the next song in queue (not yet implemented)"
+        description="Automatically play the next song in queue"
       >
         <ToggleSwitch
           checked={getSetting(SETTINGS_KEYS.AUTOPLAY_NEXT) === "true"}
@@ -349,10 +348,12 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
           }
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #154: Default Volume
       <SettingRow
         label="Default Volume"
-        description="Volume level when app starts (not yet implemented)"
+        description="Volume level when app starts"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.DEFAULT_VOLUME)}
@@ -366,10 +367,12 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
           onChange={(v) => handleChange(SETTINGS_KEYS.DEFAULT_VOLUME, v)}
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #155: Prefetch Next Video
       <SettingRow
         label="Prefetch Next Video"
-        description="Pre-load stream URL before current song ends (not yet implemented)"
+        description="Pre-load stream URL before current song ends"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.PREFETCH_SECONDS)}
@@ -382,20 +385,24 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
           onChange={(v) => handleChange(SETTINGS_KEYS.PREFETCH_SECONDS, v)}
         />
       </SettingRow>
+      */}
     </div>
   );
 }
 
-function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
-  const handleChange = createSettingHandler(setSetting);
-
+function DisplaySettings(_: SettingsSectionProps) {
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Display</h4>
 
+      <div className="text-gray-400 text-sm">
+        Display settings are coming soon.
+      </div>
+
+      {/* TODO: Issue #156: Next Song Overlay
       <SettingRow
         label="Next Song Overlay"
-        description="Show upcoming song info before current song ends (not yet implemented)"
+        description="Show upcoming song info before current song ends"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS)}
@@ -410,10 +417,12 @@ function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
           }
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #157: Singer Announcement
       <SettingRow
         label="Singer Announcement"
-        description="Duration to show current singer name (not yet implemented)"
+        description="Duration to show current singer name"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.SINGER_ANNOUNCEMENT_SECONDS)}
@@ -428,10 +437,12 @@ function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
           }
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #158: Remember Player Position
       <SettingRow
         label="Remember Player Position"
-        description="Restore detached player window position (not yet implemented)"
+        description="Restore detached player window position"
       >
         <ToggleSwitch
           checked={getSetting(SETTINGS_KEYS.REMEMBER_PLAYER_POSITION) === "true"}
@@ -440,20 +451,24 @@ function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
           }
         />
       </SettingRow>
+      */}
     </div>
   );
 }
 
-function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
-  const handleChange = createSettingHandler(setSetting);
-
+function QueueSettings(_: SettingsSectionProps) {
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Queue & History</h4>
 
+      <div className="text-gray-400 text-sm">
+        Queue & History settings are coming soon.
+      </div>
+
+      {/* TODO: Issue #159: History Limit
       <SettingRow
         label="History Limit"
-        description="Maximum number of songs to keep in history (not yet implemented)"
+        description="Maximum number of songs to keep in history"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.HISTORY_LIMIT)}
@@ -466,10 +481,12 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
           onChange={(v) => handleChange(SETTINGS_KEYS.HISTORY_LIMIT, v)}
         />
       </SettingRow>
+      */}
 
+      {/* TODO: Issue #160: Clear Queue on Exit
       <SettingRow
         label="Clear Queue on Exit"
-        description="What to do with the queue when closing the app (not yet implemented)"
+        description="What to do with the queue when closing the app"
       >
         <SelectInput
           value={getSetting(SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT)}
@@ -481,25 +498,11 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
           onChange={(v) => handleChange(SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT, v)}
         />
       </SettingRow>
+      */}
     </div>
   );
 }
 
-function SearchSettings({ }: SettingsSectionProps) {
-  return (
-    <div>
-      <h4 className="text-lg font-medium text-white mb-4">Search</h4>
-
-      <div className="text-gray-400 text-sm">
-        Search settings have been moved to more specific sections:
-        <ul className="mt-2 ml-4 list-disc text-gray-500">
-          <li>YouTube search configuration → YouTube tab</li>
-          <li>Local library search options → Library tab</li>
-        </ul>
-      </div>
-    </div>
-  );
-}
 
 function AdvancedSettings({
   getSetting,
@@ -674,7 +677,7 @@ function AdvancedSettings({
           <strong>YouTube API:</strong> Official API, ~100 searches/day free. Requires API key above.
         </p>
         <p>
-          <strong>yt-dlp:</strong> No API key needed, but requires yt-dlp to be installed.
+          <strong>yt-dlp:</strong> Unofficial. Requires yt-dlp installed.
         </p>
       </div>
 
@@ -707,7 +710,7 @@ function AdvancedSettings({
               <strong>YouTube Embed:</strong> Simple and reliable. Uses YouTube's built-in player.
             </p>
             <p>
-              <strong>yt-dlp:</strong> Higher quality options, works offline. Requires yt-dlp installed.
+              <strong>yt-dlp:</strong> Unofficial. Requires yt-dlp installed.
             </p>
           </div>
         </>

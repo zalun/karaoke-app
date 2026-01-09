@@ -46,7 +46,7 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
   [SETTINGS_KEYS.PLAYBACK_MODE]: "youtube", // Default to YouTube embed
 };
 
-export type SettingsTab = "playback" | "display" | "queue" | "search" | "library" | "advanced" | "about";
+export type SettingsTab = "playback" | "display" | "queue" | "library" | "advanced" | "about";
 
 // Module-level promise prevents race conditions in checkYtDlpAvailability.
 // Not stored in Zustand state because promises aren't serializable and we need
