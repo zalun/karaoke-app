@@ -51,6 +51,29 @@ struct SearchResponse {
     error: Option<ApiError>,
 }
 
+/// YouTube Data API v3 videos.list response (for fetching duration)
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VideosResponse {
+    items: Option<Vec<VideoItem>>,
+    error: Option<ApiError>,
+}
+
+/// Video item from videos.list endpoint
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VideoItem {
+    id: String,
+    content_details: Option<ContentDetails>,
+}
+
+/// Video content details (contains duration)
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ContentDetails {
+    duration: Option<String>, // ISO 8601 duration format, e.g., "PT4M13S"
+}
+
 /// API error response
 #[derive(Debug, Deserialize)]
 struct ApiError {
@@ -130,7 +153,7 @@ impl YouTubeApiService {
     /// Search for videos on YouTube
     ///
     /// Returns up to `max_results` videos matching the query.
-    /// Note: Duration and view count are not available from search endpoint.
+    /// Duration is fetched via a separate API call (batched for efficiency).
     pub async fn search(
         &self,
         query: &str,
@@ -142,22 +165,22 @@ impl YouTubeApiService {
 
         let max_results = max_results.min(50); // API limit
 
-        let url = format!(
-            "{}/search?part=snippet&type=video&q={}&maxResults={}&key={}",
-            YOUTUBE_API_BASE,
-            urlencoding::encode(query),
-            max_results,
-            urlencoding::encode(&self.api_key)
-        );
-
         debug!(
             "YouTube API search: query='{}', maxResults={}",
             query, max_results
         );
 
+        // Use query builder to avoid API key appearing in debug logs
         let response = self
             .client
-            .get(&url)
+            .get(format!("{}/search", YOUTUBE_API_BASE))
+            .query(&[
+                ("part", "snippet"),
+                ("type", "video"),
+                ("q", query),
+                ("maxResults", &max_results.to_string()),
+                ("key", &self.api_key),
+            ])
             .send()
             .await
             .map_err(|e| YouTubeApiError::Network(e.to_string()))?;
@@ -238,23 +261,151 @@ impl YouTubeApiService {
             query
         );
 
+        // Fetch durations for all results in a single batch request
+        if !results.is_empty() {
+            let video_ids: Vec<&str> = results.iter().map(|r| r.id.as_str()).collect();
+            match self.fetch_video_durations(&video_ids).await {
+                Ok(durations) => {
+                    // Create a new results vec with durations merged in
+                    let results_with_duration: Vec<SearchResult> = results
+                        .into_iter()
+                        .map(|mut r| {
+                            if let Some(&duration) = durations.get(&r.id) {
+                                r.duration = Some(duration);
+                            }
+                            r
+                        })
+                        .collect();
+                    return Ok(results_with_duration);
+                }
+                Err(e) => {
+                    // Log but don't fail - duration is optional
+                    warn!("Failed to fetch video durations: {}", e);
+                }
+            }
+        }
+
         Ok(results)
+    }
+
+    /// Fetch durations for multiple videos in a single API call
+    ///
+    /// Returns a map of video_id -> duration_seconds
+    async fn fetch_video_durations(
+        &self,
+        video_ids: &[&str],
+    ) -> Result<std::collections::HashMap<String, u64>, YouTubeApiError> {
+        use std::collections::HashMap;
+
+        if video_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        // API allows up to 50 IDs per request
+        let ids = video_ids.join(",");
+
+        debug!("Fetching durations for {} videos", video_ids.len());
+
+        // Use query builder to avoid API key appearing in debug logs
+        let response = self
+            .client
+            .get(format!("{}/videos", YOUTUBE_API_BASE))
+            .query(&[
+                ("part", "contentDetails"),
+                ("id", &ids),
+                ("key", &self.api_key),
+            ])
+            .send()
+            .await
+            .map_err(|e| YouTubeApiError::Network(e.to_string()))?;
+
+        if !response.status().is_success() {
+            return Err(YouTubeApiError::Network(format!(
+                "Videos API returned status {}",
+                response.status()
+            )));
+        }
+
+        let body: VideosResponse = response
+            .json()
+            .await
+            .map_err(|e| YouTubeApiError::Parse(e.to_string()))?;
+
+        if let Some(error) = body.error {
+            return Err(Self::classify_error(&error));
+        }
+
+        let mut durations = HashMap::new();
+        if let Some(items) = body.items {
+            for item in items {
+                if let Some(content_details) = item.content_details {
+                    if let Some(duration_str) = content_details.duration {
+                        if let Some(seconds) = Self::parse_iso8601_duration(&duration_str) {
+                            durations.insert(item.id, seconds);
+                        }
+                    }
+                }
+            }
+        }
+
+        debug!("Fetched durations for {} videos", durations.len());
+        Ok(durations)
+    }
+
+    /// Parse ISO 8601 duration format (e.g., "PT4M13S") to seconds
+    fn parse_iso8601_duration(duration: &str) -> Option<u64> {
+        // Format: PT#H#M#S (hours, minutes, seconds are optional)
+        if !duration.starts_with("PT") {
+            return None;
+        }
+
+        let duration = &duration[2..]; // Remove "PT" prefix
+        let mut seconds: u64 = 0;
+        let mut current_num = String::new();
+
+        for c in duration.chars() {
+            match c {
+                '0'..='9' => current_num.push(c),
+                'H' => {
+                    if let Ok(h) = current_num.parse::<u64>() {
+                        seconds += h * 3600;
+                    }
+                    current_num.clear();
+                }
+                'M' => {
+                    if let Ok(m) = current_num.parse::<u64>() {
+                        seconds += m * 60;
+                    }
+                    current_num.clear();
+                }
+                'S' => {
+                    if let Ok(s) = current_num.parse::<u64>() {
+                        seconds += s;
+                    }
+                    current_num.clear();
+                }
+                _ => {}
+            }
+        }
+
+        Some(seconds)
     }
 
     /// Validate the API key by making a minimal search request
     pub async fn validate_key(&self) -> Result<bool, YouTubeApiError> {
-        // Make a minimal request to check if key is valid
-        let url = format!(
-            "{}/search?part=id&type=video&q=test&maxResults=1&key={}",
-            YOUTUBE_API_BASE,
-            urlencoding::encode(&self.api_key)
-        );
-
         debug!("Validating YouTube API key...");
 
+        // Use query builder to avoid API key appearing in debug logs
         let response = self
             .client
-            .get(&url)
+            .get(format!("{}/search", YOUTUBE_API_BASE))
+            .query(&[
+                ("part", "id"),
+                ("type", "video"),
+                ("q", "test"),
+                ("maxResults", "1"),
+                ("key", &self.api_key),
+            ])
             .send()
             .await
             .map_err(|e| YouTubeApiError::Network(e.to_string()))?;
@@ -324,5 +475,32 @@ mod tests {
     #[test]
     fn test_new_accepts_valid_key() {
         assert!(YouTubeApiService::new("AIzaSyTest123".to_string()).is_ok());
+    }
+
+    #[test]
+    fn test_parse_iso8601_duration() {
+        // Minutes and seconds
+        assert_eq!(
+            YouTubeApiService::parse_iso8601_duration("PT4M13S"),
+            Some(253)
+        );
+        // Hours, minutes, seconds
+        assert_eq!(
+            YouTubeApiService::parse_iso8601_duration("PT1H30M45S"),
+            Some(5445)
+        );
+        // Only minutes
+        assert_eq!(
+            YouTubeApiService::parse_iso8601_duration("PT5M"),
+            Some(300)
+        );
+        // Only seconds
+        assert_eq!(
+            YouTubeApiService::parse_iso8601_duration("PT30S"),
+            Some(30)
+        );
+        // Invalid format
+        assert_eq!(YouTubeApiService::parse_iso8601_duration("invalid"), None);
+        assert_eq!(YouTubeApiService::parse_iso8601_duration("P1D"), None);
     }
 }

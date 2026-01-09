@@ -383,31 +383,28 @@ pub async fn youtube_get_search_method(
 ) -> Result<String, String> {
     debug!("youtube_get_search_method: checking available methods");
 
-    // Check for configured search method preference
-    let search_method = {
+    // Acquire database lock once and read both settings
+    let (search_method, api_key) = {
         let db = state
             .db
             .lock()
             .map_err(|e| format!("Database lock failed: {}", e))?;
-        db.get_setting("youtube_search_method")
-            .map_err(|e| format!("Failed to get search method: {}", e))?
+        let method = db
+            .get_setting("youtube_search_method")
+            .map_err(|e| format!("Failed to get search method: {}", e))?;
+        let key = db
+            .get_setting("youtube_api_key")
+            .map_err(|e| format!("Failed to get API key: {}", e))?;
+        (method, key)
     };
 
     let method = search_method.unwrap_or_else(|| "auto".to_string());
+    let has_api_key = api_key.map(|k| !k.trim().is_empty()).unwrap_or(false);
 
     // If user explicitly chose a method, check if it's available
     match method.as_str() {
         "api" => {
-            // Check if API key is configured
-            let api_key = {
-                let db = state
-                    .db
-                    .lock()
-                    .map_err(|e| format!("Database lock failed: {}", e))?;
-                db.get_setting("youtube_api_key")
-                    .map_err(|e| format!("Failed to get API key: {}", e))?
-            };
-            if api_key.map(|k| !k.trim().is_empty()).unwrap_or(false) {
+            if has_api_key {
                 info!("youtube_get_search_method: using 'api' (user preference)");
                 return Ok("api".to_string());
             }
@@ -426,16 +423,7 @@ pub async fn youtube_get_search_method(
         }
         "auto" | _ => {
             // Auto mode: prefer API if configured, fall back to yt-dlp
-            let api_key = {
-                let db = state
-                    .db
-                    .lock()
-                    .map_err(|e| format!("Database lock failed: {}", e))?;
-                db.get_setting("youtube_api_key")
-                    .map_err(|e| format!("Failed to get API key: {}", e))?
-            };
-
-            if api_key.map(|k| !k.trim().is_empty()).unwrap_or(false) {
+            if has_api_key {
                 info!("youtube_get_search_method: using 'api' (auto, key configured)");
                 return Ok("api".to_string());
             }
