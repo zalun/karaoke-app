@@ -331,15 +331,10 @@ pub async fn youtube_api_search(
             .map_err(|e| YouTubeError::Config(format!("Failed to get API key: {}", e)))?
     };
 
-    let api_key = api_key.ok_or_else(|| {
-        YouTubeError::Config("YouTube API key not configured".to_string())
-    })?;
-
-    if api_key.trim().is_empty() {
-        return Err(YouTubeError::Config(
-            "YouTube API key not configured".to_string(),
-        ));
-    }
+    // Validate API key exists and is not empty (combined check)
+    let api_key = api_key
+        .filter(|k| !k.trim().is_empty())
+        .ok_or_else(|| YouTubeError::Config("YouTube API key not configured".to_string()))?;
 
     let service = YouTubeApiService::new(api_key)
         .map_err(|e| YouTubeError::Config(e))?;

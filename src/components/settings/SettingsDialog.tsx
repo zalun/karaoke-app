@@ -522,10 +522,15 @@ function AdvancedSettings({
   const checkYtDlpAvailability = useSettingsStore((state) => state.checkYtDlpAvailability);
   const handleChange = createSettingHandler(setSetting);
 
-  // Update local API key state when settings change
+  // Subscribe directly to the API key setting value for stable dependency
+  const storedApiKey = useSettingsStore(
+    (state) => state.settings[SETTINGS_KEYS.YOUTUBE_API_KEY] || ""
+  );
+
+  // Update local API key state when stored value changes
   useEffect(() => {
-    setApiKey(getSetting(SETTINGS_KEYS.YOUTUBE_API_KEY) || "");
-  }, [getSetting]);
+    setApiKey(storedApiKey);
+  }, [storedApiKey]);
 
   const handleReset = () => {
     setShowConfirm(false);
