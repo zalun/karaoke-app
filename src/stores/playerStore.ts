@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { platform } from "@tauri-apps/plugin-os";
 import { youtubeService, createLogger } from "../services";
 import { notify } from "./notificationStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
@@ -12,15 +13,20 @@ const WINDOWS_AUDIO_NOTICE_SHOWN_KEY = "windows_audio_notice_shown";
  * Show one-time notice about Windows audio issue on first video play.
  * Only shows on Windows platform, and only once (tracked in localStorage).
  */
-function showWindowsAudioNoticeOnce(): void {
-  // Check if we're on Windows
-  const isWindows = navigator.userAgent.includes("Windows");
-  if (!isWindows) {
+async function showWindowsAudioNoticeOnce(): Promise<void> {
+  // Check if notice was already shown (fast path, before async call)
+  if (localStorage.getItem(WINDOWS_AUDIO_NOTICE_SHOWN_KEY)) {
     return;
   }
 
-  // Check if notice was already shown
-  if (localStorage.getItem(WINDOWS_AUDIO_NOTICE_SHOWN_KEY)) {
+  // Check if we're on Windows using Tauri's OS plugin
+  try {
+    const currentPlatform = await platform();
+    if (currentPlatform !== "windows") {
+      return;
+    }
+  } catch (err) {
+    log.warn("Failed to detect platform:", err);
     return;
   }
 
@@ -256,8 +262,8 @@ export function invalidatePrefetchIfStale(expectedVideoId: string | undefined): 
  * @returns Promise that resolves when playback starts, or rejects on error
  */
 export async function playVideo(video: Video): Promise<void> {
-  // Show one-time Windows audio notice on first play
-  showWindowsAudioNoticeOnce();
+  // Show one-time Windows audio notice on first play (fire-and-forget, don't block playback)
+  showWindowsAudioNoticeOnce().catch((err) => log.warn("Windows audio notice failed:", err));
 
   if (!video.youtubeId) {
     log.warn("playVideo: video has no youtubeId, cannot play");
