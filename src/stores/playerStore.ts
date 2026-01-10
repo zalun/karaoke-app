@@ -5,6 +5,39 @@ import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 
 const log = createLogger("PlayerStore");
 
+// LocalStorage key for Windows audio notice (shown only once)
+const WINDOWS_AUDIO_NOTICE_SHOWN_KEY = "windows_audio_notice_shown";
+
+/**
+ * Show one-time notice about Windows audio issue on first video play.
+ * Only shows on Windows platform, and only once (tracked in localStorage).
+ */
+function showWindowsAudioNoticeOnce(): void {
+  // Check if we're on Windows
+  const isWindows = navigator.userAgent.includes("Windows");
+  if (!isWindows) {
+    return;
+  }
+
+  // Check if notice was already shown
+  if (localStorage.getItem(WINDOWS_AUDIO_NOTICE_SHOWN_KEY)) {
+    return;
+  }
+
+  // Mark as shown and display notice
+  localStorage.setItem(WINDOWS_AUDIO_NOTICE_SHOWN_KEY, "true");
+
+  notify(
+    "info",
+    "Windows audio notice: If the first video plays without sound, toggle mute or pause/play to restore audio.",
+    {
+      label: "Issue #162",
+      url: "https://github.com/zalun/karaoke-app/issues/162",
+    }
+  );
+  log.info("Showed one-time Windows audio notice");
+}
+
 // Cache expiration: 5 hours (YouTube URLs typically expire after 6 hours)
 const PREFETCH_CACHE_EXPIRY_MS = 5 * 60 * 60 * 1000;
 
@@ -223,6 +256,9 @@ export function invalidatePrefetchIfStale(expectedVideoId: string | undefined): 
  * @returns Promise that resolves when playback starts, or rejects on error
  */
 export async function playVideo(video: Video): Promise<void> {
+  // Show one-time Windows audio notice on first play
+  showWindowsAudioNoticeOnce();
+
   if (!video.youtubeId) {
     log.warn("playVideo: video has no youtubeId, cannot play");
     return;
