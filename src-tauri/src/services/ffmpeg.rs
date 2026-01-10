@@ -9,7 +9,7 @@ use std::process::Stdio;
 use std::sync::OnceLock;
 use tokio::process::Command;
 
-use super::ytdlp::{get_expanded_path, find_executable_in_path};
+use super::ytdlp::{get_expanded_path, find_executable_in_path, CommandNoWindow};
 
 /// Thumbnail extraction width in pixels (height auto-calculated to maintain aspect ratio)
 const THUMBNAIL_WIDTH: u32 = 320;
@@ -75,6 +75,7 @@ impl FfmpegService {
             .env("PATH", get_expanded_path())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .no_window()
             .output()
             .await
             .ok()?;
@@ -116,6 +117,7 @@ impl FfmpegService {
             .env("PATH", get_expanded_path())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .no_window()
             .output()
             .await;
 
@@ -221,6 +223,7 @@ impl FfmpegService {
             .env("PATH", get_expanded_path())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .no_window()
             .output()
             .await
             .map_err(|e| format!("Failed to execute ffmpeg: {}", e))?;
