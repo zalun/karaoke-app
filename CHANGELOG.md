@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-01-10
+
 ### Added
 - YouTube Data API v3 for search (#149)
   - Official API replaces yt-dlp as default search method
@@ -24,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings reorganized: YouTube configuration moved to dedicated "YouTube" tab
 - Unimplemented settings hidden until features are ready
 - yt-dlp marked as "Unofficial" option in settings
+
+### Fixed
+- Console window no longer flashes when running yt-dlp/ffmpeg on Windows (#150)
 
 ## [0.7.0] - 2026-01-06
 
