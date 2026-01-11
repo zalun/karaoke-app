@@ -3,6 +3,7 @@ export {
   getStreamUrlWithCache,
   invalidatePrefetchIfStale,
   playVideo,
+  showWindowsAudioNoticeOnce,
   isEmbeddingError,
   PREFETCH_THRESHOLD_SECONDS,
   EMBEDDING_ERROR_CODES,

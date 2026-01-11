@@ -13,7 +13,7 @@ const WINDOWS_AUDIO_NOTICE_SHOWN_KEY = "windows_audio_notice_shown";
  * Show one-time notice about Windows audio issue on first video play.
  * Only shows on Windows platform, and only once (tracked in localStorage).
  */
-async function showWindowsAudioNoticeOnce(): Promise<void> {
+export async function showWindowsAudioNoticeOnce(): Promise<void> {
   // Check if notice was already shown (fast path, before async call)
   if (localStorage.getItem(WINDOWS_AUDIO_NOTICE_SHOWN_KEY)) {
     log.debug("Windows audio notice already shown previously, skipping");

@@ -24,7 +24,7 @@ import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
 import { SettingsDialog } from "./components/settings";
-import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, getStreamUrlWithCache, notify, SETTINGS_KEYS, type QueueItem, type LibraryVideo, type Video } from "./stores";
+import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, getStreamUrlWithCache, showWindowsAudioNoticeOnce, notify, SETTINGS_KEYS, type QueueItem, type LibraryVideo, type Video } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star } from "lucide-react";
 import { youtubeService, createLogger, getErrorMessage } from "./services";
@@ -62,8 +62,12 @@ function shouldUseYouTubeEmbed(): boolean {
 /**
  * Prepare a video for playback, fetching stream URL if needed (yt-dlp mode only).
  * Returns the video with streamUrl added if in yt-dlp mode, or as-is for YouTube Embed.
+ * Also shows one-time Windows audio notice on first play.
  */
 async function prepareVideoForPlayback(video: Video): Promise<Video> {
+  // Show one-time Windows audio notice (fire-and-forget)
+  showWindowsAudioNoticeOnce().catch(() => {});
+
   if (shouldUseYouTubeEmbed()) {
     return video;
   }
