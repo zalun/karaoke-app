@@ -20,7 +20,7 @@ test.describe("Autoplay Next Song Setting", () => {
       await mainPage.waitForAppReady();
     });
 
-    test("Next button should advance to next song in queue", async () => {
+    test("Next button advances to next song when autoplay is enabled", async () => {
       // Search and play first video
       await mainPage.search("test");
       await mainPage.waitForSearchResults();
@@ -47,7 +47,7 @@ test.describe("Autoplay Next Song Setting", () => {
       expect(secondTitle).toContain("Test Karaoke Song 2");
     });
 
-    test("Previous button should go back to previous song", async () => {
+    test("Previous button returns to previous song when autoplay is enabled", async () => {
       // Play first video
       await mainPage.search("test");
       await mainPage.waitForSearchResults();
@@ -99,7 +99,7 @@ test.describe("Autoplay Next Song Setting", () => {
       await mainPage.waitForAppReady();
     });
 
-    test("Next button should still work when autoplay is disabled", async () => {
+    test("Next button still advances when autoplay is disabled", async () => {
       // Search and play first video
       await mainPage.search("test");
       await mainPage.waitForSearchResults();
@@ -126,7 +126,7 @@ test.describe("Autoplay Next Song Setting", () => {
       expect(secondTitle).toContain("Test Karaoke Song 2");
     });
 
-    test("Previous button should still work when autoplay is disabled", async () => {
+    test("Previous button still works when autoplay is disabled", async () => {
       // Play first video
       await mainPage.search("test");
       await mainPage.waitForSearchResults();
