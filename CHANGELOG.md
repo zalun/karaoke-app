@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-01-11
+
+### Added
+- One-time Windows audio notice on first video play (#162)
+  - Informs users to toggle mute or pause/play if first video has no sound
+  - Uses Tauri OS plugin for reliable platform detection
+
+### Fixed
+- YouTube Embed playback now works on Windows without yt-dlp (#162)
+  - App was incorrectly trying to use yt-dlp for all playback
+  - Now properly falls back to YouTube Embed when yt-dlp unavailable
+- Settings UI simplified when yt-dlp not installed (#162)
+  - Search Method and Video Streaming Mode hidden (only YouTube options available)
+  - Cleaner UX with less confusion about unavailable features
+
 ## [0.7.1] - 2026-01-10
 
 ### Added
