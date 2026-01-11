@@ -21,7 +21,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { useSettingsStore, useLibraryStore, SETTINGS_KEYS, notify } from "../../stores";
+import { useSettingsStore, useLibraryStore, usePlayerStore, SETTINGS_KEYS, notify } from "../../stores";
 import { updateService, createLogger, youtubeService } from "../../services";
 import type { SettingsTab } from "../../stores";
 
@@ -344,7 +344,6 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
         />
       </SettingRow>
 
-      {/* TODO: Issue #154: Default Volume
       <SettingRow
         label="Default Volume"
         description="Volume level when app starts"
@@ -358,10 +357,27 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
             { value: "75", label: "75%" },
             { value: "100", label: "100%" },
           ]}
-          onChange={(v) => handleChange(SETTINGS_KEYS.DEFAULT_VOLUME, v)}
+          onChange={(v) => {
+            handleChange(SETTINGS_KEYS.DEFAULT_VOLUME, v);
+            // Apply volume immediately when changing to a fixed percentage
+            if (v !== "remember") {
+              const percentage = parseInt(v, 10);
+              if (!isNaN(percentage)) {
+                usePlayerStore.getState().setVolume(percentage / 100);
+                log.info(`Applied volume: ${percentage}%`);
+              }
+            } else {
+              // When switching to "remember", use last saved volume or current volume
+              const lastVolume = getSetting(SETTINGS_KEYS.LAST_VOLUME);
+              const parsed = parseFloat(lastVolume);
+              if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+                usePlayerStore.getState().setVolume(parsed);
+                log.info(`Applied remembered volume: ${Math.round(parsed * 100)}%`);
+              }
+            }
+          }}
         />
       </SettingRow>
-      */}
 
       {/* TODO: Issue #155: Prefetch Next Video
       <SettingRow

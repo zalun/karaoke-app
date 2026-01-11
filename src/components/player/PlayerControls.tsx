@@ -11,8 +11,12 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+// Debounce delay for saving volume in "remember" mode
+const VOLUME_SAVE_DEBOUNCE_MS = 500;
+
 export function PlayerControls() {
   const progressRef = useRef<HTMLDivElement>(null);
+  const volumeSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     currentVideo,
     isPlaying,
@@ -124,6 +128,15 @@ export function PlayerControls() {
         : undefined,
       // Unique ID for each playback - changes even when replaying same video
       playbackId: current?.id,
+    };
+  }, []);
+
+  // Cleanup volume save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (volumeSaveTimerRef.current) {
+        clearTimeout(volumeSaveTimerRef.current);
+      }
     };
   }, []);
 
@@ -464,6 +477,22 @@ export function PlayerControls() {
     const newVolume = parseFloat(e.target.value);
     log.debug(`Volume: ${Math.round(newVolume * 100)}%`);
     setVolume(newVolume);
+
+    // Debounced save for "remember" mode
+    if (volumeSaveTimerRef.current) {
+      clearTimeout(volumeSaveTimerRef.current);
+    }
+
+    const { getSetting, setSetting } = useSettingsStore.getState();
+    const defaultVolume = getSetting(SETTINGS_KEYS.DEFAULT_VOLUME);
+
+    if (defaultVolume === "remember") {
+      volumeSaveTimerRef.current = setTimeout(() => {
+        setSetting(SETTINGS_KEYS.LAST_VOLUME, newVolume.toString())
+          .then(() => log.debug(`Saved volume: ${Math.round(newVolume * 100)}%`))
+          .catch((err) => log.error("Failed to save volume:", err));
+      }, VOLUME_SAVE_DEBOUNCE_MS);
+    }
   }, [setVolume]);
 
   const handleMuteToggle = useCallback(() => {

@@ -1,8 +1,32 @@
 import { useEffect, useState } from "react";
 import { createLogger } from "../services";
-import { useSettingsStore, SETTINGS_KEYS } from "../stores";
+import { useSettingsStore, usePlayerStore, SETTINGS_KEYS } from "../stores";
 
 const log = createLogger("DependencyCheck");
+
+/**
+ * Parse volume setting and return a valid volume value (0-1).
+ * Handles both "remember" mode (uses lastVolume) and fixed percentages.
+ */
+function getInitialVolume(defaultVolume: string, lastVolume: string): number {
+  if (defaultVolume === "remember") {
+    // Use last remembered volume, default to 1 (100%) if not set or invalid
+    const parsed = parseFloat(lastVolume);
+    if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+      return parsed;
+    }
+    return 1;
+  }
+
+  // Fixed percentage: "25", "50", "75", "100"
+  const percentage = parseInt(defaultVolume, 10);
+  if (!isNaN(percentage) && percentage >= 0 && percentage <= 100) {
+    return percentage / 100;
+  }
+
+  // Fallback to 100%
+  return 1;
+}
 
 interface DependencyCheckProps {
   onReady: () => void;
@@ -32,6 +56,13 @@ export function DependencyCheck({ onReady }: DependencyCheckProps) {
         } else {
           log.info("Playback mode is YouTube iframe, skipping yt-dlp check");
         }
+
+        // Apply initial volume from settings
+        const defaultVolume = getSetting(SETTINGS_KEYS.DEFAULT_VOLUME);
+        const lastVolume = getSetting(SETTINGS_KEYS.LAST_VOLUME);
+        const initialVolume = getInitialVolume(defaultVolume, lastVolume);
+        usePlayerStore.getState().setVolume(initialVolume);
+        log.info(`Initial volume set to ${Math.round(initialVolume * 100)}% (mode: ${defaultVolume})`);
       } catch (err) {
         log.error("Failed to initialize settings:", err);
         // Continue anyway - app can still work with defaults

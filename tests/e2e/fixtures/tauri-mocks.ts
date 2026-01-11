@@ -45,6 +45,10 @@ export interface TauriMockConfig {
   apiKeyValid?: boolean;
   /** Whether autoplay next song is enabled (default: true) */
   autoplayNext?: boolean;
+  /** Default volume mode: "remember", "25", "50", "75", "100" */
+  defaultVolume?: string;
+  /** Last remembered volume (0-1 as string, used when defaultVolume is "remember") */
+  lastVolume?: string;
   /** Initial queue state */
   queueState?: {
     queue: unknown[];
@@ -79,7 +83,8 @@ export async function injectTauriMocks(
     const defaultSettings: Record<string, string> = {
       video_quality: "best",
       autoplay_next: mockConfig.autoplayNext !== false ? "true" : "false",
-      default_volume: "remember",
+      default_volume: mockConfig.defaultVolume ?? "remember",
+      last_volume: mockConfig.lastVolume ?? "1",
       prefetch_seconds: "20",
       next_song_overlay_seconds: "20",
       singer_announcement_seconds: "5",
