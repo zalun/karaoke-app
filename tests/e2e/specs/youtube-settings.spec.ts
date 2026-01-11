@@ -67,7 +67,7 @@ test.describe("YouTube API Search", () => {
 
       // Wait for the setup prompt to appear
       await expect(page.locator("text=YouTube Search Not Configured")).toBeVisible({ timeout: 10000 });
-      await expect(page.locator("text=Open Advanced Settings")).toBeVisible();
+      await expect(page.locator("text=Open YouTube Settings")).toBeVisible();
     });
 
     test("should show setup instructions with Google Cloud link", async ({ page }) => {

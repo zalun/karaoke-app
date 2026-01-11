@@ -135,18 +135,18 @@ export function SearchResults({
               <li>Enable "YouTube Data API v3" in APIs & Services &gt; Library</li>
               <li>Go to APIs & Services &gt; Credentials</li>
               <li>Click "Create Credentials" &gt; "API Key"</li>
-              <li>Copy the key and paste it in Settings &gt; Advanced</li>
+              <li>Copy the key and paste it in Settings &gt; YouTube</li>
             </ol>
             <p className="mt-3 text-gray-500 text-xs italic">Free tier: ~100 searches per day</p>
           </div>
           <button
             onClick={() => {
-              setActiveTab("advanced");
+              setActiveTab("youtube");
               openSettingsDialog();
             }}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
           >
-            Open Advanced Settings
+            Open YouTube Settings
           </button>
         </div>
       );

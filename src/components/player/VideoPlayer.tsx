@@ -109,10 +109,11 @@ export function VideoPlayer() {
   const playbackMode: "youtube" | "ytdlp" = rawPlaybackMode === "ytdlp" ? "ytdlp" : "youtube";
 
   // Get prefetch setting (in seconds, "0" = disabled)
-  const prefetchSeconds = parseInt(
-    useSettingsStore((state) => state.getSetting(SETTINGS_KEYS.PREFETCH_SECONDS)) || "20",
-    10
-  );
+  const rawPrefetch = useSettingsStore((state) =>
+    state.getSetting(SETTINGS_KEYS.PREFETCH_SECONDS)
+  ) || "20";
+  const parsedPrefetch = parseInt(rawPrefetch, 10);
+  const prefetchSeconds = isNaN(parsedPrefetch) ? 20 : parsedPrefetch;
 
   // Handle detach button click
   const handleDetach = useCallback(async () => {
