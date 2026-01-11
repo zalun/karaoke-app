@@ -9,6 +9,7 @@ const ALLOWED_SETTING_KEYS: &[&str] = &[
     "video_quality",
     "autoplay_next",
     "default_volume",
+    "last_volume",              // remembered volume level for "remember" mode
     "prefetch_seconds",
     "next_song_overlay_seconds",
     "singer_announcement_seconds",
