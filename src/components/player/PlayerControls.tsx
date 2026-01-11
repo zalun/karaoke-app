@@ -493,7 +493,7 @@ export function PlayerControls() {
           .catch((err) => log.error("Failed to save volume:", err));
       }, VOLUME_SAVE_DEBOUNCE_MS);
     }
-  }, [setVolume]);
+  }, [setVolume]); // getSetting/setSetting accessed via getState() are stable references
 
   const handleMuteToggle = useCallback(() => {
     log.info(isMuted ? "Unmuting" : "Muting");

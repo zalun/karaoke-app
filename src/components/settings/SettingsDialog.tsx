@@ -367,13 +367,12 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
                 log.info(`Applied volume: ${percentage}%`);
               }
             } else {
-              // When switching to "remember", use last saved volume or current volume
-              const lastVolume = getSetting(SETTINGS_KEYS.LAST_VOLUME);
-              const parsed = parseFloat(lastVolume);
-              if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
-                usePlayerStore.getState().setVolume(parsed);
-                log.info(`Applied remembered volume: ${Math.round(parsed * 100)}%`);
-              }
+              // When switching to "remember", save and keep the current session volume
+              // so it becomes the new "remembered" value
+              const currentVolume = usePlayerStore.getState().volume;
+              setSetting(SETTINGS_KEYS.LAST_VOLUME, currentVolume.toString())
+                .then(() => log.info(`Saved current volume as remembered: ${Math.round(currentVolume * 100)}%`))
+                .catch((err) => log.error("Failed to save volume:", err));
             }
           }}
         />
