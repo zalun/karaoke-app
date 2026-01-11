@@ -8,7 +8,6 @@ import {
   SETTINGS_KEYS,
   getStreamUrlWithCache,
   invalidatePrefetchIfStale,
-  PREFETCH_THRESHOLD_SECONDS,
   isEmbeddingError,
   notify,
 } from "../../stores";
@@ -109,6 +108,13 @@ export function VideoPlayer() {
   // Validate and default to 'youtube' if invalid value in database
   const playbackMode: "youtube" | "ytdlp" = rawPlaybackMode === "ytdlp" ? "ytdlp" : "youtube";
 
+  // Get prefetch setting (in seconds, "0" = disabled)
+  const rawPrefetch = useSettingsStore((state) =>
+    state.getSetting(SETTINGS_KEYS.PREFETCH_SECONDS)
+  ) || "20";
+  const parsedPrefetch = parseInt(rawPrefetch, 10);
+  const prefetchSeconds = isNaN(parsedPrefetch) ? 20 : parsedPrefetch;
+
   // Handle detach button click
   const handleDetach = useCallback(async () => {
     if (isDetached) return;
@@ -163,7 +169,7 @@ export function VideoPlayer() {
 
   // Prefetch first queue item when no video is loaded (idle state) - only for yt-dlp mode
   useEffect(() => {
-    if (playbackMode !== "ytdlp") return;
+    if (playbackMode !== "ytdlp" || prefetchSeconds === 0) return;
     if (currentVideo || !nextQueueVideoId || prefetchTriggeredRef.current === nextQueueVideoId) {
       return;
     }
@@ -180,7 +186,7 @@ export function VideoPlayer() {
         }
       })
       .catch((err) => log.debug(`Prefetch failed (idle) for ${nextQueueVideoId}`, err));
-  }, [currentVideo, nextQueueVideoId, nextQueueItem?.video.title, playbackMode]);
+  }, [currentVideo, nextQueueVideoId, nextQueueItem?.video.title, playbackMode, prefetchSeconds]);
 
   // Handle play/pause when detached
   useEffect(() => {
@@ -223,9 +229,9 @@ export function VideoPlayer() {
     }
 
     // Prefetch next video before end (or immediately if video is short) - only for yt-dlp mode
-    if (playbackMode === "ytdlp" && dur > 0) {
+    if (playbackMode === "ytdlp" && prefetchSeconds > 0 && dur > 0) {
       const timeRemaining = dur - time;
-      const shouldPrefetch = timeRemaining <= PREFETCH_THRESHOLD_SECONDS || dur <= PREFETCH_THRESHOLD_SECONDS;
+      const shouldPrefetch = timeRemaining <= prefetchSeconds || dur <= prefetchSeconds;
 
       if (shouldPrefetch) {
         const nextItem = useQueueStore.getState().queue[0];
@@ -245,7 +251,7 @@ export function VideoPlayer() {
         }
       }
     }
-  }, [setCurrentTime, setDuration, duration, playbackMode]);
+  }, [setCurrentTime, setDuration, duration, playbackMode, prefetchSeconds]);
 
   const handleDurationChange = useCallback((dur: number) => {
     if (dur > 0) {

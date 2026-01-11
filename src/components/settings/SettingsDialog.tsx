@@ -28,11 +28,12 @@ import type { SettingsTab } from "../../stores";
 const log = createLogger("SettingsDialog");
 
 const TABS: { id: SettingsTab; label: string; icon: typeof Play }[] = [
+  { id: "youtube", label: "YouTube", icon: Youtube },
   { id: "playback", label: "Playback", icon: Play },
   { id: "display", label: "Display", icon: Monitor },
   { id: "queue", label: "Queue & History", icon: List },
   { id: "library", label: "Library", icon: HardDrive },
-  { id: "advanced", label: "YouTube", icon: Youtube },
+  { id: "advanced", label: "Advanced", icon: Settings },
   { id: "about", label: "About", icon: Info },
 ];
 
@@ -186,6 +187,12 @@ export function SettingsDialog() {
                 )}
                 {activeTab === "library" && (
                   <LibrarySettings
+                    getSetting={getSetting}
+                    setSetting={setSetting}
+                  />
+                )}
+                {activeTab === "youtube" && (
+                  <YouTubeSettings
                     getSetting={getSetting}
                     setSetting={setSetting}
                   />
@@ -378,23 +385,6 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
         />
       </SettingRow>
 
-      {/* TODO: Issue #155: Prefetch Next Video
-      <SettingRow
-        label="Prefetch Next Video"
-        description="Pre-load stream URL before current song ends"
-      >
-        <SelectInput
-          value={getSetting(SETTINGS_KEYS.PREFETCH_SECONDS)}
-          options={[
-            { value: "0", label: "Never" },
-            { value: "10", label: "10 seconds before" },
-            { value: "20", label: "20 seconds before" },
-            { value: "30", label: "30 seconds before" },
-          ]}
-          onChange={(v) => handleChange(SETTINGS_KEYS.PREFETCH_SECONDS, v)}
-        />
-      </SettingRow>
-      */}
     </div>
   );
 }
@@ -513,22 +503,14 @@ function QueueSettings(_: SettingsSectionProps) {
 }
 
 
-function AdvancedSettings({
+function YouTubeSettings({
   getSetting,
   setSetting,
-  onResetToDefaults,
-}: SettingsSectionProps & {
-  onResetToDefaults: () => void;
-}) {
-  const [showConfirm, setShowConfirm] = useState(false);
+}: SettingsSectionProps) {
   const [apiKey, setApiKey] = useState(getSetting(SETTINGS_KEYS.YOUTUBE_API_KEY) || "");
   const [showKey, setShowKey] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [testMessage, setTestMessage] = useState("");
-  const ytDlpAvailable = useSettingsStore((state) => state.ytDlpAvailable);
-  const ytDlpChecking = useSettingsStore((state) => state.ytDlpChecking);
-  const checkYtDlpAvailability = useSettingsStore((state) => state.checkYtDlpAvailability);
-  const handleChange = createSettingHandler(setSetting);
 
   // Subscribe directly to the API key setting value for stable dependency
   const storedApiKey = useSettingsStore(
@@ -539,15 +521,6 @@ function AdvancedSettings({
   useEffect(() => {
     setApiKey(storedApiKey);
   }, [storedApiKey]);
-
-  const handleReset = () => {
-    setShowConfirm(false);
-    onResetToDefaults();
-  };
-
-  const handleRecheck = () => {
-    checkYtDlpAvailability(true); // force recheck
-  };
 
   const handleSaveKey = async () => {
     try {
@@ -599,7 +572,7 @@ function AdvancedSettings({
           YouTube Data API Key
         </h5>
         <p className="text-xs text-gray-500 mb-3">
-          Required for YouTube search. Get a free API key from the{" "}
+          Required for YouTube search when using API mode. Get a free API key from the{" "}
           <a
             href="https://console.cloud.google.com/apis/credentials"
             target="_blank"
@@ -673,8 +646,72 @@ function AdvancedSettings({
         </div>
       </div>
 
-      {/* Search Method Selection - only show yt-dlp option when available */}
-      {ytDlpAvailable ? (
+    </div>
+  );
+}
+
+function AdvancedSettings({
+  getSetting,
+  setSetting,
+  onResetToDefaults,
+}: SettingsSectionProps & {
+  onResetToDefaults: () => void;
+}) {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const ytDlpAvailable = useSettingsStore((state) => state.ytDlpAvailable);
+  const ytDlpChecking = useSettingsStore((state) => state.ytDlpChecking);
+  const checkYtDlpAvailability = useSettingsStore((state) => state.checkYtDlpAvailability);
+  const handleChange = createSettingHandler(setSetting);
+
+  const handleReset = () => {
+    setShowConfirm(false);
+    onResetToDefaults();
+  };
+
+  const handleRecheck = () => {
+    checkYtDlpAvailability(true); // force recheck
+  };
+
+  return (
+    <div>
+      <h4 className="text-lg font-medium text-white mb-4">yt-dlp Settings</h4>
+
+      {/* yt-dlp availability status */}
+      <div className="mb-6 p-4 bg-gray-700/30 rounded-lg">
+        <h5 className="text-sm font-medium text-gray-300 mb-2">
+          yt-dlp Status
+        </h5>
+        {ytDlpChecking ? (
+          <div className="flex items-center gap-2 text-gray-400">
+            <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+            Checking yt-dlp availability...
+          </div>
+        ) : ytDlpAvailable ? (
+          <div className="flex items-center gap-2 text-green-400">
+            <CheckCircle size={16} />
+            yt-dlp is installed and available
+          </div>
+        ) : (
+          <div className="text-gray-400">
+            <div className="flex items-center gap-2 text-yellow-400 mb-2">
+              <AlertTriangle size={16} />
+              yt-dlp is not installed
+            </div>
+            <p className="text-xs text-gray-500 mb-2">
+              Install yt-dlp to enable alternative search and playback options.
+            </p>
+            <button
+              onClick={handleRecheck}
+              className="text-blue-400 hover:text-blue-300 underline text-sm"
+            >
+              Recheck availability
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* yt-dlp settings - only show when available */}
+      {ytDlpAvailable && (
         <>
           <SettingRow
             label="Search Method"
@@ -692,10 +729,10 @@ function AdvancedSettings({
 
           <div className="mb-6 text-xs text-gray-500">
             <p className="mb-1">
-              <strong>YouTube API:</strong> Official API, ~100 searches/day free. Requires API key above.
+              <strong>YouTube API:</strong> Official API, ~100 searches/day free. Requires API key.
             </p>
             <p>
-              <strong>yt-dlp:</strong> Unofficial. Requires yt-dlp installed.
+              <strong>yt-dlp:</strong> Unofficial, no API key required.
             </p>
           </div>
 
@@ -718,33 +755,31 @@ function AdvancedSettings({
               <strong>YouTube Embed:</strong> Simple and reliable. Uses YouTube's built-in player.
             </p>
             <p>
-              <strong>yt-dlp:</strong> Unofficial. Requires yt-dlp installed.
+              <strong>yt-dlp:</strong> Extracts stream URLs for native playback.
             </p>
           </div>
+
+          <SettingRow
+            label="Prefetch Next Video"
+            description="Pre-load stream URL before current song ends (yt-dlp streaming only)"
+          >
+            <SelectInput
+              value={getSetting(SETTINGS_KEYS.PREFETCH_SECONDS)}
+              options={[
+                { value: "0", label: "Never" },
+                { value: "10", label: "10 seconds before" },
+                { value: "20", label: "20 seconds before" },
+                { value: "30", label: "30 seconds before" },
+              ]}
+              onChange={(v) => handleChange(SETTINGS_KEYS.PREFETCH_SECONDS, v)}
+            />
+          </SettingRow>
         </>
-      ) : (
-        <div className="text-sm text-gray-400 mb-6">
-          {ytDlpChecking ? (
-            <div className="flex items-center gap-2">
-              <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
-              Checking yt-dlp availability...
-            </div>
-          ) : (
-            <>
-              yt-dlp is not installed.{" "}
-              <button
-                onClick={handleRecheck}
-                className="text-blue-400 hover:text-blue-300 underline"
-              >
-                Recheck
-              </button>{" "}
-              after installing to enable advanced search and playback options.
-            </>
-          )}
-        </div>
       )}
 
-      <div className="pt-4 mt-4">
+      {/* Reset to defaults */}
+      <div className="pt-4 mt-4 border-t border-gray-700">
+        <h4 className="text-lg font-medium text-white mb-4">Danger Zone</h4>
         {showConfirm ? (
           <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
             <div className="flex items-start gap-3">
