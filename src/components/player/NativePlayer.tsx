@@ -332,9 +332,10 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
     setIsLoading(true);
   }, []);
 
-  // Validate stream URL for security (skip if no URL - dummy mode)
-  const isUrlValid = !streamUrl || isValidStreamUrl(streamUrl);
-  const isDummyMode = !streamUrl;
+  // Validate stream URL for security (skip if undefined - dummy mode for priming)
+  // Empty string is treated as invalid, not dummy mode
+  const isDummyMode = streamUrl === undefined;
+  const isUrlValid = isDummyMode || isValidStreamUrl(streamUrl || "");
 
   if (!isUrlValid) {
     log.error(`Invalid stream URL: ${streamUrl}`);

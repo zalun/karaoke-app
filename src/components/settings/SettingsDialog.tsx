@@ -284,7 +284,6 @@ function SelectInput({
   );
 }
 
-/* TODO: Uncomment when implementing settings that use toggles (Issues #153, #158)
 function ToggleSwitch({
   checked,
   onChange,
@@ -307,16 +306,13 @@ function ToggleSwitch({
     </button>
   );
 }
-*/
 
-function PlaybackSettings(_: SettingsSectionProps) {
+function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
+  const handleChange = createSettingHandler(setSetting);
+
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Playback</h4>
-
-      <div className="text-gray-400 text-sm">
-        Playback settings are coming soon.
-      </div>
 
       {/* TODO: Implement these settings - Issue #152: Video Quality
       <SettingRow
@@ -336,7 +332,6 @@ function PlaybackSettings(_: SettingsSectionProps) {
       </SettingRow>
       */}
 
-      {/* TODO: Issue #153: Autoplay Next Song
       <SettingRow
         label="Autoplay Next Song"
         description="Automatically play the next song in queue"
@@ -348,7 +343,6 @@ function PlaybackSettings(_: SettingsSectionProps) {
           }
         />
       </SettingRow>
-      */}
 
       {/* TODO: Issue #154: Default Volume
       <SettingRow
