@@ -16,12 +16,14 @@ const WINDOWS_AUDIO_NOTICE_SHOWN_KEY = "windows_audio_notice_shown";
 async function showWindowsAudioNoticeOnce(): Promise<void> {
   // Check if notice was already shown (fast path, before async call)
   if (localStorage.getItem(WINDOWS_AUDIO_NOTICE_SHOWN_KEY)) {
+    log.debug("Windows audio notice already shown previously, skipping");
     return;
   }
 
   // Check if we're on Windows using Tauri's OS plugin
   try {
-    const currentPlatform = await platform();
+    const currentPlatform = platform();
+    log.debug(`Platform detected: ${currentPlatform}`);
     if (currentPlatform !== "windows") {
       return;
     }
@@ -41,7 +43,7 @@ async function showWindowsAudioNoticeOnce(): Promise<void> {
       url: "https://github.com/zalun/karaoke-app/issues/162",
     }
   );
-  log.info("Showed one-time Windows audio notice");
+  log.info("Showing one-time Windows audio notice to user");
 }
 
 // Cache expiration: 5 hours (YouTube URLs typically expire after 6 hours)
