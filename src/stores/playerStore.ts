@@ -275,10 +275,15 @@ export async function playVideo(video: Video): Promise<void> {
   const { setIsLoading, setCurrentVideo, setIsPlaying } =
     usePlayerStore.getState();
 
-  const playbackMode = useSettingsStore.getState().getSetting(SETTINGS_KEYS.PLAYBACK_MODE);
-  log.info(`playVideo: mode=${playbackMode}, video=${video.title}`);
+  const settingsState = useSettingsStore.getState();
+  const playbackMode = settingsState.getSetting(SETTINGS_KEYS.PLAYBACK_MODE);
+  const ytDlpAvailable = settingsState.ytDlpAvailable;
 
-  if (playbackMode === "youtube") {
+  // Determine effective playback mode - fall back to YouTube Embed if yt-dlp not available
+  const effectiveMode = (playbackMode === "ytdlp" && !ytDlpAvailable) ? "youtube" : playbackMode;
+  log.info(`playVideo: mode=${playbackMode}, effective=${effectiveMode}, ytDlpAvailable=${ytDlpAvailable}, video=${video.title}`);
+
+  if (effectiveMode === "youtube" || effectiveMode !== "ytdlp") {
     // YouTube embed mode - no stream URL needed
     log.info(`Playing via YouTube embed: ${video.title}`);
     setCurrentVideo(video);
@@ -286,7 +291,7 @@ export async function playVideo(video: Video): Promise<void> {
     return;
   }
 
-  // yt-dlp mode - fetch stream URL
+  // yt-dlp mode - fetch stream URL (only reached if yt-dlp is available)
   setIsLoading(true);
   try {
     const streamUrl = await getStreamUrlWithCache(video.youtubeId);

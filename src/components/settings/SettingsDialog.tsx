@@ -518,7 +518,6 @@ function AdvancedSettings({
   const [testMessage, setTestMessage] = useState("");
   const ytDlpAvailable = useSettingsStore((state) => state.ytDlpAvailable);
   const ytDlpChecking = useSettingsStore((state) => state.ytDlpChecking);
-  const ytDlpChecked = useSettingsStore((state) => state.ytDlpChecked);
   const checkYtDlpAvailability = useSettingsStore((state) => state.checkYtDlpAvailability);
   const handleChange = createSettingHandler(setSetting);
 
@@ -665,40 +664,32 @@ function AdvancedSettings({
         </div>
       </div>
 
-      {/* Search Method Selection */}
-      <SettingRow
-        label="Search Method"
-        description="How to search for YouTube videos"
-      >
-        <SelectInput
-          value={getSetting(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD)}
-          options={[
-            { value: "api", label: "YouTube API" },
-            { value: "ytdlp", label: "yt-dlp" },
-          ]}
-          onChange={(v) => handleChange(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD, v)}
-        />
-      </SettingRow>
-
-      <div className="mb-6 text-xs text-gray-500">
-        <p className="mb-1">
-          <strong>YouTube API:</strong> Official API, ~100 searches/day free. Requires API key above.
-        </p>
-        <p>
-          <strong>yt-dlp:</strong> Unofficial. Requires yt-dlp installed.
-        </p>
-      </div>
-
-      {/* yt-dlp Status */}
-      {ytDlpChecking && (
-        <div className="text-sm text-gray-400 mb-6 flex items-center gap-2">
-          <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
-          Checking yt-dlp availability...
-        </div>
-      )}
-
-      {ytDlpChecked && ytDlpAvailable && (
+      {/* Search Method Selection - only show yt-dlp option when available */}
+      {ytDlpAvailable ? (
         <>
+          <SettingRow
+            label="Search Method"
+            description="How to search for YouTube videos"
+          >
+            <SelectInput
+              value={getSetting(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD)}
+              options={[
+                { value: "api", label: "YouTube API" },
+                { value: "ytdlp", label: "yt-dlp" },
+              ]}
+              onChange={(v) => handleChange(SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD, v)}
+            />
+          </SettingRow>
+
+          <div className="mb-6 text-xs text-gray-500">
+            <p className="mb-1">
+              <strong>YouTube API:</strong> Official API, ~100 searches/day free. Requires API key above.
+            </p>
+            <p>
+              <strong>yt-dlp:</strong> Unofficial. Requires yt-dlp installed.
+            </p>
+          </div>
+
           <SettingRow
             label="Video Streaming Mode"
             description="How to play YouTube videos"
@@ -722,18 +713,25 @@ function AdvancedSettings({
             </p>
           </div>
         </>
-      )}
-
-      {ytDlpChecked && !ytDlpAvailable && (
+      ) : (
         <div className="text-sm text-gray-400 mb-6">
-          yt-dlp is not installed.{" "}
-          <button
-            onClick={handleRecheck}
-            className="text-blue-400 hover:text-blue-300 underline"
-          >
-            Recheck
-          </button>{" "}
-          after installing to enable advanced playback and search options.
+          {ytDlpChecking ? (
+            <div className="flex items-center gap-2">
+              <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+              Checking yt-dlp availability...
+            </div>
+          ) : (
+            <>
+              yt-dlp is not installed.{" "}
+              <button
+                onClick={handleRecheck}
+                className="text-blue-400 hover:text-blue-300 underline"
+              >
+                Recheck
+              </button>{" "}
+              after installing to enable advanced search and playback options.
+            </>
+          )}
         </div>
       )}
 
