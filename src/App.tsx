@@ -24,7 +24,7 @@ import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
 import { SettingsDialog } from "./components/settings";
-import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, getStreamUrlWithCache, notify, type QueueItem, type LibraryVideo } from "./stores";
+import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, getStreamUrlWithCache, showWindowsAudioNoticeOnce, notify, SETTINGS_KEYS, type QueueItem, type LibraryVideo, type Video } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star } from "lucide-react";
 import { youtubeService, createLogger, getErrorMessage } from "./services";
@@ -47,6 +47,37 @@ function getTabClassName(isActive: boolean): string {
 
 const RESULTS_PER_PAGE = 15;
 const MAX_SEARCH_RESULTS = 50;
+
+/**
+ * Check if YouTube Embed mode should be used (vs yt-dlp).
+ * Returns true if playback mode is not yt-dlp OR yt-dlp is not available.
+ */
+function shouldUseYouTubeEmbed(): boolean {
+  const settingsState = useSettingsStore.getState();
+  const playbackMode = settingsState.getSetting(SETTINGS_KEYS.PLAYBACK_MODE);
+  const ytDlpAvailable = settingsState.ytDlpAvailable;
+  return playbackMode !== "ytdlp" || !ytDlpAvailable;
+}
+
+/**
+ * Prepare a video for playback, fetching stream URL if needed (yt-dlp mode only).
+ * Returns the video with streamUrl added if in yt-dlp mode, or as-is for YouTube Embed.
+ * Also shows one-time Windows audio notice on first play.
+ */
+async function prepareVideoForPlayback(video: Video): Promise<Video> {
+  // Show one-time Windows audio notice (fire-and-forget)
+  showWindowsAudioNoticeOnce().catch(() => {});
+
+  if (shouldUseYouTubeEmbed()) {
+    return video;
+  }
+  // yt-dlp mode - fetch stream URL
+  if (!video.youtubeId) {
+    return video;
+  }
+  const streamUrl = await getStreamUrlWithCache(video.youtubeId);
+  return { ...video, streamUrl };
+}
 
 function App() {
   const [dependenciesReady, setDependenciesReady] = useState(false);
@@ -186,7 +217,7 @@ function App() {
       setSearchError(null);
 
       // Set video info immediately (without stream URL) for instant UI feedback
-      const pendingVideo = {
+      const pendingVideo: Video = {
         id: result.id,
         title: result.title,
         artist: result.channel,
@@ -198,10 +229,7 @@ function App() {
       setCurrentVideo(pendingVideo);
 
       try {
-        const streamUrl = await getStreamUrlWithCache(result.id);
-        const video = { ...pendingVideo, streamUrl };
-
-        // Add to history and play
+        const video = await prepareVideoForPlayback(pendingVideo);
         playDirect(video);
         setCurrentVideo(video);
         setIsPlaying(true);
@@ -209,7 +237,7 @@ function App() {
       } catch (err) {
         log.error("Failed to get stream URL", err);
         setSearchError(getErrorMessage(err, "Failed to load video"));
-        setCurrentVideo(null); // Clear on error
+        setCurrentVideo(null);
         setIsLoading(false);
         setIsPlaying(false);
       }
@@ -652,8 +680,8 @@ function QueuePanel() {
         queueLog.info(`Playing from queue: "${item.video.title}"`);
         setIsLoading(true);
         try {
-          const streamUrl = await getStreamUrlWithCache(item.video.youtubeId);
-          setCurrentVideo({ ...item.video, streamUrl });
+          const video = await prepareVideoForPlayback(item.video);
+          setCurrentVideo(video);
           setIsPlaying(true);
         } catch (err) {
           queueLog.error("Failed to play from queue", err);
@@ -800,8 +828,8 @@ function HistoryPanel() {
         historyLog.info(`Playing from history: "${item.video.title}"`);
         setIsLoading(true);
         try {
-          const streamUrl = await getStreamUrlWithCache(item.video.youtubeId);
-          setCurrentVideo({ ...item.video, streamUrl });
+          const video = await prepareVideoForPlayback(item.video);
+          setCurrentVideo(video);
           setIsPlaying(true);
         } catch (err) {
           historyLog.error("Failed to play from history", err);

@@ -1,9 +1,50 @@
 import { create } from "zustand";
+import { platform } from "@tauri-apps/plugin-os";
 import { youtubeService, createLogger } from "../services";
 import { notify } from "./notificationStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 
 const log = createLogger("PlayerStore");
+
+// LocalStorage key for Windows audio notice (shown only once)
+const WINDOWS_AUDIO_NOTICE_SHOWN_KEY = "windows_audio_notice_shown";
+
+/**
+ * Show one-time notice about Windows audio issue on first video play.
+ * Only shows on Windows platform, and only once (tracked in localStorage).
+ */
+export async function showWindowsAudioNoticeOnce(): Promise<void> {
+  // Check if notice was already shown (fast path, before async call)
+  if (localStorage.getItem(WINDOWS_AUDIO_NOTICE_SHOWN_KEY)) {
+    log.debug("Windows audio notice already shown previously, skipping");
+    return;
+  }
+
+  // Check if we're on Windows using Tauri's OS plugin
+  try {
+    const currentPlatform = platform();
+    log.debug(`Platform detected: ${currentPlatform}`);
+    if (currentPlatform !== "windows") {
+      return;
+    }
+  } catch (err) {
+    log.warn("Failed to detect platform:", err);
+    return;
+  }
+
+  // Mark as shown and display notice
+  localStorage.setItem(WINDOWS_AUDIO_NOTICE_SHOWN_KEY, "true");
+
+  notify(
+    "info",
+    "Windows audio notice: If the first video plays without sound, toggle mute or pause/play to restore audio.",
+    {
+      label: "Issue #162",
+      url: "https://github.com/zalun/karaoke-app/issues/162",
+    }
+  );
+  log.info("Showing one-time Windows audio notice to user");
+}
 
 // Cache expiration: 5 hours (YouTube URLs typically expire after 6 hours)
 const PREFETCH_CACHE_EXPIRY_MS = 5 * 60 * 60 * 1000;
@@ -223,6 +264,9 @@ export function invalidatePrefetchIfStale(expectedVideoId: string | undefined): 
  * @returns Promise that resolves when playback starts, or rejects on error
  */
 export async function playVideo(video: Video): Promise<void> {
+  // Show one-time Windows audio notice on first play (fire-and-forget, don't block playback)
+  showWindowsAudioNoticeOnce().catch((err) => log.warn("Windows audio notice failed:", err));
+
   if (!video.youtubeId) {
     log.warn("playVideo: video has no youtubeId, cannot play");
     return;
@@ -231,10 +275,15 @@ export async function playVideo(video: Video): Promise<void> {
   const { setIsLoading, setCurrentVideo, setIsPlaying } =
     usePlayerStore.getState();
 
-  const playbackMode = useSettingsStore.getState().getSetting(SETTINGS_KEYS.PLAYBACK_MODE);
-  log.info(`playVideo: mode=${playbackMode}, video=${video.title}`);
+  const settingsState = useSettingsStore.getState();
+  const playbackMode = settingsState.getSetting(SETTINGS_KEYS.PLAYBACK_MODE);
+  const ytDlpAvailable = settingsState.ytDlpAvailable;
 
-  if (playbackMode === "youtube") {
+  // Determine effective playback mode - fall back to YouTube Embed if yt-dlp not available
+  const effectiveMode = (playbackMode === "ytdlp" && !ytDlpAvailable) ? "youtube" : playbackMode;
+  log.info(`playVideo: mode=${playbackMode}, effective=${effectiveMode}, ytDlpAvailable=${ytDlpAvailable}, video=${video.title}`);
+
+  if (effectiveMode === "youtube" || effectiveMode !== "ytdlp") {
     // YouTube embed mode - no stream URL needed
     log.info(`Playing via YouTube embed: ${video.title}`);
     setCurrentVideo(video);
@@ -242,7 +291,7 @@ export async function playVideo(video: Video): Promise<void> {
     return;
   }
 
-  // yt-dlp mode - fetch stream URL
+  // yt-dlp mode - fetch stream URL (only reached if yt-dlp is available)
   setIsLoading(true);
   try {
     const streamUrl = await getStreamUrlWithCache(video.youtubeId);
