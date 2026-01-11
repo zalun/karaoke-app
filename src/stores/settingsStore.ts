@@ -48,7 +48,7 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
   [SETTINGS_KEYS.LAST_VOLUME]: "1", // Default to 100% volume
 };
 
-export type SettingsTab = "playback" | "display" | "queue" | "library" | "advanced" | "about";
+export type SettingsTab = "playback" | "display" | "queue" | "library" | "youtube" | "advanced" | "about";
 
 // Module-level promise prevents race conditions in checkYtDlpAvailability.
 // Not stored in Zustand state because promises aren't serializable and we need

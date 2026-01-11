@@ -60,10 +60,6 @@ export function isEmbeddingError(errorCode: number): boolean {
   return EMBEDDING_ERROR_CODES.includes(errorCode);
 }
 
-// Prefetch threshold: start prefetching this many seconds before video ends
-// Set to 30s to accommodate slower machines (M1 Mac takes ~7s for yt-dlp)
-export const PREFETCH_THRESHOLD_SECONDS = 30;
-
 export interface Video {
   id: string;
   title: string;
