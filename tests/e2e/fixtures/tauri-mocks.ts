@@ -43,6 +43,8 @@ export interface TauriMockConfig {
   hasApiKey?: boolean;
   /** Whether API key validation should succeed */
   apiKeyValid?: boolean;
+  /** Whether autoplay next song is enabled (default: true) */
+  autoplayNext?: boolean;
   /** Initial queue state */
   queueState?: {
     queue: unknown[];
@@ -76,7 +78,7 @@ export async function injectTauriMocks(
     // Default settings matching SETTINGS_DEFAULTS from settingsStore.ts
     const defaultSettings: Record<string, string> = {
       video_quality: "best",
-      autoplay_next: "true",
+      autoplay_next: mockConfig.autoplayNext !== false ? "true" : "false",
       default_volume: "remember",
       prefetch_seconds: "20",
       next_song_overlay_seconds: "20",

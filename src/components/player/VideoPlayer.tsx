@@ -279,6 +279,7 @@ export function VideoPlayer() {
       setIsPlaying(false);
       return;
     }
+    log.debug("Autoplay enabled, advancing to next song");
 
     const { playNextFromQueue } = useQueueStore.getState();
     const nextItem = playNextFromQueue();
