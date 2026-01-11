@@ -10,6 +10,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Branch naming: `feature/<issue-number>-<description>` or `fix/<issue-number>-<description>`
 - **Avoid `git commit --amend`** - prefer separate commits for fixes/updates (easier to review)
 
+### Pre-Push Checklist
+
+Before pushing changes, **ask the user** if E2E tests should be run:
+- E2E tests catch integration issues that unit tests miss
+- Run `just e2e` to execute all E2E tests
+- If tests fail due to server connection issues, retry once (can be flaky locally)
+- CI will also run E2E tests, but catching issues locally saves time
+
 ## Build and Development Commands
 
 This project uses a `justfile` for common tasks. Run `just` or `just --list` to see all available commands.

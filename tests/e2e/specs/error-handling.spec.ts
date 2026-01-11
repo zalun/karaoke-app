@@ -61,6 +61,7 @@ test.describe("Error Handling", () => {
       searchResults: createMockSearchResults(1),
       shouldFailStreamUrl: true,
       ytdlpAvailable: true,
+      playbackMode: "ytdlp", // Must use ytdlp mode to trigger stream URL fetch
     });
 
     await page.goto("/");
@@ -132,6 +133,7 @@ test.describe("Error Handling", () => {
       searchResults: createMockSearchResults(3),
       shouldFailStreamUrl: true,
       ytdlpAvailable: true,
+      playbackMode: "ytdlp", // Must use ytdlp mode to trigger stream URL fetch
     });
 
     await page.goto("/");
