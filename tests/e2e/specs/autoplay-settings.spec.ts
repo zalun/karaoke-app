@@ -165,9 +165,25 @@ test.describe("Autoplay Next Song Setting", () => {
 
   });
 
-  // Note: Settings UI toggle tests are skipped because:
-  // 1. The settings dialog is triggered via Tauri menu events which aren't available in browser tests
-  // 2. The core autoplay behavior is tested above by setting autoplayNext in mock config
-  // 3. The settings toggle UI is simple and covered by manual testing
-  // 4. Unit tests could be added for the ToggleSwitch component if needed
+  // === Test Coverage Notes ===
+  //
+  // What these tests verify:
+  // - Next/Previous buttons work correctly regardless of autoplay setting
+  // - The autoplayNext mock config correctly initializes the setting
+  // - User-initiated navigation is unaffected by autoplay toggle
+  //
+  // What is NOT tested here (and why):
+  // - Automatic advancement when video ends naturally
+  //   Reason: E2E tests run in browser with mocked Tauri APIs. The video players
+  //   (YouTube iframe, NativePlayer) don't actually play or fire 'ended' events
+  //   in this environment. The handleEnded callback cannot be triggered naturally.
+  //
+  // The core autoplay logic in VideoPlayer.handleEnded is verified by:
+  // 1. Manual testing (confirmed working in issue #153)
+  // 2. Code review (single check point, straightforward logic)
+  // 3. The implementation follows existing patterns for settings checks
+  //
+  // If regression testing is needed, consider:
+  // - Unit test for handleEnded callback with mocked stores
+  // - Integration test with real Tauri backend (Tauri WebDriver when available)
 });
