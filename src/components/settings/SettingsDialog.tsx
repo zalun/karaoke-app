@@ -646,12 +646,6 @@ function YouTubeSettings({
         </div>
       </div>
 
-      <div className="text-sm text-gray-400">
-        <p>
-          For alternative search and playback options using yt-dlp, see the{" "}
-          <span className="text-blue-400">Advanced</span> tab.
-        </p>
-      </div>
     </div>
   );
 }
