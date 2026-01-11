@@ -28,11 +28,11 @@ import type { SettingsTab } from "../../stores";
 const log = createLogger("SettingsDialog");
 
 const TABS: { id: SettingsTab; label: string; icon: typeof Play }[] = [
+  { id: "youtube", label: "YouTube", icon: Youtube },
   { id: "playback", label: "Playback", icon: Play },
   { id: "display", label: "Display", icon: Monitor },
   { id: "queue", label: "Queue & History", icon: List },
   { id: "library", label: "Library", icon: HardDrive },
-  { id: "youtube", label: "YouTube", icon: Youtube },
   { id: "advanced", label: "Advanced", icon: Settings },
   { id: "about", label: "About", icon: Info },
 ];
