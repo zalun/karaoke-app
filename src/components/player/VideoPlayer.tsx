@@ -271,6 +271,16 @@ export function VideoPlayer() {
 
   const handleEnded = useCallback(async () => {
     log.info("Video ended");
+
+    // Check autoplay setting
+    const autoplayNext = useSettingsStore.getState().getSetting(SETTINGS_KEYS.AUTOPLAY_NEXT);
+    if (autoplayNext !== "true") {
+      log.info("Autoplay disabled, stopping playback");
+      setIsPlaying(false);
+      return;
+    }
+    log.debug("Autoplay enabled, advancing to next song");
+
     const { playNextFromQueue } = useQueueStore.getState();
     const nextItem = playNextFromQueue();
 
