@@ -176,6 +176,14 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
           videoState.width,
           videoState.height
         );
+      } else {
+        // Reattach if player is currently detached but layout says it shouldn't be
+        const playerStore = usePlayerStore.getState();
+        if (playerStore.isDetached) {
+          log.info("Reattaching player window to restore attached layout");
+          await windowManager.reattachPlayer();
+          playerStore.setIsDetached(false);
+        }
       }
 
       // Restore main window position
@@ -273,7 +281,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
         );
       }
 
-      // Capture and save player window state if detached
+      // Capture and save player window state
       const playerStore = usePlayerStore.getState();
       log.info(`Player isDetached: ${playerStore.isDetached}`);
       if (playerStore.isDetached) {
@@ -297,7 +305,19 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
           log.warn("Player is detached but could not capture window state");
         }
       } else {
-        log.info("Player is not detached, skipping video window state");
+        // Save attached state explicitly so restore knows to reattach
+        await displayManagerService.saveWindowState(
+          configId,
+          "video",
+          null, // target_display_id
+          0, // x - not applicable for attached
+          0, // y - not applicable for attached
+          0, // width - not applicable for attached
+          0, // height - not applicable for attached
+          false, // is_detached
+          false // is_fullscreen
+        );
+        log.info("Saved video window state (detached=false)");
       }
 
       log.info("Display layout saved successfully");
