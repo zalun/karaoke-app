@@ -389,16 +389,13 @@ function PlaybackSettings({ getSetting, setSetting }: SettingsSectionProps) {
   );
 }
 
-function DisplaySettings(_: SettingsSectionProps) {
+function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
+  const handleChange = createSettingHandler(setSetting);
+
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Display</h4>
 
-      <div className="text-gray-400 text-sm">
-        Display settings are coming soon.
-      </div>
-
-      {/* TODO: Issue #156: Next Song Overlay
       <SettingRow
         label="Next Song Overlay"
         description="Show upcoming song info before current song ends"
@@ -416,7 +413,6 @@ function DisplaySettings(_: SettingsSectionProps) {
           }
         />
       </SettingRow>
-      */}
 
       {/* TODO: Issue #157: Singer Announcement
       <SettingRow

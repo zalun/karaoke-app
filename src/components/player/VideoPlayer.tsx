@@ -6,6 +6,7 @@ import {
   useSessionStore,
   useSettingsStore,
   SETTINGS_KEYS,
+  parseOverlaySeconds,
   getStreamUrlWithCache,
   invalidatePrefetchIfStale,
   isEmbeddingError,
@@ -15,7 +16,6 @@ import { youtubeService, createLogger, windowManager } from "../../services";
 import { useWakeLock } from "../../hooks";
 import {
   NextSongOverlay,
-  OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
 import { CurrentSingerOverlay } from "./CurrentSingerOverlay";
@@ -628,6 +628,13 @@ function NextSongOverlayWithSingers({
 }) {
   const { session, singers, queueSingerAssignments, getQueueItemSingerIds, getSingerById, loadQueueItemSingers } = useSessionStore();
 
+  // Get overlay setting from store (0 = Off, 10/20/30 = seconds before end)
+  const rawOverlaySeconds = useSettingsStore((state) =>
+    state.getSetting(SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS)
+  );
+  const overlaySeconds = parseOverlaySeconds(rawOverlaySeconds);
+  const overlayEnabled = overlaySeconds > 0;
+
   // Load singers for next queue item when it changes
   useEffect(() => {
     if (session && nextQueueItem) {
@@ -644,10 +651,11 @@ function NextSongOverlayWithSingers({
     >[];
   }, [session, nextQueueItem, queueSingerAssignments, singers, getQueueItemSingerIds, getSingerById]);
 
-  // Hide overlay when loading next video (prevents showing wrong "next" song during transition)
-  if (!nextQueueItem || duration <= 0 || isLoading) return null;
+  // Hide overlay when disabled (overlaySeconds = 0), loading, or not within threshold
+  // Only show when timeRemaining <= overlaySeconds (e.g., last 20 seconds of the song)
+  if (!overlayEnabled || !nextQueueItem || duration <= 0 || isLoading) return null;
   const timeRemaining = Math.ceil(duration - currentTime);
-  if (timeRemaining > OVERLAY_SHOW_THRESHOLD_SECONDS) return null;
+  if (timeRemaining > overlaySeconds) return null;
 
   return (
     <NextSongOverlay

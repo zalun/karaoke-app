@@ -50,6 +50,18 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
 
 export type SettingsTab = "playback" | "display" | "queue" | "library" | "youtube" | "advanced" | "about";
 
+/**
+ * Parse the next song overlay seconds setting.
+ * Returns 0 for "Off", or the number of seconds (10, 20, 30).
+ * Falls back to default (20) if the value is invalid.
+ */
+export function parseOverlaySeconds(rawValue: string | undefined): number {
+  const defaultValue = parseInt(SETTINGS_DEFAULTS[SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS], 10);
+  const raw = rawValue || String(defaultValue);
+  const parsed = parseInt(raw, 10);
+  return isNaN(parsed) ? defaultValue : parsed;
+}
+
 // Module-level promise prevents race conditions in checkYtDlpAvailability.
 // Not stored in Zustand state because promises aren't serializable and we need
 // a single shared reference across all concurrent calls.

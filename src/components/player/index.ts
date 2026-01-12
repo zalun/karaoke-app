@@ -5,7 +5,6 @@ export { YouTubePlayer } from "./YouTubePlayer";
 export { NativePlayer } from "./NativePlayer";
 export {
   NextSongOverlay,
-  OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
 export {

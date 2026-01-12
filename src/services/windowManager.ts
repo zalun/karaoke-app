@@ -42,6 +42,8 @@ export interface PlayerState {
   nextSong?: SongInfo;
   /** Unique ID for each playback session - changes even when replaying the same video */
   playbackId?: string;
+  /** Seconds before song ends to show next song overlay (0 = disabled) */
+  nextSongOverlaySeconds?: number;
 }
 
 // Minimum number of pixels that must be visible on a display for a window to be considered "on screen"

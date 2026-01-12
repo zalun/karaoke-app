@@ -1,10 +1,10 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { windowManager, type PlayerState } from "../../services/windowManager";
 import { createLogger } from "../../services";
+import { SETTINGS_KEYS, SETTINGS_DEFAULTS } from "../../stores";
 import { useWakeLock } from "../../hooks";
 import {
   NextSongOverlay,
-  OVERLAY_SHOW_THRESHOLD_SECONDS,
   COUNTDOWN_START_THRESHOLD_SECONDS,
 } from "./NextSongOverlay";
 import { SingerOverlayDisplay } from "./SingerOverlayDisplay";
@@ -29,6 +29,9 @@ export function DetachedPlayer() {
   // Track time remaining for overlay
   const [overlayTimeRemaining, setOverlayTimeRemaining] = useState<number | null>(null);
   const videoTimeRef = useRef({ currentTime: 0, duration: 0 });
+  // Track overlay setting via ref for access in callbacks
+  const defaultOverlaySeconds = parseInt(SETTINGS_DEFAULTS[SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS], 10);
+  const overlaySecondsRef = useRef<number>(defaultOverlaySeconds);
   // Track current singer overlay visibility
   const [showCurrentSingerOverlay, setShowCurrentSingerOverlay] = useState(false);
   const previousVideoIdRef = useRef<string | null>(null);
@@ -156,6 +159,11 @@ export function DetachedPlayer() {
     }
   }, [state.videoId, state.streamUrl]);
 
+  // Keep overlay setting ref in sync with state
+  useEffect(() => {
+    overlaySecondsRef.current = state.nextSongOverlaySeconds ?? defaultOverlaySeconds;
+  }, [state.nextSongOverlaySeconds, defaultOverlaySeconds]);
+
   // Handle ready event
   const handleReady = useCallback(() => {
     setIsReady(true);
@@ -170,7 +178,9 @@ export function DetachedPlayer() {
     // Calculate time remaining for overlay
     if (duration > 0) {
       const timeRemaining = Math.ceil(duration - currentTime);
-      const shouldShowOverlay = timeRemaining <= OVERLAY_SHOW_THRESHOLD_SECONDS && timeRemaining > 0;
+      const overlaySeconds = overlaySecondsRef.current;
+      // Only show overlay if enabled (overlaySeconds > 0) and within threshold
+      const shouldShowOverlay = overlaySeconds > 0 && timeRemaining <= overlaySeconds && timeRemaining > 0;
       setOverlayTimeRemaining((prev) => {
         if (!shouldShowOverlay) return null;
         if (prev !== timeRemaining) return timeRemaining;
