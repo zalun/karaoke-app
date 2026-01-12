@@ -49,7 +49,7 @@ test.describe("Autoplay Next Song Setting", () => {
     // updates (queue history) and React re-renders. The mocked Tauri IPC layer
     // doesn't perfectly replicate the state management behavior of the real app.
     // The Previous button functionality is covered by manual testing.
-    // See queue-management.spec.ts for the same skip pattern.
+    // See queue-management.spec.ts for the same skip pattern and #170 for details.
     test.skip("Previous button returns to previous song when autoplay is enabled", async () => {
       // Play first video
       await mainPage.search("test");
@@ -129,7 +129,7 @@ test.describe("Autoplay Next Song Setting", () => {
     // updates (queue history) and React re-renders. The mocked Tauri IPC layer
     // doesn't perfectly replicate the state management behavior of the real app.
     // The Previous button functionality is covered by manual testing.
-    // See queue-management.spec.ts for the same skip pattern.
+    // See queue-management.spec.ts for the same skip pattern and #170 for details.
     test.skip("Previous button still works when autoplay is disabled", async () => {
       // Play first video
       await mainPage.search("test");
