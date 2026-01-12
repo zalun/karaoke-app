@@ -2,6 +2,7 @@
   "name": "homekaraoke",
   "private": true,
   "version": "0.7.3",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
