@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-01-12
+
 ### Added
 - Configurable "Prefetch Next Video" setting with options: Never, 10s, 20s (default), 30s (#155)
   - Only applies to yt-dlp streaming mode
@@ -18,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - YouTube tab (first): API key configuration only
   - Advanced tab: yt-dlp settings (Search Method, Streaming Mode, Prefetch)
   - "Reset All Settings" moved to Advanced tab under "Danger Zone"
+
+### Fixed
+- Layout restore now correctly reattaches player when saved layout has attached player (#168)
+  - Previously, restoring a layout saved with attached player would leave player detached
+  - Also saves attached player state explicitly for future restores
 
 ## [0.7.2] - 2026-01-11
 
