@@ -142,6 +142,7 @@ const mockNotify = vi.fn();
 const mockSettingsStore = {
   getSetting: vi.fn((key: string) => {
     if (key === "playback_mode") return "youtube";
+    if (key === "next_song_overlay_seconds") return "20";
     return null;
   }),
 };
@@ -196,6 +197,7 @@ vi.mock("../../stores", () => ({
   ),
   SETTINGS_KEYS: {
     PLAYBACK_MODE: "playback_mode",
+    NEXT_SONG_OVERLAY_SECONDS: "next_song_overlay_seconds",
   },
   playVideo: () => mockPlayVideo(),
   notify: (...args: unknown[]) => mockNotify(...args),
@@ -238,9 +240,10 @@ function resetMocks() {
   mockYoutubeService = createMockYoutubeService();
   mockPlayVideo.mockClear();
   mockNotify.mockClear();
-  // Reset settings store to default (youtube mode)
+  // Reset settings store to defaults
   mockSettingsStore.getSetting.mockImplementation((key: string) => {
     if (key === "playback_mode") return "youtube";
+    if (key === "next_song_overlay_seconds") return "20";
     return null;
   });
 }
@@ -748,6 +751,63 @@ describe("PlayerControls", () => {
       await userEvent.click(detachButton);
 
       expect(mockPlayerStore.setIsPlaying).toHaveBeenCalledWith(false);
+    });
+
+    it("detach includes nextSongOverlaySeconds in synced state", async () => {
+      setupVideoPlaying({ isDetached: false, isPlaying: false });
+      mockSettingsStore.getSetting.mockImplementation((key: string) => {
+        if (key === "playback_mode") return "youtube";
+        if (key === "next_song_overlay_seconds") return "30";
+        return null;
+      });
+      render(<PlayerControls />);
+
+      const detachButton = screen.getByTitle("Detach player");
+      await userEvent.click(detachButton);
+
+      await waitFor(() => {
+        expect(mockWindowManager.detachPlayer).toHaveBeenCalled();
+        const calledState = mockWindowManager.detachPlayer.mock.calls[0][0] as { nextSongOverlaySeconds?: number };
+        expect(calledState.nextSongOverlaySeconds).toBe(30);
+      });
+    });
+
+    it("detach uses default overlay seconds when setting is invalid", async () => {
+      setupVideoPlaying({ isDetached: false, isPlaying: false });
+      mockSettingsStore.getSetting.mockImplementation((key: string) => {
+        if (key === "playback_mode") return "youtube";
+        if (key === "next_song_overlay_seconds") return "invalid";
+        return null;
+      });
+      render(<PlayerControls />);
+
+      const detachButton = screen.getByTitle("Detach player");
+      await userEvent.click(detachButton);
+
+      await waitFor(() => {
+        expect(mockWindowManager.detachPlayer).toHaveBeenCalled();
+        const calledState = mockWindowManager.detachPlayer.mock.calls[0][0] as { nextSongOverlaySeconds?: number };
+        expect(calledState.nextSongOverlaySeconds).toBe(20); // Default fallback
+      });
+    });
+
+    it("detach includes 0 for disabled overlay setting", async () => {
+      setupVideoPlaying({ isDetached: false, isPlaying: false });
+      mockSettingsStore.getSetting.mockImplementation((key: string) => {
+        if (key === "playback_mode") return "youtube";
+        if (key === "next_song_overlay_seconds") return "0";
+        return null;
+      });
+      render(<PlayerControls />);
+
+      const detachButton = screen.getByTitle("Detach player");
+      await userEvent.click(detachButton);
+
+      await waitFor(() => {
+        expect(mockWindowManager.detachPlayer).toHaveBeenCalled();
+        const calledState = mockWindowManager.detachPlayer.mock.calls[0][0] as { nextSongOverlaySeconds?: number };
+        expect(calledState.nextSongOverlaySeconds).toBe(0); // Disabled overlay
+      });
     });
   });
 

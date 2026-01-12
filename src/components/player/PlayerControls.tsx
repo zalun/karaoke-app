@@ -111,6 +111,11 @@ export function PlayerControls() {
       effectivePlaybackMode = "ytdlp"; // Local files use native player
     }
 
+    // Get next song overlay setting
+    const rawOverlaySeconds = settingsState.getSetting(SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS) || "20";
+    const overlaySeconds = parseInt(rawOverlaySeconds, 10);
+    const nextSongOverlaySeconds = isNaN(overlaySeconds) ? 20 : overlaySeconds;
+
     return {
       streamUrl,
       videoId: state.currentVideo?.youtubeId ?? null,
@@ -128,6 +133,7 @@ export function PlayerControls() {
         : undefined,
       // Unique ID for each playback - changes even when replaying same video
       playbackId: current?.id,
+      nextSongOverlaySeconds,
     };
   }, []);
 
