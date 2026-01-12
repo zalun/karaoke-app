@@ -6,6 +6,7 @@ import {
   useSessionStore,
   useSettingsStore,
   SETTINGS_KEYS,
+  parseOverlaySeconds,
   getStreamUrlWithCache,
   invalidatePrefetchIfStale,
   isEmbeddingError,
@@ -627,13 +628,12 @@ function NextSongOverlayWithSingers({
 }) {
   const { session, singers, queueSingerAssignments, getQueueItemSingerIds, getSingerById, loadQueueItemSingers } = useSessionStore();
 
-  // Get overlay setting from store
+  // Get overlay setting from store (0 = Off, 10/20/30 = seconds before end)
   const rawOverlaySeconds = useSettingsStore((state) =>
     state.getSetting(SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS)
-  ) || "20";
-  const overlaySeconds = parseInt(rawOverlaySeconds, 10);
-  // If setting is 0 (Off) or invalid, don't show overlay
-  const overlayEnabled = !isNaN(overlaySeconds) && overlaySeconds > 0;
+  );
+  const overlaySeconds = parseOverlaySeconds(rawOverlaySeconds);
+  const overlayEnabled = overlaySeconds > 0;
 
   // Load singers for next queue item when it changes
   useEffect(() => {
@@ -651,7 +651,8 @@ function NextSongOverlayWithSingers({
     >[];
   }, [session, nextQueueItem, queueSingerAssignments, singers, getQueueItemSingerIds, getSingerById]);
 
-  // Hide overlay when disabled, loading, or not within threshold
+  // Hide overlay when disabled (overlaySeconds = 0), loading, or not within threshold
+  // Only show when timeRemaining <= overlaySeconds (e.g., last 20 seconds of the song)
   if (!overlayEnabled || !nextQueueItem || duration <= 0 || isLoading) return null;
   const timeRemaining = Math.ceil(duration - currentTime);
   if (timeRemaining > overlaySeconds) return null;

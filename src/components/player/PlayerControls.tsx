@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { usePlayerStore, useQueueStore, useSessionStore, useSettingsStore, SETTINGS_KEYS, playVideo, notify } from "../../stores";
+import { usePlayerStore, useQueueStore, useSessionStore, useSettingsStore, SETTINGS_KEYS, parseOverlaySeconds, playVideo, notify } from "../../stores";
 import { windowManager, youtubeService, createLogger } from "../../services";
 
 const log = createLogger("PlayerControls");
@@ -111,10 +111,10 @@ export function PlayerControls() {
       effectivePlaybackMode = "ytdlp"; // Local files use native player
     }
 
-    // Get next song overlay setting
-    const rawOverlaySeconds = settingsState.getSetting(SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS) || "20";
-    const overlaySeconds = parseInt(rawOverlaySeconds, 10);
-    const nextSongOverlaySeconds = isNaN(overlaySeconds) ? 20 : overlaySeconds;
+    // Get next song overlay setting (0 = Off, 10/20/30 = seconds before end)
+    const nextSongOverlaySeconds = parseOverlaySeconds(
+      settingsState.getSetting(SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS)
+    );
 
     return {
       streamUrl,

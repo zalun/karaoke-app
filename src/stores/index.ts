@@ -25,6 +25,7 @@ export {
   useSettingsStore,
   SETTINGS_KEYS,
   SETTINGS_DEFAULTS,
+  parseOverlaySeconds,
   type SettingsTab,
 } from "./settingsStore";
 export {

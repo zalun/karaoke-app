@@ -140,7 +140,7 @@ const mockNotify = vi.fn();
 
 // Mock settings store
 const mockSettingsStore = {
-  getSetting: vi.fn((key: string) => {
+  getSetting: vi.fn((key: string): string | null => {
     if (key === "playback_mode") return "youtube";
     if (key === "next_song_overlay_seconds") return "20";
     return null;
@@ -198,6 +198,11 @@ vi.mock("../../stores", () => ({
   SETTINGS_KEYS: {
     PLAYBACK_MODE: "playback_mode",
     NEXT_SONG_OVERLAY_SECONDS: "next_song_overlay_seconds",
+  },
+  parseOverlaySeconds: (rawValue: string | undefined) => {
+    const raw = rawValue || "20";
+    const parsed = parseInt(raw, 10);
+    return isNaN(parsed) ? 20 : parsed;
   },
   playVideo: () => mockPlayVideo(),
   notify: (...args: unknown[]) => mockNotify(...args),

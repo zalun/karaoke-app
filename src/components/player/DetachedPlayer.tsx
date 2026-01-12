@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { windowManager, type PlayerState } from "../../services/windowManager";
 import { createLogger } from "../../services";
+import { SETTINGS_KEYS, SETTINGS_DEFAULTS } from "../../stores";
 import { useWakeLock } from "../../hooks";
 import {
   NextSongOverlay,
@@ -29,7 +30,8 @@ export function DetachedPlayer() {
   const [overlayTimeRemaining, setOverlayTimeRemaining] = useState<number | null>(null);
   const videoTimeRef = useRef({ currentTime: 0, duration: 0 });
   // Track overlay setting via ref for access in callbacks
-  const overlaySecondsRef = useRef<number>(20);
+  const defaultOverlaySeconds = parseInt(SETTINGS_DEFAULTS[SETTINGS_KEYS.NEXT_SONG_OVERLAY_SECONDS], 10);
+  const overlaySecondsRef = useRef<number>(defaultOverlaySeconds);
   // Track current singer overlay visibility
   const [showCurrentSingerOverlay, setShowCurrentSingerOverlay] = useState(false);
   const previousVideoIdRef = useRef<string | null>(null);
@@ -159,8 +161,8 @@ export function DetachedPlayer() {
 
   // Keep overlay setting ref in sync with state
   useEffect(() => {
-    overlaySecondsRef.current = state.nextSongOverlaySeconds ?? 20;
-  }, [state.nextSongOverlaySeconds]);
+    overlaySecondsRef.current = state.nextSongOverlaySeconds ?? defaultOverlaySeconds;
+  }, [state.nextSongOverlaySeconds, defaultOverlaySeconds]);
 
   // Handle ready event
   const handleReady = useCallback(() => {
