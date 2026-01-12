@@ -174,12 +174,14 @@ class WindowManager {
       this.playerWindow = new WebviewWindow("player", {
         url: "/#/player",
         title: "HomeKaraoke Player",
+        hiddenTitle: true,
         width: 854,
         height: 480,
         minWidth: 320,
         minHeight: 180,
         resizable: true,
         decorations: true,
+        titleBarStyle: "overlay",
         center: true,
       });
 

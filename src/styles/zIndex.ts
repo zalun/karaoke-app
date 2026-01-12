@@ -15,7 +15,10 @@ export const Z_INDEX_SINGER_OVERLAY = 20;
 /** Next song overlay countdown */
 export const Z_INDEX_NEXT_SONG_OVERLAY = 30;
 
-/** Click to play / autoplay blocked overlay - must be above singer overlay */
+/** Drag overlay for window dragging - below play overlay so clicks work */
+export const Z_INDEX_DRAG_OVERLAY = 40;
+
+/** Click to play / autoplay blocked overlay - must be above singer overlay and drag overlay */
 export const Z_INDEX_PLAY_OVERLAY = 50;
 
 /** Click to start / priming overlay - must be above everything */
