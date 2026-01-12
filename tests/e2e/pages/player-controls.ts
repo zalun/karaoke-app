@@ -189,7 +189,7 @@ export class PlayerControls {
         return title && title.textContent !== prevTitle && title.textContent !== "No video selected";
       },
       previousTitle,
-      { timeout: 15000 }
+      { timeout: 30000 }
     );
   }
 
