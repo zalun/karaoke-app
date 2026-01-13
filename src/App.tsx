@@ -446,7 +446,7 @@ function App() {
 
       <div data-tauri-drag-region className="h-full grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left: Main content area */}
-        <div data-tauri-drag-region className="lg:col-span-3 flex flex-col gap-4 min-h-0">
+        <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
           {/* Search Bar - always visible */}
           <SearchBar onSearch={handleSearch} isLoading={isSearching} />
 
@@ -546,7 +546,7 @@ function App() {
         </div>
 
         {/* Right: Session + Queue/History Panel */}
-        <div data-tauri-drag-region className="lg:col-span-2 flex flex-col gap-4 min-h-0">
+        <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
           {/* Session Bar */}
           <SessionBar />
 
