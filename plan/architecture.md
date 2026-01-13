@@ -164,3 +164,36 @@ souvlaki = "0.7"                  # Media controls
   }
 }
 ```
+
+## UI Z-Index Layers
+
+The player overlays use a defined z-index hierarchy in `src/styles/zIndex.ts`:
+
+```
+Z-Index  Constant                  Purpose
+──────────────────────────────────────────────────────────────
+0        Z_INDEX_VIDEO             Base video layer
+10       Z_INDEX_DETACH_BUTTON     Detach button on hover
+20       Z_INDEX_SINGER_OVERLAY    Current singer display
+30       Z_INDEX_NEXT_SONG_OVERLAY Upcoming song countdown
+40       Z_INDEX_DRAG_OVERLAY      Window drag region (detached player)
+50       Z_INDEX_PLAY_OVERLAY      "Click to Play" (autoplay blocked)
+50       Z_INDEX_PRIMING_OVERLAY   "Click to Start" (initial priming)
+```
+
+**Key design decisions:**
+- Drag overlay (40) must be below play overlay (50) so users can click "Click to Play" when autoplay is blocked
+- Play and priming overlays share z-index 50 as they're mutually exclusive
+- Singer and next song overlays are below drag overlay so they remain visible but don't interfere with dragging
+
+## Window Configuration
+
+### Main Window
+- Uses `titleBarStyle: "Overlay"` for borderless look with traffic light controls
+- Drag regions defined via `data-tauri-drag-region` attribute on layout containers
+- Requires `core:window:allow-start-dragging` permission
+
+### Detached Player Window
+- Created programmatically via `WebviewWindow` with `titleBarStyle: "overlay"`
+- Full-window transparent drag overlay enables dragging from anywhere on video
+- Double-click toggles fullscreen

@@ -11,6 +11,7 @@ import { SingerOverlayDisplay } from "./SingerOverlayDisplay";
 import { CURRENT_SINGER_OVERLAY_DURATION_MS } from "./CurrentSingerOverlay";
 import { YouTubePlayer } from "./YouTubePlayer";
 import { NativePlayer } from "./NativePlayer";
+import { Z_INDEX_DRAG_OVERLAY } from "../../styles/zIndex";
 
 const log = createLogger("DetachedPlayer");
 
@@ -288,10 +289,7 @@ export function DetachedPlayer() {
     : seekTime;
 
   return (
-    <div
-      className="w-screen h-screen bg-black flex items-center justify-center relative"
-      onDoubleClick={handleDoubleClick}
-    >
+    <div className="w-screen h-screen bg-black flex items-center justify-center relative">
       {canPlayYouTube && state.videoId && (
         <YouTubePlayer
           videoId={state.videoId}
@@ -329,7 +327,7 @@ export function DetachedPlayer() {
         />
       </div>
       {!isReady && hasContent && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
           <p className="text-gray-400">Loading...</p>
         </div>
       )}
@@ -351,6 +349,15 @@ export function DetachedPlayer() {
       {showCurrentSingerOverlay && state.currentSong?.singers && state.currentSong.singers.length > 0 && (
         <SingerOverlayDisplay singers={state.currentSong.singers} />
       )}
+      {/* Transparent drag overlay - captures mouse events for window dragging */}
+      {/* Both YouTube iframe and native video elements capture events, so we need this overlay */}
+      {/* Uses Z_INDEX_DRAG_OVERLAY (40) to stay below play overlay (50) for click-to-play */}
+      <div
+        data-tauri-drag-region
+        className="absolute inset-0"
+        style={{ zIndex: Z_INDEX_DRAG_OVERLAY }}
+        onDoubleClick={handleDoubleClick}
+      />
     </div>
   );
 }
