@@ -20,7 +20,8 @@ function trackOperation<T>(promise: Promise<T>): Promise<T> {
 export async function flushPendingOperations(): Promise<void> {
   if (pendingOperations.size > 0) {
     log.debug(`Flushing ${pendingOperations.size} pending operations`);
-    await Promise.all(pendingOperations);
+    // Use allSettled to wait for all operations even if some fail
+    await Promise.allSettled(pendingOperations);
     log.debug("All pending operations flushed");
   }
 }

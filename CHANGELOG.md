@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Queue items no longer lost when starting a new session (#179)
+  - Race condition where async database writes hadn't completed before session migration
+  - Now flushes all pending queue operations before session transitions
+
 ## [0.7.4] - 2026-01-13
 
 ### Added
