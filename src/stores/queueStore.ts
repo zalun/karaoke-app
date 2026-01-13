@@ -4,6 +4,27 @@ import type { Video } from "./playerStore";
 
 const log = createLogger("QueueStore");
 
+// Track pending database operations to ensure they complete before session transitions
+const pendingOperations = new Set<Promise<unknown>>();
+
+// Helper to track a promise and remove it when done
+function trackOperation<T>(promise: Promise<T>): Promise<T> {
+  pendingOperations.add(promise);
+  promise.finally(() => {
+    pendingOperations.delete(promise);
+  });
+  return promise;
+}
+
+// Wait for all pending operations to complete
+export async function flushPendingOperations(): Promise<void> {
+  if (pendingOperations.size > 0) {
+    log.debug(`Flushing ${pendingOperations.size} pending operations`);
+    await Promise.all(pendingOperations);
+    log.debug("All pending operations flushed");
+  }
+}
+
 // Helper to convert QueueItem to QueueItemData for persistence
 function toQueueItemData(item: QueueItem, position: number): QueueItemData {
   return {
@@ -106,12 +127,14 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           historyIndex = -1;
         }
 
-        // Persist corrected index back to database
+        // Persist corrected index back to database (tracked for session transitions)
         if (indexCorrected) {
           log.info(`Correcting out-of-bounds historyIndex: ${state.history_index} -> ${historyIndex}`);
-          queueService.setHistoryIndex(historyIndex).catch((error) => {
-            log.error("Failed to persist corrected history index:", error);
-          });
+          trackOperation(
+            queueService.setHistoryIndex(historyIndex).catch((error) => {
+              log.error("Failed to persist corrected history index:", error);
+            })
+          );
         }
 
         set({
@@ -155,10 +178,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       const position = newQueue.length - 1;
       log.debug(`Queue size: ${state.queue.length} -> ${newQueue.length}`);
 
-      // Persist to database (async, fire-and-forget)
-      queueService.addItem(toQueueItemData(newItem, position)).catch((error) => {
-        log.error("Failed to persist queue item:", error);
-      });
+      // Persist to database (tracked for session transitions)
+      trackOperation(
+        queueService.addItem(toQueueItemData(newItem, position)).catch((error) => {
+          log.error("Failed to persist queue item:", error);
+        })
+      );
 
       return { queue: newQueue };
     });
@@ -183,12 +208,14 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       // could leave the item at the wrong position. This is acceptable for a
       // single-user desktop app where the window is extremely small.
       // Position 0 passed here is a placeholder; actual position is set by reorder.
-      queueService
-        .addItem(toQueueItemData(newItem, 0))
-        .then(() => queueService.reorder(newItem.id, 0))
-        .catch((error) => {
-          log.error("Failed to persist queue item at top:", error);
-        });
+      trackOperation(
+        queueService
+          .addItem(toQueueItemData(newItem, 0))
+          .then(() => queueService.reorder(newItem.id, 0))
+          .catch((error) => {
+            log.error("Failed to persist queue item at top:", error);
+          })
+      );
 
       return { queue: newQueue };
     });
@@ -198,10 +225,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   removeFromQueue: (itemId) => {
     log.debug(`removeFromQueue: ${itemId}`);
     set((state) => {
-      // Persist to database
-      queueService.removeItem(itemId).catch((error) => {
-        log.error("Failed to remove queue item from database:", error);
-      });
+      // Persist to database (tracked for session transitions)
+      trackOperation(
+        queueService.removeItem(itemId).catch((error) => {
+          log.error("Failed to remove queue item from database:", error);
+        })
+      );
 
       return { queue: state.queue.filter((item) => item.id !== itemId) };
     });
@@ -217,10 +246,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       const [item] = queue.splice(currentIndex, 1);
       queue.splice(newPosition, 0, item);
 
-      // Persist to database
-      queueService.reorder(itemId, newPosition).catch((error) => {
-        log.error("Failed to reorder queue item in database:", error);
-      });
+      // Persist to database (tracked for session transitions)
+      trackOperation(
+        queueService.reorder(itemId, newPosition).catch((error) => {
+          log.error("Failed to reorder queue item in database:", error);
+        })
+      );
 
       return { queue };
     });
@@ -229,10 +260,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   clearQueue: () => {
     log.info("clearQueue");
 
-    // Persist to database
-    queueService.clearQueue().catch((error) => {
-      log.error("Failed to clear queue in database:", error);
-    });
+    // Persist to database (tracked for session transitions)
+    trackOperation(
+      queueService.clearQueue().catch((error) => {
+        log.error("Failed to clear queue in database:", error);
+      })
+    );
 
     set({ queue: [] });
   },
@@ -266,10 +299,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   clearHistory: () => {
     log.info("clearHistory");
 
-    // Persist to database
-    queueService.clearHistory().catch((error) => {
-      log.error("Failed to clear history in database:", error);
-    });
+    // Persist to database (tracked for session transitions)
+    trackOperation(
+      queueService.clearHistory().catch((error) => {
+        log.error("Failed to clear history in database:", error);
+      })
+    );
 
     set({ history: [], historyIndex: -1 });
   },
@@ -295,16 +330,18 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       historyIndex: -1,
     });
 
-    // Persist to database with rollback on failure
-    queueService.moveAllHistoryToQueue().catch((error) => {
-      log.error("Failed to move history to queue in database, reverting:", error);
-      // Revert to previous state on failure
-      set({
-        queue: previousQueue,
-        history: previousHistory,
-        historyIndex: previousHistoryIndex,
-      });
-    });
+    // Persist to database with rollback on failure (tracked for session transitions)
+    trackOperation(
+      queueService.moveAllHistoryToQueue().catch((error) => {
+        log.error("Failed to move history to queue in database, reverting:", error);
+        // Revert to previous state on failure
+        set({
+          queue: previousQueue,
+          history: previousHistory,
+          historyIndex: previousHistoryIndex,
+        });
+      })
+    );
   },
 
   playDirect: (video) => {
@@ -319,15 +356,19 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       const newHistory = [...state.history, newItem];
       const position = newHistory.length - 1;
 
-      // Persist to database (add directly to history)
-      queueService.addToHistory(toQueueItemData(newItem, position)).catch((error) => {
-        log.error("Failed to persist history item:", error);
-      });
+      // Persist to database (add directly to history, tracked for session transitions)
+      trackOperation(
+        queueService.addToHistory(toQueueItemData(newItem, position)).catch((error) => {
+          log.error("Failed to persist history item:", error);
+        })
+      );
 
-      // Also persist history index reset
-      queueService.setHistoryIndex(-1).catch((error) => {
-        log.error("Failed to persist history index:", error);
-      });
+      // Also persist history index reset (tracked for session transitions)
+      trackOperation(
+        queueService.setHistoryIndex(-1).catch((error) => {
+          log.error("Failed to persist history index:", error);
+        })
+      );
 
       return {
         history: newHistory,
@@ -351,15 +392,19 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const newQueue = queue.filter((_, i) => i !== index);
     const newHistory = [...history, item];
 
-    // Persist to database (move from queue to history)
-    queueService.moveToHistory(item.id).catch((error) => {
-      log.error("Failed to move item to history in database:", error);
-    });
+    // Persist to database (move from queue to history, tracked for session transitions)
+    trackOperation(
+      queueService.moveToHistory(item.id).catch((error) => {
+        log.error("Failed to move item to history in database:", error);
+      })
+    );
 
-    // Also persist history index reset
-    queueService.setHistoryIndex(-1).catch((error) => {
-      log.error("Failed to persist history index:", error);
-    });
+    // Also persist history index reset (tracked for session transitions)
+    trackOperation(
+      queueService.setHistoryIndex(-1).catch((error) => {
+        log.error("Failed to persist history index:", error);
+      })
+    );
 
     set({
       queue: newQueue,
@@ -380,10 +425,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
     log.info(`playFromHistory: ${history[index].video.title} (index ${index})`);
 
-    // Persist history index
-    queueService.setHistoryIndex(index).catch((error) => {
-      log.error("Failed to persist history index:", error);
-    });
+    // Persist history index (tracked for session transitions)
+    trackOperation(
+      queueService.setHistoryIndex(index).catch((error) => {
+        log.error("Failed to persist history index:", error);
+      })
+    );
 
     set({ historyIndex: index });
 
@@ -401,10 +448,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       const nextIndex = effectiveIndex + 1;
       log.info(`playNext: from history - ${history[nextIndex].video.title}`);
 
-      // Persist history index
-      queueService.setHistoryIndex(nextIndex).catch((error) => {
-        log.error("Failed to persist history index:", error);
-      });
+      // Persist history index (tracked for session transitions)
+      trackOperation(
+        queueService.setHistoryIndex(nextIndex).catch((error) => {
+          log.error("Failed to persist history index:", error);
+        })
+      );
 
       set({ historyIndex: nextIndex });
       return history[nextIndex];
@@ -421,15 +470,19 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const newQueue = queue.slice(1);
     const newHistory = [...history, item];
 
-    // Persist to database (move from queue to history)
-    queueService.moveToHistory(item.id).catch((error) => {
-      log.error("Failed to move item to history in database:", error);
-    });
+    // Persist to database (move from queue to history, tracked for session transitions)
+    trackOperation(
+      queueService.moveToHistory(item.id).catch((error) => {
+        log.error("Failed to move item to history in database:", error);
+      })
+    );
 
-    // Also persist history index reset
-    queueService.setHistoryIndex(-1).catch((error) => {
-      log.error("Failed to persist history index:", error);
-    });
+    // Also persist history index reset (tracked for session transitions)
+    trackOperation(
+      queueService.setHistoryIndex(-1).catch((error) => {
+        log.error("Failed to persist history index:", error);
+      })
+    );
 
     set({
       queue: newQueue,
@@ -455,15 +508,19 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const newQueue = queue.slice(1);
     const newHistory = [...history, item];
 
-    // Persist to database (move from queue to history)
-    queueService.moveToHistory(item.id).catch((error) => {
-      log.error("Failed to move item to history in database:", error);
-    });
+    // Persist to database (move from queue to history, tracked for session transitions)
+    trackOperation(
+      queueService.moveToHistory(item.id).catch((error) => {
+        log.error("Failed to move item to history in database:", error);
+      })
+    );
 
-    // Reset history index to end
-    queueService.setHistoryIndex(-1).catch((error) => {
-      log.error("Failed to persist history index:", error);
-    });
+    // Reset history index to end (tracked for session transitions)
+    trackOperation(
+      queueService.setHistoryIndex(-1).catch((error) => {
+        log.error("Failed to persist history index:", error);
+      })
+    );
 
     set({
       queue: newQueue,
@@ -494,10 +551,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const prevIndex = effectiveIndex - 1;
     log.info(`playPrevious: ${history[prevIndex].video.title}`);
 
-    // Persist history index
-    queueService.setHistoryIndex(prevIndex).catch((error) => {
-      log.error("Failed to persist history index:", error);
-    });
+    // Persist history index (tracked for session transitions)
+    trackOperation(
+      queueService.setHistoryIndex(prevIndex).catch((error) => {
+        log.error("Failed to persist history index:", error);
+      })
+    );
 
     set({ historyIndex: prevIndex });
 
