@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-01-13
+
+### Added
+- Overlay title bar style for cleaner, more modern window appearance (#176)
+  - Main window: Borderless look with macOS traffic light controls
+  - Detached player: Drag from anywhere on video, double-click for fullscreen
+  - Platform-conditional spacing (macOS only shows traffic light area)
+- TypeScript types for `data-tauri-drag-region` attribute
+- Z-index hierarchy documentation in architecture.md
+
 ## [0.7.3] - 2026-01-12
 
 ### Added
