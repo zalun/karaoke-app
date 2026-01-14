@@ -62,6 +62,8 @@ export interface TauriMockConfig {
     size: { width: number; height: number };
     scaleFactor: number;
   }>;
+  /** Initial search history */
+  searchHistory?: string[];
 }
 
 /**
@@ -96,6 +98,9 @@ export async function injectTauriMocks(
       ytdlp_available: mockConfig.ytdlpAvailable !== false ? "true" : "",
       youtube_search_method: mockConfig.searchMethod || "api",
       youtube_api_key: mockConfig.hasApiKey !== false ? "AIzaTestKey123456789" : "",
+      search_history_global: "true",
+      search_history_session_limit: "50",
+      search_history_global_limit: "50",
     };
 
     // In-memory settings store for tests
@@ -111,6 +116,12 @@ export async function injectTauriMocks(
     // In-memory session state
     let sessionIdCounter = 1;
     let activeSession: { id: number; name: string | null; is_active: boolean; created_at: string } | null = null;
+
+    // In-memory search history state
+    const searchHistoryStore: { youtube: string[]; local: string[] } = {
+      youtube: mockConfig.searchHistory || [],
+      local: [],
+    };
 
     // Callback storage for transformCallback
     let callbackId = 0;
@@ -332,6 +343,39 @@ export async function injectTauriMocks(
 
           case "library_browse":
             return { folders: [], files: [], totalCount: 0 };
+
+          // Search history commands
+          case "search_history_add": {
+            const searchType = args?.searchType as "youtube" | "local";
+            const query = (args?.query as string)?.trim();
+            if (query && searchType) {
+              // Remove if exists (dedup), then add to front
+              const arr = searchHistoryStore[searchType];
+              const idx = arr.indexOf(query);
+              if (idx !== -1) arr.splice(idx, 1);
+              arr.unshift(query);
+              // Limit to 50 entries
+              if (arr.length > 50) arr.pop();
+            }
+            return null;
+          }
+
+          case "search_history_get": {
+            const searchType = args?.searchType as "youtube" | "local";
+            const limit = (args?.limit as number) || 50;
+            return searchHistoryStore[searchType]?.slice(0, limit) || [];
+          }
+
+          case "search_history_clear":
+            searchHistoryStore.youtube = [];
+            searchHistoryStore.local = [];
+            return null;
+
+          case "search_history_clear_session":
+            // In tests, just clear everything for simplicity
+            searchHistoryStore.youtube = [];
+            searchHistoryStore.local = [];
+            return null;
 
           // Display commands
           case "window_get_states":
