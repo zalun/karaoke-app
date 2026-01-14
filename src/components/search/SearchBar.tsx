@@ -95,40 +95,53 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (!showDropdown || filteredSuggestions.length === 0) {
-        // Accept ghost text with Tab or Right arrow
-        if ((e.key === "Tab" || e.key === "ArrowRight") && ghostText && topMatch) {
-          e.preventDefault();
-          setInputValue(topMatch);
-        }
-        return;
-      }
-
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((prev) =>
-            prev < filteredSuggestions.length - 1 ? prev + 1 : prev
-          );
+          // Open dropdown if not shown and we have suggestions
+          if (!showDropdown && filteredSuggestions.length > 0) {
+            setShowDropdown(true);
+            setSelectedIndex(0);
+          } else if (showDropdown) {
+            setSelectedIndex((prev) =>
+              prev < filteredSuggestions.length - 1 ? prev + 1 : prev
+            );
+          }
           break;
         case "ArrowUp":
           e.preventDefault();
-          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+          if (showDropdown) {
+            setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+          }
+          break;
+        case "ArrowRight":
+          // Accept ghost text with Right arrow (only at end of input)
+          if (
+            ghostText &&
+            topMatch &&
+            inputRef.current?.selectionStart === inputValue.length
+          ) {
+            e.preventDefault();
+            setInputValue(topMatch);
+          }
+          break;
+        case "Tab":
+          // Accept ghost text with Tab
+          if (ghostText && topMatch) {
+            e.preventDefault();
+            setInputValue(topMatch);
+          }
           break;
         case "Enter":
-          if (selectedIndex >= 0) {
+          if (showDropdown && selectedIndex >= 0) {
             e.preventDefault();
             handleSelectSuggestion(filteredSuggestions[selectedIndex]);
           }
           break;
         case "Escape":
-          setShowDropdown(false);
-          setSelectedIndex(-1);
-          break;
-        case "Tab":
-          if (ghostText && topMatch) {
-            e.preventDefault();
-            setInputValue(topMatch);
+          if (showDropdown) {
+            setShowDropdown(false);
+            setSelectedIndex(-1);
           }
           break;
       }
@@ -140,6 +153,7 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
       handleSelectSuggestion,
       ghostText,
       topMatch,
+      inputValue.length,
     ]
   );
 
