@@ -15,6 +15,7 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { setSearchQuery } = useAppStore();
   const { searchMode, setSearchMode } = useLibraryStore();
@@ -176,13 +177,26 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
   }, [suggestions, inputValue, getSuggestions, searchType]);
 
   const handleBlur = useCallback(() => {
+    // Clear any existing timeout
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+    }
     // Delay to allow click on dropdown item
-    setTimeout(() => {
+    blurTimeoutRef.current = setTimeout(() => {
       if (!dropdownRef.current?.contains(document.activeElement)) {
         setShowDropdown(false);
         setSelectedIndex(-1);
       }
     }, 150);
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    };
   }, []);
 
   const toggleMode = useCallback(() => {
