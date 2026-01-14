@@ -79,6 +79,10 @@ export function useMediaControls() {
       if (currentVideo.youtubeId) {
         thumbnailUrl = `https://i.ytimg.com/vi/${currentVideo.youtubeId}/hqdefault.jpg`;
       }
+      // souvlaki (macOS media controls) crashes on asset:// URLs - only pass HTTP(S) URLs
+      if (thumbnailUrl && !thumbnailUrl.startsWith("http")) {
+        thumbnailUrl = undefined;
+      }
 
       mediaControlsService.updateMetadata({
         title: currentVideo.title,

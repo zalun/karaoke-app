@@ -41,6 +41,7 @@ vi.mock("./queueStore", () => ({
       resetState: vi.fn(),
     })),
   },
+  flushPendingOperations: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Import mocked modules
