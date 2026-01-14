@@ -459,6 +459,8 @@ export function SessionBar() {
           <button
             onClick={() => setShowSingers(!showSingers)}
             className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-gray-700 transition-colors"
+            aria-expanded={showSingers}
+            aria-label={`${showSingers ? "Hide" : "Show"} singers panel`}
           >
             <Users size={14} className="text-gray-400" />
             {singers.length > 0 ? (
@@ -497,6 +499,7 @@ export function SessionBar() {
             disabled={isLoading}
             className="p-1.5 bg-red-600/80 hover:bg-red-600 disabled:bg-gray-600 text-white rounded transition-colors"
             title="End Session"
+            aria-label="End Session"
           >
             <Square size={16} />
           </button>
