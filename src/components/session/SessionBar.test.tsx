@@ -21,7 +21,7 @@ interface MockSessionState {
   endSession: ReturnType<typeof vi.fn>;
   loadSession: ReturnType<typeof vi.fn>;
   createSinger: ReturnType<typeof vi.fn>;
-  deleteSinger: ReturnType<typeof vi.fn>;
+  removeSingerFromSession: ReturnType<typeof vi.fn>;
   renameSession: ReturnType<typeof vi.fn>;
   switchToSession: ReturnType<typeof vi.fn>;
   openRenameDialog: ReturnType<typeof vi.fn>;
@@ -171,7 +171,7 @@ function setupMocks(options: {
     endSession: vi.fn().mockResolvedValue(undefined),
     loadSession: vi.fn().mockResolvedValue(undefined),
     createSinger: vi.fn().mockResolvedValue(createMockSinger(100, "NewSinger", "#abcdef")),
-    deleteSinger: vi.fn().mockResolvedValue(undefined),
+    removeSingerFromSession: vi.fn().mockResolvedValue(undefined),
     renameSession: vi.fn().mockResolvedValue(undefined),
     switchToSession: vi.fn().mockResolvedValue(undefined),
     openRenameDialog: vi.fn(),
@@ -351,7 +351,7 @@ describe("SessionBar", () => {
       expect(chip).not.toHaveClass("faded");
     });
 
-    it("deletes singer when remove button is clicked", async () => {
+    it("removes singer from session when remove button is clicked", async () => {
       setupMocks({
         session: createMockSession(),
         singers: [createMockSinger(1, "Alice", "#ff0000")],
@@ -361,7 +361,7 @@ describe("SessionBar", () => {
       await userEvent.click(screen.getByTestId("users-icon").closest("button")!);
       await userEvent.click(screen.getByTestId("remove-Alice"));
 
-      expect(mockSessionStore.deleteSinger).toHaveBeenCalledWith(1);
+      expect(mockSessionStore.removeSingerFromSession).toHaveBeenCalledWith(1);
     });
 
     it("shows filled star for persistent singer", async () => {

@@ -442,6 +442,39 @@ pub fn add_singer_to_session(
 }
 
 #[tauri::command]
+pub fn remove_singer_from_session(
+    state: State<'_, AppState>,
+    session_id: i64,
+    singer_id: i64,
+) -> Result<(), CommandError> {
+    info!(
+        "Removing singer {} from session {}",
+        singer_id, session_id
+    );
+    let db = state.db.lock().map_lock_err()?;
+
+    // Clear active_singer_id if this singer was the active singer for this session
+    db.connection().execute(
+        "UPDATE sessions SET active_singer_id = NULL WHERE id = ?1 AND active_singer_id = ?2",
+        [session_id, singer_id],
+    )?;
+
+    // Remove from session_singers
+    db.connection().execute(
+        "DELETE FROM session_singers WHERE session_id = ?1 AND singer_id = ?2",
+        [session_id, singer_id],
+    )?;
+
+    // Clean up non-persistent singers that are now orphaned (not in any session)
+    db.connection().execute(
+        "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND id NOT IN (SELECT singer_id FROM session_singers)",
+        [singer_id],
+    )?;
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_session_singers(
     state: State<'_, AppState>,
     session_id: i64,

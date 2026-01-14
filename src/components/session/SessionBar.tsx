@@ -26,7 +26,7 @@ export function SessionBar() {
     endSession,
     loadSession,
     createSinger,
-    deleteSinger,
+    removeSingerFromSession,
     renameSession,
     switchToSession,
     openRenameDialog,
@@ -513,7 +513,7 @@ export function SessionBar() {
                   name={singer.name}
                   color={singer.color}
                   faded={!isSingerAssigned(singer.id)}
-                  onRemove={() => deleteSinger(singer.id)}
+                  onRemove={() => removeSingerFromSession(singer.id)}
                 />
                 {singer.is_persistent ? (
                   <span title="Persistent singer - has favorites">
