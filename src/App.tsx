@@ -408,6 +408,7 @@ function App() {
         title: video.title,
         artist: video.artist || undefined,
         duration: video.duration || undefined,
+        thumbnailUrl: video.thumbnail_path ? convertFileSrc(video.thumbnail_path) : undefined,
         source: "local",
         filePath: video.file_path,
       });
