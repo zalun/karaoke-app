@@ -480,6 +480,249 @@ describe("SingerPicker", () => {
     });
   });
 
+  describe("Keyboard navigation", () => {
+    it("navigates to next option on ArrowDown", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [
+          createMockSinger(1, "Alice", "#ff0000"),
+          createMockSinger(2, "Bob", "#00ff00"),
+        ],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+      const listbox = screen.getByRole("listbox");
+
+      // First option should be focused initially
+      const options = screen.getAllByRole("option");
+      expect(options[0]).toHaveAttribute("tabindex", "0");
+
+      // Navigate down
+      fireEvent.keyDown(listbox, { key: "ArrowDown" });
+
+      await waitFor(() => {
+        expect(options[1]).toHaveAttribute("tabindex", "0");
+        expect(options[0]).toHaveAttribute("tabindex", "-1");
+      });
+    });
+
+    it("navigates to previous option on ArrowUp", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [
+          createMockSinger(1, "Alice", "#ff0000"),
+          createMockSinger(2, "Bob", "#00ff00"),
+        ],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+      const listbox = screen.getByRole("listbox");
+
+      // Navigate down first, then up
+      fireEvent.keyDown(listbox, { key: "ArrowDown" });
+      fireEvent.keyDown(listbox, { key: "ArrowUp" });
+
+      const options = screen.getAllByRole("option");
+      await waitFor(() => {
+        expect(options[0]).toHaveAttribute("tabindex", "0");
+      });
+    });
+
+    it("wraps to first option when pressing ArrowDown on last option", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [
+          createMockSinger(1, "Alice", "#ff0000"),
+          createMockSinger(2, "Bob", "#00ff00"),
+        ],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+      const listbox = screen.getByRole("listbox");
+
+      // Navigate to last, then down again
+      fireEvent.keyDown(listbox, { key: "ArrowDown" }); // Bob
+      fireEvent.keyDown(listbox, { key: "ArrowDown" }); // Wrap to Alice
+
+      const options = screen.getAllByRole("option");
+      await waitFor(() => {
+        expect(options[0]).toHaveAttribute("tabindex", "0");
+      });
+    });
+
+    it("wraps to last option when pressing ArrowUp on first option", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [
+          createMockSinger(1, "Alice", "#ff0000"),
+          createMockSinger(2, "Bob", "#00ff00"),
+        ],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+      const listbox = screen.getByRole("listbox");
+
+      // Navigate up from first (should wrap to last)
+      fireEvent.keyDown(listbox, { key: "ArrowUp" });
+
+      const options = screen.getAllByRole("option");
+      await waitFor(() => {
+        expect(options[1]).toHaveAttribute("tabindex", "0");
+      });
+    });
+
+    it("closes dropdown on Escape and returns focus to button", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [createMockSinger(1, "Alice", "#ff0000")],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      const triggerButton = screen.getByRole("button");
+      await userEvent.click(triggerButton);
+
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+      const listbox = screen.getByRole("listbox");
+      fireEvent.keyDown(listbox, { key: "Escape" });
+
+      await waitFor(() => {
+        expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      });
+      expect(triggerButton).toHaveFocus();
+    });
+
+    it("closes dropdown on Tab key", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [createMockSinger(1, "Alice", "#ff0000")],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+      const listbox = screen.getByRole("listbox");
+      fireEvent.keyDown(listbox, { key: "Tab" });
+
+      await waitFor(() => {
+        expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      });
+    });
+
+    it("does not navigate when options list is empty", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [],
+        persistentSingers: [],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+      const listbox = screen.getByRole("listbox");
+
+      // Should not throw error when navigating with no options
+      fireEvent.keyDown(listbox, { key: "ArrowDown" });
+      fireEvent.keyDown(listbox, { key: "ArrowUp" });
+
+      // Dropdown should still be open (no crash)
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+    });
+
+    it("does not interfere with keyboard when new singer input is shown", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [
+          createMockSinger(1, "Alice", "#ff0000"),
+          createMockSinger(2, "Bob", "#00ff00"),
+        ],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+
+      // Get initial focused option
+      const options = screen.getAllByRole("option");
+      expect(options[0]).toHaveAttribute("tabindex", "0");
+
+      // Show new singer input
+      await userEvent.click(screen.getByText("New session singer..."));
+
+      // Arrow keys on listbox should not change focus when input is shown
+      const listbox = screen.getByRole("listbox");
+      fireEvent.keyDown(listbox, { key: "ArrowDown" });
+
+      // Focus index should not have changed (still on first option)
+      await waitFor(() => {
+        expect(options[0]).toHaveAttribute("tabindex", "0");
+      });
+    });
+  });
+
+  describe("ARIA attributes", () => {
+    it("has correct ARIA attributes on trigger button", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [createMockSinger(1, "Alice", "#ff0000")],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      const button = screen.getByRole("button");
+      expect(button).toHaveAttribute("aria-haspopup", "listbox");
+      expect(button).toHaveAttribute("aria-expanded", "false");
+      expect(button).toHaveAttribute("aria-label", "Assign singers");
+
+      await userEvent.click(button);
+
+      expect(button).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("has correct ARIA attributes on listbox", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [createMockSinger(1, "Alice", "#ff0000")],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+
+      const listbox = screen.getByRole("listbox");
+      expect(listbox).toHaveAttribute("aria-label", "Select singers");
+    });
+
+    it("has correct ARIA attributes on options", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [createMockSinger(1, "Alice", "#ff0000")],
+        queueItemAssignments: [1],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+
+      const option = screen.getByRole("option", { name: /Remove Alice/i });
+      expect(option).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("shows correct aria-label for unassigned singer", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [createMockSinger(1, "Alice", "#ff0000")],
+        queueItemAssignments: [],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+
+      const option = screen.getByRole("option", { name: /Assign Alice/i });
+      expect(option).toHaveAttribute("aria-selected", "false");
+    });
+  });
+
   describe("Click propagation", () => {
     it("stops click propagation from button", async () => {
       setupMocks({ session: createMockSession() });

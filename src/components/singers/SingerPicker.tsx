@@ -137,10 +137,12 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
     }
   }, [isOpen]);
 
-  // Focus the option at focusedIndex
+  // Focus the option at focusedIndex (use requestAnimationFrame to ensure refs are populated)
   useEffect(() => {
-    if (isOpen && focusedIndex >= 0 && optionRefs.current[focusedIndex]) {
-      optionRefs.current[focusedIndex]?.focus();
+    if (isOpen && focusedIndex >= 0) {
+      requestAnimationFrame(() => {
+        optionRefs.current[focusedIndex]?.focus();
+      });
     }
   }, [isOpen, focusedIndex]);
 
