@@ -196,10 +196,8 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
     }
   };
 
-  // Handle keyboard navigation in dropdown
-  const handleDropdownKeyDown = (e: React.KeyboardEvent) => {
-    if (showNewSinger) return; // Don't interfere with input
-
+  // Handle keyboard navigation on option buttons
+  const handleOptionKeyDown = (e: React.KeyboardEvent) => {
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
@@ -243,7 +241,6 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
         zIndex: 9999,
       }}
       onClick={(e) => e.stopPropagation()}
-      onKeyDown={handleDropdownKeyDown}
     >
       <div className="overflow-y-auto flex-1">
         {/* Session Singers */}
@@ -260,6 +257,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
                   key={singer.id}
                   ref={(el) => { optionRefs.current[currentIndex] = el; }}
                   onClick={() => handleToggleSinger(singer.id)}
+                  onKeyDown={handleOptionKeyDown}
                   className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors ${focusedIndex === currentIndex ? "bg-gray-700 outline-none ring-1 ring-blue-500" : ""}`}
                   role="option"
                   aria-selected={isAssigned}
@@ -300,6 +298,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
                 key={singer.id}
                 ref={(el) => { optionRefs.current[currentIndex] = el; }}
                 onClick={() => handleAddPersistentSingerToSession(singer.id)}
+                onKeyDown={handleOptionKeyDown}
                 className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors ${focusedIndex === currentIndex ? "bg-gray-700 outline-none ring-1 ring-blue-500" : ""}`}
                 role="option"
                 aria-selected={false}
