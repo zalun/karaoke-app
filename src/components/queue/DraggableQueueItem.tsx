@@ -64,6 +64,7 @@ export function DraggableQueueItem({
       style={style}
       {...attributes}
       {...listeners}
+      data-testid="queue-item"
       className={`flex gap-2 p-2 rounded transition-colors cursor-grab active:cursor-grabbing touch-none ${
         isNonEmbeddable
           ? "bg-gray-800 border border-gray-600"

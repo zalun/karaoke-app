@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createLogger, sessionService, type Singer, type Session } from "../services";
 import { getNextSingerColor } from "../constants";
-import { useQueueStore } from "./queueStore";
+import { useQueueStore, flushPendingOperations } from "./queueStore";
 
 const log = createLogger("SessionStore");
 
@@ -93,6 +93,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     log.info(`Starting new session: ${name || "(unnamed)"}`);
     set({ isLoading: true });
     try {
+      // Flush any pending queue operations before starting session
+      // This prevents race conditions where items are lost during session migration
+      await flushPendingOperations();
       const session = await sessionService.startSession(name);
       set({ session, isLoading: false, singers: [], activeSingerId: null, queueSingerAssignments: new Map() });
       // Reload queue/history state (items were migrated to the new session in backend)
@@ -111,6 +114,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     log.info("Ending session");
     set({ isLoading: true });
     try {
+      // Flush any pending queue operations before ending session
+      await flushPendingOperations();
       await sessionService.endSession();
       set({ session: null, isLoading: false, singers: [], activeSingerId: null, queueSingerAssignments: new Map() });
       // Reset queue store (data already archived in DB)
@@ -144,6 +149,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     log.info(`Switching to session: ${sessionId}`);
     set({ isLoading: true });
     try {
+      // Flush any pending queue operations before switching session
+      await flushPendingOperations();
       const session = await sessionService.loadSession(sessionId);
       // Update session and recentSessions to reflect new active session
       set((state) => ({
