@@ -9,6 +9,7 @@ const MAX_VISIBLE_SINGERS = 10;
 
 export function SessionBar() {
   const [createError, setCreateError] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -149,6 +150,23 @@ export function SessionBar() {
             ? (error as { message: string }).message
             : "Failed to create singer";
       setCreateError(message);
+    }
+  };
+
+  const handleRemoveSinger = async (singerId: number) => {
+    setRemoveError(null);
+    try {
+      await removeSingerFromSession(singerId);
+    } catch (error) {
+      // Handle both Error objects and Tauri command errors ({type, message})
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? (error as { message: string }).message
+            : "Failed to remove singer";
+      setRemoveError(message);
+      console.error("Failed to remove singer:", error);
     }
   };
 
@@ -506,6 +524,9 @@ export function SessionBar() {
       {/* Expandable singers panel */}
       {showSingers && (
         <div className="mt-2 pt-2 border-t border-gray-600">
+          {removeError && (
+            <p className="text-xs text-red-400 mb-2">{removeError}</p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             {singers.map((singer) => (
               <div key={singer.id} className="flex items-center gap-1">
@@ -513,7 +534,7 @@ export function SessionBar() {
                   name={singer.name}
                   color={singer.color}
                   faded={!isSingerAssigned(singer.id)}
-                  onRemove={() => removeSingerFromSession(singer.id)}
+                  onRemove={() => handleRemoveSinger(singer.id)}
                 />
                 {singer.is_persistent ? (
                   <span title="Persistent singer - has favorites">

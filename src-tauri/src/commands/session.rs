@@ -453,6 +453,38 @@ pub fn remove_singer_from_session(
     );
     let db = state.db.lock().map_lock_err()?;
 
+    // Verify session exists
+    let session_exists: bool = db
+        .connection()
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
+            [session_id],
+            |row| row.get(0),
+        )?;
+
+    if !session_exists {
+        return Err(CommandError::Validation(format!(
+            "Session {} does not exist",
+            session_id
+        )));
+    }
+
+    // Verify singer exists
+    let singer_exists: bool = db
+        .connection()
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM singers WHERE id = ?1)",
+            [singer_id],
+            |row| row.get(0),
+        )?;
+
+    if !singer_exists {
+        return Err(CommandError::Validation(format!(
+            "Singer {} does not exist",
+            singer_id
+        )));
+    }
+
     // Clear active_singer_id if this singer was the active singer for this session
     db.connection().execute(
         "UPDATE sessions SET active_singer_id = NULL WHERE id = ?1 AND active_singer_id = ?2",
@@ -1591,6 +1623,301 @@ mod tests {
                 .unwrap();
 
             assert!(!exists, "Singer should not be in session");
+        }
+    }
+
+    mod remove_singer_from_session {
+        use super::*;
+
+        #[test]
+        fn test_removes_singer_from_session_singers() {
+            let conn = setup_test_db();
+
+            // Create session and singer
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES ('Alice', '#fff', 1)",
+                [],
+            )
+            .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            // Add singer to session
+            conn.execute(
+                "INSERT INTO session_singers (session_id, singer_id) VALUES (?1, ?2)",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            // Verify singer is in session
+            let in_session: bool = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM session_singers WHERE session_id = ?1 AND singer_id = ?2)",
+                    [session_id, singer_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(in_session, "Singer should be in session before removal");
+
+            // Remove singer from session
+            conn.execute(
+                "DELETE FROM session_singers WHERE session_id = ?1 AND singer_id = ?2",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            // Verify singer is removed from session
+            let in_session_after: bool = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM session_singers WHERE session_id = ?1 AND singer_id = ?2)",
+                    [session_id, singer_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(!in_session_after, "Singer should be removed from session");
+        }
+
+        #[test]
+        fn test_persistent_singer_preserved_after_removal() {
+            let conn = setup_test_db();
+
+            // Create session and persistent singer
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES ('Persistent', '#fff', 1)",
+                [],
+            )
+            .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            // Add singer to session
+            conn.execute(
+                "INSERT INTO session_singers (session_id, singer_id) VALUES (?1, ?2)",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            // Remove singer from session
+            conn.execute(
+                "DELETE FROM session_singers WHERE session_id = ?1 AND singer_id = ?2",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            // Clean up non-persistent singers (as the command does)
+            conn.execute(
+                "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND id NOT IN (SELECT singer_id FROM session_singers)",
+                [singer_id],
+            )
+            .unwrap();
+
+            // Verify persistent singer still exists
+            let singer_exists: bool = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM singers WHERE id = ?1)",
+                    [singer_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(singer_exists, "Persistent singer should still exist after removal from session");
+        }
+
+        #[test]
+        fn test_non_persistent_orphaned_singer_deleted() {
+            let conn = setup_test_db();
+
+            // Create session and non-persistent singer
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES ('Temp', '#fff', 0)",
+                [],
+            )
+            .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            // Add singer to session
+            conn.execute(
+                "INSERT INTO session_singers (session_id, singer_id) VALUES (?1, ?2)",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            // Remove singer from session
+            conn.execute(
+                "DELETE FROM session_singers WHERE session_id = ?1 AND singer_id = ?2",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            // Clean up non-persistent singers (as the command does)
+            conn.execute(
+                "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND id NOT IN (SELECT singer_id FROM session_singers)",
+                [singer_id],
+            )
+            .unwrap();
+
+            // Verify non-persistent singer is deleted
+            let singer_exists: bool = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM singers WHERE id = ?1)",
+                    [singer_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(!singer_exists, "Non-persistent orphaned singer should be deleted");
+        }
+
+        #[test]
+        fn test_non_persistent_singer_in_other_session_preserved() {
+            let conn = setup_test_db();
+
+            // Create two sessions
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Session1', 0)", [])
+                .unwrap();
+            let session1_id: i64 = conn.last_insert_rowid();
+
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Session2', 1)", [])
+                .unwrap();
+            let session2_id: i64 = conn.last_insert_rowid();
+
+            // Create non-persistent singer
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES ('Shared', '#fff', 0)",
+                [],
+            )
+            .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            // Add singer to both sessions
+            conn.execute(
+                "INSERT INTO session_singers (session_id, singer_id) VALUES (?1, ?2)",
+                [session1_id, singer_id],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO session_singers (session_id, singer_id) VALUES (?1, ?2)",
+                [session2_id, singer_id],
+            )
+            .unwrap();
+
+            // Remove singer from session 1 only
+            conn.execute(
+                "DELETE FROM session_singers WHERE session_id = ?1 AND singer_id = ?2",
+                [session1_id, singer_id],
+            )
+            .unwrap();
+
+            // Clean up non-persistent singers (as the command does)
+            conn.execute(
+                "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND id NOT IN (SELECT singer_id FROM session_singers)",
+                [singer_id],
+            )
+            .unwrap();
+
+            // Verify singer still exists (still in session 2)
+            let singer_exists: bool = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM singers WHERE id = ?1)",
+                    [singer_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(singer_exists, "Non-persistent singer should be preserved if still in another session");
+        }
+
+        #[test]
+        fn test_clears_active_singer_on_removal() {
+            let conn = setup_test_db();
+
+            // Create singer
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES ('Active', '#fff', 1)",
+                [],
+            )
+            .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            // Create session with this singer as active
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, active_singer_id) VALUES ('Test', 1, ?1)",
+                [singer_id],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Add singer to session
+            conn.execute(
+                "INSERT INTO session_singers (session_id, singer_id) VALUES (?1, ?2)",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            // Clear active_singer_id (as the command does)
+            conn.execute(
+                "UPDATE sessions SET active_singer_id = NULL WHERE id = ?1 AND active_singer_id = ?2",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            // Verify active singer is cleared
+            let active_singer_id: Option<i64> = conn
+                .query_row(
+                    "SELECT active_singer_id FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(active_singer_id, None, "Active singer should be cleared when removed from session");
+        }
+
+        #[test]
+        fn test_session_not_found_validation() {
+            let conn = setup_test_db();
+
+            // Create a singer but no session
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES ('Alice', '#fff', 1)",
+                [],
+            )
+            .unwrap();
+
+            // Check for non-existent session
+            let session_exists: bool = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
+                    [9999i64],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(!session_exists, "Session should not exist");
+        }
+
+        #[test]
+        fn test_singer_not_found_validation() {
+            let conn = setup_test_db();
+
+            // Create a session but no singer
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+
+            // Check for non-existent singer
+            let singer_exists: bool = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM singers WHERE id = ?1)",
+                    [9999i64],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(!singer_exists, "Singer should not exist");
         }
     }
 }

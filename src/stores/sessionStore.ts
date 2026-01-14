@@ -311,8 +311,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   removeSingerFromSession: async (singerId: number) => {
     const { session } = get();
     if (!session) {
-      log.warn("Cannot remove singer from session: no active session");
-      return;
+      log.error("Cannot remove singer from session: no active session");
+      throw new Error("No active session");
     }
 
     log.info(`Removing singer ${singerId} from session ${session.id}`);
