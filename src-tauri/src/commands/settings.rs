@@ -22,6 +22,10 @@ const ALLOWED_SETTING_KEYS: &[&str] = &[
     "search_include_lyrics",    // include lyrics content in local library search
     "youtube_api_key",          // YouTube Data API key
     "youtube_search_method",    // "auto" | "api" | "ytdlp"
+    // Search history settings
+    "search_history_global",         // show history from all sessions
+    "search_history_session_limit",  // max entries per session
+    "search_history_global_limit",   // max entries when showing global
 ];
 
 /// Get the current debug mode state

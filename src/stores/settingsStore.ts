@@ -19,6 +19,10 @@ export const SETTINGS_KEYS = {
   // Queue & History
   HISTORY_LIMIT: "history_limit",
   CLEAR_QUEUE_ON_EXIT: "clear_queue_on_exit",
+  // Search History
+  SEARCH_HISTORY_GLOBAL: "search_history_global",
+  SEARCH_HISTORY_SESSION_LIMIT: "search_history_session_limit",
+  SEARCH_HISTORY_GLOBAL_LIMIT: "search_history_global_limit",
   // Library
   SEARCH_INCLUDE_LYRICS: "search_include_lyrics", // include lyrics in local search
   // YouTube
@@ -42,6 +46,9 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
   [SETTINGS_KEYS.REMEMBER_PLAYER_POSITION]: "true",
   [SETTINGS_KEYS.HISTORY_LIMIT]: "100",
   [SETTINGS_KEYS.CLEAR_QUEUE_ON_EXIT]: "never",
+  [SETTINGS_KEYS.SEARCH_HISTORY_GLOBAL]: "true", // Show history from all sessions
+  [SETTINGS_KEYS.SEARCH_HISTORY_SESSION_LIMIT]: "50", // Max entries per session
+  [SETTINGS_KEYS.SEARCH_HISTORY_GLOBAL_LIMIT]: "50", // Max entries when showing global
   [SETTINGS_KEYS.SEARCH_INCLUDE_LYRICS]: "true", // Default to including lyrics in search
   [SETTINGS_KEYS.YOUTUBE_SEARCH_METHOD]: "api", // Default to YouTube API
   [SETTINGS_KEYS.PLAYBACK_MODE]: "youtube", // Default to YouTube embed

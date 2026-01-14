@@ -343,6 +343,11 @@ pub fn run() {
             commands::library_browse,
             commands::library_check_file,
             commands::library_get_stats,
+            // Search history commands
+            commands::search_history_add,
+            commands::search_history_get,
+            commands::search_history_clear,
+            commands::search_history_clear_session,
         ])
         .setup(|app| {
             info!("Starting HomeKaraoke application");
