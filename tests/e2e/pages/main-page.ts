@@ -27,6 +27,11 @@ export class MainPage {
   readonly ytdlpStatus: Locator;
   readonly continueButton: Locator;
 
+  // Session elements
+  readonly startSessionButton: Locator;
+  readonly endSessionButton: Locator;
+  readonly sessionIndicator: Locator;
+
   constructor(page: Page) {
     this.page = page;
 
@@ -49,6 +54,12 @@ export class MainPage {
     this.dependencyCheck = page.locator("text=Checking dependencies");
     this.ytdlpStatus = page.locator("text=yt-dlp").first();
     this.continueButton = page.getByRole("button", { name: "Continue" });
+
+    // Session elements
+    this.startSessionButton = page.getByRole("button", { name: "Start Session" });
+    this.endSessionButton = page.getByRole("button", { name: "End" });
+    // Session indicator is the pulsing green dot (w-2 h-2 rounded-full bg-green-500 animate-pulse)
+    this.sessionIndicator = page.locator('[class*="bg-green-500"][class*="animate-pulse"]');
   }
 
   /**
@@ -178,12 +189,8 @@ export class MainPage {
    * Get the number of items in the queue.
    */
   async getQueueItemCount(): Promise<number> {
-    // Queue items are in the queue panel with specific styling
-    // Look for items with the draggable queue item structure
-    return this.page
-      .locator('[class*="bg-gray-700/50 hover:bg-gray-600"]')
-      .filter({ hasText: /\d+\.\s/ })
-      .count();
+    // Queue items have data-testid="queue-item"
+    return this.page.locator('[data-testid="queue-item"]').count();
   }
 
   /**
@@ -231,5 +238,28 @@ export class MainPage {
   async isKaraokeSuffixActive(): Promise<boolean> {
     const classes = await this.addKaraokeToggle.getAttribute("class");
     return classes?.includes("bg-blue-600") ?? false;
+  }
+
+  /**
+   * Start a new session.
+   */
+  async startSession(): Promise<void> {
+    await this.startSessionButton.click();
+    // Wait for the start button to disappear (indicating session started)
+    await this.startSessionButton.waitFor({ state: "hidden", timeout: 10000 });
+  }
+
+  /**
+   * Check if a session is currently active.
+   */
+  async hasActiveSession(): Promise<boolean> {
+    return this.sessionIndicator.isVisible();
+  }
+
+  /**
+   * End the current session.
+   */
+  async endSession(): Promise<void> {
+    await this.endSessionButton.click();
   }
 }

@@ -108,6 +108,10 @@ export async function injectTauriMocks(
       history_index: -1,
     };
 
+    // In-memory session state
+    let sessionIdCounter = 1;
+    let activeSession: { id: number; name: string | null; is_active: boolean; created_at: string } | null = null;
+
     // Callback storage for transformCallback
     let callbackId = 0;
     const callbacks: Record<number, (data: unknown) => void> = {};
@@ -275,10 +279,26 @@ export async function injectTauriMocks(
           // Session commands
           case "session_get_active":
           case "get_active_session":
+            return activeSession;
+
+          case "start_session": {
+            // Create new session - queue items are preserved (simulating backend migration)
+            const newSession = {
+              id: sessionIdCounter++,
+              name: (args?.name as string) || null,
+              is_active: true,
+              created_at: new Date().toISOString(),
+            };
+            activeSession = newSession;
+            console.log(`[Tauri Mock] Session started: ${newSession.id}, queue has ${queueState.queue.length} items`);
+            return newSession;
+          }
+
+          case "end_session":
+            activeSession = null;
+            // Queue is preserved in archived state (not cleared)
             return null;
 
-          case "session_start":
-          case "session_end":
           case "session_add_singer":
           case "session_remove_singer":
           case "session_set_active_singer":
