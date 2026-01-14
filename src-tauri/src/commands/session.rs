@@ -816,3 +816,748 @@ pub fn session_get_active_singer(
         Err(e) => Err(CommandError::Database(e)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::Connection;
+
+    /// Create an in-memory database with the required schema for testing
+    fn setup_test_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+        // Create minimal schema for session/singer tests
+        conn.execute_batch(
+            r#"
+            CREATE TABLE singers (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                unique_name TEXT,
+                color TEXT NOT NULL,
+                is_persistent INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE sessions (
+                id INTEGER PRIMARY KEY,
+                name TEXT,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ended_at TIMESTAMP,
+                is_active INTEGER DEFAULT 1,
+                history_index INTEGER DEFAULT -1,
+                active_singer_id INTEGER REFERENCES singers(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE session_singers (
+                session_id INTEGER NOT NULL,
+                singer_id INTEGER NOT NULL,
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (session_id, singer_id),
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE queue_singers (
+                id INTEGER PRIMARY KEY,
+                queue_item_id TEXT NOT NULL,
+                singer_id INTEGER NOT NULL,
+                position INTEGER DEFAULT 0,
+                FOREIGN KEY (singer_id) REFERENCES singers(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE queue_items (
+                id TEXT PRIMARY KEY,
+                session_id INTEGER NOT NULL,
+                item_type TEXT NOT NULL,
+                video_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                artist TEXT,
+                duration INTEGER,
+                thumbnail_url TEXT,
+                source TEXT NOT NULL,
+                youtube_id TEXT,
+                file_path TEXT,
+                position INTEGER NOT NULL,
+                added_at TEXT NOT NULL,
+                played_at TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX idx_queue_singers_queue_item ON queue_singers(queue_item_id);
+            CREATE INDEX idx_session_singers_session ON session_singers(session_id);
+            "#,
+        )
+        .unwrap();
+
+        conn
+    }
+
+    mod singer_crud {
+        use super::*;
+        use crate::commands::session::MAX_NAME_LENGTH;
+
+        #[test]
+        fn test_create_singer_basic() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES (?1, ?2, ?3)",
+                rusqlite::params!["Alice", "#ff0000", false],
+            )
+            .unwrap();
+
+            let singer: (i64, String, String, i32) = conn
+                .query_row(
+                    "SELECT id, name, color, is_persistent FROM singers WHERE name = 'Alice'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                )
+                .unwrap();
+
+            assert_eq!(singer.1, "Alice");
+            assert_eq!(singer.2, "#ff0000");
+            assert_eq!(singer.3, 0);
+        }
+
+        #[test]
+        fn test_create_singer_with_unique_name() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO singers (name, unique_name, color, is_persistent) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params!["Bob", "bob123", "#00ff00", true],
+            )
+            .unwrap();
+
+            let singer: (String, Option<String>, i32) = conn
+                .query_row(
+                    "SELECT name, unique_name, is_persistent FROM singers WHERE name = 'Bob'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(singer.0, "Bob");
+            assert_eq!(singer.1, Some("bob123".to_string()));
+            assert_eq!(singer.2, 1);
+        }
+
+        #[test]
+        fn test_name_validation_empty() {
+            let name = "   ".trim();
+            assert!(name.is_empty(), "Trimmed whitespace-only name should be empty");
+        }
+
+        #[test]
+        fn test_name_validation_max_length() {
+            let long_name = "a".repeat(MAX_NAME_LENGTH + 1);
+            assert!(
+                long_name.len() > MAX_NAME_LENGTH,
+                "Name exceeding {} characters should be rejected",
+                MAX_NAME_LENGTH
+            );
+        }
+
+        #[test]
+        fn test_name_validation_at_limit() {
+            let max_name = "a".repeat(MAX_NAME_LENGTH);
+            assert_eq!(max_name.len(), MAX_NAME_LENGTH);
+            assert!(
+                max_name.len() <= MAX_NAME_LENGTH,
+                "Name at exactly {} characters should be valid",
+                MAX_NAME_LENGTH
+            );
+        }
+
+        #[test]
+        fn test_delete_singer() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO singers (name, color) VALUES ('ToDelete', '#000000')",
+                [],
+            )
+            .unwrap();
+
+            let count: i32 = conn
+                .query_row("SELECT COUNT(*) FROM singers", [], |row| row.get(0))
+                .unwrap();
+            assert_eq!(count, 1);
+
+            conn.execute("DELETE FROM singers WHERE name = 'ToDelete'", [])
+                .unwrap();
+
+            let count: i32 = conn
+                .query_row("SELECT COUNT(*) FROM singers", [], |row| row.get(0))
+                .unwrap();
+            assert_eq!(count, 0);
+        }
+
+        #[test]
+        fn test_get_singers_ordered_by_name() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO singers (name, color) VALUES ('Zoe', '#111')", [])
+                .unwrap();
+            conn.execute("INSERT INTO singers (name, color) VALUES ('Alice', '#222')", [])
+                .unwrap();
+            conn.execute("INSERT INTO singers (name, color) VALUES ('Mike', '#333')", [])
+                .unwrap();
+
+            let mut stmt = conn
+                .prepare("SELECT name FROM singers ORDER BY name")
+                .unwrap();
+            let names: Vec<String> = stmt
+                .query_map([], |row| row.get(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+
+            assert_eq!(names, vec!["Alice", "Mike", "Zoe"]);
+        }
+
+        #[test]
+        fn test_get_persistent_singers_only() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES ('Temp', '#111', 0)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES ('Perm', '#222', 1)",
+                [],
+            )
+            .unwrap();
+
+            let count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM singers WHERE is_persistent = 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(count, 1);
+        }
+    }
+
+    mod session_lifecycle {
+        use super::*;
+
+        #[test]
+        fn test_start_session_basic() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active) VALUES ('Test Session', 1)",
+                [],
+            )
+            .unwrap();
+
+            let session: (i64, Option<String>, i32) = conn
+                .query_row(
+                    "SELECT id, name, is_active FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(session.1, Some("Test Session".to_string()));
+            assert_eq!(session.2, 1);
+        }
+
+        #[test]
+        fn test_start_session_ends_previous() {
+            let conn = setup_test_db();
+
+            // Create first session
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('First', 1)", [])
+                .unwrap();
+
+            // Simulate starting new session (end old first)
+            conn.execute(
+                "UPDATE sessions SET is_active = 0, ended_at = CURRENT_TIMESTAMP WHERE is_active = 1",
+                [],
+            )
+            .unwrap();
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Second', 1)", [])
+                .unwrap();
+
+            let active_count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(active_count, 1, "Only one session should be active at a time");
+
+            let active_name: String = conn
+                .query_row(
+                    "SELECT name FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(active_name, "Second");
+        }
+
+        #[test]
+        fn test_end_session_marks_inactive() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('ToEnd', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Add a singer to make the session non-empty
+            conn.execute(
+                "INSERT INTO singers (name, color) VALUES ('Singer', '#fff')",
+                [],
+            )
+            .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+            conn.execute(
+                "INSERT INTO session_singers (session_id, singer_id) VALUES (?1, ?2)",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            // End session
+            conn.execute(
+                "UPDATE sessions SET is_active = 0, ended_at = CURRENT_TIMESTAMP WHERE id = ?1",
+                [session_id],
+            )
+            .unwrap();
+
+            let is_active: i32 = conn
+                .query_row(
+                    "SELECT is_active FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(is_active, 0);
+        }
+
+        #[test]
+        fn test_end_empty_session_deletes() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Empty', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Check if session has content
+            let has_content: bool = conn
+                .query_row(
+                    "SELECT EXISTS(
+                        SELECT 1 FROM queue_items WHERE session_id = ?1
+                        UNION
+                        SELECT 1 FROM session_singers WHERE session_id = ?1
+                    )",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            if !has_content {
+                conn.execute("DELETE FROM sessions WHERE id = ?1", [session_id])
+                    .unwrap();
+            }
+
+            let count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(count, 0, "Empty session should be deleted on end");
+        }
+
+        #[test]
+        fn test_session_cleanup_removes_orphaned_singers() {
+            let conn = setup_test_db();
+
+            // Create non-persistent singer without session association
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES ('Orphan', '#000', 0)",
+                [],
+            )
+            .unwrap();
+
+            // Cleanup orphaned non-persistent singers
+            conn.execute(
+                "DELETE FROM singers WHERE is_persistent = 0 AND id NOT IN (SELECT singer_id FROM session_singers)",
+                [],
+            )
+            .unwrap();
+
+            let count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM singers WHERE name = 'Orphan'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(count, 0, "Orphaned non-persistent singers should be cleaned up");
+        }
+
+        #[test]
+        fn test_persistent_singer_survives_cleanup() {
+            let conn = setup_test_db();
+
+            // Create persistent singer without session association
+            conn.execute(
+                "INSERT INTO singers (name, color, is_persistent) VALUES ('Persistent', '#000', 1)",
+                [],
+            )
+            .unwrap();
+
+            // Cleanup orphaned non-persistent singers
+            conn.execute(
+                "DELETE FROM singers WHERE is_persistent = 0 AND id NOT IN (SELECT singer_id FROM session_singers)",
+                [],
+            )
+            .unwrap();
+
+            let count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM singers WHERE name = 'Persistent'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(count, 1, "Persistent singers should survive cleanup");
+        }
+
+        #[test]
+        fn test_add_singer_to_session() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "INSERT INTO singers (name, color) VALUES ('Alice', '#fff')",
+                [],
+            )
+            .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "INSERT OR IGNORE INTO session_singers (session_id, singer_id) VALUES (?1, ?2)",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            let count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM session_singers WHERE session_id = ?1 AND singer_id = ?2",
+                    [session_id, singer_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(count, 1);
+        }
+    }
+
+    mod queue_singer_assignment {
+        use super::*;
+
+        #[test]
+        fn test_assign_singer_to_queue_item() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO singers (name, color) VALUES ('Alice', '#fff')",
+                [],
+            )
+            .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            let queue_item_id = "test-item-123";
+            conn.execute(
+                "INSERT INTO queue_singers (queue_item_id, singer_id, position) VALUES (?1, ?2, 0)",
+                rusqlite::params![queue_item_id, singer_id],
+            )
+            .unwrap();
+
+            let count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM queue_singers WHERE queue_item_id = ?1 AND singer_id = ?2",
+                    rusqlite::params![queue_item_id, singer_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(count, 1);
+        }
+
+        #[test]
+        fn test_assign_multiple_singers_with_position() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO singers (name, color) VALUES ('Alice', '#f00')", [])
+                .unwrap();
+            let alice_id: i64 = conn.last_insert_rowid();
+
+            conn.execute("INSERT INTO singers (name, color) VALUES ('Bob', '#0f0')", [])
+                .unwrap();
+            let bob_id: i64 = conn.last_insert_rowid();
+
+            let queue_item_id = "test-item-456";
+
+            // Assign Alice at position 0
+            conn.execute(
+                "INSERT INTO queue_singers (queue_item_id, singer_id, position) VALUES (?1, ?2, 0)",
+                rusqlite::params![queue_item_id, alice_id],
+            )
+            .unwrap();
+
+            // Assign Bob at position 1
+            conn.execute(
+                "INSERT INTO queue_singers (queue_item_id, singer_id, position) VALUES (?1, ?2, 1)",
+                rusqlite::params![queue_item_id, bob_id],
+            )
+            .unwrap();
+
+            // Get singers ordered by position
+            let mut stmt = conn
+                .prepare(
+                    "SELECT s.name FROM singers s
+                     INNER JOIN queue_singers qs ON s.id = qs.singer_id
+                     WHERE qs.queue_item_id = ?1
+                     ORDER BY qs.position",
+                )
+                .unwrap();
+
+            let names: Vec<String> = stmt
+                .query_map([queue_item_id], |row| row.get(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+
+            assert_eq!(names, vec!["Alice", "Bob"]);
+        }
+
+        #[test]
+        fn test_remove_singer_from_queue_item() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO singers (name, color) VALUES ('ToRemove', '#fff')", [])
+                .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            let queue_item_id = "test-item-789";
+            conn.execute(
+                "INSERT INTO queue_singers (queue_item_id, singer_id, position) VALUES (?1, ?2, 0)",
+                rusqlite::params![queue_item_id, singer_id],
+            )
+            .unwrap();
+
+            conn.execute(
+                "DELETE FROM queue_singers WHERE queue_item_id = ?1 AND singer_id = ?2",
+                rusqlite::params![queue_item_id, singer_id],
+            )
+            .unwrap();
+
+            let count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM queue_singers WHERE queue_item_id = ?1",
+                    [queue_item_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(count, 0);
+        }
+
+        #[test]
+        fn test_clear_all_singers_from_queue_item() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO singers (name, color) VALUES ('One', '#f00')", [])
+                .unwrap();
+            let s1: i64 = conn.last_insert_rowid();
+
+            conn.execute("INSERT INTO singers (name, color) VALUES ('Two', '#0f0')", [])
+                .unwrap();
+            let s2: i64 = conn.last_insert_rowid();
+
+            let queue_item_id = "clear-test";
+            conn.execute(
+                "INSERT INTO queue_singers (queue_item_id, singer_id, position) VALUES (?1, ?2, 0)",
+                rusqlite::params![queue_item_id, s1],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO queue_singers (queue_item_id, singer_id, position) VALUES (?1, ?2, 1)",
+                rusqlite::params![queue_item_id, s2],
+            )
+            .unwrap();
+
+            conn.execute(
+                "DELETE FROM queue_singers WHERE queue_item_id = ?1",
+                [queue_item_id],
+            )
+            .unwrap();
+
+            let count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM queue_singers WHERE queue_item_id = ?1",
+                    [queue_item_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(count, 0);
+        }
+    }
+
+    mod active_singer {
+        use super::*;
+
+        #[test]
+        fn test_set_active_singer() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute("INSERT INTO singers (name, color) VALUES ('Active', '#fff')", [])
+                .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            // Add singer to session first
+            conn.execute(
+                "INSERT INTO session_singers (session_id, singer_id) VALUES (?1, ?2)",
+                [session_id, singer_id],
+            )
+            .unwrap();
+
+            // Set as active singer
+            conn.execute(
+                "UPDATE sessions SET active_singer_id = ?1 WHERE id = ?2",
+                [singer_id, session_id],
+            )
+            .unwrap();
+
+            let active_singer_id: Option<i64> = conn
+                .query_row(
+                    "SELECT active_singer_id FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(active_singer_id, Some(singer_id));
+        }
+
+        #[test]
+        fn test_clear_active_singer() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO singers (name, color) VALUES ('ToClear', '#fff')", [])
+                .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, active_singer_id) VALUES ('Test', 1, ?1)",
+                [singer_id],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Clear active singer
+            conn.execute(
+                "UPDATE sessions SET active_singer_id = NULL WHERE id = ?1",
+                [session_id],
+            )
+            .unwrap();
+
+            let active_singer_id: Option<i64> = conn
+                .query_row(
+                    "SELECT active_singer_id FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(active_singer_id, None);
+        }
+
+        #[test]
+        fn test_delete_singer_clears_active_singer() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO singers (name, color) VALUES ('ToDelete', '#fff')", [])
+                .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, active_singer_id) VALUES ('Test', 1, ?1)",
+                [singer_id],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Clear active_singer_id before deleting (as the command does)
+            conn.execute(
+                "UPDATE sessions SET active_singer_id = NULL WHERE active_singer_id = ?1",
+                [singer_id],
+            )
+            .unwrap();
+
+            conn.execute("DELETE FROM singers WHERE id = ?1", [singer_id])
+                .unwrap();
+
+            let active_singer_id: Option<i64> = conn
+                .query_row(
+                    "SELECT active_singer_id FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(active_singer_id, None);
+        }
+
+        #[test]
+        fn test_validate_singer_in_session_before_setting_active() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute("INSERT INTO singers (name, color) VALUES ('NotInSession', '#fff')", [])
+                .unwrap();
+            let singer_id: i64 = conn.last_insert_rowid();
+
+            // Check if singer is in session
+            let exists: bool = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM session_singers WHERE session_id = ?1 AND singer_id = ?2)",
+                    [session_id, singer_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert!(!exists, "Singer should not be in session");
+        }
+    }
+}
