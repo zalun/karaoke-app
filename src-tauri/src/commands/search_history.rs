@@ -55,6 +55,13 @@ pub fn search_history_get(
     limit: i32,
     global: bool,
 ) -> Result<Vec<String>, CommandError> {
+    // Validate search_type
+    if search_type != "youtube" && search_type != "local" {
+        return Err(CommandError::Validation(
+            "search_type must be 'youtube' or 'local'".to_string(),
+        ));
+    }
+
     debug!(
         "Getting search history: type={}, session={:?}, limit={}, global={}",
         search_type, session_id, limit, global
