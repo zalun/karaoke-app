@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-01-14
+
+### Added
+- Search history with type-ahead completion (#181)
+  - Remembers past YouTube and local library searches per session
+  - Ghost text inline completion shows top matching suggestion
+  - Dropdown list with keyboard navigation (arrows, Tab, Enter, Escape)
+  - Settings: toggle global history, configure limits, clear history button
+  - Separate history tracking for YouTube vs local searches
+
 ### Fixed
 - Queue items no longer lost when starting a new session (#179)
   - Race condition where async database writes hadn't completed before session migration
