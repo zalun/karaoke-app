@@ -286,6 +286,9 @@ const MIGRATIONS: &[&str] = &[
 
     -- Index for timestamp-based ordering
     CREATE INDEX IF NOT EXISTS idx_search_history_searched_at ON search_history(searched_at DESC);
+
+    -- Index for global queries (filter by search_type only)
+    CREATE INDEX IF NOT EXISTS idx_search_history_search_type ON search_history(search_type);
     "#,
 ];
 
