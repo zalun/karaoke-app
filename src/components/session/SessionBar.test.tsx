@@ -434,9 +434,7 @@ describe("SessionBar", () => {
     });
 
     it("shows error message when createSinger fails", async () => {
-      mockSessionStore.createSinger = vi.fn().mockRejectedValue(new Error("Name too long"));
       setupMocks({ session: createMockSession(), singers: [] });
-      // Override after setupMocks
       mockSessionStore.createSinger = vi.fn().mockRejectedValue(new Error("Name too long"));
       render(<SessionBar />);
 

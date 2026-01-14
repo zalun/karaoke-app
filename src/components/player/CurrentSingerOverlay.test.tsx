@@ -257,13 +257,12 @@ describe("CurrentSingerOverlay", () => {
       // Unmount before timer fires
       unmount();
 
-      // Advance timers - should not cause any errors
-      act(() => {
-        vi.advanceTimersByTime(CURRENT_SINGER_OVERLAY_DURATION_MS);
-      });
-
-      // If no errors, cleanup worked correctly
-      expect(true).toBe(true);
+      // Advance timers - should not cause any errors (test passes if no exception thrown)
+      expect(() => {
+        act(() => {
+          vi.advanceTimersByTime(CURRENT_SINGER_OVERLAY_DURATION_MS);
+        });
+      }).not.toThrow();
     });
   });
 
