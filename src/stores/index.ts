@@ -37,3 +37,4 @@ export {
   type LibraryStats,
   type SearchMode,
 } from "./libraryStore";
+export { useSearchHistoryStore, type SearchType } from "./searchHistoryStore";

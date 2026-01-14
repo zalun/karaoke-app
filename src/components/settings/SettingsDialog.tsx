@@ -451,13 +451,83 @@ function DisplaySettings({ getSetting, setSetting }: SettingsSectionProps) {
   );
 }
 
-function QueueSettings(_: SettingsSectionProps) {
+function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
+  const handleChange = createSettingHandler(setSetting);
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClearHistory = async () => {
+    setIsClearing(true);
+    try {
+      await invoke("search_history_clear");
+      notify("success", "Search history cleared");
+    } catch (error) {
+      log.error("Failed to clear search history:", error);
+      notify("error", "Failed to clear search history");
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   return (
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Queue & History</h4>
 
-      <div className="text-gray-400 text-sm">
-        Queue & History settings are coming soon.
+      {/* Search History Section */}
+      <div className="mb-6">
+        <div className="text-sm font-medium text-gray-300 mb-3">Search History</div>
+
+        <SettingRow
+          label="Show Global History"
+          description="Include searches from previous sessions"
+        >
+          <ToggleSwitch
+            checked={getSetting(SETTINGS_KEYS.SEARCH_HISTORY_GLOBAL) === "true"}
+            onChange={(v) =>
+              handleChange(SETTINGS_KEYS.SEARCH_HISTORY_GLOBAL, v ? "true" : "false")
+            }
+          />
+        </SettingRow>
+
+        <SettingRow
+          label="Session History Limit"
+          description="Max searches to keep per session"
+        >
+          <SelectInput
+            value={getSetting(SETTINGS_KEYS.SEARCH_HISTORY_SESSION_LIMIT)}
+            options={[
+              { value: "25", label: "25" },
+              { value: "50", label: "50" },
+              { value: "100", label: "100" },
+            ]}
+            onChange={(v) => handleChange(SETTINGS_KEYS.SEARCH_HISTORY_SESSION_LIMIT, v)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label="Global History Limit"
+          description="Max searches to show from all sessions"
+        >
+          <SelectInput
+            value={getSetting(SETTINGS_KEYS.SEARCH_HISTORY_GLOBAL_LIMIT)}
+            options={[
+              { value: "25", label: "25" },
+              { value: "50", label: "50" },
+              { value: "100", label: "100" },
+            ]}
+            onChange={(v) => handleChange(SETTINGS_KEYS.SEARCH_HISTORY_GLOBAL_LIMIT, v)}
+          />
+        </SettingRow>
+
+        <div className="mt-4">
+          <button
+            onClick={handleClearHistory}
+            disabled={isClearing}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded transition-colors text-sm"
+          >
+            <Trash2 size={16} />
+            {isClearing ? "Clearing..." : "Clear All Search History"}
+          </button>
+        </div>
       </div>
 
       {/* TODO: Issue #159: History Limit

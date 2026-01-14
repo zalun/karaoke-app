@@ -269,6 +269,24 @@ const MIGRATIONS: &[&str] = &[
     r#"
     CREATE INDEX IF NOT EXISTS idx_library_folders_last_scan ON library_folders(last_scan_at);
     "#,
+    // Migration 10: Search history for type-ahead completion (Issue #181)
+    r#"
+    CREATE TABLE IF NOT EXISTS search_history (
+        id INTEGER PRIMARY KEY,
+        session_id INTEGER NOT NULL,
+        search_type TEXT NOT NULL CHECK(search_type IN ('youtube', 'local')),
+        query TEXT NOT NULL,
+        searched_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+        UNIQUE(session_id, search_type, query)
+    );
+
+    -- Index for efficient querying by session and type
+    CREATE INDEX IF NOT EXISTS idx_search_history_session_type ON search_history(session_id, search_type);
+
+    -- Index for timestamp-based ordering
+    CREATE INDEX IF NOT EXISTS idx_search_history_searched_at ON search_history(searched_at DESC);
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
