@@ -36,6 +36,7 @@ yarn-debug.log*
 yarn-error.log*
 logs/*
 !logs/.gitkeep
+!logs/README.md
 
 # Test
 coverage/

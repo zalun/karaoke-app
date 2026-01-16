@@ -4,8 +4,6 @@
 
 HomeKaraoke is a macOS karaoke application built with Tauri 2.0 (Rust) + React 18 + TypeScript + Zustand + SQLite.
 
-**Current Version:** v0.7.5
-
 ### Core Features (Implemented)
 - YouTube search and streaming (via yt-dlp or YouTube iframe)
 - YouTube Data API v3 integration for search
