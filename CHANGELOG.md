@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Ralph autonomous development loop support (#190)
+  - Configuration files for hands-off AI development cycles
+  - Task tracking via @fix_plan.md with GitHub issue integration
+
 ### Fixed
 - Removing a singer from a session no longer deletes them from Stored Singers (#188)
   - Persistent singers are now preserved when removed from session
