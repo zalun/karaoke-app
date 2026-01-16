@@ -452,15 +452,14 @@ pub fn remove_singer_from_session(
         singer_id, session_id
     );
     let db = state.db.lock().map_lock_err()?;
+    let conn = db.connection();
 
     // Verify session exists
-    let session_exists: bool = db
-        .connection()
-        .query_row(
-            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
-            [session_id],
-            |row| row.get(0),
-        )?;
+    let session_exists: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
+        [session_id],
+        |row| row.get(0),
+    )?;
 
     if !session_exists {
         return Err(CommandError::Validation(format!(
@@ -470,13 +469,11 @@ pub fn remove_singer_from_session(
     }
 
     // Verify singer exists
-    let singer_exists: bool = db
-        .connection()
-        .query_row(
-            "SELECT EXISTS(SELECT 1 FROM singers WHERE id = ?1)",
-            [singer_id],
-            |row| row.get(0),
-        )?;
+    let singer_exists: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM singers WHERE id = ?1)",
+        [singer_id],
+        |row| row.get(0),
+    )?;
 
     if !singer_exists {
         return Err(CommandError::Validation(format!(
@@ -485,25 +482,41 @@ pub fn remove_singer_from_session(
         )));
     }
 
-    // Clear active_singer_id if this singer was the active singer for this session
-    db.connection().execute(
-        "UPDATE sessions SET active_singer_id = NULL WHERE id = ?1 AND active_singer_id = ?2",
-        [session_id, singer_id],
-    )?;
+    // Use transaction for atomicity
+    conn.execute("BEGIN IMMEDIATE", [])?;
 
-    // Remove from session_singers
-    db.connection().execute(
-        "DELETE FROM session_singers WHERE session_id = ?1 AND singer_id = ?2",
-        [session_id, singer_id],
-    )?;
+    let result = (|| -> Result<(), CommandError> {
+        // Clear active_singer_id if this singer was the active singer for this session
+        conn.execute(
+            "UPDATE sessions SET active_singer_id = NULL WHERE id = ?1 AND active_singer_id = ?2",
+            [session_id, singer_id],
+        )?;
 
-    // Clean up non-persistent singers that are now orphaned (not in any session)
-    db.connection().execute(
-        "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND NOT EXISTS (SELECT 1 FROM session_singers WHERE singer_id = ?1)",
-        [singer_id],
-    )?;
+        // Remove from session_singers
+        conn.execute(
+            "DELETE FROM session_singers WHERE session_id = ?1 AND singer_id = ?2",
+            [session_id, singer_id],
+        )?;
 
-    Ok(())
+        // Clean up non-persistent singers that are now orphaned (not in any session)
+        conn.execute(
+            "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND NOT EXISTS (SELECT 1 FROM session_singers WHERE singer_id = ?1)",
+            [singer_id],
+        )?;
+
+        Ok(())
+    })();
+
+    match result {
+        Ok(()) => {
+            conn.execute("COMMIT", [])?;
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]
@@ -1712,7 +1725,7 @@ mod tests {
 
             // Clean up non-persistent singers (as the command does)
             conn.execute(
-                "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND id NOT IN (SELECT singer_id FROM session_singers)",
+                "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND NOT EXISTS (SELECT 1 FROM session_singers WHERE singer_id = ?1)",
                 [singer_id],
             )
             .unwrap();
@@ -1760,7 +1773,7 @@ mod tests {
 
             // Clean up non-persistent singers (as the command does)
             conn.execute(
-                "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND id NOT IN (SELECT singer_id FROM session_singers)",
+                "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND NOT EXISTS (SELECT 1 FROM session_singers WHERE singer_id = ?1)",
                 [singer_id],
             )
             .unwrap();
@@ -1818,7 +1831,7 @@ mod tests {
 
             // Clean up non-persistent singers (as the command does)
             conn.execute(
-                "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND id NOT IN (SELECT singer_id FROM session_singers)",
+                "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND NOT EXISTS (SELECT 1 FROM session_singers WHERE singer_id = ?1)",
                 [singer_id],
             )
             .unwrap();
