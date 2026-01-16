@@ -1,1 +1,1 @@
-export { LibraryBrowser } from "./LibraryBrowser";
+export { LibraryBrowser, type LibraryBrowserRef } from "./LibraryBrowser";

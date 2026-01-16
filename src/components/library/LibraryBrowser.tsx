@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Music, FolderOpen, Filter, AlertTriangle } from "lucide-react";
@@ -32,6 +32,10 @@ interface LibraryBrowserProps {
   onPlayNext: (video: LibraryVideo) => void;
 }
 
+export interface LibraryBrowserRef {
+  focus: () => void;
+}
+
 function formatDuration(seconds?: number | null): string {
   if (!seconds) return "--:--";
   const mins = Math.floor(seconds / 60);
@@ -53,7 +57,10 @@ function libraryVideoToVideo(video: LibraryVideo): Video {
   };
 }
 
-export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrowserProps) {
+export const LibraryBrowser = forwardRef<LibraryBrowserRef, LibraryBrowserProps>(function LibraryBrowser(
+  { onPlay, onAddToQueue, onPlayNext },
+  ref
+) {
   const { folders, loadFolders, lastScanCompletedAt } = useLibraryStore();
 
   const [videos, setVideos] = useState<LibraryVideo[]>([]);
@@ -69,6 +76,66 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
   });
   const [sort, setSort] = useState<LibrarySort>("title_asc");
   const [missingFilePath, setMissingFilePath] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Expose focus method via ref
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      containerRef.current?.focus();
+      setSelectedIndex(0);
+    },
+  }));
+
+  // Reset selection when videos change
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [filters, sort]);
+
+  // Keyboard navigation handler
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (videos.length === 0) return;
+
+      switch (e.key) {
+        case "ArrowDown":
+        case "ArrowRight":
+          e.preventDefault();
+          setSelectedIndex((prev) =>
+            prev < videos.length - 1 ? prev + 1 : prev
+          );
+          break;
+        case "ArrowUp":
+        case "ArrowLeft":
+          e.preventDefault();
+          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+          break;
+        case "Enter":
+          if (selectedIndex >= 0 && selectedIndex < videos.length) {
+            e.preventDefault();
+            const video = videos[selectedIndex];
+            if (video.is_available) {
+              onAddToQueue(video);
+            } else {
+              setMissingFilePath(video.file_path);
+            }
+          }
+          break;
+      }
+    },
+    [videos, selectedIndex, onAddToQueue]
+  );
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (selectedIndex >= 0 && containerRef.current) {
+      const items = containerRef.current.querySelectorAll("[data-library-item]");
+      const selectedItem = items[selectedIndex];
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }
+  }, [selectedIndex]);
 
   const fetchVideos = useCallback(async (newOffset = 0) => {
     setIsLoading(true);
@@ -218,18 +285,27 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
 
       {/* Video grid */}
       {videos.length > 0 && (
-        <div className="flex-1 overflow-y-auto">
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-y-auto outline-none"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+        >
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {videos.map((video) => {
+            {videos.map((video, index) => {
               const isUnavailable = !video.is_available;
+              const isSelected = index === selectedIndex;
 
               return (
                 <div
                   key={video.file_path}
+                  data-library-item
                   onClick={() => handleClick(video)}
                   className={`group flex flex-col p-3 rounded-lg transition-colors cursor-pointer ${
                     isUnavailable
                       ? "bg-gray-800/50 opacity-60"
+                      : isSelected
+                      ? "bg-gray-700"
                       : "bg-gray-800 hover:bg-gray-700"
                   }`}
                 >
@@ -350,4 +426,4 @@ export function LibraryBrowser({ onPlay, onAddToQueue, onPlayNext }: LibraryBrow
       />
     </div>
   );
-}
+});

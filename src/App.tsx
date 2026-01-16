@@ -18,7 +18,7 @@ import {
 import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
 import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector, type SearchBarRef, type SearchResultsRef, type LocalSearchResultsRef } from "./components/search";
-import { LibraryBrowser } from "./components/library";
+import { LibraryBrowser, type LibraryBrowserRef } from "./components/library";
 import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
@@ -93,6 +93,25 @@ function App() {
   const searchBarRef = useRef<SearchBarRef>(null);
   const searchResultsRef = useRef<SearchResultsRef>(null);
   const localSearchResultsRef = useRef<LocalSearchResultsRef>(null);
+  const libraryBrowserRef = useRef<LibraryBrowserRef>(null);
+
+  // Focus appropriate component when tab changes
+  useEffect(() => {
+    // Small delay to ensure component is mounted/visible
+    const timer = setTimeout(() => {
+      if (mainTab === "library") {
+        libraryBrowserRef.current?.focus();
+      } else if (mainTab === "search") {
+        // Focus search results if we have results, otherwise search bar
+        if (searchMode === "local" && localSearchResults.length > 0) {
+          localSearchResultsRef.current?.focus();
+        } else if (searchMode === "youtube" && searchResults.length > 0) {
+          searchResultsRef.current?.focus();
+        }
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [mainTab]);
 
   const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { addToQueue, addToQueueNext, playDirect } = useQueueStore();
@@ -626,6 +645,7 @@ function App() {
             {/* Library Browser - visible when on library tab */}
             <div className={`h-full ${mainTab === "library" ? "" : "hidden"}`}>
               <LibraryBrowser
+                ref={libraryBrowserRef}
                 onPlay={handleLocalPlay}
                 onAddToQueue={handleLocalAddToQueue}
                 onPlayNext={handleLocalPlayNext}
