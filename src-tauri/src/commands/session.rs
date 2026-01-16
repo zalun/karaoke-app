@@ -499,7 +499,7 @@ pub fn remove_singer_from_session(
 
     // Clean up non-persistent singers that are now orphaned (not in any session)
     db.connection().execute(
-        "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND id NOT IN (SELECT singer_id FROM session_singers)",
+        "DELETE FROM singers WHERE is_persistent = 0 AND id = ?1 AND NOT EXISTS (SELECT 1 FROM session_singers WHERE singer_id = ?1)",
         [singer_id],
     )?;
 

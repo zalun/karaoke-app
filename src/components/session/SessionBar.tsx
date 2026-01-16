@@ -3,8 +3,9 @@ import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen, St
 import { listen } from "@tauri-apps/api/event";
 import { useSessionStore, useFavoritesStore } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
-import { sessionService } from "../../services";
+import { sessionService, createLogger } from "../../services";
 
+const log = createLogger("SessionBar");
 const MAX_VISIBLE_SINGERS = 10;
 
 export function SessionBar() {
@@ -166,7 +167,7 @@ export function SessionBar() {
             ? (error as { message: string }).message
             : "Failed to remove singer";
       setRemoveError(message);
-      console.error("Failed to remove singer:", error);
+      log.error("Failed to remove singer:", error);
     }
   };
 
@@ -244,7 +245,7 @@ export function SessionBar() {
       await loadSingers();
       setShowPersistentDropdown(false);
     } catch (error) {
-      console.error("Failed to add persistent singer:", error);
+      log.error("Failed to add persistent singer:", error);
     }
   };
 
@@ -254,7 +255,7 @@ export function SessionBar() {
       await loadSingers();
       await loadPersistentSingers();
     } catch (error) {
-      console.error("Failed to make singer permanent:", error);
+      log.error("Failed to make singer permanent:", error);
     }
   };
 

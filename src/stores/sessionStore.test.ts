@@ -21,6 +21,7 @@ vi.mock("../services", () => ({
     getSessionSingers: vi.fn(),
     createSinger: vi.fn(),
     deleteSinger: vi.fn(),
+    removeSingerFromSession: vi.fn(),
     addSingerToSession: vi.fn(),
     assignSingerToQueueItem: vi.fn(),
     removeSingerFromQueueItem: vi.fn(),
@@ -185,6 +186,78 @@ describe("sessionStore - Singer CRUD", () => {
       expect(newAssignments.get("item1")).toEqual([2]);
       expect(newAssignments.has("item2")).toBe(false); // Empty assignment should be removed
       expect(newAssignments.get("item3")).toEqual([2, 3]);
+    });
+  });
+
+  describe("removeSingerFromSession", () => {
+    it("should throw error when no session exists", async () => {
+      useSessionStore.setState({ session: null });
+
+      await expect(useSessionStore.getState().removeSingerFromSession(1)).rejects.toThrow(
+        "No active session"
+      );
+      expect(sessionService.removeSingerFromSession).not.toHaveBeenCalled();
+    });
+
+    it("should remove singer from session and update state", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        singers: [mockSinger1, mockSinger2],
+      });
+      vi.mocked(sessionService.removeSingerFromSession).mockResolvedValue();
+
+      await useSessionStore.getState().removeSingerFromSession(1);
+
+      expect(sessionService.removeSingerFromSession).toHaveBeenCalledWith(1, 1);
+      expect(useSessionStore.getState().singers).toHaveLength(1);
+      expect(useSessionStore.getState().singers[0].id).toBe(2);
+    });
+
+    it("should remove singer from all queue assignments when removed from session", async () => {
+      const assignments = new Map<string, number[]>();
+      assignments.set("item1", [1, 2]);
+      assignments.set("item2", [1]);
+      assignments.set("item3", [2, 3]);
+
+      useSessionStore.setState({
+        session: mockSession,
+        singers: [mockSinger1, mockSinger2, mockSinger3],
+        queueSingerAssignments: assignments,
+      });
+      vi.mocked(sessionService.removeSingerFromSession).mockResolvedValue();
+
+      await useSessionStore.getState().removeSingerFromSession(1);
+
+      const newAssignments = useSessionStore.getState().queueSingerAssignments;
+      expect(newAssignments.get("item1")).toEqual([2]);
+      expect(newAssignments.has("item2")).toBe(false); // Empty assignment should be removed
+      expect(newAssignments.get("item3")).toEqual([2, 3]);
+    });
+
+    it("should clear active singer if removed singer was active", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        singers: [mockSinger1, mockSinger2],
+        activeSingerId: 1,
+      });
+      vi.mocked(sessionService.removeSingerFromSession).mockResolvedValue();
+
+      await useSessionStore.getState().removeSingerFromSession(1);
+
+      expect(useSessionStore.getState().activeSingerId).toBeNull();
+    });
+
+    it("should not clear active singer if different singer was removed", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        singers: [mockSinger1, mockSinger2],
+        activeSingerId: 2,
+      });
+      vi.mocked(sessionService.removeSingerFromSession).mockResolvedValue();
+
+      await useSessionStore.getState().removeSingerFromSession(1);
+
+      expect(useSessionStore.getState().activeSingerId).toBe(2);
     });
   });
 

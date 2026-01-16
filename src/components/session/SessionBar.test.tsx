@@ -92,6 +92,12 @@ vi.mock("../../services", () => ({
     addSingerToSession: vi.fn().mockResolvedValue(undefined),
     updateSinger: vi.fn().mockResolvedValue(undefined),
   },
+  createLogger: () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
