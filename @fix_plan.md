@@ -10,37 +10,7 @@ This file tracks the prioritized task list for Ralph autonomous development.
 
 ---
 
-## Current Sprint: Phase 5c - Local Library Polish
-
-### P2: Scan Progress & Background Processing
-- [ ] Scan progress indicator (show files scanned, metadata fetched)
-- [ ] Background scanning (don't block UI during rescan)
-
-### P2: Missing File UX
-- [ ] File path display in PlayerControls for local files
-- [ ] Incremental folder watching (detect new files without full rescan)
-
----
-
-## Upcoming: Phase 6 - Downloads
-
-See `plan/06-downloads.md` for full specification.
-
-### P2: Download Infrastructure
-- [ ] `youtube_download(video_id)` Tauri command with progress events
-- [ ] Download progress UI (percentage, speed indicator)
-- [ ] Download queue tracking (pending, downloading, completed, failed)
-- [ ] Cancel download functionality
-
-### P3: Downloaded Library Management
-- [ ] Downloaded videos stored in app data directory
-- [ ] Generate/cache thumbnails locally
-- [ ] Delete downloaded video option
-- [ ] Handle download interruption (resume support)
-
----
-
-## Upcoming: Phase 7 - Polish
+## Current Sprint: Phase 7 - Polish
 
 See `plan/07-polish.md` for full specification.
 
@@ -52,7 +22,6 @@ See `plan/07-polish.md` for full specification.
 
 ### P2: Keyboard Shortcuts - Global
 - [ ] Space: Play/pause
-- [ ] N: Next video
 - [ ] M: Mute/unmute
 - [ ] Up/Down: Volume +/-10%
 
@@ -66,6 +35,8 @@ See `plan/07-polish.md` for full specification.
 - [ ] Cmd+F or /: Focus on search
 - [ ] Delete: Remove selected from queue
 - [ ] Enter: Play selected / confirm action
+- [ ] Tab: Switch to next panel (Search/Player/Library)
+- [ ] Arrow keys: Navigate through search results and library items
 
 ### P3: UX Polish
 - [ ] Loading states for all async operations
