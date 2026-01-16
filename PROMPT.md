@@ -1,5 +1,9 @@
 # HomeKaraoke Development Instructions
 
+> **For Ralph**: This file provides context for [Ralph](https://github.com/frankbria/ralph-claude-code),
+> an autonomous AI development loop tool. Ralph reads this file and `@fix_plan.md` to work through
+> tasks iteratively without constant human intervention.
+
 ## Project Overview
 
 HomeKaraoke is a macOS karaoke application built with Tauri 2.0 (Rust) + React 18 + TypeScript + Zustand + SQLite.

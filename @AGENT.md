@@ -1,5 +1,9 @@
 # Build and Run Instructions
 
+> **About Ralph**: [Ralph](https://github.com/frankbria/ralph-claude-code) is an autonomous AI
+> development loop tool. This file provides build/run instructions that Ralph uses alongside
+> `PROMPT.md` (project context) and `@fix_plan.md` (task list) to work autonomously.
+
 This file provides Claude Code / Ralph with instructions for building, testing, and running the HomeKaraoke application.
 
 ## Quick Reference
@@ -112,7 +116,10 @@ just diff           # Staged changes
 just sync           # Rebase on main
 ```
 
-## Database & Logs
+## Database & Logs (macOS)
+
+> **Note:** These commands use macOS-specific paths (`~/Library/...`).
+> On other platforms, adjust paths accordingly.
 
 ```bash
 just db             # Open SQLite database
@@ -120,6 +127,10 @@ just db-schema      # Show database schema
 just logs           # Tail application logs
 just logs-recent    # Last 100 log lines
 ```
+
+**Paths:**
+- Database: `~/Library/Application Support/app.homekaraoke/homekaraoke.db`
+- Logs: `~/Library/Logs/app.homekaraoke/homekaraoke.log`
 
 ## Cleanup
 
