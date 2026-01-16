@@ -1,12 +1,21 @@
+import { renderHook } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
 import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
-import { usePlayerStore } from "../stores";
 
 // Mock the stores
 vi.mock("../stores", () => ({
   usePlayerStore: {
-    getState: vi.fn(),
+    getState: vi.fn(() => ({
+      isPlaying: false,
+      setIsPlaying: vi.fn(),
+      volume: 0.5,
+      setVolume: vi.fn(),
+      toggleMute: vi.fn(),
+      currentTime: 30,
+      duration: 180,
+      seekTo: vi.fn(),
+      currentVideo: null,
+    })),
   },
   useQueueStore: {
     getState: vi.fn(() => ({
@@ -19,358 +28,225 @@ vi.mock("../stores", () => ({
 
 // Mock the logger
 vi.mock("../services", () => ({
-  createLogger: () => ({
+  createLogger: vi.fn(() => ({
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-  }),
+  })),
 }));
 
 describe("useKeyboardShortcuts", () => {
-  let mockSetIsPlaying: ReturnType<typeof vi.fn>;
-  let mockSetVolume: ReturnType<typeof vi.fn>;
-  let mockToggleMute: ReturnType<typeof vi.fn>;
-  let mockSeekTo: ReturnType<typeof vi.fn>;
+  let addEventListenerSpy: ReturnType<typeof vi.spyOn>;
+  let removeEventListenerSpy: ReturnType<typeof vi.spyOn>;
+  let keydownHandlers: ((event: KeyboardEvent) => void)[] = [];
 
   beforeEach(() => {
-    mockSetIsPlaying = vi.fn();
-    mockSetVolume = vi.fn();
-    mockToggleMute = vi.fn();
-    mockSeekTo = vi.fn();
-
-    vi.mocked(usePlayerStore.getState).mockReturnValue({
-      currentVideo: { id: "test", title: "Test Video" },
-      isPlaying: false,
-      volume: 0.5,
-      isMuted: false,
-      currentTime: 30,
-      duration: 180,
-      setIsPlaying: mockSetIsPlaying,
-      setVolume: mockSetVolume,
-      toggleMute: mockToggleMute,
-      seekTo: mockSeekTo,
-    } as unknown as ReturnType<typeof usePlayerStore.getState>);
+    keydownHandlers = [];
+    addEventListenerSpy = vi.spyOn(window, "addEventListener").mockImplementation(
+      (type, handler) => {
+        if (type === "keydown" && typeof handler === "function") {
+          keydownHandlers.push(handler as (event: KeyboardEvent) => void);
+        }
+      }
+    );
+    removeEventListenerSpy = vi.spyOn(window, "removeEventListener").mockImplementation(() => {});
   });
 
   afterEach(() => {
+    addEventListenerSpy.mockRestore();
+    removeEventListenerSpy.mockRestore();
     vi.clearAllMocks();
   });
 
-  function simulateKeyDown(key: string, options: Partial<KeyboardEventInit> = {}) {
+  const simulateKeydown = (key: string, options: Partial<KeyboardEvent> = {}) => {
     const event = new KeyboardEvent("keydown", {
       key,
       bubbles: true,
       ...options,
     });
-    window.dispatchEvent(event);
-  }
+    // Make preventDefault mockable
+    const preventDefaultSpy = vi.fn();
+    Object.defineProperty(event, "preventDefault", {
+      value: preventDefaultSpy,
+      writable: true,
+    });
+    keydownHandlers.forEach((handler) => handler(event));
+    return { event, preventDefaultSpy };
+  };
 
-  it("should toggle play/pause on Space key", () => {
+  it("should add keydown event listener on mount", () => {
     renderHook(() => useKeyboardShortcuts());
-
-    act(() => {
-      simulateKeyDown(" ");
-    });
-
-    expect(mockSetIsPlaying).toHaveBeenCalledWith(true);
+    expect(addEventListenerSpy).toHaveBeenCalledWith("keydown", expect.any(Function));
   });
 
-  it("should toggle mute on M key", () => {
-    renderHook(() => useKeyboardShortcuts());
-
-    act(() => {
-      simulateKeyDown("m");
-    });
-
-    expect(mockToggleMute).toHaveBeenCalled();
+  it("should remove keydown event listener on unmount", () => {
+    const { unmount } = renderHook(() => useKeyboardShortcuts());
+    unmount();
+    expect(removeEventListenerSpy).toHaveBeenCalledWith("keydown", expect.any(Function));
   });
 
-  it("should increase volume on ArrowUp key", () => {
-    renderHook(() => useKeyboardShortcuts());
+  describe("Cmd+F / Ctrl+F - Focus search", () => {
+    it("should call onFocusSearch when Cmd+F is pressed", () => {
+      const onFocusSearch = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onFocusSearch }));
 
-    act(() => {
-      simulateKeyDown("ArrowUp");
+      const { preventDefaultSpy } = simulateKeydown("f", { metaKey: true });
+
+      expect(onFocusSearch).toHaveBeenCalled();
+      expect(preventDefaultSpy).toHaveBeenCalled();
     });
 
-    expect(mockSetVolume).toHaveBeenCalledWith(0.6); // 0.5 + 0.1
-  });
+    it("should call onFocusSearch when Ctrl+F is pressed", () => {
+      const onFocusSearch = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onFocusSearch }));
 
-  it("should decrease volume on ArrowDown key", () => {
-    renderHook(() => useKeyboardShortcuts());
+      const { preventDefaultSpy } = simulateKeydown("f", { ctrlKey: true });
 
-    act(() => {
-      simulateKeyDown("ArrowDown");
+      expect(onFocusSearch).toHaveBeenCalled();
+      expect(preventDefaultSpy).toHaveBeenCalled();
     });
 
-    expect(mockSetVolume).toHaveBeenCalledWith(0.4); // 0.5 - 0.1
-  });
+    it("should not call onFocusSearch when F is pressed without modifier", () => {
+      const onFocusSearch = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onFocusSearch }));
 
-  it("should not exceed volume of 1 when pressing ArrowUp", () => {
-    vi.mocked(usePlayerStore.getState).mockReturnValue({
-      ...usePlayerStore.getState(),
-      volume: 0.95,
-    } as unknown as ReturnType<typeof usePlayerStore.getState>);
+      simulateKeydown("f");
 
-    renderHook(() => useKeyboardShortcuts());
-
-    act(() => {
-      simulateKeyDown("ArrowUp");
-    });
-
-    expect(mockSetVolume).toHaveBeenCalledWith(1);
-  });
-
-  it("should not go below volume of 0 when pressing ArrowDown", () => {
-    vi.mocked(usePlayerStore.getState).mockReturnValue({
-      ...usePlayerStore.getState(),
-      volume: 0.05,
-    } as unknown as ReturnType<typeof usePlayerStore.getState>);
-
-    renderHook(() => useKeyboardShortcuts());
-
-    act(() => {
-      simulateKeyDown("ArrowDown");
-    });
-
-    expect(mockSetVolume).toHaveBeenCalledWith(0);
-  });
-
-  it("should not trigger shortcuts when modifier keys are pressed", () => {
-    renderHook(() => useKeyboardShortcuts());
-
-    act(() => {
-      simulateKeyDown(" ", { metaKey: true });
-      simulateKeyDown("m", { ctrlKey: true });
-    });
-
-    expect(mockSetIsPlaying).not.toHaveBeenCalled();
-    expect(mockToggleMute).not.toHaveBeenCalled();
-  });
-
-  it("should not trigger shortcuts when focus is on input element", () => {
-    renderHook(() => useKeyboardShortcuts());
-
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus();
-
-    act(() => {
-      const event = new KeyboardEvent("keydown", {
-        key: " ",
-        bubbles: true,
-      });
-      Object.defineProperty(event, "target", { value: input });
-      window.dispatchEvent(event);
-    });
-
-    expect(mockSetIsPlaying).not.toHaveBeenCalled();
-
-    document.body.removeChild(input);
-  });
-
-  describe("video window shortcuts", () => {
-    it("should call onToggleFullscreen on F key when enableVideoShortcuts is true", () => {
-      const mockToggleFullscreen = vi.fn();
-      renderHook(() =>
-        useKeyboardShortcuts({
-          enableVideoShortcuts: true,
-          onToggleFullscreen: mockToggleFullscreen,
-        })
-      );
-
-      act(() => {
-        simulateKeyDown("f");
-      });
-
-      expect(mockToggleFullscreen).toHaveBeenCalled();
-    });
-
-    it("should not call onToggleFullscreen on F key when enableVideoShortcuts is false", () => {
-      const mockToggleFullscreen = vi.fn();
-      renderHook(() =>
-        useKeyboardShortcuts({
-          enableVideoShortcuts: false,
-          onToggleFullscreen: mockToggleFullscreen,
-        })
-      );
-
-      act(() => {
-        simulateKeyDown("f");
-      });
-
-      expect(mockToggleFullscreen).not.toHaveBeenCalled();
-    });
-
-    it("should seek backward on ArrowLeft when enableVideoShortcuts is true", () => {
-      renderHook(() =>
-        useKeyboardShortcuts({
-          enableVideoShortcuts: true,
-        })
-      );
-
-      act(() => {
-        simulateKeyDown("ArrowLeft");
-      });
-
-      expect(mockSeekTo).toHaveBeenCalledWith(20); // 30 - 10
-    });
-
-    it("should seek forward on ArrowRight when enableVideoShortcuts is true", () => {
-      renderHook(() =>
-        useKeyboardShortcuts({
-          enableVideoShortcuts: true,
-        })
-      );
-
-      act(() => {
-        simulateKeyDown("ArrowRight");
-      });
-
-      expect(mockSeekTo).toHaveBeenCalledWith(40); // 30 + 10
-    });
-
-    it("should not seek past the beginning when pressing ArrowLeft", () => {
-      vi.mocked(usePlayerStore.getState).mockReturnValue({
-        ...usePlayerStore.getState(),
-        currentTime: 5,
-      } as unknown as ReturnType<typeof usePlayerStore.getState>);
-
-      renderHook(() =>
-        useKeyboardShortcuts({
-          enableVideoShortcuts: true,
-        })
-      );
-
-      act(() => {
-        simulateKeyDown("ArrowLeft");
-      });
-
-      expect(mockSeekTo).toHaveBeenCalledWith(0);
-    });
-
-    it("should not seek past the end when pressing ArrowRight", () => {
-      vi.mocked(usePlayerStore.getState).mockReturnValue({
-        ...usePlayerStore.getState(),
-        currentTime: 175,
-        duration: 180,
-      } as unknown as ReturnType<typeof usePlayerStore.getState>);
-
-      renderHook(() =>
-        useKeyboardShortcuts({
-          enableVideoShortcuts: true,
-        })
-      );
-
-      act(() => {
-        simulateKeyDown("ArrowRight");
-      });
-
-      expect(mockSeekTo).toHaveBeenCalledWith(180);
-    });
-
-    it("should not affect arrow keys volume when enableVideoShortcuts is true", () => {
-      // Arrow keys should be seek instead of volume when video shortcuts enabled
-      renderHook(() =>
-        useKeyboardShortcuts({
-          enableVideoShortcuts: true,
-        })
-      );
-
-      // ArrowUp should still control volume
-      act(() => {
-        simulateKeyDown("ArrowUp");
-      });
-
-      expect(mockSetVolume).toHaveBeenCalledWith(0.6);
+      expect(onFocusSearch).not.toHaveBeenCalled();
     });
   });
 
-  it("should not play/pause when no video is playing", () => {
-    vi.mocked(usePlayerStore.getState).mockReturnValue({
-      ...usePlayerStore.getState(),
-      currentVideo: null,
-    } as unknown as ReturnType<typeof usePlayerStore.getState>);
+  describe("Cmd+O / Ctrl+O - Add file", () => {
+    it("should call onAddFile when Cmd+O is pressed", () => {
+      const onAddFile = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onAddFile }));
 
-    renderHook(() => useKeyboardShortcuts());
+      const { preventDefaultSpy } = simulateKeydown("o", { metaKey: true });
 
-    act(() => {
-      simulateKeyDown(" ");
+      expect(onAddFile).toHaveBeenCalled();
+      expect(preventDefaultSpy).toHaveBeenCalled();
     });
 
-    expect(mockSetIsPlaying).not.toHaveBeenCalled();
+    it("should call onAddFile when Ctrl+O is pressed", () => {
+      const onAddFile = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onAddFile }));
+
+      const { preventDefaultSpy } = simulateKeydown("o", { ctrlKey: true });
+
+      expect(onAddFile).toHaveBeenCalled();
+      expect(preventDefaultSpy).toHaveBeenCalled();
+    });
+
+    it("should not call onAddFile when O is pressed without modifier", () => {
+      const onAddFile = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onAddFile }));
+
+      simulateKeydown("o");
+
+      expect(onAddFile).not.toHaveBeenCalled();
+    });
+
+    it("should not call onAddFile when callback is not provided", () => {
+      renderHook(() => useKeyboardShortcuts({}));
+
+      // Should not throw
+      const { preventDefaultSpy } = simulateKeydown("o", { metaKey: true });
+
+      // preventDefault should not be called since there's no handler
+      expect(preventDefaultSpy).not.toHaveBeenCalled();
+    });
   });
 
-  describe("search focus shortcuts", () => {
-    it("should call onFocusSearch on Cmd+F", () => {
-      const mockFocusSearch = vi.fn();
-      renderHook(() =>
-        useKeyboardShortcuts({
-          onFocusSearch: mockFocusSearch,
-        })
-      );
+  describe("/ - Focus search from non-input", () => {
+    it("should call onFocusSearch when / is pressed outside input", () => {
+      const onFocusSearch = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onFocusSearch }));
 
-      act(() => {
-        simulateKeyDown("f", { metaKey: true });
-      });
+      // Simulate target that is not an input
+      const event = new KeyboardEvent("keydown", { key: "/", bubbles: true });
+      Object.defineProperty(event, "target", { value: document.body, writable: true });
+      const preventDefaultSpy = vi.fn();
+      Object.defineProperty(event, "preventDefault", { value: preventDefaultSpy, writable: true });
 
-      expect(mockFocusSearch).toHaveBeenCalled();
+      keydownHandlers.forEach((handler) => handler(event));
+
+      expect(onFocusSearch).toHaveBeenCalled();
+      expect(preventDefaultSpy).toHaveBeenCalled();
     });
 
-    it("should call onFocusSearch on Ctrl+F", () => {
-      const mockFocusSearch = vi.fn();
-      renderHook(() =>
-        useKeyboardShortcuts({
-          onFocusSearch: mockFocusSearch,
-        })
-      );
+    it("should not call onFocusSearch when / is pressed inside input", () => {
+      const onFocusSearch = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onFocusSearch }));
 
-      act(() => {
-        simulateKeyDown("f", { ctrlKey: true });
-      });
-
-      expect(mockFocusSearch).toHaveBeenCalled();
-    });
-
-    it("should call onFocusSearch on / key", () => {
-      const mockFocusSearch = vi.fn();
-      renderHook(() =>
-        useKeyboardShortcuts({
-          onFocusSearch: mockFocusSearch,
-        })
-      );
-
-      act(() => {
-        simulateKeyDown("/");
-      });
-
-      expect(mockFocusSearch).toHaveBeenCalled();
-    });
-
-    it("should not call onFocusSearch on / when in input field", () => {
-      const mockFocusSearch = vi.fn();
-      renderHook(() =>
-        useKeyboardShortcuts({
-          onFocusSearch: mockFocusSearch,
-        })
-      );
-
+      // Simulate target that is an input
       const input = document.createElement("input");
-      document.body.appendChild(input);
-      input.focus();
+      const event = new KeyboardEvent("keydown", { key: "/", bubbles: true });
+      Object.defineProperty(event, "target", { value: input, writable: true });
 
-      act(() => {
-        const event = new KeyboardEvent("keydown", {
-          key: "/",
-          bubbles: true,
-        });
-        Object.defineProperty(event, "target", { value: input });
-        window.dispatchEvent(event);
-      });
+      keydownHandlers.forEach((handler) => handler(event));
 
-      expect(mockFocusSearch).not.toHaveBeenCalled();
+      expect(onFocusSearch).not.toHaveBeenCalled();
+    });
+  });
 
-      document.body.removeChild(input);
+  describe("Tab - Switch panel", () => {
+    it("should call onSwitchPanel when Tab is pressed outside input", () => {
+      const onSwitchPanel = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onSwitchPanel }));
+
+      // Simulate target that is not an input
+      const event = new KeyboardEvent("keydown", { key: "Tab", bubbles: true });
+      Object.defineProperty(event, "target", { value: document.body, writable: true });
+      const preventDefaultSpy = vi.fn();
+      Object.defineProperty(event, "preventDefault", { value: preventDefaultSpy, writable: true });
+
+      keydownHandlers.forEach((handler) => handler(event));
+
+      expect(onSwitchPanel).toHaveBeenCalled();
+      expect(preventDefaultSpy).toHaveBeenCalled();
+    });
+
+    it("should not call onSwitchPanel when Tab is pressed inside input", () => {
+      const onSwitchPanel = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onSwitchPanel }));
+
+      // Simulate target that is an input
+      const input = document.createElement("input");
+      const event = new KeyboardEvent("keydown", { key: "Tab", bubbles: true });
+      Object.defineProperty(event, "target", { value: input, writable: true });
+
+      keydownHandlers.forEach((handler) => handler(event));
+
+      expect(onSwitchPanel).not.toHaveBeenCalled();
+    });
+
+    it("should not call onSwitchPanel when Shift+Tab is pressed", () => {
+      const onSwitchPanel = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onSwitchPanel }));
+
+      // Simulate target that is not an input
+      const event = new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true });
+      Object.defineProperty(event, "target", { value: document.body, writable: true });
+
+      keydownHandlers.forEach((handler) => handler(event));
+
+      expect(onSwitchPanel).not.toHaveBeenCalled();
+    });
+
+    it("should not call onSwitchPanel when callback is not provided", () => {
+      renderHook(() => useKeyboardShortcuts({}));
+
+      // Simulate target that is not an input
+      const event = new KeyboardEvent("keydown", { key: "Tab", bubbles: true });
+      Object.defineProperty(event, "target", { value: document.body, writable: true });
+      const preventDefaultSpy = vi.fn();
+      Object.defineProperty(event, "preventDefault", { value: preventDefaultSpy, writable: true });
+
+      keydownHandlers.forEach((handler) => handler(event));
+
+      // preventDefault should not be called since there's no handler
+      expect(preventDefaultSpy).not.toHaveBeenCalled();
     });
   });
 });

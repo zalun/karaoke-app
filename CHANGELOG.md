@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Keyboard shortcuts for improved navigation (#192)
+  - Global: Space (play/pause), M (mute), Up/Down (volume), N (next video)
+  - Video: F (fullscreen toggle), ESC (exit fullscreen), Left/Right (seek)
+  - Management: Cmd+O (add file), Cmd+F or / (focus search), Tab (switch panel)
+  - Queue: Arrow keys (navigate), Delete (remove), Enter (play selected)
+- Fullscreen video mode with double-click or F key toggle
+- UX polish improvements
+  - Loading states for all async operations
+  - Empty states with helpful messages
+  - Tooltips on control buttons
+  - Confirmation dialogs for destructive actions (clear queue, history, delete session)
 - Ralph autonomous development loop support (#190)
   - Configuration files for hands-off AI development cycles
   - Task tracking via @fix_plan.md with GitHub issue integration

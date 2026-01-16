@@ -117,6 +117,8 @@ export function SettingsDialog() {
           <button
             onClick={closeSettingsDialog}
             className="text-gray-400 hover:text-white transition-colors"
+            title="Close settings"
+            aria-label="Close settings"
           >
             <X size={20} />
           </button>

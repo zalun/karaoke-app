@@ -38,6 +38,16 @@ export interface KeyboardShortcutsOptions {
    * Main window only
    */
   onFocusSearch?: () => void;
+  /**
+   * Callback when a file should be added to queue (Cmd+O)
+   * Main window only
+   */
+  onAddFile?: () => void;
+  /**
+   * Callback when Tab key is pressed to switch panels
+   * Main window only (cycles through Player/Search/Library)
+   */
+  onSwitchPanel?: () => void;
 }
 
 /**
@@ -56,15 +66,21 @@ export interface KeyboardShortcutsOptions {
  *
  * Management window shortcuts:
  * - Cmd+F or /: Focus on search
+ * - Cmd+O: Add file to queue
+ * - Tab: Switch to next panel
  */
 export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
-  const { enableVideoShortcuts = false, onToggleFullscreen, onFocusSearch } = options;
+  const { enableVideoShortcuts = false, onToggleFullscreen, onFocusSearch, onAddFile, onSwitchPanel } = options;
 
   // Keep refs to latest callbacks to avoid stale closures
   const onToggleFullscreenRef = useRef(onToggleFullscreen);
   onToggleFullscreenRef.current = onToggleFullscreen;
   const onFocusSearchRef = useRef(onFocusSearch);
   onFocusSearchRef.current = onFocusSearch;
+  const onAddFileRef = useRef(onAddFile);
+  onAddFileRef.current = onAddFile;
+  const onSwitchPanelRef = useRef(onSwitchPanel);
+  onSwitchPanelRef.current = onSwitchPanel;
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     // Handle Cmd+F (or Ctrl+F) for search focus before other checks
@@ -73,6 +89,16 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         event.preventDefault();
         log.debug("Keyboard: Focus search (Cmd+F)");
         onFocusSearchRef.current();
+      }
+      return;
+    }
+
+    // Handle Cmd+O (or Ctrl+O) for adding file to queue
+    if ((event.metaKey || event.ctrlKey) && (event.key === "o" || event.key === "O")) {
+      if (onAddFileRef.current) {
+        event.preventDefault();
+        log.debug("Keyboard: Add file (Cmd+O)");
+        onAddFileRef.current();
       }
       return;
     }
@@ -87,6 +113,14 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
       event.preventDefault();
       log.debug("Keyboard: Focus search (/)");
       onFocusSearchRef.current();
+      return;
+    }
+
+    // Handle Tab for switching panels (only when not in input)
+    if (event.key === "Tab" && !event.shiftKey && onSwitchPanelRef.current) {
+      event.preventDefault();
+      log.debug("Keyboard: Switch panel (Tab)");
+      onSwitchPanelRef.current();
       return;
     }
 

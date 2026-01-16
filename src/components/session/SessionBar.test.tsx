@@ -66,7 +66,6 @@ const createMockSession = (id: number = 1, name: string | null = "Test Session")
 
 let mockSessionStore: MockSessionState;
 let mockFavoritesStore: MockFavoritesState;
-let mockListenCallback: ((payload: unknown) => void) | null = null;
 
 // =============================================================================
 // Mock Definitions
@@ -101,11 +100,8 @@ vi.mock("../../services", () => ({
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn((eventName: string, callback: (event: unknown) => void) => {
-    mockListenCallback = callback;
-    return Promise.resolve(() => {
-      mockListenCallback = null;
-    });
+  listen: vi.fn((_eventName: string, _callback: (event: unknown) => void) => {
+    return Promise.resolve(() => {});
   }),
 }));
 
@@ -203,7 +199,6 @@ function setupMocks(options: {
 describe("SessionBar", () => {
   beforeEach(() => {
     setupMocks();
-    mockListenCallback = null;
   });
 
   afterEach(() => {
@@ -491,7 +486,7 @@ describe("SessionBar", () => {
       setupMocks({ session: createMockSession(), showRenameDialog: true });
       render(<SessionBar />);
 
-      const input = screen.getByPlaceholderText("Session name...");
+      screen.getByPlaceholderText("Session name..."); // Dialog must be visible
       await userEvent.keyboard("{Escape}");
 
       expect(mockSessionStore.closeRenameDialog).toHaveBeenCalled();
@@ -602,7 +597,7 @@ describe("SessionBar", () => {
       expect(mockSessionStore.switchToSession).toHaveBeenCalledWith(2);
     });
 
-    it("calls deleteSession when delete button is clicked", async () => {
+    it("calls deleteSession when delete button is clicked and confirmed", async () => {
       const activeSession = createMockSession(1, "Active Session");
       const otherSession = { ...createMockSession(2, "Other Session"), is_active: false };
       setupMocks({
@@ -612,10 +607,37 @@ describe("SessionBar", () => {
       });
       render(<SessionBar />);
 
+      // Click the delete button to show confirmation
       const deleteButtons = screen.getAllByTestId("trash-icon");
       await userEvent.click(deleteButtons[0].closest("button")!);
 
+      // Should show confirmation dialog
+      expect(screen.getByText("Delete?")).toBeInTheDocument();
+
+      // Click "Yes" to confirm deletion
+      await userEvent.click(screen.getByText("Yes"));
+
       expect(mockSessionStore.deleteSession).toHaveBeenCalledWith(2);
+    });
+
+    it("cancels deleteSession when No is clicked", async () => {
+      const activeSession = createMockSession(1, "Active Session");
+      const otherSession = { ...createMockSession(2, "Other Session"), is_active: false };
+      setupMocks({
+        session: activeSession,
+        showLoadDialog: true,
+        recentSessions: [activeSession, otherSession],
+      });
+      render(<SessionBar />);
+
+      // Click the delete button to show confirmation
+      const deleteButtons = screen.getAllByTestId("trash-icon");
+      await userEvent.click(deleteButtons[0].closest("button")!);
+
+      // Click "No" to cancel
+      await userEvent.click(screen.getByText("No"));
+
+      expect(mockSessionStore.deleteSession).not.toHaveBeenCalled();
     });
 
     it("does not show delete button for current session", () => {

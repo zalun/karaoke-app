@@ -32,10 +32,10 @@ See `plan/07-polish.md` for full specification.
 - [x] Arrow keys: Navigate through search results and library items
 
 ## P3: UX Polish
-- [ ] Loading states for all async operations
-- [ ] Empty states (no search results, empty queue, etc.)
-- [ ] Tooltips on buttons
-- [ ] Confirmation dialogs for destructive actions
+- [x] Loading states for all async operations (already implemented for search/playback/library)
+- [x] Empty states (no search results, empty queue, etc.) (already implemented in all main components)
+- [x] Tooltips on buttons (added to volume, close buttons, etc.)
+- [x] Confirmation dialogs for destructive actions (clear queue, clear history, delete session)
 
 ---
 

@@ -180,6 +180,8 @@ export function ManageFavoritesDialog() {
           <button
             onClick={handleClose}
             className="text-gray-400 hover:text-white transition-colors"
+            title="Close"
+            aria-label="Close"
           >
             <X size={20} />
           </button>
