@@ -49,23 +49,14 @@ just ci                 # Full CI simulation
 - `plan/` - Feature specifications and roadmap
 - `tests/e2e/` - Playwright E2E tests
 
-## Current Development Focus
+## Current Phase
 
-### Active Phase: Local Library Enhancement (Phase 5)
-See `plan/05-local-library.md` for details.
+**See `@fix_plan.md` for the current task list and detailed workflow.**
 
-### Upcoming: Downloads (Phase 6)
-See `plan/06-downloads.md` for video download functionality.
-
-### Future: Polish (Phase 7)
-See `plan/07-polish.md` for fullscreen, keyboard shortcuts, UX polish.
-
-## Task Completion Signals
-
-When all tasks in `@fix_plan.md` are marked complete:
-1. Run `just check` to verify no regressions
-2. Update `CHANGELOG.md` if features were added/fixed
-3. Mark phase as complete in this file
+The `@fix_plan.md` file contains:
+- All tasks for the current phase
+- Step-by-step workflow instructions
+- Completion criteria
 
 ## Out of Scope for Autonomous Development
 

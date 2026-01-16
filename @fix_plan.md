@@ -1,79 +1,40 @@
-# HomeKaraoke Task Plan
+# Phase 7: Polish
 
-This file tracks the prioritized task list for Ralph autonomous development.
-
-## Priority Legend
-- **P1**: Critical - blocks other work or user experience
-- **P2**: High - important for next release
-- **P3**: Medium - nice to have
-- **P4**: Low - future consideration
-
----
-
-## Current Sprint: Phase 7 - Polish
+**GitHub Issue:** (create at start of phase)
 
 See `plan/07-polish.md` for full specification.
 
-### P2: Fullscreen Video Mode
+---
+
+## P2: Fullscreen Video Mode
 - [ ] Toggle fullscreen <-> windowed without interrupting playback
 - [ ] Queue continues automatically in fullscreen
 - [ ] Shortcuts: F or double-click -> toggle fullscreen
 - [ ] ESC -> exit fullscreen (but not pause)
 
-### P2: Keyboard Shortcuts - Global
+## P2: Keyboard Shortcuts - Global
 - [ ] Space: Play/pause
 - [ ] M: Mute/unmute
 - [ ] Up/Down: Volume +/-10%
 
-### P2: Keyboard Shortcuts - Video Window
+## P2: Keyboard Shortcuts - Video Window
 - [ ] F: Toggle fullscreen
 - [ ] ESC: Exit fullscreen
 - [ ] Left/Right: Seek +/-10s
 
-### P3: Keyboard Shortcuts - Management Window
+## P3: Keyboard Shortcuts - Management Window
 - [ ] Cmd+O: Add file to queue
-- [ ] Cmd+F or /: Focus on search
+- [ ] Cmd+F or /: Focus on search and switch to Search tab
 - [ ] Delete: Remove selected from queue
 - [ ] Enter: Play selected / confirm action
 - [ ] Tab: Switch to next panel (Search/Player/Library)
 - [ ] Arrow keys: Navigate through search results and library items
 
-### P3: UX Polish
+## P3: UX Polish
 - [ ] Loading states for all async operations
 - [ ] Empty states (no search results, empty queue, etc.)
 - [ ] Tooltips on buttons
 - [ ] Confirmation dialogs for destructive actions
-
----
-
-## Future Features
-
-See `plan/future/` for detailed specifications.
-
-### High Priority
-- [ ] Singer Rotation (fair turn-taking algorithm)
-- [ ] QR Code Requests (audience song requests)
-- [ ] Lyrics Display overlay
-
-### Medium Priority
-- [ ] Voting System (audience votes on queue order)
-- [ ] Popular Songs recommendations
-- [ ] Singer Stats (songs sung, favorites, etc.)
-
-### Low Priority
-- [ ] Smart Playlists (auto-generated themed playlists)
-- [ ] AirPlay Integration
-
----
-
-## Bug Fixes & Technical Debt
-
-### P1: Known Issues
-(None currently tracked)
-
-### P3: Refactoring
-- [ ] Improve E2E test stability (reduce flakiness)
-- [ ] Add more unit test coverage for Rust backend
 
 ---
 
@@ -83,21 +44,38 @@ A task is complete when:
 1. Code compiles without warnings
 2. `just check` passes (typecheck + lint + cargo check)
 3. Existing tests pass (`just test`)
-4. Manual smoke test confirms functionality
-5. Changelog updated (if user-facing change)
+4. Changelog updated (if user-facing change)
 
-## Notes for Ralph
+---
 
-### Workflow Per Phase
-1. Create ONE GitHub issue for the entire phase (e.g., "Phase 5c: Local Library Polish")
-2. Create feature branch from that issue
-3. Loop through tasks in the phase, committing after each completed task
-4. Run `just check` before each commit
-5. Push commits regularly to keep branch updated
-6. **When ALL tasks in the phase are complete:** create PR
-7. **STOP after creating PR** - wait for human approval before starting next phase
+## Workflow for Ralph
 
-### Other Guidelines
+### At Phase Start
+1. Create ONE GitHub issue for the phase: "Phase 7: Polish"
+2. Create feature branch: `feature/<issue-number>-phase-7-polish`
+3. Update the "GitHub Issue:" line at the top of this file with the issue number
+
+### During Development Loop
+1. Pick next unchecked task
+2. Implement the task
+3. Run `just check` before committing
+4. Commit with descriptive message
+5. **Add comment to the GitHub issue** noting completed task:
+   ```bash
+   gh issue comment <issue-number> --body "Completed: <task description>"
+   ```
+6. Mark task as done in this file: `- [x]`
+7. Push commits regularly
+8. Repeat until all tasks are checked
+
+### At Phase End
+1. Verify all tasks are `[x]` checked
+2. Run `just test` to confirm no regressions
+3. Update `CHANGELOG.md` with user-facing changes
+4. Create PR referencing the issue: `gh pr create`
+5. **STOP** - wait for human approval before next phase
+
+### Guidelines
 - Ask user before running E2E tests (`just e2e`)
-- Update this file as tasks are completed (mark with [x])
 - Do not merge PRs - only humans can approve and merge
+- If stuck on a task, comment on the issue and move to next task
