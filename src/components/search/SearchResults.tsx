@@ -248,7 +248,7 @@ export const SearchResults = forwardRef<SearchResultsRef, SearchResultsProps>(fu
               videoNonEmbeddable
                 ? "bg-gray-800 border border-gray-600 opacity-50 cursor-not-allowed"
                 : isSelected
-                ? "bg-gray-700 border border-gray-500 cursor-pointer"
+                ? "bg-gray-700 cursor-pointer"
                 : isCurrentlyPlaying
                 ? "bg-blue-900/50 border border-blue-600 cursor-pointer"
                 : "bg-gray-800 hover:bg-gray-700 cursor-pointer"

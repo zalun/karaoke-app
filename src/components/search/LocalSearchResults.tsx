@@ -195,7 +195,7 @@ export const LocalSearchResults = forwardRef<LocalSearchResultsRef, LocalSearchR
                 isUnavailable
                   ? "bg-gray-800/50 opacity-60"
                   : isSelected
-                  ? "bg-gray-700 border border-gray-500"
+                  ? "bg-gray-700"
                   : "bg-gray-800 hover:bg-gray-700"
               }`}
             >
