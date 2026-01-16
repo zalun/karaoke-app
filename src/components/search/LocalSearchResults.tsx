@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, useState } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { FolderOpen, AlertTriangle, Music } from "lucide-react";
 import type { LibraryVideo } from "../../stores";
@@ -37,13 +37,63 @@ export function LocalSearchResults({
 }: LocalSearchResultsProps) {
   const { folders } = useLibraryStore();
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [missingFilePath, setMissingFilePath] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
 
   const displayedResults = useMemo(
     () => results.slice(0, displayedCount),
     [results, displayedCount]
   );
   const hasMore = displayedCount < results.length;
+
+  // Reset selection when results change
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [results]);
+
+  // Keyboard navigation handler
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (displayedResults.length === 0) return;
+
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setSelectedIndex((prev) =>
+            prev < displayedResults.length - 1 ? prev + 1 : prev
+          );
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+          break;
+        case "Enter":
+          if (selectedIndex >= 0 && selectedIndex < displayedResults.length) {
+            e.preventDefault();
+            const video = displayedResults[selectedIndex];
+            if (video.is_available) {
+              onAddToQueue(video);
+            } else {
+              setMissingFilePath(video.file_path);
+            }
+          }
+          break;
+      }
+    },
+    [displayedResults, selectedIndex, onAddToQueue]
+  );
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (selectedIndex >= 0 && containerRef.current) {
+      const items = containerRef.current.querySelectorAll("[data-result-item]");
+      const selectedItem = items[selectedIndex];
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }
+  }, [selectedIndex]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
@@ -114,17 +164,26 @@ export function LocalSearchResults({
 
   return (
     <>
-      <div className="space-y-2">
-        {displayedResults.map((video) => {
+      <div
+        ref={containerRef}
+        className="space-y-2 outline-none"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+      >
+        {displayedResults.map((video, index) => {
           const isUnavailable = !video.is_available;
+          const isSelected = index === selectedIndex;
 
           return (
             <div
               key={video.file_path}
+              data-result-item
               onClick={() => handleClick(video)}
               className={`flex gap-3 p-3 rounded-lg transition-colors cursor-pointer ${
                 isUnavailable
                   ? "bg-gray-800/50 opacity-60"
+                  : isSelected
+                  ? "bg-blue-800/70 border border-blue-500 ring-2 ring-blue-400"
                   : "bg-gray-800 hover:bg-gray-700"
               }`}
             >
