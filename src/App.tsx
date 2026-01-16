@@ -17,7 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
-import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector, type SearchBarRef } from "./components/search";
+import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector, type SearchBarRef, type SearchResultsRef, type LocalSearchResultsRef } from "./components/search";
 import { LibraryBrowser } from "./components/library";
 import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
@@ -91,6 +91,8 @@ function App() {
 
   // Ref for focusing the search bar
   const searchBarRef = useRef<SearchBarRef>(null);
+  const searchResultsRef = useRef<SearchResultsRef>(null);
+  const localSearchResultsRef = useRef<LocalSearchResultsRef>(null);
 
   const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { addToQueue, addToQueueNext, playDirect } = useQueueStore();
@@ -267,6 +269,14 @@ function App() {
 
         log.info(`Search returned ${results.length} results`);
         setSearchResults(results);
+        // Focus search results after they render
+        setTimeout(() => {
+          if (searchMode === "youtube") {
+            searchResultsRef.current?.focus();
+          } else {
+            localSearchResultsRef.current?.focus();
+          }
+        }, 100);
       } catch (err) {
         log.error("Search failed", err);
         setSearchError(getErrorMessage(err, "Search failed"));
@@ -587,6 +597,7 @@ function App() {
               <div className="flex-1 overflow-auto">
                 {searchMode === "local" ? (
                   <LocalSearchResults
+                    ref={localSearchResultsRef}
                     results={localSearchResults}
                     isLoading={isLocalSearching}
                     error={searchError}
@@ -598,6 +609,7 @@ function App() {
                   />
                 ) : (
                   <SearchResults
+                    ref={searchResultsRef}
                     results={searchResults}
                     isLoading={isSearching}
                     error={searchError}

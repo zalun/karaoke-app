@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, useState, useCallback } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { Settings } from "lucide-react";
 import type { SearchResult } from "../../types";
 import { usePlayerStore, useFavoritesStore, useSettingsStore, SETTINGS_KEYS, type Video } from "../../stores";
@@ -29,6 +29,10 @@ interface SearchResultsProps {
   onLoadMore: () => void;
 }
 
+export interface SearchResultsRef {
+  focus: () => void;
+}
+
 function formatDuration(seconds?: number): string {
   if (!seconds) return "--:--";
   const mins = Math.floor(seconds / 60);
@@ -43,7 +47,7 @@ function formatViewCount(count?: number): string {
   return `${count} views`;
 }
 
-export function SearchResults({
+export const SearchResults = forwardRef<SearchResultsRef, SearchResultsProps>(function SearchResults({
   results,
   isLoading,
   error,
@@ -52,13 +56,21 @@ export function SearchResults({
   onPlayNext,
   displayedCount,
   onLoadMore,
-}: SearchResultsProps) {
+}, ref) {
   const { currentVideo, isPlaying, nonEmbeddableVideoIds } = usePlayerStore();
   const { persistentSingers, loadPersistentSingers } = useFavoritesStore();
   const playbackMode = useSettingsStore((s) => s.getSetting(SETTINGS_KEYS.PLAYBACK_MODE));
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+
+  // Expose focus method via ref
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      containerRef.current?.focus();
+      setSelectedIndex(0);
+    },
+  }));
 
   // Check if a video is non-embeddable (only relevant in YouTube mode)
   const isNonEmbeddable = (videoId: string) =>
@@ -381,4 +393,4 @@ export function SearchResults({
       )}
     </div>
   );
-}
+});

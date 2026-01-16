@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, useState, useCallback } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { FolderOpen, AlertTriangle, Music } from "lucide-react";
 import type { LibraryVideo } from "../../stores";
@@ -16,6 +16,10 @@ interface LocalSearchResultsProps {
   onLoadMore: () => void;
 }
 
+export interface LocalSearchResultsRef {
+  focus: () => void;
+}
+
 function formatDuration(seconds?: number | null): string {
   if (!seconds) return "--:--";
   const mins = Math.floor(seconds / 60);
@@ -25,7 +29,7 @@ function formatDuration(seconds?: number | null): string {
 
 const RESULTS_PER_PAGE = 15;
 
-export function LocalSearchResults({
+export const LocalSearchResults = forwardRef<LocalSearchResultsRef, LocalSearchResultsProps>(function LocalSearchResults({
   results,
   isLoading,
   error,
@@ -34,12 +38,20 @@ export function LocalSearchResults({
   onPlayNext,
   displayedCount,
   onLoadMore,
-}: LocalSearchResultsProps) {
+}, ref) {
   const { folders } = useLibraryStore();
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [missingFilePath, setMissingFilePath] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+
+  // Expose focus method via ref
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      containerRef.current?.focus();
+      setSelectedIndex(0);
+    },
+  }));
 
   const displayedResults = useMemo(
     () => results.slice(0, displayedCount),
@@ -313,4 +325,4 @@ export function LocalSearchResults({
       />
     </>
   );
-}
+});
