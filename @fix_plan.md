@@ -121,4 +121,6 @@ A task is complete when:
 - Create feature branch from issue
 - Run `just check` before marking tasks complete
 - Ask user before running E2E tests (`just e2e`)
+- **Create PR when task is complete** - do not merge, wait for human approval
+- **STOP after creating PR** - do not continue to next task until PR is approved
 - Update this file as tasks are completed

@@ -26,9 +26,12 @@ HomeKaraoke is a macOS karaoke application built with Tauri 2.0 (Rust) + React 1
 
 ### Git Workflow (REQUIRED)
 - **Never commit directly to main**
+- **Never merge without PR approval** - all changes must go through pull requests
 - Create feature branch: `feature/<issue-number>-<description>` or `fix/<issue-number>-<description>`
 - Make focused commits with descriptive messages
 - Run `just check` before committing (typecheck + lint + cargo check)
+- Push branch and create PR when work is ready for review
+- **STOP after creating PR** - wait for human approval before continuing to next task
 
 ### Code Quality Checks
 ```bash
