@@ -4,9 +4,6 @@ import { createLogger } from "../services";
 
 const log = createLogger("useKeyboardShortcuts");
 
-// Volume change increment (10%)
-const VOLUME_INCREMENT = 0.1;
-
 // Seek increment in seconds
 const SEEK_INCREMENT = 10;
 
@@ -56,7 +53,6 @@ export interface KeyboardShortcutsOptions {
  * Global shortcuts (both windows):
  * - Space: Play/pause
  * - M: Mute/unmute
- * - Up/Down: Volume +/-10%
  * - N: Next video
  *
  * Video window shortcuts (when enableVideoShortcuts is true):
@@ -132,8 +128,6 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
     const {
       isPlaying,
       setIsPlaying,
-      volume,
-      setVolume,
       toggleMute,
       currentTime,
       duration,
@@ -158,24 +152,6 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         event.preventDefault();
         log.debug("Keyboard: Toggle mute");
         toggleMute();
-        break;
-      }
-
-      // Global: Volume Up
-      case "ArrowUp": {
-        event.preventDefault();
-        const newVolume = Math.min(1, volume + VOLUME_INCREMENT);
-        log.debug(`Keyboard: Volume up to ${Math.round(newVolume * 100)}%`);
-        setVolume(newVolume);
-        break;
-      }
-
-      // Global: Volume Down
-      case "ArrowDown": {
-        event.preventDefault();
-        const newVolume = Math.max(0, volume - VOLUME_INCREMENT);
-        log.debug(`Keyboard: Volume down to ${Math.round(newVolume * 100)}%`);
-        setVolume(newVolume);
         break;
       }
 

@@ -15,7 +15,6 @@ See `plan/07-polish.md` for full specification.
 ## P2: Keyboard Shortcuts - Global
 - [x] Space: Play/pause
 - [x] M: Mute/unmute
-- [x] Up/Down: Volume +/-10%
 - [x] N: Next video
 
 ## P2: Keyboard Shortcuts - Video Window
