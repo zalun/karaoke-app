@@ -24,12 +24,12 @@ See `plan/07-polish.md` for full specification.
 - [x] Left/Right: Seek +/-10s
 
 ## P3: Keyboard Shortcuts - Management Window
-- [ ] Cmd+O: Add file to queue
+- [x] Cmd+O: Add file to queue
 - [x] Cmd+F or /: Focus on search and switch to Search tab
-- [ ] Delete: Remove selected from queue
-- [ ] Enter: Play selected / confirm action
-- [ ] Tab: Switch to next panel (Search/Player/Library)
-- [ ] Arrow keys: Navigate through search results and library items
+- [x] Delete: Remove selected from queue
+- [x] Enter: Play selected / confirm action
+- [x] Tab: Switch to next panel (Search/Player/Library)
+- [x] Arrow keys: Navigate through search results and library items
 
 ## P3: UX Polish
 - [ ] Loading states for all async operations
@@ -82,6 +82,10 @@ A task is complete when:
 5. **STOP** - wait for human approval before next phase
 
 ### Guidelines
+- **NEVER ask questions or offer choices** - work autonomously until ALL tasks are done
+- **NEVER stop mid-phase** - keep looping until every task is `[x]` checked
+- **ONLY create PR when ALL tasks are complete** - the PR creation is the exit signal
+- Do not ask "would you like me to..." - just continue working
 - Ask user before running E2E tests (`just e2e`)
 - Do not merge PRs - only humans can approve and merge
 - If stuck on a task, comment on the issue and move to next task
