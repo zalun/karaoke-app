@@ -42,6 +42,7 @@ interface SessionState {
   loadSingers: () => Promise<void>;
   createSinger: (name: string, color?: string, isPersistent?: boolean) => Promise<Singer>;
   deleteSinger: (singerId: number) => Promise<void>;
+  removeSingerFromSession: (singerId: number) => Promise<void>;
 
   // Active singer actions
   setActiveSinger: (singerId: number | null) => Promise<void>;
@@ -302,6 +303,34 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }
       }
       // Clear active singer if it was the deleted one (backend already cleared it)
+      const activeSingerId = state.activeSingerId === singerId ? null : state.activeSingerId;
+      return { singers, queueSingerAssignments, activeSingerId };
+    });
+  },
+
+  removeSingerFromSession: async (singerId: number) => {
+    const { session } = get();
+    if (!session) {
+      log.error("Cannot remove singer from session: no active session");
+      throw new Error("No active session");
+    }
+
+    log.info(`Removing singer ${singerId} from session ${session.id}`);
+    await sessionService.removeSingerFromSession(session.id, singerId);
+
+    set((state) => {
+      const singers = state.singers.filter((s) => s.id !== singerId);
+      // Also remove from all queue assignments
+      const queueSingerAssignments = new Map(state.queueSingerAssignments);
+      for (const [itemId, singerIds] of queueSingerAssignments) {
+        const filtered = singerIds.filter((id) => id !== singerId);
+        if (filtered.length > 0) {
+          queueSingerAssignments.set(itemId, filtered);
+        } else {
+          queueSingerAssignments.delete(itemId);
+        }
+      }
+      // Clear active singer if it was the removed one (backend already cleared it)
       const activeSingerId = state.activeSingerId === singerId ? null : state.activeSingerId;
       return { singers, queueSingerAssignments, activeSingerId };
     });

@@ -293,6 +293,7 @@ pub fn run() {
             commands::end_session,
             commands::get_active_session,
             commands::add_singer_to_session,
+            commands::remove_singer_from_session,
             commands::get_session_singers,
             commands::assign_singer_to_queue_item,
             commands::remove_singer_from_queue_item,

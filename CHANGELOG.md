@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Removing a singer from a session no longer deletes them from Stored Singers (#188)
+  - Persistent singers are now preserved when removed from session
+  - Only non-persistent, orphaned singers are deleted
+  - Added proper validation for session/singer existence in backend
+
 ## [0.7.5] - 2026-01-14
 
 ### Added

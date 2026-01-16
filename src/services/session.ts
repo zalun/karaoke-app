@@ -108,6 +108,14 @@ export const sessionService = {
     await invoke("add_singer_to_session", { sessionId, singerId });
   },
 
+  async removeSingerFromSession(
+    sessionId: number,
+    singerId: number
+  ): Promise<void> {
+    log.debug(`Removing singer ${singerId} from session ${sessionId}`);
+    await invoke("remove_singer_from_session", { sessionId, singerId });
+  },
+
   async getSessionSingers(sessionId: number): Promise<Singer[]> {
     log.debug(`Fetching singers for session ${sessionId}`);
     return await invoke<Singer[]>("get_session_singers", { sessionId });

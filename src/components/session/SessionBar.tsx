@@ -3,12 +3,14 @@ import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen, St
 import { listen } from "@tauri-apps/api/event";
 import { useSessionStore, useFavoritesStore } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
-import { sessionService } from "../../services";
+import { sessionService, createLogger } from "../../services";
 
+const log = createLogger("SessionBar");
 const MAX_VISIBLE_SINGERS = 10;
 
 export function SessionBar() {
   const [createError, setCreateError] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -26,7 +28,7 @@ export function SessionBar() {
     endSession,
     loadSession,
     createSinger,
-    deleteSinger,
+    removeSingerFromSession,
     renameSession,
     switchToSession,
     openRenameDialog,
@@ -152,6 +154,23 @@ export function SessionBar() {
     }
   };
 
+  const handleRemoveSinger = async (singerId: number) => {
+    setRemoveError(null);
+    try {
+      await removeSingerFromSession(singerId);
+    } catch (error) {
+      // Handle both Error objects and Tauri command errors ({type, message})
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? (error as { message: string }).message
+            : "Failed to remove singer";
+      setRemoveError(message);
+      log.error("Failed to remove singer:", error);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       handleCreateSinger();
@@ -226,7 +245,7 @@ export function SessionBar() {
       await loadSingers();
       setShowPersistentDropdown(false);
     } catch (error) {
-      console.error("Failed to add persistent singer:", error);
+      log.error("Failed to add persistent singer:", error);
     }
   };
 
@@ -236,7 +255,7 @@ export function SessionBar() {
       await loadSingers();
       await loadPersistentSingers();
     } catch (error) {
-      console.error("Failed to make singer permanent:", error);
+      log.error("Failed to make singer permanent:", error);
     }
   };
 
@@ -506,6 +525,9 @@ export function SessionBar() {
       {/* Expandable singers panel */}
       {showSingers && (
         <div className="mt-2 pt-2 border-t border-gray-600">
+          {removeError && (
+            <p className="text-xs text-red-400 mb-2">{removeError}</p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             {singers.map((singer) => (
               <div key={singer.id} className="flex items-center gap-1">
@@ -513,7 +535,7 @@ export function SessionBar() {
                   name={singer.name}
                   color={singer.color}
                   faded={!isSingerAssigned(singer.id)}
-                  onRemove={() => deleteSinger(singer.id)}
+                  onRemove={() => handleRemoveSinger(singer.id)}
                 />
                 {singer.is_persistent ? (
                   <span title="Persistent singer - has favorites">
