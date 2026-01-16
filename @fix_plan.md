@@ -1,40 +1,40 @@
 # Phase 7: Polish
 
-**GitHub Issue:** (create at start of phase)
+**GitHub Issue:** #192
 
 See `plan/07-polish.md` for full specification.
 
 ---
 
 ## P2: Fullscreen Video Mode
-- [ ] Toggle fullscreen <-> windowed without interrupting playback
-- [ ] Queue continues automatically in fullscreen
-- [ ] Shortcuts: F or double-click -> toggle fullscreen
-- [ ] ESC -> exit fullscreen (but not pause)
+- [x] Toggle fullscreen <-> windowed without interrupting playback
+- [x] Queue continues automatically in fullscreen
+- [x] Shortcuts: F or double-click -> toggle fullscreen
+- [x] ESC -> exit fullscreen (but not pause)
 
 ## P2: Keyboard Shortcuts - Global
-- [ ] Space: Play/pause
-- [ ] M: Mute/unmute
-- [ ] Up/Down: Volume +/-10%
+- [x] Space: Play/pause
+- [x] M: Mute/unmute
+- [x] N: Next video
 
 ## P2: Keyboard Shortcuts - Video Window
-- [ ] F: Toggle fullscreen
-- [ ] ESC: Exit fullscreen
-- [ ] Left/Right: Seek +/-10s
+- [x] F: Toggle fullscreen
+- [x] ESC: Exit fullscreen
+- [x] Left/Right: Seek +/-10s
 
 ## P3: Keyboard Shortcuts - Management Window
-- [ ] Cmd+O: Add file to queue
-- [ ] Cmd+F or /: Focus on search and switch to Search tab
-- [ ] Delete: Remove selected from queue
-- [ ] Enter: Play selected / confirm action
-- [ ] Tab: Switch to next panel (Search/Player/Library)
-- [ ] Arrow keys: Navigate through search results and library items
+- [x] Cmd+O: Add file to queue
+- [x] Cmd+F or /: Focus on search and switch to Search tab
+- [x] Delete: Remove selected from queue
+- [x] Enter: Play selected / confirm action
+- [x] Tab: Switch to next panel (Search/Player/Library)
+- [x] Arrow keys: Navigate through search results and library items
 
 ## P3: UX Polish
-- [ ] Loading states for all async operations
-- [ ] Empty states (no search results, empty queue, etc.)
-- [ ] Tooltips on buttons
-- [ ] Confirmation dialogs for destructive actions
+- [x] Loading states for all async operations (already implemented for search/playback/library)
+- [x] Empty states (no search results, empty queue, etc.) (already implemented in all main components)
+- [x] Tooltips on buttons (added to volume, close buttons, etc.)
+- [x] Confirmation dialogs for destructive actions (clear queue, clear history, delete session)
 
 ---
 
@@ -81,6 +81,10 @@ A task is complete when:
 5. **STOP** - wait for human approval before next phase
 
 ### Guidelines
+- **NEVER ask questions or offer choices** - work autonomously until ALL tasks are done
+- **NEVER stop mid-phase** - keep looping until every task is `[x]` checked
+- **ONLY create PR when ALL tasks are complete** - the PR creation is the exit signal
+- Do not ask "would you like me to..." - just continue working
 - Ask user before running E2E tests (`just e2e`)
 - Do not merge PRs - only humans can approve and merge
 - If stuck on a task, comment on the issue and move to next task

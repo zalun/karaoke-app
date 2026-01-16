@@ -58,6 +58,9 @@ export function SessionBar() {
   const [editingSessionName, setEditingSessionName] = useState("");
   const editSessionInputRef = useRef<HTMLInputElement>(null);
 
+  // State for confirming session deletion
+  const [confirmDeleteSessionId, setConfirmDeleteSessionId] = useState<number | null>(null);
+
   // Load session on mount
   useEffect(() => {
     loadSession();
@@ -302,6 +305,8 @@ export function SessionBar() {
               cancelEditingSession();
             }}
             className="text-gray-400 hover:text-white"
+            title="Close"
+            aria-label="Close"
           >
             <X size={20} />
           </button>
@@ -410,13 +415,34 @@ export function SessionBar() {
                           <Pencil size={16} />
                         </button>
                         {!isCurrentSession && (
-                          <button
-                            onClick={() => deleteSession(s.id)}
-                            className="p-2 mr-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded transition-colors"
-                            title="Delete session"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          confirmDeleteSessionId === s.id ? (
+                            <div className="flex items-center gap-1 mr-1 bg-red-900/30 px-2 py-1 rounded">
+                              <span className="text-red-400 text-xs">Delete?</span>
+                              <button
+                                onClick={() => {
+                                  deleteSession(s.id);
+                                  setConfirmDeleteSessionId(null);
+                                }}
+                                className="text-red-400 hover:text-red-300 text-xs font-medium"
+                              >
+                                Yes
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteSessionId(null)}
+                                className="text-gray-400 hover:text-gray-300 text-xs"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteSessionId(s.id)}
+                              className="p-2 mr-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded transition-colors"
+                              title="Delete session"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )
                         )}
                       </>
                     )}
@@ -668,6 +694,8 @@ export function SessionBar() {
                   setRenameError(null);
                 }}
                 className="text-gray-400 hover:text-white"
+                title="Close"
+                aria-label="Close"
               >
                 <X size={20} />
               </button>

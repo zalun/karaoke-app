@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { windowManager, type PlayerState } from "../../services/windowManager";
 import { createLogger } from "../../services";
 import { SETTINGS_KEYS, SETTINGS_DEFAULTS } from "../../stores";
-import { useWakeLock } from "../../hooks";
+import { useWakeLock, useKeyboardShortcuts } from "../../hooks";
 import {
   NextSongOverlay,
   COUNTDOWN_START_THRESHOLD_SECONDS,
@@ -51,6 +51,25 @@ export function DetachedPlayer() {
 
   // Prevent screen from sleeping while playing
   useWakeLock(state.isPlaying && isReady);
+
+  // Toggle fullscreen (used by double-click and keyboard shortcut)
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch((err) => {
+        log.warn("Failed to exit fullscreen:", err);
+      });
+    } else {
+      document.documentElement.requestFullscreen().catch((err) => {
+        log.warn("Failed to enter fullscreen:", err);
+      });
+    }
+  }, []);
+
+  // Enable keyboard shortcuts for video window (F, ESC, Left/Right, plus global shortcuts)
+  useKeyboardShortcuts({
+    enableVideoShortcuts: true,
+    onToggleFullscreen: toggleFullscreen,
+  });
 
   // Listen for state sync from main window
   useEffect(() => {
@@ -265,14 +284,6 @@ export function DetachedPlayer() {
     // Volume is handled by the player components
   }, [state.volume, state.isMuted]);
 
-  // Double-click for fullscreen
-  const handleDoubleClick = useCallback(() => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      document.documentElement.requestFullscreen();
-    }
-  }, []);
 
   // Determine what to play
   const playbackMode = state.playbackMode || "youtube";
@@ -356,7 +367,7 @@ export function DetachedPlayer() {
         data-tauri-drag-region
         className="absolute inset-0"
         style={{ zIndex: Z_INDEX_DRAG_OVERLAY }}
-        onDoubleClick={handleDoubleClick}
+        onDoubleClick={toggleFullscreen}
       />
     </div>
   );

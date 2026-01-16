@@ -11,6 +11,8 @@ interface DraggableQueueItemProps {
   onPlay: () => void;
   onRemove: () => void;
   formatDuration: (seconds?: number) => string;
+  isSelected?: boolean;
+  onSelect?: () => void;
 }
 
 export function DraggableQueueItem({
@@ -19,6 +21,8 @@ export function DraggableQueueItem({
   onPlay,
   onRemove,
   formatDuration,
+  isSelected = false,
+  onSelect,
 }: DraggableQueueItemProps) {
   const {
     attributes,
@@ -65,11 +69,19 @@ export function DraggableQueueItem({
       {...attributes}
       {...listeners}
       data-testid="queue-item"
+      onClick={(e) => {
+        // Only handle click if not clicking on a button
+        if (!(e.target as HTMLElement).closest("button")) {
+          onSelect?.();
+        }
+      }}
       className={`flex gap-2 p-2 rounded transition-colors cursor-grab active:cursor-grabbing touch-none ${
         isNonEmbeddable
           ? "bg-gray-800 border border-gray-600"
           : isDragging
           ? "bg-gray-700 shadow-lg ring-2 ring-blue-500"
+          : isSelected
+          ? "bg-gray-600 ring-2 ring-blue-500"
           : "bg-gray-700 hover:bg-gray-600"
       }`}
       title={isNonEmbeddable ? "This video doesn't allow embedding" : undefined}

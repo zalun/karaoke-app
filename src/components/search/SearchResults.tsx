@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { Settings } from "lucide-react";
 import type { SearchResult } from "../../types";
 import { usePlayerStore, useFavoritesStore, useSettingsStore, SETTINGS_KEYS, type Video } from "../../stores";
@@ -29,6 +29,10 @@ interface SearchResultsProps {
   onLoadMore: () => void;
 }
 
+export interface SearchResultsRef {
+  focus: () => void;
+}
+
 function formatDuration(seconds?: number): string {
   if (!seconds) return "--:--";
   const mins = Math.floor(seconds / 60);
@@ -43,7 +47,7 @@ function formatViewCount(count?: number): string {
   return `${count} views`;
 }
 
-export function SearchResults({
+export const SearchResults = forwardRef<SearchResultsRef, SearchResultsProps>(function SearchResults({
   results,
   isLoading,
   error,
@@ -52,11 +56,21 @@ export function SearchResults({
   onPlayNext,
   displayedCount,
   onLoadMore,
-}: SearchResultsProps) {
+}, ref) {
   const { currentVideo, isPlaying, nonEmbeddableVideoIds } = usePlayerStore();
   const { persistentSingers, loadPersistentSingers } = useFavoritesStore();
   const playbackMode = useSettingsStore((s) => s.getSetting(SETTINGS_KEYS.PLAYBACK_MODE));
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+
+  // Expose focus method via ref
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      containerRef.current?.focus();
+      setSelectedIndex(0);
+    },
+  }));
 
   // Check if a video is non-embeddable (only relevant in YouTube mode)
   const isNonEmbeddable = (videoId: string) =>
@@ -83,6 +97,52 @@ export function SearchResults({
     [videoResults, displayedCount]
   );
   const hasMore = displayedCount < videoResults.length;
+
+  // Reset selection when results change
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [results]);
+
+  // Keyboard navigation handler
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (displayedResults.length === 0) return;
+
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setSelectedIndex((prev) =>
+            prev < displayedResults.length - 1 ? prev + 1 : prev
+          );
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+          break;
+        case "Enter":
+          if (selectedIndex >= 0 && selectedIndex < displayedResults.length) {
+            e.preventDefault();
+            const result = displayedResults[selectedIndex];
+            if (!isNonEmbeddable(result.id)) {
+              onAddToQueue(result);
+            }
+          }
+          break;
+      }
+    },
+    [displayedResults, selectedIndex, onAddToQueue, isNonEmbeddable]
+  );
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (selectedIndex >= 0 && containerRef.current) {
+      const items = containerRef.current.querySelectorAll("[data-result-item]");
+      const selectedItem = items[selectedIndex];
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }
+  }, [selectedIndex]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
@@ -168,18 +228,27 @@ export function SearchResults({
   }
 
   return (
-    <div className="space-y-2">
-      {displayedResults.map((result) => {
+    <div
+      ref={containerRef}
+      className="space-y-2 outline-none"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+    >
+      {displayedResults.map((result, index) => {
         const isCurrentlyPlaying = currentVideo?.id === result.id;
         const videoNonEmbeddable = isNonEmbeddable(result.id);
+        const isSelected = index === selectedIndex;
 
         return (
           <div
             key={result.id}
+            data-result-item
             onClick={() => !videoNonEmbeddable && onAddToQueue(result)}
             className={`flex gap-3 p-3 rounded-lg transition-colors ${
               videoNonEmbeddable
                 ? "bg-gray-800 border border-gray-600 opacity-50 cursor-not-allowed"
+                : isSelected
+                ? "bg-gray-700 cursor-pointer"
                 : isCurrentlyPlaying
                 ? "bg-blue-900/50 border border-blue-600 cursor-pointer"
                 : "bg-gray-800 hover:bg-gray-700 cursor-pointer"
@@ -324,4 +393,4 @@ export function SearchResults({
       )}
     </div>
   );
-}
+});

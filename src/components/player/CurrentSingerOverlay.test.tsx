@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act, waitFor } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { CurrentSingerOverlay, CURRENT_SINGER_OVERLAY_DURATION_MS } from "./CurrentSingerOverlay";
 import type { Singer, Session } from "../../services";
 

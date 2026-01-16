@@ -35,15 +35,46 @@ vi.mock("../services", () => ({
 // Mock queueStore
 vi.mock("./queueStore", () => ({
   useQueueStore: {
-    getState: vi.fn(() => ({
-      queue: [],
-      history: [],
-      loadPersistedState: vi.fn(),
-      resetState: vi.fn(),
-    })),
+    getState: vi.fn(),
   },
   flushPendingOperations: vi.fn().mockResolvedValue(undefined),
 }));
+
+// Helper to create a complete mock QueueState
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createMockQueueState(overrides?: {
+  queue?: { id: string }[];
+  history?: { id: string }[];
+  loadPersistedState?: ReturnType<typeof vi.fn>;
+  resetState?: ReturnType<typeof vi.fn>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+}): any {
+  return {
+    queue: overrides?.queue ?? [],
+    history: overrides?.history ?? [],
+    historyIndex: -1,
+    isInitialized: true,
+    loadPersistedState: overrides?.loadPersistedState ?? vi.fn(),
+    resetState: overrides?.resetState ?? vi.fn(),
+    addToQueue: vi.fn(),
+    addToQueueNext: vi.fn(),
+    removeFromQueue: vi.fn(),
+    reorderQueue: vi.fn(),
+    clearQueue: vi.fn(),
+    fairShuffle: vi.fn(),
+    clearHistory: vi.fn(),
+    moveAllHistoryToQueue: vi.fn(),
+    playDirect: vi.fn(),
+    playFromQueue: vi.fn(),
+    playFromHistory: vi.fn(),
+    playNext: vi.fn(),
+    playNextFromQueue: vi.fn(),
+    playPrevious: vi.fn(),
+    getCurrentItem: vi.fn(),
+    hasNext: vi.fn(),
+    hasPrevious: vi.fn(),
+  };
+}
 
 // Import mocked modules
 import { sessionService } from "../services";
@@ -297,12 +328,7 @@ describe("sessionStore - Session Lifecycle", () => {
       vi.mocked(sessionService.getActiveSession).mockResolvedValue(mockSession);
       vi.mocked(sessionService.getSessionSingers).mockResolvedValue([mockSinger1]);
       vi.mocked(sessionService.getActiveSinger).mockResolvedValue(mockSinger1);
-      vi.mocked(useQueueStore.getState).mockReturnValue({
-        queue: [],
-        history: [],
-        loadPersistedState: vi.fn(),
-        resetState: vi.fn(),
-      });
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
 
       await useSessionStore.getState().loadSession();
 
@@ -326,12 +352,7 @@ describe("sessionStore - Session Lifecycle", () => {
     it("should flush pending operations and start a new session", async () => {
       const newSession = { ...mockSession, id: 2, name: "New Session" };
       vi.mocked(sessionService.startSession).mockResolvedValue(newSession);
-      vi.mocked(useQueueStore.getState).mockReturnValue({
-        queue: [],
-        history: [],
-        loadPersistedState: vi.fn(),
-        resetState: vi.fn(),
-      });
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
 
       await useSessionStore.getState().startSession("New Session");
 
@@ -352,12 +373,7 @@ describe("sessionStore - Session Lifecycle", () => {
 
       const newSession = { ...mockSession, id: 2 };
       vi.mocked(sessionService.startSession).mockResolvedValue(newSession);
-      vi.mocked(useQueueStore.getState).mockReturnValue({
-        queue: [],
-        history: [],
-        loadPersistedState: vi.fn(),
-        resetState: vi.fn(),
-      });
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
 
       await useSessionStore.getState().startSession();
 
@@ -372,12 +388,7 @@ describe("sessionStore - Session Lifecycle", () => {
         loadingDuringStart = useSessionStore.getState().isLoading;
         return mockSession;
       });
-      vi.mocked(useQueueStore.getState).mockReturnValue({
-        queue: [],
-        history: [],
-        loadPersistedState: vi.fn(),
-        resetState: vi.fn(),
-      });
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
 
       await useSessionStore.getState().startSession();
 
@@ -401,12 +412,7 @@ describe("sessionStore - Session Lifecycle", () => {
         activeSingerId: 1,
       });
       vi.mocked(sessionService.endSession).mockResolvedValue();
-      vi.mocked(useQueueStore.getState).mockReturnValue({
-        queue: [],
-        history: [],
-        loadPersistedState: vi.fn(),
-        resetState: vi.fn(),
-      });
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
 
       await useSessionStore.getState().endSession();
 
@@ -421,12 +427,7 @@ describe("sessionStore - Session Lifecycle", () => {
       useSessionStore.setState({ session: mockSession });
       vi.mocked(sessionService.endSession).mockResolvedValue();
       const mockResetState = vi.fn();
-      vi.mocked(useQueueStore.getState).mockReturnValue({
-        queue: [],
-        history: [],
-        loadPersistedState: vi.fn(),
-        resetState: mockResetState,
-      });
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState({ resetState: mockResetState }));
 
       await useSessionStore.getState().endSession();
 
@@ -447,12 +448,7 @@ describe("sessionStore - Session Lifecycle", () => {
       vi.mocked(sessionService.loadSession).mockResolvedValue(targetSession);
       vi.mocked(sessionService.getSessionSingers).mockResolvedValue([mockSinger2]);
       vi.mocked(sessionService.getActiveSinger).mockResolvedValue(mockSinger2);
-      vi.mocked(useQueueStore.getState).mockReturnValue({
-        queue: [],
-        history: [],
-        loadPersistedState: vi.fn(),
-        resetState: vi.fn(),
-      });
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
 
       await useSessionStore.getState().switchToSession(2);
 
@@ -475,12 +471,7 @@ describe("sessionStore - Session Lifecycle", () => {
       vi.mocked(sessionService.loadSession).mockResolvedValue({ ...session2, is_active: true });
       vi.mocked(sessionService.getSessionSingers).mockResolvedValue([]);
       vi.mocked(sessionService.getActiveSinger).mockResolvedValue(null);
-      vi.mocked(useQueueStore.getState).mockReturnValue({
-        queue: [],
-        history: [],
-        loadPersistedState: vi.fn(),
-        resetState: vi.fn(),
-      });
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
 
       await useSessionStore.getState().switchToSession(2);
 
@@ -637,12 +628,10 @@ describe("sessionStore - Queue Singer Assignments", () => {
 
   describe("loadAllQueueItemSingers", () => {
     it("should load singers for all queue and history items", async () => {
-      vi.mocked(useQueueStore.getState).mockReturnValue({
-        queue: [{ id: "item1" } as never],
-        history: [{ id: "item2" } as never],
-        loadPersistedState: vi.fn(),
-        resetState: vi.fn(),
-      });
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState({
+        queue: [{ id: "item1" }],
+        history: [{ id: "item2" }],
+      }));
       vi.mocked(sessionService.getQueueItemSingers)
         .mockResolvedValueOnce([mockSinger1])
         .mockResolvedValueOnce([mockSinger2]);
@@ -656,12 +645,9 @@ describe("sessionStore - Queue Singer Assignments", () => {
     });
 
     it("should skip items with no singers", async () => {
-      vi.mocked(useQueueStore.getState).mockReturnValue({
-        queue: [{ id: "item1" } as never, { id: "item2" } as never],
-        history: [],
-        loadPersistedState: vi.fn(),
-        resetState: vi.fn(),
-      });
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState({
+        queue: [{ id: "item1" }, { id: "item2" }],
+      }));
       vi.mocked(sessionService.getQueueItemSingers)
         .mockResolvedValueOnce([mockSinger1])
         .mockResolvedValueOnce([]);

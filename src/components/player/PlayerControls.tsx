@@ -629,6 +629,8 @@ export function PlayerControls() {
           className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${
             isDisabled ? "cursor-not-allowed" : "hover:bg-gray-700"
           }`}
+          title={isMuted ? "Unmute" : "Mute"}
+          aria-label={isMuted ? "Unmute" : "Mute"}
         >
           {isMuted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
         </button>
@@ -641,6 +643,8 @@ export function PlayerControls() {
           onChange={handleVolumeChange}
           disabled={isDisabled}
           className="w-20"
+          title={`Volume: ${Math.round(volume * 100)}%`}
+          aria-label="Volume"
         />
 
         {/* Detach/Reattach */}

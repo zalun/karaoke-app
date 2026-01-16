@@ -34,6 +34,8 @@ export function DisplayRestoreDialog() {
             onClick={dismissRestore}
             disabled={isLoading}
             className="text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+            title="Dismiss"
+            aria-label="Dismiss"
           >
             <X size={20} />
           </button>

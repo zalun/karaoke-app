@@ -50,3 +50,14 @@ playwright/.cache/
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Ralph (autonomous development loop)
+.call_count
+.circuit_breaker_history
+.circuit_breaker_state
+.exit_signals
+.last_output_length
+.last_reset
+.response_analysis
+progress.json
+status.json

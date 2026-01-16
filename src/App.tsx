@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
@@ -17,8 +17,8 @@ import {
 } from "@dnd-kit/sortable";
 import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
-import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector } from "./components/search";
-import { LibraryBrowser } from "./components/library";
+import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector, type SearchBarRef, type SearchResultsRef, type LocalSearchResultsRef } from "./components/search";
+import { LibraryBrowser, type LibraryBrowserRef } from "./components/library";
 import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
@@ -29,7 +29,7 @@ import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useS
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star } from "lucide-react";
 import { youtubeService, createLogger, getErrorMessage } from "./services";
-import { useMediaControls, useDisplayWatcher, useUpdateCheck } from "./hooks";
+import { useMediaControls, useDisplayWatcher, useUpdateCheck, useKeyboardShortcuts } from "./hooks";
 import { NotificationBar } from "./components/notification";
 import type { SearchResult } from "./types";
 
@@ -89,6 +89,30 @@ function App() {
   const [mainTab, setMainTab] = useState<MainTab>("search");
   const [displayedCount, setDisplayedCount] = useState(RESULTS_PER_PAGE);
 
+  // Ref for focusing the search bar
+  const searchBarRef = useRef<SearchBarRef>(null);
+  const searchResultsRef = useRef<SearchResultsRef>(null);
+  const localSearchResultsRef = useRef<LocalSearchResultsRef>(null);
+  const libraryBrowserRef = useRef<LibraryBrowserRef>(null);
+
+  // Focus appropriate component when tab changes
+  useEffect(() => {
+    // Small delay to ensure component is mounted/visible
+    const timer = setTimeout(() => {
+      if (mainTab === "library") {
+        libraryBrowserRef.current?.focus();
+      } else if (mainTab === "search") {
+        // Focus search results if we have results, otherwise search bar
+        if (searchMode === "local" && localSearchResults.length > 0) {
+          localSearchResultsRef.current?.focus();
+        } else if (searchMode === "youtube" && searchResults.length > 0) {
+          searchResultsRef.current?.focus();
+        }
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [mainTab]);
+
   const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { addToQueue, addToQueueNext, playDirect } = useQueueStore();
   const {
@@ -101,6 +125,77 @@ function App() {
 
   // Initialize macOS Now Playing media controls
   useMediaControls();
+
+  // Focus search bar and switch to search tab
+  const handleFocusSearch = useCallback(() => {
+    setMainTab("search");
+    // Use setTimeout to ensure the tab switch happens before focusing
+    setTimeout(() => {
+      searchBarRef.current?.focus();
+    }, 0);
+  }, []);
+
+  // Add file to queue via file dialog (Cmd+O)
+  const handleAddFile = useCallback(async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({
+        multiple: true,
+        title: "Select video files to add to queue",
+        filters: [
+          {
+            name: "Video Files",
+            extensions: ["mp4", "mkv", "webm", "avi", "mov"],
+          },
+        ],
+      });
+
+      if (selected) {
+        // Handle both single file (string) and multiple files (string[])
+        const files = Array.isArray(selected) ? selected : [selected];
+        for (const filePath of files) {
+          // Extract filename for title
+          const filename = filePath.split("/").pop() || filePath;
+          // Remove extension for cleaner title
+          const title = filename.replace(/\.[^/.]+$/, "");
+
+          const video: Video = {
+            id: filePath,
+            title,
+            source: "local",
+            filePath,
+          };
+
+          addToQueue(video);
+          log.info(`Added file to queue: "${title}"`);
+        }
+
+        if (files.length > 0) {
+          notify("success", `Added ${files.length} file${files.length > 1 ? "s" : ""} to queue`);
+        }
+      }
+    } catch (error) {
+      log.error("Failed to add file:", error);
+      notify("error", "Failed to add file to queue");
+    }
+  }, [addToQueue]);
+
+  // Switch to next panel (Player -> Search -> Library -> Player)
+  const handleSwitchPanel = useCallback(() => {
+    setMainTab((current) => {
+      const tabs: MainTab[] = ["player", "search", "library"];
+      const currentIndex = tabs.indexOf(current);
+      const nextIndex = (currentIndex + 1) % tabs.length;
+      return tabs[nextIndex];
+    });
+  }, []);
+
+  // Initialize keyboard shortcuts (global shortcuts + Cmd+F for search + Cmd+O for file + Tab for panels)
+  useKeyboardShortcuts({
+    onFocusSearch: handleFocusSearch,
+    onAddFile: handleAddFile,
+    onSwitchPanel: handleSwitchPanel,
+  });
 
   // Initialize display hotplug watcher (macOS only)
   useDisplayWatcher();
@@ -193,6 +288,14 @@ function App() {
 
         log.info(`Search returned ${results.length} results`);
         setSearchResults(results);
+        // Focus search results after they render
+        setTimeout(() => {
+          if (searchMode === "youtube") {
+            searchResultsRef.current?.focus();
+          } else {
+            localSearchResultsRef.current?.focus();
+          }
+        }, 100);
       } catch (err) {
         log.error("Search failed", err);
         setSearchError(getErrorMessage(err, "Search failed"));
@@ -452,7 +555,7 @@ function App() {
         {/* Left: Main content area */}
         <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
           {/* Search Bar - always visible */}
-          <SearchBar onSearch={handleSearch} isLoading={isSearching} />
+          <SearchBar ref={searchBarRef} onSearch={handleSearch} isLoading={isSearching} />
 
           {/* Player Controls - always visible, disabled when no video */}
           <PlayerControls />
@@ -513,6 +616,7 @@ function App() {
               <div className="flex-1 overflow-auto">
                 {searchMode === "local" ? (
                   <LocalSearchResults
+                    ref={localSearchResultsRef}
                     results={localSearchResults}
                     isLoading={isLocalSearching}
                     error={searchError}
@@ -524,6 +628,7 @@ function App() {
                   />
                 ) : (
                   <SearchResults
+                    ref={searchResultsRef}
                     results={searchResults}
                     isLoading={isSearching}
                     error={searchError}
@@ -540,6 +645,7 @@ function App() {
             {/* Library Browser - visible when on library tab */}
             <div className={`h-full ${mainTab === "library" ? "" : "hidden"}`}>
               <LibraryBrowser
+                ref={libraryBrowserRef}
                 onPlay={handleLocalPlay}
                 onAddToQueue={handleLocalAddToQueue}
                 onPlayNext={handleLocalPlayNext}
@@ -654,6 +760,16 @@ const queueLog = createLogger("QueuePanel");
 function QueuePanel() {
   const { queue, playFromQueue, removeFromQueue, reorderQueue, clearQueue, fairShuffle } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Clear selection when the selected item is removed from queue
+  useEffect(() => {
+    if (selectedItemId && !queue.find((item) => item.id === selectedItemId)) {
+      setSelectedItemId(null);
+    }
+  }, [queue, selectedItemId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -697,6 +813,86 @@ function QueuePanel() {
     [playFromQueue, setCurrentVideo, setIsPlaying, setIsLoading]
   );
 
+  // Handle keyboard navigation within the queue panel
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle keys when the queue panel has focus
+      if (!containerRef.current?.contains(document.activeElement) && document.activeElement !== containerRef.current) {
+        return;
+      }
+
+      // Don't handle if focus is on an input or button
+      const target = event.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "BUTTON") {
+        return;
+      }
+
+      const selectedIndex = selectedItemId ? queue.findIndex((item) => item.id === selectedItemId) : -1;
+
+      switch (event.key) {
+        case "ArrowUp": {
+          event.preventDefault();
+          if (queue.length === 0) return;
+          if (selectedIndex <= 0) {
+            // Select first item or wrap to first if nothing selected
+            setSelectedItemId(queue[0].id);
+          } else {
+            setSelectedItemId(queue[selectedIndex - 1].id);
+          }
+          break;
+        }
+        case "ArrowDown": {
+          event.preventDefault();
+          if (queue.length === 0) return;
+          if (selectedIndex === -1) {
+            // Select first item
+            setSelectedItemId(queue[0].id);
+          } else if (selectedIndex < queue.length - 1) {
+            setSelectedItemId(queue[selectedIndex + 1].id);
+          }
+          break;
+        }
+        case "Delete":
+        case "Backspace": {
+          if (selectedItemId) {
+            event.preventDefault();
+            const itemToRemove = queue.find((item) => item.id === selectedItemId);
+            if (itemToRemove) {
+              queueLog.info(`Removing from queue via keyboard: "${itemToRemove.video.title}"`);
+              // Select the next item before removing
+              if (selectedIndex < queue.length - 1) {
+                setSelectedItemId(queue[selectedIndex + 1].id);
+              } else if (selectedIndex > 0) {
+                setSelectedItemId(queue[selectedIndex - 1].id);
+              } else {
+                setSelectedItemId(null);
+              }
+              removeFromQueue(selectedItemId);
+            }
+          }
+          break;
+        }
+        case "Enter": {
+          if (selectedItemId && selectedIndex !== -1) {
+            event.preventDefault();
+            queueLog.info(`Playing from queue via keyboard: index ${selectedIndex}`);
+            handlePlayFromQueue(selectedIndex);
+            setSelectedItemId(null);
+          }
+          break;
+        }
+        case "Escape": {
+          event.preventDefault();
+          setSelectedItemId(null);
+          break;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [queue, selectedItemId, removeFromQueue, handlePlayFromQueue]);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
@@ -726,7 +922,17 @@ function QueuePanel() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div
+      ref={containerRef}
+      className="flex flex-col flex-1 min-h-0"
+      tabIndex={0}
+      onFocus={() => {
+        // Select first item when panel receives focus if nothing selected
+        if (!selectedItemId && queue.length > 0) {
+          setSelectedItemId(queue[0].id);
+        }
+      }}
+    >
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -748,6 +954,8 @@ function QueuePanel() {
                   removeFromQueue(item.id);
                 }}
                 formatDuration={formatDuration}
+                isSelected={item.id === selectedItemId}
+                onSelect={() => setSelectedItemId(item.id)}
               />
             ))}
           </div>
@@ -773,17 +981,37 @@ function QueuePanel() {
         >
           <Shuffle size={18} />
         </button>
-        <button
-          onClick={() => {
-            queueLog.info(`Clearing queue (${queue.length} items)`);
-            clearQueue();
-          }}
-          title="Clear Queue"
-          aria-label="Clear queue"
-          className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
-        >
-          <Trash2 size={18} />
-        </button>
+        {showClearConfirm ? (
+          <div className="flex items-center gap-2 bg-red-900/30 px-2 py-1 rounded">
+            <span className="text-red-400 text-xs">Clear all?</span>
+            <button
+              onClick={() => {
+                queueLog.info(`Clearing queue (${queue.length} items)`);
+                clearQueue();
+                setShowClearConfirm(false);
+              }}
+              className="text-red-400 hover:text-red-300 text-xs font-medium"
+            >
+              Yes
+            </button>
+            <button
+              onClick={() => setShowClearConfirm(false)}
+              className="text-gray-400 hover:text-gray-300 text-xs"
+            >
+              No
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowClearConfirm(true)}
+            disabled={queue.length === 0}
+            title="Clear Queue"
+            aria-label="Clear queue"
+            className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 size={18} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -806,6 +1034,7 @@ function HistoryPanel() {
   } = useFavoritesStore();
 
   const [showSingerPicker, setShowSingerPicker] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Load persistent singers when entering selection mode
   useEffect(() => {
@@ -1028,17 +1257,37 @@ function HistoryPanel() {
         >
           <ListRestart size={18} />
         </button>
-        <button
-          onClick={() => {
-            historyLog.info(`Clearing history (${history.length} items)`);
-            clearHistory();
-          }}
-          className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
-          title="Clear History"
-          aria-label={`Clear ${history.length} songs from history`}
-        >
-          <Trash2 size={18} />
-        </button>
+        {showClearConfirm ? (
+          <div className="flex items-center gap-2 bg-red-900/30 px-2 py-1 rounded">
+            <span className="text-red-400 text-xs">Clear all?</span>
+            <button
+              onClick={() => {
+                historyLog.info(`Clearing history (${history.length} items)`);
+                clearHistory();
+                setShowClearConfirm(false);
+              }}
+              className="text-red-400 hover:text-red-300 text-xs font-medium"
+            >
+              Yes
+            </button>
+            <button
+              onClick={() => setShowClearConfirm(false)}
+              className="text-gray-400 hover:text-gray-300 text-xs"
+            >
+              No
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowClearConfirm(true)}
+            disabled={history.length === 0}
+            className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Clear History"
+            aria-label={`Clear ${history.length} songs from history`}
+          >
+            <Trash2 size={18} />
+          </button>
+        )}
       </div>
     </div>
   );
