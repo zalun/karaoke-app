@@ -117,10 +117,16 @@ A task is complete when:
 
 ## Notes for Ralph
 
-- Always create a GitHub issue before starting work
-- Create feature branch from issue
-- Run `just check` before marking tasks complete
+### Workflow Per Phase
+1. Create ONE GitHub issue for the entire phase (e.g., "Phase 5c: Local Library Polish")
+2. Create feature branch from that issue
+3. Loop through tasks in the phase, committing after each completed task
+4. Run `just check` before each commit
+5. Push commits regularly to keep branch updated
+6. **When ALL tasks in the phase are complete:** create PR
+7. **STOP after creating PR** - wait for human approval before starting next phase
+
+### Other Guidelines
 - Ask user before running E2E tests (`just e2e`)
-- **Create PR when task is complete** - do not merge, wait for human approval
-- **STOP after creating PR** - do not continue to next task until PR is approved
-- Update this file as tasks are completed
+- Update this file as tasks are completed (mark with [x])
+- Do not merge PRs - only humans can approve and merge
