@@ -43,8 +43,9 @@ See `plan/07-polish.md` for full specification.
 A task is complete when:
 1. Code compiles without warnings
 2. `just check` passes (typecheck + lint + cargo check)
-3. Existing tests pass (`just test`)
-4. Changelog updated (if user-facing change)
+3. **New tests added** for testable functionality
+4. All tests pass (`just test`)
+5. Changelog updated (if user-facing change)
 
 ---
 
@@ -57,16 +58,20 @@ A task is complete when:
 
 ### During Development Loop
 1. Pick next unchecked task
-2. Implement the task
-3. Run `just check` before committing
-4. Commit with descriptive message
-5. **Add comment to the GitHub issue** noting completed task:
+2. **Write failing test first** (when testable):
+   - Unit test in `src/**/*.test.ts` for logic/utilities
+   - Component test for React components
+   - Skip tests for pure UI changes (styles, layouts)
+3. Implement the feature until test passes
+4. Run `just check` before committing
+5. Commit with descriptive message
+6. **Add comment to the GitHub issue** noting completed task:
    ```bash
    gh issue comment <issue-number> --body "Completed: <task description>"
    ```
-6. Mark task as done in this file: `- [x]`
-7. Push commits regularly
-8. Repeat until all tasks are checked
+7. Mark task as done in this file: `- [x]`
+8. Push commits regularly
+9. Repeat until all tasks are checked
 
 ### At Phase End
 1. Verify all tasks are `[x]` checked
