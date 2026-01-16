@@ -29,7 +29,7 @@ import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useS
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star } from "lucide-react";
 import { youtubeService, createLogger, getErrorMessage } from "./services";
-import { useMediaControls, useDisplayWatcher, useUpdateCheck } from "./hooks";
+import { useMediaControls, useDisplayWatcher, useUpdateCheck, useKeyboardShortcuts } from "./hooks";
 import { NotificationBar } from "./components/notification";
 import type { SearchResult } from "./types";
 
@@ -101,6 +101,9 @@ function App() {
 
   // Initialize macOS Now Playing media controls
   useMediaControls();
+
+  // Initialize keyboard shortcuts (global shortcuts for main window)
+  useKeyboardShortcuts();
 
   // Initialize display hotplug watcher (macOS only)
   useDisplayWatcher();

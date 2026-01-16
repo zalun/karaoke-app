@@ -1,26 +1,27 @@
 # Phase 7: Polish
 
-**GitHub Issue:** (create at start of phase)
+**GitHub Issue:** #192
 
 See `plan/07-polish.md` for full specification.
 
 ---
 
 ## P2: Fullscreen Video Mode
-- [ ] Toggle fullscreen <-> windowed without interrupting playback
-- [ ] Queue continues automatically in fullscreen
-- [ ] Shortcuts: F or double-click -> toggle fullscreen
-- [ ] ESC -> exit fullscreen (but not pause)
+- [x] Toggle fullscreen <-> windowed without interrupting playback
+- [x] Queue continues automatically in fullscreen
+- [x] Shortcuts: F or double-click -> toggle fullscreen
+- [x] ESC -> exit fullscreen (but not pause)
 
 ## P2: Keyboard Shortcuts - Global
-- [ ] Space: Play/pause
-- [ ] M: Mute/unmute
-- [ ] Up/Down: Volume +/-10%
+- [x] Space: Play/pause
+- [x] M: Mute/unmute
+- [x] Up/Down: Volume +/-10%
+- [x] N: Next video
 
 ## P2: Keyboard Shortcuts - Video Window
-- [ ] F: Toggle fullscreen
-- [ ] ESC: Exit fullscreen
-- [ ] Left/Right: Seek +/-10s
+- [x] F: Toggle fullscreen
+- [x] ESC: Exit fullscreen
+- [x] Left/Right: Seek +/-10s
 
 ## P3: Keyboard Shortcuts - Management Window
 - [ ] Cmd+O: Add file to queue
