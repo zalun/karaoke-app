@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
@@ -17,7 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { AppLayout } from "./components/layout";
 import { VideoPlayer, PlayerControls } from "./components/player";
-import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector } from "./components/search";
+import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector, type SearchBarRef } from "./components/search";
 import { LibraryBrowser } from "./components/library";
 import { DraggableQueueItem } from "./components/queue";
 import { SessionBar } from "./components/session";
@@ -89,6 +89,9 @@ function App() {
   const [mainTab, setMainTab] = useState<MainTab>("search");
   const [displayedCount, setDisplayedCount] = useState(RESULTS_PER_PAGE);
 
+  // Ref for focusing the search bar
+  const searchBarRef = useRef<SearchBarRef>(null);
+
   const { currentVideo, setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { addToQueue, addToQueueNext, playDirect } = useQueueStore();
   const {
@@ -102,8 +105,19 @@ function App() {
   // Initialize macOS Now Playing media controls
   useMediaControls();
 
-  // Initialize keyboard shortcuts (global shortcuts for main window)
-  useKeyboardShortcuts();
+  // Focus search bar and switch to search tab
+  const handleFocusSearch = useCallback(() => {
+    setMainTab("search");
+    // Use setTimeout to ensure the tab switch happens before focusing
+    setTimeout(() => {
+      searchBarRef.current?.focus();
+    }, 0);
+  }, []);
+
+  // Initialize keyboard shortcuts (global shortcuts + Cmd+F for search)
+  useKeyboardShortcuts({
+    onFocusSearch: handleFocusSearch,
+  });
 
   // Initialize display hotplug watcher (macOS only)
   useDisplayWatcher();
@@ -455,7 +469,7 @@ function App() {
         {/* Left: Main content area */}
         <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
           {/* Search Bar - always visible */}
-          <SearchBar onSearch={handleSearch} isLoading={isSearching} />
+          <SearchBar ref={searchBarRef} onSearch={handleSearch} isLoading={isSearching} />
 
           {/* Player Controls - always visible, disabled when no video */}
           <PlayerControls />

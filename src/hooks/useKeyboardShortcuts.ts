@@ -33,6 +33,11 @@ export interface KeyboardShortcutsOptions {
    * Callback when fullscreen should be toggled (video window only)
    */
   onToggleFullscreen?: () => void;
+  /**
+   * Callback when search should be focused (Cmd+F or /)
+   * Main window only
+   */
+  onFocusSearch?: () => void;
 }
 
 /**
@@ -48,22 +53,44 @@ export interface KeyboardShortcutsOptions {
  * - F: Toggle fullscreen
  * - ESC: Exit fullscreen
  * - Left/Right: Seek +/-10s
+ *
+ * Management window shortcuts:
+ * - Cmd+F or /: Focus on search
  */
 export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
-  const { enableVideoShortcuts = false, onToggleFullscreen } = options;
+  const { enableVideoShortcuts = false, onToggleFullscreen, onFocusSearch } = options;
 
   // Keep refs to latest callbacks to avoid stale closures
   const onToggleFullscreenRef = useRef(onToggleFullscreen);
   onToggleFullscreenRef.current = onToggleFullscreen;
+  const onFocusSearchRef = useRef(onFocusSearch);
+  onFocusSearchRef.current = onFocusSearch;
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    // Skip if focus is on input element
+    // Handle Cmd+F (or Ctrl+F) for search focus before other checks
+    if ((event.metaKey || event.ctrlKey) && (event.key === "f" || event.key === "F")) {
+      if (onFocusSearchRef.current) {
+        event.preventDefault();
+        log.debug("Keyboard: Focus search (Cmd+F)");
+        onFocusSearchRef.current();
+      }
+      return;
+    }
+
+    // Skip if focus is on input element (but allow "/" to focus search from anywhere)
     if (isInputElement(event.target)) {
       return;
     }
 
-    // Skip if modifier keys are pressed (except for known combos)
-    // This allows Cmd+F for search, etc.
+    // Handle "/" for search focus (only when not in input)
+    if (event.key === "/" && onFocusSearchRef.current) {
+      event.preventDefault();
+      log.debug("Keyboard: Focus search (/)");
+      onFocusSearchRef.current();
+      return;
+    }
+
+    // Skip if modifier keys are pressed (we already handled Cmd+F above)
     if (event.metaKey || event.ctrlKey || event.altKey) {
       return;
     }

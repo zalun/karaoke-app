@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Globe, HardDrive } from "lucide-react";
 import { useAppStore, useLibraryStore, useSearchHistoryStore } from "../../stores";
 
@@ -7,7 +7,11 @@ interface SearchBarProps {
   isLoading?: boolean;
 }
 
-export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
+export interface SearchBarRef {
+  focus: () => void;
+}
+
+export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(function SearchBar({ onSearch, isLoading }, ref) {
   const [inputValue, setInputValue] = useState("");
   const [addKaraoke, setAddKaraoke] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -24,6 +28,13 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
 
   const isLocalMode = searchMode === "local";
   const searchType = isLocalMode ? "local" : "youtube";
+
+  // Expose focus method via ref
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current?.focus();
+    },
+  }), []);
 
   // Filter suggestions based on current input
   const filteredSuggestions = filterSuggestions(inputValue);
@@ -318,4 +329,4 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
       </button>
     </form>
   );
-}
+});

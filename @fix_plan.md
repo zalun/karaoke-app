@@ -25,7 +25,7 @@ See `plan/07-polish.md` for full specification.
 
 ## P3: Keyboard Shortcuts - Management Window
 - [ ] Cmd+O: Add file to queue
-- [ ] Cmd+F or /: Focus on search and switch to Search tab
+- [x] Cmd+F or /: Focus on search and switch to Search tab
 - [ ] Delete: Remove selected from queue
 - [ ] Enter: Play selected / confirm action
 - [ ] Tab: Switch to next panel (Search/Player/Library)

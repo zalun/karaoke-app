@@ -300,4 +300,77 @@ describe("useKeyboardShortcuts", () => {
 
     expect(mockSetIsPlaying).not.toHaveBeenCalled();
   });
+
+  describe("search focus shortcuts", () => {
+    it("should call onFocusSearch on Cmd+F", () => {
+      const mockFocusSearch = vi.fn();
+      renderHook(() =>
+        useKeyboardShortcuts({
+          onFocusSearch: mockFocusSearch,
+        })
+      );
+
+      act(() => {
+        simulateKeyDown("f", { metaKey: true });
+      });
+
+      expect(mockFocusSearch).toHaveBeenCalled();
+    });
+
+    it("should call onFocusSearch on Ctrl+F", () => {
+      const mockFocusSearch = vi.fn();
+      renderHook(() =>
+        useKeyboardShortcuts({
+          onFocusSearch: mockFocusSearch,
+        })
+      );
+
+      act(() => {
+        simulateKeyDown("f", { ctrlKey: true });
+      });
+
+      expect(mockFocusSearch).toHaveBeenCalled();
+    });
+
+    it("should call onFocusSearch on / key", () => {
+      const mockFocusSearch = vi.fn();
+      renderHook(() =>
+        useKeyboardShortcuts({
+          onFocusSearch: mockFocusSearch,
+        })
+      );
+
+      act(() => {
+        simulateKeyDown("/");
+      });
+
+      expect(mockFocusSearch).toHaveBeenCalled();
+    });
+
+    it("should not call onFocusSearch on / when in input field", () => {
+      const mockFocusSearch = vi.fn();
+      renderHook(() =>
+        useKeyboardShortcuts({
+          onFocusSearch: mockFocusSearch,
+        })
+      );
+
+      const input = document.createElement("input");
+      document.body.appendChild(input);
+      input.focus();
+
+      act(() => {
+        const event = new KeyboardEvent("keydown", {
+          key: "/",
+          bubbles: true,
+        });
+        Object.defineProperty(event, "target", { value: input });
+        window.dispatchEvent(event);
+      });
+
+      expect(mockFocusSearch).not.toHaveBeenCalled();
+
+      document.body.removeChild(input);
+    });
+  });
 });
