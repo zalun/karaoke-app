@@ -517,5 +517,40 @@ describe("NextSongOverlay same-video check", () => {
 
       expect(screen.queryByTestId("next-song-overlay")).not.toBeInTheDocument();
     });
+
+    it("should not show overlay when last song in multi-song queue matches current (issue #197)", () => {
+      // Scenario: Queue had [A, B, C], played through to C
+      // C is now playing (moved to history), but due to sync issue C is still in queue
+      mockPlayerStore.currentVideo = {
+        id: "song-c",
+        title: "Song C",
+        youtubeId: "video-c",
+        streamUrl: "https://stream.example.com/c",
+        source: "youtube",
+      };
+      mockPlayerStore.isPlaying = true;
+      mockPlayerStore.duration = 180;
+      mockPlayerStore.currentTime = 165; // Within overlay threshold
+      mockPlayerStore.isLoading = false;
+
+      // Queue still has Song C due to sync edge case
+      mockQueueStore.queue = [
+        {
+          id: "queue-item-c",
+          video: {
+            id: "song-c", // Same as currentVideo
+            title: "Song C",
+            youtubeId: "video-c",
+            source: "youtube",
+          },
+          addedAt: new Date(),
+        },
+      ];
+
+      render(<VideoPlayer />);
+
+      // Overlay should NOT show - this is the bug fix for issue #197
+      expect(screen.queryByTestId("next-song-overlay")).not.toBeInTheDocument();
+    });
   });
 });
