@@ -154,35 +154,31 @@ test.describe("Queue Management", () => {
     await expect(noSongsText).not.toBeVisible();
   });
 
-  test("should clear queue", async ({ page }) => {
+  test("should clear queue", async () => {
     await mainPage.search("test");
     await mainPage.waitForSearchResults();
 
     // Add multiple items to queue
     await mainPage.clickAddToQueueOnResult(0);
-    await page.waitForTimeout(50);
     await mainPage.clickAddToQueueOnResult(1);
-    await page.waitForTimeout(50);
     await mainPage.clickAddToQueueOnResult(2);
 
-    // Switch to queue tab
+    // Switch to queue tab and verify queue is not empty
     await mainPage.switchToQueueTab();
-    await page.waitForTimeout(100);
+    await expect(async () => {
+      const isEmpty = await mainPage.isQueueEmpty();
+      expect(isEmpty).toBe(false);
+    }).toPass({ timeout: 5000 });
 
-    // Verify queue is not empty
-    let isEmpty = await mainPage.isQueueEmpty();
-    expect(isEmpty).toBe(false);
-
-    // Clear queue
+    // Clear queue and verify it's now empty
     await mainPage.clearQueue();
-    await page.waitForTimeout(100);
-
-    // Verify queue is now empty
-    isEmpty = await mainPage.isQueueEmpty();
-    expect(isEmpty).toBe(true);
+    await expect(async () => {
+      const isEmpty = await mainPage.isQueueEmpty();
+      expect(isEmpty).toBe(true);
+    }).toPass({ timeout: 5000 });
   });
 
-  test("queue should persist across tab switches", async ({ page }) => {
+  test("queue should persist across tab switches", async () => {
     await mainPage.search("test");
     await mainPage.waitForSearchResults();
 
@@ -192,18 +188,20 @@ test.describe("Queue Management", () => {
 
     // Switch to history tab
     await mainPage.switchToHistoryTab();
-    await page.waitForTimeout(100);
+    await expect(mainPage.historyTab).toHaveAttribute("aria-selected", "true");
 
     // Switch back to queue tab
     await mainPage.switchToQueueTab();
-    await page.waitForTimeout(100);
+    await expect(mainPage.queueTab).toHaveAttribute("aria-selected", "true");
 
     // Queue should still have items
-    const isEmpty = await mainPage.isQueueEmpty();
-    expect(isEmpty).toBe(false);
+    await expect(async () => {
+      const isEmpty = await mainPage.isQueueEmpty();
+      expect(isEmpty).toBe(false);
+    }).toPass({ timeout: 5000 });
   });
 
-  test("should add items with Play Next to front of queue", async ({ page }) => {
+  test("should add items with Play Next to front of queue", async () => {
     await mainPage.search("test");
     await mainPage.waitForSearchResults();
 
@@ -214,11 +212,9 @@ test.describe("Queue Management", () => {
 
     // Add second to end of queue
     await mainPage.clickAddToQueueOnResult(1);
-    await page.waitForTimeout(50);
 
     // Add third with "Play Next" - should go to front
     await mainPage.clickPlayNextOnResult(2);
-    await page.waitForTimeout(100);
 
     // Go to next song - wait for title to change
     await playerControls.clickNext();
