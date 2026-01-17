@@ -511,6 +511,8 @@ session_remove_guest(guest_id: String) -> Result<()>
 
 ## Edge Cases & Error Handling
 
+### Basic Scenarios
+
 | Scenario | Handling |
 |----------|----------|
 | Same song requested by two guests | Allow both - host sees duplicate warning |
@@ -521,6 +523,55 @@ session_remove_guest(guest_id: String) -> Result<()>
 | Guest loses connection | Reconnects automatically, sees current status |
 | Song unavailable/region-blocked | Show error at search time, prevent request |
 | Guest requests very long song | Host sees duration warning, can approve/reject |
+
+### Network & Connectivity
+
+| Scenario | Handling |
+|----------|----------|
+| Host loses internet mid-session | Queue continues playing from local cache. Mark session as "offline" on server. Sync pending requests when reconnected. |
+| Network partition (host online but can't reach server) | Implement heartbeat mechanism. If server doesn't hear from host for 30s, mark session as "potentially offline" to guests. |
+| Guest submits request during host reconnection | Queue requests on server with timestamp. Deliver in order when host reconnects. |
+| YouTube video unavailable between request and play | Add pre-play check. If unavailable, notify guest and auto-skip with explanation. |
+
+### Session Lifecycle
+
+| Scenario | Handling |
+|----------|----------|
+| Pending requests when session expires | Auto-reject with message "Session ended before your request was reviewed" |
+| Guest joins as session is ending | Check session expiry before allowing join. Show "Session ending soon" warning if <15 min remaining. |
+| Host force-quits app without ending session | Server-side timeout (5 min no heartbeat) triggers auto-pause. Session remains joinable but shows "Host temporarily unavailable" |
+| Session code collision | Use UUID-based codes internally, display human-readable code. Collision probability negligible with proper generation. |
+
+### Multi-Device & Identity
+
+| Scenario | Handling |
+|----------|----------|
+| Same guest opens multiple tabs/devices | Track by session token. Same guest = same queue position across devices. |
+| Guest clears cookies to bypass rate limit | Use device fingerprinting as secondary factor. Flag suspicious patterns for host. |
+| QR code shared on social media | Allow host to set "venue mode" requiring proximity (optional). Rate limit by IP range. |
+| Guest logs in after quick-joining | Merge guest identity with account. Transfer pending requests and history. |
+
+### Co-Host Edge Cases
+
+| Scenario | Handling |
+|----------|----------|
+| Co-host disconnects mid-approval | No lock on requests. Another co-host or host can approve. |
+| Co-host and host approve same request simultaneously | Idempotent operation - second approval is no-op. |
+| Host removes co-host with pending requests | Pending requests remain in queue for host to handle. |
+
+### Mode Changes
+
+| Scenario | Handling |
+|----------|----------|
+| Host switches to "Approval Required" with requests in flight | New requests require approval. Already-submitted requests honored in current mode. |
+| Host switches to "Direct to Queue" during busy period | Clear warning: "X pending requests will be auto-approved" |
+
+### API & Quota
+
+| Scenario | Handling |
+|----------|----------|
+| YouTube API quota exceeded | Graceful degradation: use cached metadata, disable search temporarily, show "Search temporarily unavailable - try again in X minutes" |
+| Rate limiting on server API | Progressive backoff. Clear messaging to user. Distinguish between "slow down" and "blocked". |
 
 ---
 
@@ -582,3 +633,14 @@ session_remove_guest(guest_id: String) -> Result<()>
 | Pre-made rejection reasons? | Possibly. Consider for Phase 4. |
 | Song history? | Auto-saved for all requests. Guests can add to playlists later. |
 | Monetization? | TBD. Will consider limits and premium features later. |
+
+---
+
+## MVP Configuration Decisions
+
+| Setting | Decision | Rationale |
+|---------|----------|-----------|
+| OAuth providers | Google + Apple | Standard choices for consumer apps, covers most users |
+| Free tier limits | None for MVP | Focus on features first, add limits later if needed |
+| Push notifications | Skip for MVP | In-app notifications only, simpler implementation |
+| Web domain | homekaraoke.app | Clean, memorable |
