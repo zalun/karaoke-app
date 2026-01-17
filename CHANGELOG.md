@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-01-17
+
 ### Added
 - Keyboard shortcuts for improved navigation (#192)
   - Global: Space (play/pause), M (mute), Up/Down (volume), N (next video)
@@ -20,9 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Empty states with helpful messages
   - Tooltips on control buttons
   - Confirmation dialogs for destructive actions (clear queue, history, delete session)
-- Ralph autonomous development loop support (#190)
-  - Configuration files for hands-off AI development cycles
-  - Task tracking via @fix_plan.md with GitHub issue integration
+- Cloud playlists feature planning (#194)
+  - Detailed implementation plan for host client
+  - Edge case documentation for sessions, network, co-hosts
 
 ### Fixed
 - Removing a singer from a session no longer deletes them from Stored Singers (#188)
