@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- NextSongOverlay no longer shows current song when it's the last in queue (#197)
+
 ## [0.7.6] - 2026-01-17
 
 ### Added
