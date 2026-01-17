@@ -141,8 +141,27 @@ Quick overview:
 1. Update version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`
 2. Update `CHANGELOG.md`
 3. Commit, push, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
-4. GitHub Actions builds and signs DMGs for Apple Silicon and Intel
-5. Notarization may require manual follow-up (see deployment guide)
+4. Build, notarize, and upload: `source .env && ./scripts/build-and-release.sh vX.Y.Z`
+
+### Local Build with Notarization
+
+Apple credentials are stored in `.env` (not committed to git):
+```bash
+APPLE_ID=...
+APPLE_TEAM_ID=...
+APPLE_PASSWORD=...  # App-specific password from appleid.apple.com
+```
+
+To build, notarize, and upload a release:
+```bash
+source .env && ./scripts/build-and-release.sh v0.7.6
+```
+
+The script will:
+1. Build the app with `npm run tauri build`
+2. Submit to Apple for notarization (may take minutes to hours)
+3. Staple the notarization ticket to the DMG
+4. Upload to the GitHub release
 
 ## Implementation Roadmap
 
