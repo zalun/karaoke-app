@@ -278,11 +278,14 @@ export function VideoPlayer() {
   const handleEnded = useCallback(async () => {
     log.info("Video ended");
 
+    // Stop playback immediately to prevent the ended video from restarting
+    // during async operations (e.g., fetching next stream URL)
+    setIsPlaying(false);
+
     // Check autoplay setting
     const autoplayNext = useSettingsStore.getState().getSetting(SETTINGS_KEYS.AUTOPLAY_NEXT);
     if (autoplayNext !== "true") {
       log.info("Autoplay disabled, stopping playback");
-      setIsPlaying(false);
       return;
     }
     log.debug("Autoplay enabled, advancing to next song");
