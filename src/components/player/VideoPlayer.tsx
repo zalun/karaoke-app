@@ -609,6 +609,7 @@ export function VideoPlayer() {
       <CurrentSingerOverlay key={currentVideo?.id} />
       <NextSongOverlayWithSingers
         nextQueueItem={nextQueueItem}
+        currentVideo={currentVideo}
         duration={duration}
         currentTime={currentTime}
         isLoading={isLoading}
@@ -620,11 +621,13 @@ export function VideoPlayer() {
 // Separate component to handle singer loading for next song overlay
 function NextSongOverlayWithSingers({
   nextQueueItem,
+  currentVideo,
   duration,
   currentTime,
   isLoading,
 }: {
   nextQueueItem: ReturnType<typeof useQueueStore.getState>["queue"][0] | undefined;
+  currentVideo: ReturnType<typeof usePlayerStore.getState>["currentVideo"];
   duration: number;
   currentTime: number;
   isLoading: boolean;
@@ -657,6 +660,14 @@ function NextSongOverlayWithSingers({
   // Hide overlay when disabled (overlaySeconds = 0), loading, or not within threshold
   // Only show when timeRemaining <= overlaySeconds (e.g., last 20 seconds of the song)
   if (!overlayEnabled || !nextQueueItem || duration <= 0 || isLoading) return null;
+
+  // Don't show overlay if next song is the same as currently playing video
+  // This can happen in edge cases like queue state not being properly synced
+  const isSameVideo =
+    (nextQueueItem.video.youtubeId && nextQueueItem.video.youtubeId === currentVideo?.youtubeId) ||
+    (nextQueueItem.video.filePath && nextQueueItem.video.filePath === currentVideo?.filePath);
+  if (isSameVideo) return null;
+
   const timeRemaining = Math.ceil(duration - currentTime);
   if (timeRemaining > overlaySeconds) return null;
 
