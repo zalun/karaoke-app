@@ -263,6 +263,8 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
 
   const handleEnded = useCallback(() => {
     log.info("Video ended");
+    // Immediately pause to prevent restart during React's state update cycle
+    videoRef.current?.pause();
     onEnded?.();
   }, [onEnded]);
 
