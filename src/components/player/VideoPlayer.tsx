@@ -663,10 +663,7 @@ function NextSongOverlayWithSingers({
 
   // Don't show overlay if next song is the same as currently playing video
   // This can happen in edge cases like queue state not being properly synced
-  const isSameVideo =
-    (nextQueueItem.video.youtubeId && nextQueueItem.video.youtubeId === currentVideo?.youtubeId) ||
-    (nextQueueItem.video.filePath && nextQueueItem.video.filePath === currentVideo?.filePath);
-  if (isSameVideo) return null;
+  if (nextQueueItem.video.id === currentVideo?.id) return null;
 
   const timeRemaining = Math.ceil(duration - currentTime);
   if (timeRemaining > overlaySeconds) return null;

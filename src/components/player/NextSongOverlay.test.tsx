@@ -299,10 +299,10 @@ describe("NextSongOverlay same-video check", () => {
   });
 
   describe("when next queue item matches current video", () => {
-    it("should not show overlay when YouTube video IDs match", () => {
-      // Setup: current video playing with youtubeId "abc123"
+    it("should not show overlay when video IDs match (YouTube)", () => {
+      // Setup: current video playing
       mockPlayerStore.currentVideo = {
-        id: "video-1",
+        id: "abc123",
         title: "Current Song",
         youtubeId: "abc123",
         streamUrl: "https://stream.example.com/current",
@@ -312,14 +312,14 @@ describe("NextSongOverlay same-video check", () => {
       mockPlayerStore.duration = 180; // 3 minutes
       mockPlayerStore.currentTime = 165; // 15 seconds remaining (within overlay threshold)
 
-      // Queue has the same video (same youtubeId)
+      // Queue has the same video (same id)
       mockQueueStore.queue = [
         {
           id: "queue-item-1",
           video: {
-            id: "video-1",
+            id: "abc123", // Same id as currentVideo
             title: "Current Song",
-            youtubeId: "abc123", // Same youtubeId as currentVideo
+            youtubeId: "abc123",
             source: "youtube",
           },
           addedAt: new Date(),
@@ -332,7 +332,7 @@ describe("NextSongOverlay same-video check", () => {
       expect(screen.queryByTestId("next-song-overlay")).not.toBeInTheDocument();
     });
 
-    it("should not show overlay when local file paths match", () => {
+    it("should not show overlay when video IDs match (local file)", () => {
       // Setup: current local file playing
       mockPlayerStore.currentVideo = {
         id: "/path/to/song.mp4",
@@ -344,15 +344,47 @@ describe("NextSongOverlay same-video check", () => {
       mockPlayerStore.duration = 180;
       mockPlayerStore.currentTime = 165;
 
-      // Queue has the same local file
+      // Queue has the same local file (same id)
       mockQueueStore.queue = [
         {
           id: "queue-item-1",
           video: {
-            id: "/path/to/song.mp4",
+            id: "/path/to/song.mp4", // Same id as currentVideo
             title: "Local Song",
-            filePath: "/path/to/song.mp4", // Same filePath as currentVideo
+            filePath: "/path/to/song.mp4",
             source: "local",
+          },
+          addedAt: new Date(),
+        },
+      ];
+
+      render(<VideoPlayer />);
+
+      // Overlay should NOT be shown because next song is same as current
+      expect(screen.queryByTestId("next-song-overlay")).not.toBeInTheDocument();
+    });
+
+    it("should not show overlay when video IDs match (external)", () => {
+      // Setup: current external video playing
+      mockPlayerStore.currentVideo = {
+        id: "external-video-1",
+        title: "External Video",
+        streamUrl: "https://example.com/video.mp4",
+        source: "external",
+      };
+      mockPlayerStore.isPlaying = true;
+      mockPlayerStore.duration = 180;
+      mockPlayerStore.currentTime = 165;
+
+      // Queue has the same external video (same id)
+      mockQueueStore.queue = [
+        {
+          id: "queue-item-1",
+          video: {
+            id: "external-video-1", // Same id as currentVideo
+            title: "External Video",
+            streamUrl: "https://example.com/video.mp4",
+            source: "external",
           },
           addedAt: new Date(),
         },
