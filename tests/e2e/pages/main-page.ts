@@ -218,11 +218,14 @@ export class MainPage {
   }
 
   /**
-   * Click the Clear Queue button.
+   * Click the Clear Queue button and confirm the action.
    */
   async clearQueue(): Promise<void> {
     const clearButton = this.page.getByRole("button", { name: "Clear queue" });
     await clearButton.click();
+    // Confirm the clear action in the confirmation dialog
+    const yesButton = this.page.getByRole("button", { name: "Yes" });
+    await yesButton.click();
   }
 
   /**

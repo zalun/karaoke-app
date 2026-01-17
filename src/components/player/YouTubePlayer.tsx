@@ -198,6 +198,8 @@ export function YouTubePlayer({
 
               if (state === YouTubePlayerState.ENDED) {
                 log.info("Video ended");
+                // Immediately pause to prevent restart during React's state update cycle
+                event.target.pauseVideo();
                 onEnded?.();
               } else if (state === YouTubePlayerState.PLAYING) {
                 // Clear loading when video starts playing
