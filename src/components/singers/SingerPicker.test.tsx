@@ -626,6 +626,45 @@ describe("SingerPicker", () => {
       });
     });
 
+    it("activates option with Enter key", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [createMockSinger(1, "Alice", "#ff0000")],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+
+      const option = screen.getByRole("option");
+      expect(option).toHaveAttribute("aria-selected", "false");
+
+      // Press Enter to toggle the singer
+      fireEvent.keyDown(option, { key: "Enter" });
+
+      await waitFor(() => {
+        expect(mockSessionStore.assignSingerToQueueItem).toHaveBeenCalledWith("item1", 1);
+      });
+    });
+
+    it("activates option with Space key", async () => {
+      setupMocks({
+        session: createMockSession(),
+        singers: [createMockSinger(1, "Alice", "#ff0000")],
+      });
+      render(<SingerPicker queueItemId="item1" />);
+
+      await userEvent.click(screen.getByRole("button"));
+
+      const option = screen.getByRole("option");
+
+      // Press Space to toggle the singer
+      fireEvent.keyDown(option, { key: " " });
+
+      await waitFor(() => {
+        expect(mockSessionStore.assignSingerToQueueItem).toHaveBeenCalledWith("item1", 1);
+      });
+    });
+
     it("does not crash when options list is empty", async () => {
       setupMocks({
         session: createMockSession(),

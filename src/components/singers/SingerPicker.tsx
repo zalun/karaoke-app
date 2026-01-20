@@ -197,7 +197,7 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   };
 
   // Handle keyboard navigation on option buttons
-  const handleOptionKeyDown = (e: React.KeyboardEvent) => {
+  const handleOptionKeyDown = (e: React.KeyboardEvent, onActivate: () => void) => {
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
@@ -210,6 +210,11 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
         if (totalOptions > 0) {
           setFocusedIndex((prev) => (prev - 1 + totalOptions) % totalOptions);
         }
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        onActivate();
         break;
       case "Escape":
         e.preventDefault();
@@ -227,11 +232,15 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   optionRefs.current = [];
   let optionIndex = 0;
 
+  // Generate unique ID for options
+  const getOptionId = (index: number) => `singer-picker-option-${queueItemId}-${index}`;
+
   const dropdown = isOpen ? (
     <div
       ref={dropdownRef}
       role="listbox"
       aria-label="Select singers"
+      aria-activedescendant={focusedIndex >= 0 ? getOptionId(focusedIndex) : undefined}
       className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl min-w-[220px] flex flex-col"
       style={{
         top: dropdownPosition.top,
@@ -255,9 +264,10 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
               return (
                 <button
                   key={singer.id}
+                  id={getOptionId(currentIndex)}
                   ref={(el) => { optionRefs.current[currentIndex] = el; }}
                   onClick={() => handleToggleSinger(singer.id)}
-                  onKeyDown={handleOptionKeyDown}
+                  onKeyDown={(e) => handleOptionKeyDown(e, () => handleToggleSinger(singer.id))}
                   className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors ${focusedIndex === currentIndex ? "bg-gray-700 outline-none ring-1 ring-blue-500" : ""}`}
                   role="option"
                   aria-selected={isAssigned}
@@ -296,9 +306,10 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
               return (
               <button
                 key={singer.id}
+                id={getOptionId(currentIndex)}
                 ref={(el) => { optionRefs.current[currentIndex] = el; }}
                 onClick={() => handleAddPersistentSingerToSession(singer.id)}
-                onKeyDown={handleOptionKeyDown}
+                onKeyDown={(e) => handleOptionKeyDown(e, () => handleAddPersistentSingerToSession(singer.id))}
                 className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors ${focusedIndex === currentIndex ? "bg-gray-700 outline-none ring-1 ring-blue-500" : ""}`}
                 role="option"
                 aria-selected={false}
