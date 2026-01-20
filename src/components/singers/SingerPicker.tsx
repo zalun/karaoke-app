@@ -149,8 +149,12 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   // Clamp focusedIndex when options list changes
   const totalOptions = singers.length + availablePersistentSingers.length;
   useEffect(() => {
-    if (isOpen && totalOptions > 0 && focusedIndex >= totalOptions) {
-      setFocusedIndex(totalOptions - 1);
+    if (isOpen) {
+      if (totalOptions === 0) {
+        setFocusedIndex(-1);
+      } else if (focusedIndex >= totalOptions) {
+        setFocusedIndex(totalOptions - 1);
+      }
     }
   }, [isOpen, totalOptions, focusedIndex]);
 
@@ -222,14 +226,12 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
         buttonRef.current?.focus();
         break;
       case "Tab":
-        // Allow normal tab behavior but close dropdown
-        setIsOpen(false);
+        // Let Tab move focus naturally (don't close dropdown)
         break;
     }
   };
 
-  // Reset optionRefs array when options change
-  optionRefs.current = [];
+  // Track option index for refs (refs will be updated naturally as map runs)
   let optionIndex = 0;
 
   // Generate unique ID for options
@@ -240,7 +242,6 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
       ref={dropdownRef}
       role="listbox"
       aria-label="Select singers"
-      aria-activedescendant={focusedIndex >= 0 ? getOptionId(focusedIndex) : undefined}
       className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl min-w-[220px] flex flex-col"
       style={{
         top: dropdownPosition.top,

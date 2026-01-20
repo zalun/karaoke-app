@@ -607,7 +607,7 @@ describe("SingerPicker", () => {
       expect(triggerButton).toHaveFocus();
     });
 
-    it("closes dropdown on Tab key", async () => {
+    it("keeps dropdown open on Tab key for natural focus flow", async () => {
       setupMocks({
         session: createMockSession(),
         singers: [createMockSinger(1, "Alice", "#ff0000")],
@@ -617,13 +617,12 @@ describe("SingerPicker", () => {
       await userEvent.click(screen.getByRole("button"));
       expect(screen.getByRole("listbox")).toBeInTheDocument();
 
-      // Fire keyDown on the focused option, not the listbox
+      // Fire keyDown on the focused option
       const option = screen.getByRole("option");
       fireEvent.keyDown(option, { key: "Tab" });
 
-      await waitFor(() => {
-        expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-      });
+      // Dropdown should remain open for natural Tab flow
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
     });
 
     it("activates option with Enter key", async () => {
