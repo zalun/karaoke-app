@@ -1,4 +1,6 @@
-import { Loader2, ExternalLink } from "lucide-react";
+import { useState } from "react";
+import { Loader2, ExternalLink, ClipboardPaste } from "lucide-react";
+import { useAuthStore } from "../../stores";
 
 interface SignInModalProps {
   isOpen: boolean;
@@ -7,10 +9,37 @@ interface SignInModalProps {
 
 /**
  * Modal that shows while user is completing authentication in the browser.
- * The browser is already open when this modal is shown.
+ * Includes a fallback to paste the callback URL manually (for dev mode).
  */
 export function SignInModal({ isOpen, onClose }: SignInModalProps) {
+  const { handleAuthCallback } = useAuthStore();
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualUrl, setManualUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
   if (!isOpen) return null;
+
+  const handleManualSubmit = async () => {
+    setError(null);
+    try {
+      // Parse the URL to extract query params
+      const url = new URL(manualUrl);
+      const params: Record<string, string> = {};
+      url.searchParams.forEach((value, key) => {
+        params[key] = value;
+      });
+
+      if (!params.access_token || !params.refresh_token) {
+        setError("Invalid callback URL - missing tokens");
+        return;
+      }
+
+      await handleAuthCallback(params);
+      onClose();
+    } catch {
+      setError("Invalid URL format");
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -36,7 +65,7 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
             A browser window has opened for you to sign in.
           </p>
 
-          <div className="bg-gray-700/50 rounded-lg p-4 mb-6 text-left">
+          <div className="bg-gray-700/50 rounded-lg p-4 mb-4 text-left">
             <div className="flex items-start gap-3 text-sm text-gray-300">
               <ExternalLink size={18} className="text-blue-400 mt-0.5 shrink-0" />
               <div>
@@ -49,6 +78,40 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
               </div>
             </div>
           </div>
+
+          {/* Manual URL input fallback */}
+          {showManualInput ? (
+            <div className="mb-4 text-left">
+              <label className="block text-sm text-gray-400 mb-2">
+                Paste the callback URL from the browser:
+              </label>
+              <input
+                type="text"
+                value={manualUrl}
+                onChange={(e) => setManualUrl(e.target.value)}
+                placeholder="homekaraoke://auth/callback?..."
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+              {error && (
+                <p className="text-red-400 text-sm mt-1">{error}</p>
+              )}
+              <button
+                onClick={handleManualSubmit}
+                disabled={!manualUrl}
+                className="mt-2 w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+              >
+                Submit
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowManualInput(true)}
+              className="flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-gray-300 transition-colors mb-4 mx-auto"
+            >
+              <ClipboardPaste size={14} />
+              <span>Paste callback URL manually</span>
+            </button>
+          )}
 
           <button
             onClick={onClose}
