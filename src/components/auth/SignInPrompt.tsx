@@ -7,7 +7,7 @@ export function SignInPrompt() {
   const handleSignIn = async () => {
     try {
       await signIn();
-    } catch (error) {
+    } catch {
       // Error is logged in the store
     }
   };

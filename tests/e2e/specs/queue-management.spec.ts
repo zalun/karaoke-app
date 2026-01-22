@@ -112,7 +112,7 @@ test.describe("Queue Management", () => {
     await playerControls.clickNext();
     await playerControls.waitForTitleChange(firstTitle);
 
-    let title = await playerControls.getVideoTitle();
+    const title = await playerControls.getVideoTitle();
     expect(title).toContain("Test Karaoke Song 2");
 
     // Go back to first song - use toPass to handle timing of button becoming enabled

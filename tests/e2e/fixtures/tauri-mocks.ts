@@ -24,6 +24,15 @@ export interface MockStreamInfo {
 /**
  * Configuration for Tauri mocks
  */
+/**
+ * Mock auth tokens type
+ */
+export interface MockAuthTokens {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
+}
+
 export interface TauriMockConfig {
   /** Mock search results to return */
   searchResults?: MockSearchResult[];
@@ -64,6 +73,10 @@ export interface TauriMockConfig {
   }>;
   /** Initial search history */
   searchHistory?: string[];
+  /** Initial auth tokens (if user is logged in) */
+  authTokens?: MockAuthTokens | null;
+  /** Whether auth_open_login should track that browser was opened */
+  trackAuthLoginOpened?: boolean;
 }
 
 /**
@@ -107,7 +120,7 @@ export async function injectTauriMocks(
     const settingsStore: Record<string, string> = { ...defaultSettings };
 
     // In-memory queue state
-    let queueState = mockConfig.queueState || {
+    const queueState = mockConfig.queueState || {
       queue: [],
       history: [],
       history_index: -1,
@@ -122,6 +135,10 @@ export async function injectTauriMocks(
       youtube: mockConfig.searchHistory || [],
       local: [],
     };
+
+    // In-memory auth state (simulating keychain storage)
+    let authTokens: { access_token: string; refresh_token: string; expires_at: number } | null = mockConfig.authTokens || null;
+    let _authLoginOpened = false;
 
     // Callback storage for transformCallback
     let callbackId = 0;
@@ -233,7 +250,7 @@ export async function injectTauriMocks(
             );
             return null;
 
-          case "queue_reorder":
+          case "queue_reorder": {
             // Simple reorder - find item and move to new position
             const itemIndex = queueState.queue.findIndex(
               (item: { id?: string }) => item.id === args?.itemId
@@ -243,6 +260,7 @@ export async function injectTauriMocks(
               queueState.queue.splice(args?.newPosition as number, 0, item);
             }
             return null;
+          }
 
           case "queue_clear":
             queueState.queue = [];
@@ -253,7 +271,7 @@ export async function injectTauriMocks(
             queueState.queue.sort(() => Math.random() - 0.5);
             return null;
 
-          case "queue_move_to_history":
+          case "queue_move_to_history": {
             const queueItem = queueState.queue.find(
               (item: { id?: string }) => item.id === args?.itemId
             );
@@ -264,6 +282,7 @@ export async function injectTauriMocks(
               queueState.history.push(queueItem);
             }
             return null;
+          }
 
           case "queue_add_to_history":
             queueState.history.push(args?.item);
@@ -377,6 +396,35 @@ export async function injectTauriMocks(
             searchHistoryStore.local = [];
             return null;
 
+          // Auth commands (keychain storage)
+          case "auth_store_tokens":
+            authTokens = {
+              access_token: args?.access_token as string,
+              refresh_token: args?.refresh_token as string,
+              expires_at: args?.expires_at as number,
+            };
+            console.log(`[Tauri Mock] auth_store_tokens: tokens stored`);
+            return null;
+
+          case "auth_get_tokens":
+            console.log(`[Tauri Mock] auth_get_tokens: ${authTokens ? "found" : "not found"}`);
+            return authTokens;
+
+          case "auth_clear_tokens":
+            authTokens = null;
+            console.log(`[Tauri Mock] auth_clear_tokens: tokens cleared`);
+            return null;
+
+          case "auth_open_login": {
+            _authLoginOpened = true;
+            console.log(`[Tauri Mock] auth_open_login: browser opened`);
+            // Track that login was opened for test assertions
+            if (config.trackAuthLoginOpened) {
+              (window as unknown as { __AUTH_LOGIN_OPENED__: boolean }).__AUTH_LOGIN_OPENED__ = true;
+            }
+            return null;
+          }
+
           // Display commands
           case "window_get_states":
           case "window_save_state":
@@ -447,7 +495,7 @@ export async function injectTauriMocks(
     type EventCallback = (event: { payload: unknown }) => void;
     const eventListeners = new Map<string, Set<EventCallback>>();
     const registeredListeners = new Map<number, { event: string; handler: EventCallback }>();
-    let listenerId = 0;
+    const _listenerId = 0;
 
     // Mock the internal event plugin used for unregistering listeners
     (window as unknown as { __TAURI_EVENT_PLUGIN_INTERNALS__: {

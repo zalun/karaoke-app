@@ -146,7 +146,7 @@ References:
 ### P7.1: Initialize auth on startup
 - [x] Import authStore in `src/App.tsx`
 - [x] Call `authStore.initialize()` in useEffect
-- [ ] Set up token refresh interval (every 4 minutes)
+- [x] Set up token refresh interval (every 4 minutes)
 
 ### P7.2: Add AuthStatus to header
 - [x] Import AuthStatus in App.tsx
@@ -157,13 +157,17 @@ References:
 - [x] Add `isOffline` state to authStore
 - [x] Listen for `online`/`offline` window events
 - [x] Skip token refresh when offline
-- [ ] Add offline indicator to UI
+- [x] Add offline indicator to UI
 
 ---
 
 ## Phase 8: Testing
 
-### P8.1: Manual test cases
+### P8.1: Manual test cases (requires human QA)
+> **Note:** These are manual QA tasks requiring real OAuth providers, network
+> conditions, and app restarts. Cannot be automated - must be performed by
+> a human tester before release.
+
 - [ ] Fresh sign in (no existing session)
 - [ ] Session persistence (restart app, still signed in)
 - [ ] Token refresh (wait for near-expiry)
@@ -173,23 +177,23 @@ References:
 - [ ] Account switch (sign out, sign in different account)
 
 ### P8.2: E2E tests (mock callback)
-- [ ] Create `tests/e2e/auth.spec.ts`
-- [ ] Test sign-in button opens browser
-- [ ] Test mock callback stores tokens
-- [ ] Test sign-out clears state
+- [x] Create `tests/e2e/auth.spec.ts`
+- [x] Test sign-in button opens browser
+- [x] Test mock callback stores tokens
+- [x] Test sign-out clears state
 
 ---
 
 ## Phase 9: Documentation
 
 ### P9.1: Update CLAUDE.md
-- [ ] Document authStore pattern
-- [ ] Document auth service pattern
-- [ ] Document keychain commands
+- [x] Document authStore pattern
+- [x] Document auth service pattern
+- [x] Document keychain commands
 
 ### P9.2: Update deployment docs
-- [ ] Note deep link requirements in `plan/deployment.md`
-- [ ] Document any macOS entitlements needed
+- [x] Note deep link requirements in `plan/deployment.md`
+- [x] Document any macOS entitlements needed
 
 ---
 

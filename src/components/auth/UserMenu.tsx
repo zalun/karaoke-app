@@ -41,7 +41,7 @@ export function UserMenu() {
     setIsOpen(false);
     try {
       await signOut();
-    } catch (error) {
+    } catch {
       // Error is logged in the store
     }
   };

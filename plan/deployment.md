@@ -207,6 +207,41 @@ xcrun stapler validate path/to/HomeKaraoke_X.Y.Z_aarch64.dmg
 spctl --assess --verbose path/to/HomeKaraoke.app
 ```
 
+## Deep Link Configuration
+
+The app uses the `homekaraoke://` URL scheme for OAuth authentication callbacks.
+
+### macOS Configuration
+
+Deep links are configured in `src-tauri/tauri.conf.json`:
+
+```json
+{
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["homekaraoke"]
+      }
+    }
+  }
+}
+```
+
+The `tauri-plugin-deep-link` crate handles scheme registration automatically during app installation.
+
+### macOS Entitlements
+
+No additional entitlements are required for deep links on macOS. The scheme is registered via the app bundle's `Info.plist`.
+
+### OAuth Callback Flow
+
+1. User clicks "Sign In" → opens browser at website OAuth endpoint
+2. User completes OAuth with provider (Google/Apple/Email)
+3. Website redirects to `homekaraoke://auth/callback?access_token=...&refresh_token=...`
+4. macOS launches the app (or brings it to foreground) with the URL
+5. App's deep link handler emits `auth:callback` event with tokens
+6. Frontend's authStore processes tokens and updates state
+
 ## Code Signing
 
 ### Required Secrets (GitHub)
