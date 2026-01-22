@@ -424,6 +424,39 @@ ci: lint typecheck test e2e
 pre-commit: lint typecheck test
     @echo "Pre-commit checks passed!"
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RALPH
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Clear Ralph state and restart (fresh session)
+ralph-restart:
+    rm -f .exit_signals .call_count .last_reset status.json progress.json .circuit_breaker_state .circuit_breaker_history .ralph_session .ralph_session_history
+    @echo "Ralph state cleared"
+    ralph --no-continue
+
+# Clear Ralph state and restart with monitor (fresh session)
+ralph-restart-monitor:
+    rm -f .exit_signals .call_count .last_reset status.json progress.json .circuit_breaker_state .circuit_breaker_history .ralph_session .ralph_session_history
+    @echo "Ralph state cleared"
+    ralph --monitor --no-continue
+
+# Clear Ralph state only (don't start)
+ralph-clear:
+    rm -f .exit_signals .call_count .last_reset status.json progress.json .circuit_breaker_state .circuit_breaker_history .ralph_session .ralph_session_history
+    @echo "Ralph state cleared"
+
+# Check Ralph status
+ralph-status:
+    ralph --status
+
+# Kill Next.js dev server (safer than killing port 3000)
+kill-dev:
+    pkill -f "next dev" 2>/dev/null || pkill -f "next-router-worker" 2>/dev/null || echo "No Next.js dev server running"
+
+# Restart dev server
+restart-dev: kill-dev dev
+
 # ══════════════════════════════════════════════════════════════════════════════
 # HELP
 # ══════════════════════════════════════════════════════════════════════════════
