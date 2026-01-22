@@ -6,7 +6,7 @@ import { SignInModal } from "./SignInModal";
 
 /**
  * AuthStatus displays the current authentication state in a compact form:
- * - Loading spinner while checking auth status
+ * - Loading spinner while checking auth status (initial load only)
  * - Sign In button when not authenticated (opens browser + modal)
  * - UserMenu when authenticated
  * - Offline indicator when network is unavailable
@@ -23,7 +23,7 @@ export function AuthStatus() {
   }, [isAuthenticated]);
 
   const handleSignIn = async () => {
-    // Open browser immediately and show modal
+    // Show modal and open browser immediately
     setShowSignInModal(true);
     try {
       await signIn();
@@ -32,15 +32,6 @@ export function AuthStatus() {
       setShowSignInModal(false);
     }
   };
-
-  // Show loading state during initial auth check
-  if (isLoading && !isAuthenticated && !user) {
-    return (
-      <div className="flex items-center justify-center p-2">
-        <Loader2 size={18} className="animate-spin text-gray-400" />
-      </div>
-    );
-  }
 
   // Show user menu when authenticated
   if (isAuthenticated && user) {
@@ -52,14 +43,24 @@ export function AuthStatus() {
     );
   }
 
-  // Show compact sign-in button when not authenticated
+  // Show loading state during initial auth check (not when signing in)
+  // We check !showSignInModal to keep the modal visible during sign-in
+  if (isLoading && !showSignInModal) {
+    return (
+      <div className="flex items-center justify-center p-2">
+        <Loader2 size={18} className="animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  // Show sign-in button (and modal if open) when not authenticated
   return (
     <>
       <div className="flex items-center gap-2">
         {isOffline && <OfflineIndicator />}
         <button
           onClick={handleSignIn}
-          disabled={isOffline}
+          disabled={isOffline || isLoading}
           title={isOffline ? "Sign in unavailable while offline" : undefined}
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
         >
