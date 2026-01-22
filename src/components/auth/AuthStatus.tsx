@@ -7,12 +7,12 @@ import { SignInModal } from "./SignInModal";
 /**
  * AuthStatus displays the current authentication state in a compact form:
  * - Loading spinner while checking auth status
- * - Sign In button when not authenticated (opens modal)
+ * - Sign In button when not authenticated (opens browser + modal)
  * - UserMenu when authenticated
  * - Offline indicator when network is unavailable
  */
 export function AuthStatus() {
-  const { isAuthenticated, isLoading, isOffline, user } = useAuthStore();
+  const { isAuthenticated, isLoading, isOffline, user, signIn } = useAuthStore();
   const [showSignInModal, setShowSignInModal] = useState(false);
 
   // Close modal when user becomes authenticated
@@ -21,6 +21,17 @@ export function AuthStatus() {
       setShowSignInModal(false);
     }
   }, [isAuthenticated]);
+
+  const handleSignIn = async () => {
+    // Open browser immediately and show modal
+    setShowSignInModal(true);
+    try {
+      await signIn();
+    } catch {
+      // Error logged in store, close modal on failure
+      setShowSignInModal(false);
+    }
+  };
 
   // Show loading state during initial auth check
   if (isLoading && !isAuthenticated && !user) {
@@ -47,7 +58,7 @@ export function AuthStatus() {
       <div className="flex items-center gap-2">
         {isOffline && <OfflineIndicator />}
         <button
-          onClick={() => setShowSignInModal(true)}
+          onClick={handleSignIn}
           disabled={isOffline}
           title={isOffline ? "Sign in unavailable while offline" : undefined}
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
