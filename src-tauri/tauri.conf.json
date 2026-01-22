@@ -3,6 +3,13 @@
   "productName": "HomeKaraoke",
   "version": "0.7.7",
   "identifier": "app.homekaraoke",
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["homekaraoke"]
+      }
+    }
+  },
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",

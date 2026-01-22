@@ -1,10 +1,11 @@
 mod commands;
 mod db;
+mod keychain;
 mod services;
 
 use chrono::Datelike;
 use db::Database;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -23,6 +24,7 @@ use std::time::Duration;
 use tauri::menu::{AboutMetadata, CheckMenuItem, Menu, MenuItemKind, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_opener::OpenerExt;
 
 pub struct AppState {
@@ -227,6 +229,7 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
@@ -349,6 +352,11 @@ pub fn run() {
             commands::search_history_get,
             commands::search_history_clear,
             commands::search_history_clear_session,
+            // Auth commands
+            commands::auth_store_tokens,
+            commands::auth_get_tokens,
+            commands::auth_clear_tokens,
+            commands::auth_open_login,
         ])
         .setup(|app| {
             info!("Starting HomeKaraoke application");
@@ -589,6 +597,27 @@ pub fn run() {
                     *guard = Some(thread_handle);
                 };
             }
+
+            // Register deep link handler for OAuth callback
+            let app_handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                if let Some(url) = event.urls().first() {
+                    debug!("Deep link received: {}", url);
+                    if url.path() == "/auth/callback" {
+                        // Parse query parameters
+                        let params: std::collections::HashMap<String, String> = url
+                            .query_pairs()
+                            .map(|(k, v)| (k.to_string(), v.to_string()))
+                            .collect();
+                        info!("Auth callback received with {} params", params.len());
+                        // Emit event to frontend with auth callback data
+                        if let Err(e) = app_handle.emit("auth:callback", params) {
+                            error!("Failed to emit auth:callback event: {}", e);
+                        }
+                    }
+                }
+            });
+            info!("Deep link handler registered for homekaraoke:// scheme");
 
             // Create the application menu
             let menu = create_menu(app, debug_enabled)?;

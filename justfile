@@ -450,12 +450,6 @@ ralph-clear:
 ralph-status:
     ralph --status
 
-# Kill Next.js dev server (safer than killing port 3000)
-kill-dev:
-    pkill -f "next dev" 2>/dev/null || pkill -f "next-router-worker" 2>/dev/null || echo "No Next.js dev server running"
-
-# Restart dev server
-restart-dev: kill-dev dev
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HELP

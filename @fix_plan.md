@@ -1,11 +1,19 @@
-# Desktop App Authentication - Implementation
+# Fix Plan
 
-**GitHub Issue:** TBD (create before starting)
+Prioritized list of tasks for Ralph autonomous development.
 
-See `plan/desktop-app-authentication-prd.md` for full specification.
-See `plan/desktop-app-authentication-tasks.md` for detailed task breakdown.
+## Status Legend
+- [ ] Not started
+- [~] In progress
+- [x] Complete
 
-**Prerequisites:** Website auth endpoints (`/auth/app-login`, `/auth/app-callback`) must be deployed first.
+---
+
+# Current: Desktop App Authentication - Implementation
+
+References:
+- `plan/desktop-app-authentication-prd.md` for full specification.
+- `plan/desktop-app-authentication-tasks.md` for detailed task breakdown.
 
 ---
 

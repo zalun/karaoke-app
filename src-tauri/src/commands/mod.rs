@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod display;
 pub mod errors;
 pub mod favorites;
@@ -11,6 +12,7 @@ pub mod settings;
 pub mod update;
 pub mod youtube;
 
+pub use auth::*;
 pub use display::*;
 pub use favorites::*;
 pub use keep_awake::*;
