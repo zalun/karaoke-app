@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createLogger } from "../services";
 import { authService, type AuthTokens, type User } from "../services/auth";
 import { createAuthenticatedClient, isSupabaseConfigured } from "../services/supabase";
+import { notify } from "./notificationStore";
 
 const log = createLogger("AuthStore");
 
@@ -19,6 +20,7 @@ export interface AuthState {
   // Actions
   initialize: () => Promise<void>;
   signIn: () => Promise<void>;
+  cancelSignIn: () => void;
   signOut: () => Promise<void>;
   handleAuthCallback: (params: Record<string, string>) => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -116,12 +118,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await authService.openLogin();
       // Loading state will be cleared when callback is received
-      // or if user cancels, they can try again
+      // or if user cancels via cancelSignIn
     } catch (error) {
       log.error(`Sign in error: ${error}`);
       set({ isLoading: false });
+      notify("error", "Failed to open sign in page");
       throw error;
     }
+  },
+
+  cancelSignIn: () => {
+    log.info("Sign in cancelled");
+    set({ isLoading: false });
   },
 
   signOut: async () => {
@@ -178,6 +186,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Validate required params
       if (!access_token || !refresh_token) {
         log.error("Missing tokens in callback");
+        notify("error", "Sign in failed: missing authentication tokens");
         set({ isLoading: false });
         return;
       }
@@ -185,6 +194,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Validate state for CSRF protection
       if (state && !authService.validateState(state)) {
         log.error("Invalid state parameter - possible CSRF attack");
+        notify("error", "Sign in failed: security validation error");
         set({ isLoading: false });
         return;
       }
@@ -217,6 +227,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       log.info("Auth callback handled successfully");
     } catch (error) {
       log.error(`Auth callback error: ${error}`);
+      notify("error", "Sign in failed: unable to complete authentication");
       set({ isLoading: false, isAuthenticated: false, user: null });
     }
   },
@@ -279,6 +290,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (error || !user) {
         log.error(`Failed to fetch user profile: ${error?.message || "No user"}`);
+        notify("error", "Sign in failed: unable to load user profile");
         set({ isAuthenticated: false, user: null });
         return;
       }

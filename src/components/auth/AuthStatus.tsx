@@ -12,7 +12,7 @@ import { SignInModal } from "./SignInModal";
  * - Offline indicator when network is unavailable
  */
 export function AuthStatus() {
-  const { isAuthenticated, isLoading, isOffline, user, signIn } = useAuthStore();
+  const { isAuthenticated, isLoading, isOffline, user, signIn, cancelSignIn } = useAuthStore();
   const [showSignInModal, setShowSignInModal] = useState(false);
 
   // Close modal when user becomes authenticated
@@ -71,7 +71,10 @@ export function AuthStatus() {
 
       <SignInModal
         isOpen={showSignInModal}
-        onClose={() => setShowSignInModal(false)}
+        onClose={() => {
+          setShowSignInModal(false);
+          cancelSignIn();
+        }}
       />
     </>
   );
