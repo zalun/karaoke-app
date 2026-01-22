@@ -20,99 +20,99 @@ References:
 ## Phase 1: Deep Link Plugin Setup
 
 ### P1.1: Add deep-link dependency
-- [ ] Add `tauri-plugin-deep-link = "2"` to `src-tauri/Cargo.toml`
-- [ ] Run `cargo check`
+- [x] Add `tauri-plugin-deep-link = "2"` to `src-tauri/Cargo.toml`
+- [x] Run `cargo check`
 
 ### P1.2: Configure deep link scheme
-- [ ] Add `deep-link` plugin config to `src-tauri/tauri.conf.json`
-- [ ] Set scheme to `homekaraoke`
+- [x] Add `deep-link` plugin config to `src-tauri/tauri.conf.json`
+- [x] Set scheme to `homekaraoke`
 
 ### P1.3: Initialize plugin
-- [ ] Add `mod auth;` to `src-tauri/src/lib.rs`
-- [ ] Add `.plugin(tauri_plugin_deep_link::init())` to builder
-- [ ] Create `src-tauri/src/auth.rs` with URL handler
-- [ ] Emit `auth:callback` event to frontend on deep link receive
+- [x] Add `mod keychain;` to `src-tauri/src/lib.rs`
+- [x] Add `.plugin(tauri_plugin_deep_link::init())` to builder
+- [x] Register deep link handler in setup closure
+- [x] Emit `auth:callback` event to frontend on deep link receive
 
 ---
 
 ## Phase 2: Keychain Storage
 
 ### P2.1: Add keyring dependency
-- [ ] Add `keyring = "3"` to `src-tauri/Cargo.toml`
-- [ ] Run `cargo check`
+- [x] Add `keyring = "3"` to `src-tauri/Cargo.toml`
+- [x] Run `cargo check`
 
 ### P2.2: Create keychain module
-- [ ] Create `src-tauri/src/keychain.rs`
-- [ ] Add `mod keychain;` to `lib.rs`
-- [ ] Implement `store_auth_tokens(access, refresh, expires_at)`
-- [ ] Implement `get_auth_tokens() -> Option<AuthTokens>`
-- [ ] Implement `clear_auth_tokens()`
-- [ ] Handle keychain access errors gracefully
+- [x] Create `src-tauri/src/keychain.rs`
+- [x] Add `mod keychain;` to `lib.rs`
+- [x] Implement `store_auth_tokens(access, refresh, expires_at)`
+- [x] Implement `get_auth_tokens() -> Option<AuthTokens>`
+- [x] Implement `clear_auth_tokens()`
+- [x] Handle keychain access errors gracefully
 
 ---
 
 ## Phase 3: Tauri Auth Commands
 
 ### P3.1: Create auth commands
-- [ ] Create `src-tauri/src/commands/auth.rs`
-- [ ] Add `mod auth;` to `commands/mod.rs`
-- [ ] Implement `auth_store_tokens` command
-- [ ] Implement `auth_get_tokens` command
-- [ ] Implement `auth_clear_tokens` command
-- [ ] Implement `auth_open_login` command (opens browser)
+- [x] Create `src-tauri/src/commands/auth.rs`
+- [x] Add `mod auth;` to `commands/mod.rs`
+- [x] Implement `auth_store_tokens` command
+- [x] Implement `auth_get_tokens` command
+- [x] Implement `auth_clear_tokens` command
+- [x] Implement `auth_open_login` command (opens browser)
 
 ### P3.2: Register commands
-- [ ] Add auth commands to `invoke_handler![]` in `lib.rs`
-- [ ] Run `cargo check`
+- [x] Add auth commands to `invoke_handler![]` in `lib.rs`
+- [x] Run `cargo check`
 
 ---
 
 ## Phase 4: Frontend Auth Service
 
 ### P4.1: Create auth service
-- [ ] Create `src/services/auth.ts`
-- [ ] Export from `src/services/index.ts`
-- [ ] Implement `storeTokens(access, refresh, expiresAt)`
-- [ ] Implement `getTokens(): Promise<AuthTokens | null>`
-- [ ] Implement `clearTokens()`
-- [ ] Implement `openLogin()`
-- [ ] Add logging with `createLogger("AuthService")`
+- [x] Create `src/services/auth.ts`
+- [x] Export from `src/services/index.ts`
+- [x] Implement `storeTokens(access, refresh, expiresAt)`
+- [x] Implement `getTokens(): Promise<AuthTokens | null>`
+- [x] Implement `clearTokens()`
+- [x] Implement `openLogin()`
+- [x] Add logging with `createLogger("AuthService")`
 
 ### P4.2: Add token refresh logic
-- [ ] Implement `refreshTokenIfNeeded(): Promise<string | null>`
-- [ ] Check expiry with 5-minute margin
-- [ ] Call Supabase refresh endpoint
-- [ ] Store new tokens on success
+- [x] Implement `refreshTokenIfNeeded(): Promise<string | null>`
+- [x] Check expiry with 5-minute margin
+- [x] Call Supabase refresh endpoint
+- [x] Store new tokens on success
 
 ### P4.3: Create Supabase client wrapper
-- [ ] Create `src/services/supabase.ts`
-- [ ] Export from `src/services/index.ts`
-- [ ] Add Supabase URL and anon key constants
-- [ ] Implement `createAuthenticatedClient()`
+- [x] Create `src/services/supabase.ts`
+- [x] Export from `src/services/index.ts`
+- [x] Add Supabase URL and anon key constants
+- [x] Implement `createAuthenticatedClient()`
 
 ---
 
 ## Phase 5: Auth Zustand Store
 
 ### P5.1: Create auth store
-- [ ] Create `src/stores/authStore.ts`
-- [ ] Export from `src/stores/index.ts`
-- [ ] Define `AuthState` interface (user, isAuthenticated, isLoading, isOffline)
-- [ ] Define `User` interface (id, email, displayName, avatarUrl)
-- [ ] Initialize store with `create<AuthState>()`
+- [x] Create `src/stores/authStore.ts`
+- [x] Export from `src/stores/index.ts`
+- [x] Define `AuthState` interface (user, isAuthenticated, isLoading, isOffline)
+- [x] Define `User` interface (id, email, displayName, avatarUrl)
+- [x] Initialize store with `create<AuthState>()`
 
 ### P5.2: Implement store actions
-- [ ] Implement `initialize()` - check existing tokens on app start
-- [ ] Implement `signIn()` - open browser for OAuth
-- [ ] Implement `signOut()` - clear tokens and state
-- [ ] Implement `handleAuthCallback(params)` - process deep link
-- [ ] Implement `refreshSession()` - refresh tokens
+- [x] Implement `initialize()` - check existing tokens on app start
+- [x] Implement `signIn()` - open browser for OAuth
+- [x] Implement `signOut()` - clear tokens and state
+- [x] Implement `handleAuthCallback(params)` - process deep link
+- [x] Implement `refreshSession()` - refresh tokens
 
 ### P5.3: Add deep link listener
-- [ ] Listen for `auth:callback` Tauri event
-- [ ] Parse URL params (access_token, refresh_token, expires_at, state)
-- [ ] Validate state param for CSRF protection
-- [ ] Call `handleAuthCallback` on valid callback
+- [x] Listen for `auth:callback` Tauri event
+- [x] Parse URL params (access_token, refresh_token, expires_at, state)
+- [x] Validate state param for CSRF protection
+- [x] Call `handleAuthCallback` on valid callback
 
 ---
 
@@ -154,9 +154,9 @@ References:
 - [ ] Verify responsive layout
 
 ### P7.3: Handle offline mode
-- [ ] Add `isOffline` state to authStore
-- [ ] Listen for `online`/`offline` window events
-- [ ] Skip token refresh when offline
+- [x] Add `isOffline` state to authStore
+- [x] Listen for `online`/`offline` window events
+- [x] Skip token refresh when offline
 - [ ] Add offline indicator to UI
 
 ---
@@ -253,7 +253,6 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 ## New Files
 
 ### Rust
-- `src-tauri/src/auth.rs`
 - `src-tauri/src/keychain.rs`
 - `src-tauri/src/commands/auth.rs`
 

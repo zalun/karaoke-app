@@ -11,6 +11,9 @@ export type {
   WindowState,
 } from "./displayManager";
 export { logger, createLogger } from "./logger";
+export { authService } from "./auth";
+export type { AuthTokens, User } from "./auth";
+export { createAnonClient, createAuthenticatedClient, isSupabaseConfigured } from "./supabase";
 export { sessionService } from "./session";
 export type { Singer, Session, FavoriteVideo, SingerFavorite } from "./session";
 export { queueService } from "./queue";
