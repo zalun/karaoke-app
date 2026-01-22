@@ -79,6 +79,15 @@ export const authService = {
   },
 
   /**
+   * Get any pending auth callback that arrived before the listener was ready.
+   * This handles the race condition when the app is launched via deep link.
+   */
+  async getPendingCallback(): Promise<Record<string, string> | null> {
+    log.debug("Checking for pending auth callback");
+    return await invoke<Record<string, string> | null>("auth_get_pending_callback");
+  },
+
+  /**
    * Validate the state parameter from the OAuth callback.
    * Returns true if the state matches the pending state.
    */

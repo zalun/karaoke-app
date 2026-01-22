@@ -1,7 +1,10 @@
 //! Auth commands for secure token storage and OAuth flow.
 
 use crate::keychain::{self, AuthTokens};
+use crate::AppState;
 use log::{debug, error, info};
+use std::collections::HashMap;
+use tauri::State;
 use tauri_plugin_opener::OpenerExt;
 
 const AUTH_LOGIN_URL: &str = "https://homekaraoke.app/auth/app-login";
@@ -62,4 +65,26 @@ pub fn auth_open_login(app: tauri::AppHandle, state: String) -> Result<(), Strin
             error!("Failed to open browser: {}", e);
             e.to_string()
         })
+}
+
+/// Get and clear any pending auth callback from deep link.
+/// This handles the race condition where the deep link arrives before
+/// the frontend listener is set up.
+#[tauri::command]
+pub fn auth_get_pending_callback(
+    state: State<'_, AppState>,
+) -> Result<Option<HashMap<String, String>>, String> {
+    debug!("Checking for pending auth callback");
+    let mut pending = state
+        .pending_auth_callback
+        .lock()
+        .map_err(|e| e.to_string())?;
+
+    if let Some(params) = pending.take() {
+        info!("Retrieved pending auth callback with {} params", params.len());
+        Ok(Some(params))
+    } else {
+        debug!("No pending auth callback");
+        Ok(None)
+    }
 }

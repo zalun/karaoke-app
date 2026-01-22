@@ -54,6 +54,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         );
         log.debug("Deep link listener registered");
+
+        // Check for pending callback that arrived before listener was ready
+        // (handles race condition when app is launched via deep link)
+        const pendingCallback = await authService.getPendingCallback();
+        if (pendingCallback) {
+          log.info("Found pending auth callback, processing...");
+          await get().handleAuthCallback(pendingCallback);
+          return; // handleAuthCallback will set the final state
+        }
       }
 
       // Set up online/offline listeners

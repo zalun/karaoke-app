@@ -32,6 +32,8 @@ pub struct AppState {
     pub keep_awake: Mutex<Option<keepawake::KeepAwake>>,
     pub debug_mode: AtomicBool,
     pub log_dir: std::path::PathBuf,
+    /// Pending auth callback from deep link (stored until frontend is ready)
+    pub pending_auth_callback: Mutex<Option<std::collections::HashMap<String, String>>>,
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     pub media_controls: Mutex<Option<MediaControlsService>>,
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
@@ -357,6 +359,7 @@ pub fn run() {
             commands::auth_get_tokens,
             commands::auth_clear_tokens,
             commands::auth_open_login,
+            commands::auth_get_pending_callback,
         ])
         .setup(|app| {
             info!("Starting HomeKaraoke application");
@@ -436,6 +439,7 @@ pub fn run() {
                 keep_awake: Mutex::new(None),
                 debug_mode: AtomicBool::new(debug_enabled),
                 log_dir: log_dir.clone(),
+                pending_auth_callback: Mutex::new(None),
                 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
                 media_controls: Mutex::new(media_controls),
                 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
@@ -610,7 +614,16 @@ pub fn run() {
                             .map(|(k, v)| (k.to_string(), v.to_string()))
                             .collect();
                         info!("Auth callback received with {} params", params.len());
-                        // Emit event to frontend with auth callback data
+
+                        // Store in AppState for frontend to retrieve (handles race condition)
+                        if let Some(state) = app_handle.try_state::<AppState>() {
+                            if let Ok(mut pending) = state.pending_auth_callback.lock() {
+                                *pending = Some(params.clone());
+                                debug!("Stored pending auth callback");
+                            }
+                        }
+
+                        // Also emit event to frontend (in case listener is already set up)
                         if let Err(e) = app_handle.emit("auth:callback", params) {
                             error!("Failed to emit auth:callback event: {}", e);
                         }
