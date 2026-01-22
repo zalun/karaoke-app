@@ -119,39 +119,39 @@ References:
 ## Phase 6: Auth UI Components
 
 ### P6.1: Create SignInPrompt component
-- [ ] Create `src/components/auth/SignInPrompt.tsx`
-- [ ] Add "Sign in with Google" button
-- [ ] Add "Sign in with Apple" button
-- [ ] Add "Sign in with Email" button
-- [ ] Add "Continue without account" link
-- [ ] Add loading spinner state
+- [x] Create `src/components/auth/SignInPrompt.tsx`
+- [x] Add "Sign in with Google" button
+- [x] Add "Sign in with Apple" button
+- [x] Add "Sign in with Email" button
+- [x] Add "Continue without account" link
+- [x] Add loading spinner state
 
 ### P6.2: Create UserMenu component
-- [ ] Create `src/components/auth/UserMenu.tsx`
-- [ ] Show user avatar and name
-- [ ] Add dropdown with "Account Settings" link
-- [ ] Add "Sign Out" button in dropdown
+- [x] Create `src/components/auth/UserMenu.tsx`
+- [x] Show user avatar and name
+- [x] Add dropdown with "Account Settings" link
+- [x] Add "Sign Out" button in dropdown
 
 ### P6.3: Create AuthStatus wrapper
-- [ ] Create `src/components/auth/AuthStatus.tsx`
-- [ ] Create `src/components/auth/index.ts` barrel export
-- [ ] Show SignInPrompt when not authenticated
-- [ ] Show UserMenu when authenticated
-- [ ] Handle loading state
+- [x] Create `src/components/auth/AuthStatus.tsx`
+- [x] Create `src/components/auth/index.ts` barrel export
+- [x] Show compact Sign In button when not authenticated
+- [x] Show UserMenu when authenticated
+- [x] Handle loading state
 
 ---
 
 ## Phase 7: App Integration
 
 ### P7.1: Initialize auth on startup
-- [ ] Import authStore in `src/App.tsx`
-- [ ] Call `authStore.initialize()` in useEffect
+- [x] Import authStore in `src/App.tsx`
+- [x] Call `authStore.initialize()` in useEffect
 - [ ] Set up token refresh interval (every 4 minutes)
 
 ### P7.2: Add AuthStatus to header
-- [ ] Import AuthStatus in header component
-- [ ] Position in top-right of header
-- [ ] Verify responsive layout
+- [x] Import AuthStatus in App.tsx
+- [x] Position next to SearchBar in header area
+- [x] Verify responsive layout
 
 ### P7.3: Handle offline mode
 - [x] Add `isOffline` state to authStore
