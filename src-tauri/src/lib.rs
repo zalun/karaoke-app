@@ -608,11 +608,29 @@ pub fn run() {
                 if let Some(url) = event.urls().first() {
                     debug!("Deep link received: {}", url);
                     if url.path() == "/auth/callback" {
-                        // Parse query parameters
-                        let params: std::collections::HashMap<String, String> = url
+                        // Parse parameters from query string OR hash fragment
+                        // Supabase uses hash fragments for implicit grant flow
+                        let mut params: std::collections::HashMap<String, String> = url
                             .query_pairs()
                             .map(|(k, v)| (k.to_string(), v.to_string()))
                             .collect();
+
+                        // If no query params, check hash fragment
+                        if params.is_empty() {
+                            if let Some(fragment) = url.fragment() {
+                                debug!("Parsing hash fragment for auth params");
+                                // Parse fragment as if it were a query string
+                                for pair in fragment.split('&') {
+                                    if let Some((key, value)) = pair.split_once('=') {
+                                        params.insert(
+                                            key.to_string(),
+                                            urlencoding::decode(value).unwrap_or_else(|_| value.into()).to_string()
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
                         info!("Auth callback received with {} params", params.len());
 
                         // Store in AppState for frontend to retrieve (handles race condition)
