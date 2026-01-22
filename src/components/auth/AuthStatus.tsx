@@ -1,15 +1,26 @@
-import { Loader2, LogIn } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Loader2, LogIn, WifiOff } from "lucide-react";
 import { useAuthStore } from "../../stores";
 import { UserMenu } from "./UserMenu";
+import { SignInModal } from "./SignInModal";
 
 /**
  * AuthStatus displays the current authentication state in a compact form:
  * - Loading spinner while checking auth status
- * - Sign In button when not authenticated
+ * - Sign In button when not authenticated (opens modal)
  * - UserMenu when authenticated
+ * - Offline indicator when network is unavailable
  */
 export function AuthStatus() {
-  const { isAuthenticated, isLoading, user, signIn } = useAuthStore();
+  const { isAuthenticated, isLoading, isOffline, user } = useAuthStore();
+  const [showSignInModal, setShowSignInModal] = useState(false);
+
+  // Close modal when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      setShowSignInModal(false);
+    }
+  }, [isAuthenticated]);
 
   // Show loading state during initial auth check
   if (isLoading && !isAuthenticated && !user) {
@@ -22,18 +33,49 @@ export function AuthStatus() {
 
   // Show user menu when authenticated
   if (isAuthenticated && user) {
-    return <UserMenu />;
+    return (
+      <div className="flex items-center gap-2">
+        {isOffline && <OfflineIndicator />}
+        <UserMenu />
+      </div>
+    );
   }
 
   // Show compact sign-in button when not authenticated
   return (
-    <button
-      onClick={() => signIn()}
-      disabled={isLoading}
-      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+    <>
+      <div className="flex items-center gap-2">
+        {isOffline && <OfflineIndicator />}
+        <button
+          onClick={() => setShowSignInModal(true)}
+          disabled={isOffline}
+          title={isOffline ? "Sign in unavailable while offline" : undefined}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+        >
+          <LogIn size={16} />
+          <span>Sign In</span>
+        </button>
+      </div>
+
+      <SignInModal
+        isOpen={showSignInModal}
+        onClose={() => setShowSignInModal(false)}
+      />
+    </>
+  );
+}
+
+/**
+ * Compact offline indicator shown next to auth controls
+ */
+function OfflineIndicator() {
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2 py-1 text-xs text-yellow-400 bg-yellow-900/30 rounded-lg"
+      title="You are offline. Some features may be unavailable."
     >
-      <LogIn size={16} />
-      <span>Sign In</span>
-    </button>
+      <WifiOff size={14} />
+      <span>Offline</span>
+    </div>
   );
 }
