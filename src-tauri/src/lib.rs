@@ -605,9 +605,18 @@ pub fn run() {
             // Register deep link handler for OAuth callback
             let app_handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
-                if let Some(url) = event.urls().first() {
-                    debug!("Deep link received: {}", url);
-                    if url.path() == "/auth/callback" {
+                let urls = event.urls();
+                info!("Deep link handler triggered with {} URL(s)", urls.len());
+                for (i, url) in urls.iter().enumerate() {
+                    info!("Deep link URL[{}]: scheme={}, host={:?}, path={}, query={:?}, fragment={:?}",
+                        i, url.scheme(), url.host_str(), url.path(), url.query(), url.fragment());
+                }
+                if let Some(url) = urls.first() {
+                    debug!("Processing first URL: {}", url);
+                    // URL homekaraoke://auth/callback parses as host="auth", path="/callback"
+                    let is_auth_callback = url.host_str() == Some("auth") && url.path() == "/callback";
+                    info!("Is auth callback? {} (host={:?}, path='{}')", is_auth_callback, url.host_str(), url.path());
+                    if is_auth_callback {
                         // Parse parameters from query string OR hash fragment
                         // Supabase uses hash fragments for implicit grant flow
                         let mut params: std::collections::HashMap<String, String> = url
@@ -632,6 +641,15 @@ pub fn run() {
                         }
 
                         info!("Auth callback received with {} params", params.len());
+                        for (key, value) in &params {
+                            // Mask token values for security
+                            let display_value = if key.contains("token") {
+                                format!("{}...", &value[..value.len().min(10)])
+                            } else {
+                                value.clone()
+                            };
+                            debug!("  param: {} = {}", key, display_value);
+                        }
 
                         // Store in AppState for frontend to retrieve (handles race condition)
                         if let Some(state) = app_handle.try_state::<AppState>() {

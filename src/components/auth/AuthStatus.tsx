@@ -33,12 +33,28 @@ export function AuthStatus() {
     }
   };
 
-  // Show user menu when authenticated
+  // Show user menu when authenticated with user profile
   if (isAuthenticated && user) {
     return (
       <div className="flex items-center gap-2">
         {isOffline && <OfflineIndicator />}
         <UserMenu />
+      </div>
+    );
+  }
+
+  // Show simple signed-in state when authenticated but no user profile
+  if (isAuthenticated && !user) {
+    return (
+      <div className="flex items-center gap-2">
+        {isOffline && <OfflineIndicator />}
+        <span className="text-sm text-green-400">Signed In</span>
+        <button
+          onClick={() => useAuthStore.getState().signOut()}
+          className="text-xs text-gray-400 hover:text-white transition-colors"
+        >
+          Sign Out
+        </button>
       </div>
     );
   }
