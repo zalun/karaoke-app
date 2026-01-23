@@ -159,6 +159,35 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
+## Hosted Sessions
+
+When authenticated, users can host their session for guests to join via mobile devices.
+
+### Architecture
+
+- **Service:** `src/services/hostedSession.ts` - REST API calls to homekaraoke.app backend
+- **Store:** `useSessionStore` in `src/stores/sessionStore.ts` manages hosting state
+- **UI:** `HostSessionModal` shows join code, QR code, and stats; `SessionBar` shows host button
+
+### State Flow
+
+```typescript
+// In sessionStore.ts
+hostedSession: HostedSession | null;  // Active hosted session
+showHostModal: boolean;               // Modal visibility
+
+// Actions
+hostSession()          // Create hosted session via API, start polling
+stopHosting()          // End hosted session, stop polling
+refreshHostedSession() // Poll for updated stats (30s interval)
+```
+
+### API Endpoints (homekaraoke.app)
+
+- `POST /api/session/create` - Create hosted session, returns join code + QR URL
+- `GET /api/session/[id]` - Get session stats (guests, pending requests)
+- `DELETE /api/session/[id]` - End hosted session
+
 ## Logging
 
 - Uses `tauri-plugin-log` with file + stdout + webview targets

@@ -38,7 +38,7 @@ export function PlayerControls() {
   const currentQueueItem = getCurrentItem();
 
   // Subscribe to session singer state for reactive updates
-  const { session, queueSingerAssignments, singers, loadQueueItemSingers } = useSessionStore();
+  const { session, queueSingerAssignments, singers, loadQueueItemSingers, hostedSession } = useSessionStore();
 
   // Subscribe to playback mode setting for reactive updates with runtime validation
   const rawPlaybackMode = useSettingsStore((s) => s.getSetting(SETTINGS_KEYS.PLAYBACK_MODE));
@@ -134,6 +134,8 @@ export function PlayerControls() {
       // Unique ID for each playback - changes even when replaying same video
       playbackId: current?.id,
       nextSongOverlaySeconds,
+      // Hosted session for join code display
+      hostedSession: sessionState.hostedSession ?? undefined,
     };
   }, []);
 
@@ -330,6 +332,7 @@ export function PlayerControls() {
   // Time updates flow one-way: detached window → main window via listenForTimeUpdate.
   // queueSingerAssignments.size and singers.length are included to trigger re-sync when singers load.
   // playbackMode is included to trigger re-sync when playback mode setting changes.
+  // hostedSession is included to sync join code to detached window when hosting starts/stops.
   // buildPlayerState is called inline (not in deps) since it reads fresh state via getState().
   useEffect(() => {
     // Support yt-dlp mode (streamUrl), YouTube mode (youtubeId), or local files (filePath)
@@ -337,7 +340,7 @@ export function PlayerControls() {
       (currentVideo?.source === "local" && currentVideo?.filePath);
     if (!isDetached || !hasPlayableContent) return;
     windowManager.syncState(buildPlayerState());
-  }, [isDetached, currentVideo?.streamUrl, currentVideo?.youtubeId, currentVideo?.source, currentVideo?.filePath, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length, playbackMode]);
+  }, [isDetached, currentVideo?.streamUrl, currentVideo?.youtubeId, currentVideo?.source, currentVideo?.filePath, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length, playbackMode, hostedSession]);
 
   // Send play/pause commands to detached window
   useEffect(() => {

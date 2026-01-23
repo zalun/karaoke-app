@@ -12,6 +12,7 @@ import { CURRENT_SINGER_OVERLAY_DURATION_MS } from "./CurrentSingerOverlay";
 import { YouTubePlayer } from "./YouTubePlayer";
 import { NativePlayer } from "./NativePlayer";
 import { Z_INDEX_DRAG_OVERLAY } from "../../styles/zIndex";
+import { JoinCodeQR } from "../session";
 
 const log = createLogger("DetachedPlayer");
 
@@ -342,6 +343,20 @@ export function DetachedPlayer() {
           <p className="text-gray-400">Loading...</p>
         </div>
       )}
+      {/* Join info overlay - shows when hosting and idle (no content) */}
+      {!hasContent && state.hostedSession && (
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="flex flex-col items-center text-center">
+            <JoinCodeQR url={state.hostedSession.qrCodeUrl} size={300} />
+            <p className="text-4xl font-bold font-mono text-white tracking-wider mt-6">
+              {state.hostedSession.sessionCode}
+            </p>
+            <p className="text-gray-400 mt-4">
+              Scan to join or visit <span className="text-blue-400">homekaraoke.app/join</span>
+            </p>
+          </div>
+        </div>
+      )}
       {state.nextSong && overlayTimeRemaining !== null && overlayTimeRemaining > 0 && (
         <NextSongOverlay
           title={state.nextSong.title}
@@ -354,6 +369,7 @@ export function DetachedPlayer() {
             color: s.color,
             is_persistent: false,
           }))}
+          joinCode={state.hostedSession?.sessionCode}
         />
       )}
       {/* Current singer overlay - shows when video changes */}

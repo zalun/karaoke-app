@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Offline mode detection with UI indicator
   - Deep link handling (`homekaraoke://`) for OAuth callback
   - User menu with avatar and sign out option
+- Host Session feature for guest access (#201)
+  - Host button in session bar (requires authentication)
+  - Join code display (format: HK-XXXX-XXXX) visible from distance
+  - QR code for quick mobile join
+  - Copy code and copy link buttons
+  - Live stats: connected guests and pending requests
+  - Join code overlay on idle video player
+  - Stop hosting button to end guest access
+  - Automatic cleanup when ending session
 
 ## [0.7.7] - 2026-01-18
 

@@ -77,6 +77,16 @@ export interface TauriMockConfig {
   authTokens?: MockAuthTokens | null;
   /** Whether auth_open_login should track that browser was opened */
   trackAuthLoginOpened?: boolean;
+  /** Mock hosted session data (for testing session hosting) */
+  hostedSession?: {
+    id: string;
+    sessionCode: string;
+    qrCodeUrl: string;
+    joinUrl: string;
+    expiresAt: string;
+  } | null;
+  /** Whether creating a hosted session should fail */
+  shouldFailHostSession?: boolean;
 }
 
 /**
@@ -681,6 +691,111 @@ export async function injectTauriMocks(
       open: async () => {},
     };
 
+    // Mock fetch for hosted session API
+    // Store hosted session state
+    let hostedSessionState: {
+      id: string;
+      sessionCode: string;
+      qrCodeUrl: string;
+      joinUrl: string;
+      expiresAt: string;
+      stats: {
+        pending_requests: number;
+        approved_requests: number;
+        total_guests: number;
+      };
+    } | null = mockConfig.hostedSession ? {
+      ...mockConfig.hostedSession,
+      stats: { pending_requests: 0, approved_requests: 0, total_guests: 0 },
+    } : null;
+
+    // Store the original fetch
+    const originalFetch = window.fetch;
+
+    // Override fetch to intercept hosted session API calls
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input.toString();
+      const config = (window as unknown as { __TAURI_MOCK_CONFIG__?: typeof mockConfig }).__TAURI_MOCK_CONFIG__ || {};
+
+      // Handle hosted session API endpoints
+      if (url.includes("homekaraoke.app/api/session")) {
+        console.log(`[Tauri Mock] Intercepted fetch: ${init?.method || "GET"} ${url}`);
+
+        // POST /api/session/create - Create hosted session
+        if (url.endsWith("/api/session/create") && init?.method === "POST") {
+          if (config.shouldFailHostSession) {
+            return new Response(JSON.stringify({ error: "Failed to create session" }), {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+
+          const sessionId = "mock-session-" + Math.random().toString(36).substring(7);
+          const sessionCode = "HK-" + Math.random().toString(36).substring(2, 6).toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+          const joinUrl = `https://homekaraoke.app/join/${sessionCode}`;
+          const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`;
+          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+          hostedSessionState = {
+            id: sessionId,
+            sessionCode,
+            qrCodeUrl,
+            joinUrl,
+            expiresAt,
+            stats: { pending_requests: 0, approved_requests: 0, total_guests: 0 },
+          };
+
+          // Track that session was created for test assertions
+          (window as unknown as { __HOSTED_SESSION_CREATED__: boolean }).__HOSTED_SESSION_CREATED__ = true;
+          (window as unknown as { __HOSTED_SESSION_CODE__: string }).__HOSTED_SESSION_CODE__ = sessionCode;
+
+          return new Response(JSON.stringify({
+            session_id: sessionId,
+            session_code: sessionCode,
+            qr_code_url: qrCodeUrl,
+            join_url: joinUrl,
+            expires_at: expiresAt,
+          }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        // GET /api/session/[id] - Get session stats
+        if (url.match(/\/api\/session\/[^/]+$/) && (!init?.method || init.method === "GET")) {
+          if (!hostedSessionState) {
+            return new Response(JSON.stringify({ error: "Session not found" }), {
+              status: 404,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+
+          return new Response(JSON.stringify({
+            id: hostedSessionState.id,
+            session_code: hostedSessionState.sessionCode,
+            status: "active",
+            stats: hostedSessionState.stats,
+          }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        // DELETE /api/session/[id] - End hosted session
+        if (url.match(/\/api\/session\/[^/]+$/) && init?.method === "DELETE") {
+          hostedSessionState = null;
+          (window as unknown as { __HOSTED_SESSION_STOPPED__: boolean }).__HOSTED_SESSION_STOPPED__ = true;
+
+          return new Response(null, {
+            status: 204,
+          });
+        }
+      }
+
+      // Fall through to original fetch for other requests
+      return originalFetch(input, init);
+    };
+
     console.log("[Tauri Mock] Tauri APIs mocked successfully");
   }, config);
 }
@@ -748,4 +863,26 @@ export async function updateMockConfig(
       ...newConfig,
     };
   }, config);
+}
+
+/**
+ * Interface for checking hosted session state in tests
+ */
+interface HostedSessionTestState {
+  created: boolean;
+  sessionCode: string | null;
+  stopped: boolean;
+}
+
+/**
+ * Get hosted session test state from the page
+ */
+export async function getHostedSessionState(page: Page): Promise<HostedSessionTestState> {
+  return page.evaluate(() => {
+    return {
+      created: !!(window as unknown as { __HOSTED_SESSION_CREATED__?: boolean }).__HOSTED_SESSION_CREATED__,
+      sessionCode: (window as unknown as { __HOSTED_SESSION_CODE__?: string }).__HOSTED_SESSION_CODE__ ?? null,
+      stopped: !!(window as unknown as { __HOSTED_SESSION_STOPPED__?: boolean }).__HOSTED_SESSION_STOPPED__,
+    };
+  });
 }

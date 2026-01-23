@@ -35,6 +35,10 @@
     },
     {
       "identifier": "core:path:default"
+    },
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://homekaraoke.app/**" }]
     }
   ]
 }

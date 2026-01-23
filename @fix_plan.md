@@ -20,114 +20,114 @@ References:
 ## Phase 1: Dependencies
 
 ### P1.1: Install QR code package
-- [ ] Run `npm install qrcode @types/qrcode`
-- [ ] Run `just check`
+- [x] Run `npm install qrcode @types/qrcode`
+- [x] Run `just check`
 
 ---
 
 ## Phase 2: Hosted Session Service
 
 ### P2.1: Create hostedSession service
-- [ ] Create `src/services/hostedSession.ts`
-- [ ] Export from `src/services/index.ts`
-- [ ] Define `HostedSession` interface (id, sessionCode, joinUrl, qrCodeUrl, expiresAt, status, stats)
-- [ ] Implement `createHostedSession(accessToken, sessionName?)` - POST /api/session/create
-- [ ] Implement `getSession(accessToken, sessionId)` - GET /api/session/[id]
-- [ ] Implement `endHostedSession(accessToken, sessionId)` - DELETE /api/session/[id]
-- [ ] Add logging with `createLogger("HostedSessionService")`
+- [x] Create `src/services/hostedSession.ts`
+- [x] Export from `src/services/index.ts`
+- [x] Define `HostedSession` interface (id, sessionCode, joinUrl, qrCodeUrl, expiresAt, status, stats)
+- [x] Implement `createHostedSession(accessToken, sessionName?)` - POST /api/session/create
+- [x] Implement `getSession(accessToken, sessionId)` - GET /api/session/[id]
+- [x] Implement `endHostedSession(accessToken, sessionId)` - DELETE /api/session/[id]
+- [x] Add logging with `createLogger("HostedSessionService")`
 
 ---
 
 ## Phase 3: Session Store Extensions
 
 ### P3.1: Add hosting state to sessionStore
-- [ ] Add `hostedSession: HostedSession | null` state
-- [ ] Add `isHosting` derived state (hostedSession !== null)
-- [ ] Add `showHostModal: boolean` state
+- [x] Add `hostedSession: HostedSession | null` state
+- [x] Add `isHosting` derived state (hostedSession !== null)
+- [x] Add `showHostModal: boolean` state
 
 ### P3.2: Implement hosting actions
-- [ ] Implement `hostSession()` - create hosted session, start polling
-- [ ] Implement `stopHosting()` - end hosted session, stop polling
-- [ ] Implement `refreshHostedSession()` - poll for stats
-- [ ] Implement `openHostModal()` and `closeHostModal()`
+- [x] Implement `hostSession()` - create hosted session, start polling
+- [x] Implement `stopHosting()` - end hosted session, stop polling
+- [x] Implement `refreshHostedSession()` - poll for stats
+- [x] Implement `openHostModal()` and `closeHostModal()`
 
 ### P3.3: Add polling loop
-- [ ] Create 30-second polling interval when hosting
-- [ ] Update `hostedSession.stats` on each poll
-- [ ] Clean up interval on stopHosting or unmount
+- [x] Create 30-second polling interval when hosting
+- [x] Update `hostedSession.stats` on each poll
+- [x] Clean up interval on stopHosting or unmount
 
 ---
 
 ## Phase 4: Session Bar UI
 
 ### P4.1: Add Host button to SessionBar
-- [ ] Add Globe icon "Host" button after session name
-- [ ] Show only when `isAuthenticated && session && !hostedSession`
-- [ ] Call `hostSession()` on click
+- [x] Add Globe icon "Host" button after session name
+- [x] Show only when `isAuthenticated && session && !hostedSession`
+- [x] Call `hostSession()` on click
 
 ### P4.2: Add join code badge
-- [ ] Show `HK-XXXX-XXXX` badge when hosting
-- [ ] Click opens host modal
-- [ ] Style for visibility (monospace, high contrast)
+- [x] Show `HK-XXXX-XXXX` badge when hosting
+- [x] Click opens host modal
+- [x] Style for visibility (monospace, high contrast)
 
 ---
 
 ## Phase 5: Host Session Modal
 
 ### P5.1: Create HostSessionModal component
-- [ ] Create `src/components/session/HostSessionModal.tsx`
-- [ ] Export from `src/components/session/index.ts`
-- [ ] Large join code display (monospace, readable from distance)
-- [ ] QR code image from `qrCodeUrl`
-- [ ] Join URL text
-- [ ] "Copy Link" and "Copy Code" buttons
-- [ ] Stats display: guests connected, pending requests
-- [ ] "Stop Hosting" button
-- [ ] Modal opens via `showHostModal` state
+- [x] Create `src/components/session/HostSessionModal.tsx`
+- [x] Export from `src/components/session/index.ts`
+- [x] Large join code display (monospace, readable from distance)
+- [x] QR code image from `qrCodeUrl`
+- [x] Join URL text
+- [x] "Copy Link" and "Copy Code" buttons
+- [x] Stats display: guests connected, pending requests
+- [x] "Stop Hosting" button
+- [x] Modal opens via `showHostModal` state
 
 ### P5.2: Create JoinCodeQR component
-- [ ] Create `src/components/session/JoinCodeQR.tsx`
-- [ ] Export from `src/components/session/index.ts`
-- [ ] Display QR code image from URL
-- [ ] Accept `size` prop (default 200px)
+- [x] Create `src/components/session/JoinCodeQR.tsx`
+- [x] Export from `src/components/session/index.ts`
+- [x] Display QR code image from URL
+- [x] Accept `size` prop (default 200px)
 
 ---
 
 ## Phase 6: Video Player Integration
 
 ### P6.1: Enhance VideoPlayer idle state
-- [ ] When `hostedSession && !currentVideo && !isLoading`, show join overlay
-- [ ] Display large QR code (~300px)
-- [ ] Display join code `HK-XXXX-XXXX` in large text
-- [ ] Show "Scan to join or visit homekaraoke.app/join"
+- [x] When `hostedSession && !currentVideo && !isLoading`, show join overlay
+- [x] Display large QR code (~300px)
+- [x] Display join code `HK-XXXX-XXXX` in large text
+- [x] Show "Scan to join or visit homekaraoke.app/join"
 
 ### P6.2: Enhance NextSongOverlay
-- [ ] Add optional `joinCode` prop
-- [ ] When provided, show subtle "Join: HK-XXXX-XXXX" in corner
+- [x] Add optional `joinCode` prop
+- [x] When provided, show subtle "Join: HK-XXXX-XXXX" in corner
 
 ---
 
 ## Phase 7: Detached Player Sync
 
 ### P7.1: Update windowManager sync
-- [ ] Include `hostedSession` in `PlayerStateSyncData`
-- [ ] Emit hostedSession changes to detached window
+- [x] Include `hostedSession` in `PlayerStateSyncData`
+- [x] Emit hostedSession changes to detached window
 
 ### P7.2: Update DetachedPlayer
-- [ ] Display join info overlay when idle and `state.hostedSession` exists
-- [ ] Match VideoPlayer idle state layout
+- [x] Display join info overlay when idle and `state.hostedSession` exists
+- [x] Match VideoPlayer idle state layout
 
 ---
 
 ## Phase 8: Testing
 
 ### P8.1: E2E tests
-- [ ] Create `tests/e2e/hosted-session.spec.ts`
-- [ ] Test Host button visibility (auth + session required)
-- [ ] Test modal displays join code and QR
-- [ ] Test copy buttons work
-- [ ] Test stop hosting ends session
-- [ ] Test join code appears in video idle state
+- [x] Create `tests/e2e/hosted-session.spec.ts`
+- [x] Test Host button visibility (auth + session required)
+- [x] Test modal displays join code and QR
+- [x] Test copy buttons work
+- [x] Test stop hosting ends session
+- [x] Test join code appears in video idle state (skipped - requires manual testing)
 
 ### P8.2: Manual test cases (requires human QA)
 > **Note:** These are manual QA tasks requiring real API calls and visual verification.
@@ -147,11 +147,11 @@ References:
 ## Phase 9: Documentation
 
 ### P9.1: Update CLAUDE.md
-- [ ] Document hostedSession service pattern
-- [ ] Document hosting state in sessionStore
+- [x] Document hostedSession service pattern
+- [x] Document hosting state in sessionStore
 
 ### P9.2: Update changelog
-- [ ] Add "Host Session" feature to CHANGELOG.md
+- [x] Add "Host Session" feature to CHANGELOG.md
 
 ---
 

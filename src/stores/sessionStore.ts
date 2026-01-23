@@ -1,9 +1,17 @@
 import { create } from "zustand";
-import { createLogger, sessionService, type Singer, type Session } from "../services";
+import { createLogger, sessionService, hostedSessionService, type Singer, type Session, type HostedSession } from "../services";
+import { authService } from "../services/auth";
 import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
+import { notify } from "./notificationStore";
 
 const log = createLogger("SessionStore");
+
+// Polling interval for hosted session stats (30 seconds)
+const HOSTED_SESSION_POLL_INTERVAL_MS = 30 * 1000;
+
+// Store polling interval reference for cleanup
+let hostedSessionPollInterval: ReturnType<typeof setInterval> | null = null;
 
 interface SessionState {
   // Session state
@@ -13,6 +21,10 @@ interface SessionState {
   showLoadDialog: boolean;
   recentSessions: Session[];
   recentSessionSingers: Map<number, Singer[]>;
+
+  // Hosted session state (for remote guest access)
+  hostedSession: HostedSession | null;
+  showHostModal: boolean;
 
   // Singers state
   singers: Singer[];
@@ -37,6 +49,13 @@ interface SessionState {
   closeLoadDialog: () => void;
   deleteSession: (sessionId: number) => Promise<void>;
   renameStoredSession: (sessionId: number, name: string) => Promise<void>;
+
+  // Hosting actions
+  hostSession: () => Promise<void>;
+  stopHosting: () => Promise<void>;
+  refreshHostedSession: () => Promise<void>;
+  openHostModal: () => void;
+  closeHostModal: () => void;
 
   // Singer actions
   loadSingers: () => Promise<void>;
@@ -65,6 +84,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   showLoadDialog: false,
   recentSessions: [],
   recentSessionSingers: new Map(),
+  hostedSession: null,
+  showHostModal: false,
   singers: [],
   activeSingerId: null,
   queueSingerAssignments: new Map(),
@@ -115,10 +136,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     log.info("Ending session");
     set({ isLoading: true });
     try {
+      // Stop hosting if active (before ending session)
+      if (get().hostedSession) {
+        await get().stopHosting();
+      }
       // Flush any pending queue operations before ending session
       await flushPendingOperations();
       await sessionService.endSession();
-      set({ session: null, isLoading: false, singers: [], activeSingerId: null, queueSingerAssignments: new Map() });
+      set({ session: null, isLoading: false, singers: [], activeSingerId: null, queueSingerAssignments: new Map(), hostedSession: null, showHostModal: false });
       // Reset queue store (data already archived in DB)
       useQueueStore.getState().resetState();
       log.info("Session ended");
@@ -469,5 +494,129 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       log.error("Failed to load active singer:", error);
       set({ activeSingerId: null });
     }
+  },
+
+  // Hosting actions
+  hostSession: async () => {
+    const { session } = get();
+    if (!session) {
+      log.error("Cannot host session: no active session");
+      throw new Error("No active session");
+    }
+
+    log.info("Starting hosted session");
+    try {
+      // Get access token from auth service
+      const tokens = await authService.getTokens();
+      if (!tokens) {
+        log.error("Cannot host session: not authenticated");
+        throw new Error("Not authenticated");
+      }
+
+      const hostedSession = await hostedSessionService.createHostedSession(
+        tokens.access_token,
+        session.name ?? undefined
+      );
+
+      set({ hostedSession, showHostModal: true });
+
+      // Start polling for stats
+      if (hostedSessionPollInterval) {
+        clearInterval(hostedSessionPollInterval);
+      }
+      hostedSessionPollInterval = setInterval(() => {
+        get().refreshHostedSession();
+      }, HOSTED_SESSION_POLL_INTERVAL_MS);
+
+      log.info(`Hosted session started: ${hostedSession.sessionCode}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to start hosted session: ${message}`);
+      throw error;
+    }
+  },
+
+  stopHosting: async () => {
+    const { hostedSession } = get();
+    if (!hostedSession) {
+      log.debug("No hosted session to stop");
+      return;
+    }
+
+    log.info("Stopping hosted session");
+    try {
+      // Clear polling interval
+      if (hostedSessionPollInterval) {
+        clearInterval(hostedSessionPollInterval);
+        hostedSessionPollInterval = null;
+      }
+
+      // Get access token from auth service
+      const tokens = await authService.getTokens();
+      if (tokens) {
+        await hostedSessionService.endHostedSession(
+          tokens.access_token,
+          hostedSession.id
+        );
+      }
+
+      set({ hostedSession: null, showHostModal: false });
+      log.info("Hosted session stopped");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to stop hosted session: ${message}`);
+      // Still clear local state even if API call fails
+      set({ hostedSession: null, showHostModal: false });
+      throw error;
+    }
+  },
+
+  refreshHostedSession: async () => {
+    const { hostedSession } = get();
+    if (!hostedSession) {
+      return;
+    }
+
+    log.debug("Refreshing hosted session stats");
+    try {
+      const tokens = await authService.getTokens();
+      if (!tokens) {
+        log.warn("Cannot refresh hosted session: not authenticated");
+        return;
+      }
+
+      const updated = await hostedSessionService.getSession(
+        tokens.access_token,
+        hostedSession.id
+      );
+
+      // Only update stats, preserve other fields from the original session
+      set((state) => ({
+        hostedSession: state.hostedSession
+          ? { ...state.hostedSession, stats: updated.stats, status: updated.status }
+          : null,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to refresh hosted session: ${message}`);
+      // If session is ended or invalid, clear it
+      if (message.includes("404") || message.includes("NOT_FOUND")) {
+        log.warn("Hosted session no longer exists, clearing");
+        if (hostedSessionPollInterval) {
+          clearInterval(hostedSessionPollInterval);
+          hostedSessionPollInterval = null;
+        }
+        set({ hostedSession: null, showHostModal: false });
+        notify("warning", "Hosted session has ended or expired.");
+      }
+    }
+  },
+
+  openHostModal: () => {
+    set({ showHostModal: true });
+  },
+
+  closeHostModal: () => {
+    set({ showHostModal: false });
   },
 }));

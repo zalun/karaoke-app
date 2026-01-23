@@ -12,42 +12,52 @@ interface NextSongOverlayProps {
   countdown?: number;
   // Singers assigned to the next song
   singers?: Singer[];
+  // Join code for hosted session (shown subtly in corner)
+  joinCode?: string;
 }
 
-export function NextSongOverlay({ title, artist, countdown, singers }: NextSongOverlayProps) {
+export function NextSongOverlay({ title, artist, countdown, singers, joinCode }: NextSongOverlayProps) {
   return (
-    <div className="absolute bottom-4 right-4 z-20 bg-black/70 backdrop-blur-sm text-white px-4 py-3 rounded-lg max-w-xs pointer-events-none">
-      <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs text-gray-400 mb-1">Up next</p>
-          <p className="text-sm font-medium truncate">{title}</p>
-          {artist && <p className="text-xs text-gray-300 truncate">{artist}</p>}
-          {/* Show assigned singers */}
-          {singers && singers.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-2">
-              <div className="flex -space-x-1">
-                {singers.slice(0, 4).map((singer) => (
-                  <SingerAvatar
-                    key={singer.id}
-                    name={singer.name}
-                    color={singer.color}
-                    size="sm"
-                    className="ring-1 ring-black/50"
-                  />
-                ))}
+    <>
+      {/* Join code in top-right corner (subtle, only when hosting) */}
+      {joinCode && (
+        <div className="absolute top-4 right-4 z-20 bg-black/50 backdrop-blur-sm text-white/70 px-3 py-1.5 rounded-lg pointer-events-none">
+          <p className="text-xs font-mono">Join: {joinCode}</p>
+        </div>
+      )}
+      <div className="absolute bottom-4 right-4 z-20 bg-black/70 backdrop-blur-sm text-white px-4 py-3 rounded-lg max-w-xs pointer-events-none">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-gray-400 mb-1">Up next</p>
+            <p className="text-sm font-medium truncate">{title}</p>
+            {artist && <p className="text-xs text-gray-300 truncate">{artist}</p>}
+            {/* Show assigned singers */}
+            {singers && singers.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-2">
+                <div className="flex -space-x-1">
+                  {singers.slice(0, 4).map((singer) => (
+                    <SingerAvatar
+                      key={singer.id}
+                      name={singer.name}
+                      color={singer.color}
+                      size="sm"
+                      className="ring-1 ring-black/50"
+                    />
+                  ))}
+                </div>
+                <span className="text-xs text-gray-300">
+                  {singers.map((s) => s.name).join(", ")}
+                </span>
               </div>
-              <span className="text-xs text-gray-300">
-                {singers.map((s) => s.name).join(", ")}
-              </span>
+            )}
+          </div>
+          {countdown !== undefined && countdown > 0 && countdown <= 10 && (
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
+              <span className="text-lg font-bold">{countdown}</span>
             </div>
           )}
         </div>
-        {countdown !== undefined && countdown > 0 && countdown <= 10 && (
-          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
-            <span className="text-lg font-bold">{countdown}</span>
-          </div>
-        )}
       </div>
-    </div>
+    </>
   );
 }
