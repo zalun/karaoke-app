@@ -424,6 +424,33 @@ ci: lint typecheck test e2e
 pre-commit: lint typecheck test
     @echo "Pre-commit checks passed!"
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RALPH
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Clear Ralph state and restart (fresh session)
+ralph-restart:
+    rm -f .exit_signals .call_count .last_reset status.json progress.json .circuit_breaker_state .circuit_breaker_history .ralph_session .ralph_session_history
+    @echo "Ralph state cleared"
+    ralph --no-continue
+
+# Clear Ralph state and restart with monitor (fresh session)
+ralph-restart-monitor:
+    rm -f .exit_signals .call_count .last_reset status.json progress.json .circuit_breaker_state .circuit_breaker_history .ralph_session .ralph_session_history
+    @echo "Ralph state cleared"
+    ralph --monitor --no-continue
+
+# Clear Ralph state only (don't start)
+ralph-clear:
+    rm -f .exit_signals .call_count .last_reset status.json progress.json .circuit_breaker_state .circuit_breaker_history .ralph_session .ralph_session_history
+    @echo "Ralph state cleared"
+
+# Check Ralph status
+ralph-status:
+    ralph --status
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # HELP
 # ══════════════════════════════════════════════════════════════════════════════

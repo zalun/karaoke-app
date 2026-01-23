@@ -280,7 +280,7 @@ export function SessionBar() {
       await renameStoredSession(editingSessionId, name);
       setEditingSessionId(null);
       setEditingSessionName("");
-    } catch (error) {
+    } catch {
       // Error is logged in the store
     }
   };
@@ -362,7 +362,7 @@ export function SessionBar() {
                             try {
                               await switchToSession(s.id);
                               closeLoadDialog();
-                            } catch (error) {
+                            } catch {
                               // Error is logged in the store
                             }
                           }}

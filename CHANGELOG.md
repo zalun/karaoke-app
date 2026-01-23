@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- User authentication with Supabase OAuth
+  - Sign in with Google, Apple, or Email via external browser
+  - Secure token storage in system keychain (macOS Keychain, Windows Credential Manager)
+  - Automatic token refresh every 4 minutes when authenticated
+  - Offline mode detection with UI indicator
+  - Deep link handling (`homekaraoke://`) for OAuth callback
+  - User menu with avatar and sign out option
+
 ## [0.7.7] - 2026-01-18
 
 ### Fixed

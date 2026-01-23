@@ -33,7 +33,6 @@ export function CurrentSingerOverlay() {
     return singerIds
       .map((id) => getSingerById(id))
       .filter(Boolean) as NonNullable<ReturnType<typeof getSingerById>>[];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, currentItemId, queueSingerAssignments.size, singers.length]);
 
   // Hide overlay after 5 seconds

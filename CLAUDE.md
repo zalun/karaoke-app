@@ -78,7 +78,7 @@ When writing E2E tests:
 - **State:** `AppState` with `Mutex<Database>` managed by Tauri
 
 ### IPC Pattern
-Tauri commands (to be implemented) follow naming: `youtube_*`, `library_*`, `queue_*`, `drives_*`, `window_*`, `display_*`
+Tauri commands follow naming: `youtube_*`, `library_*`, `queue_*`, `auth_*`, `drives_*`, `window_*`, `display_*`
 
 ## Database Migrations
 
@@ -117,6 +117,47 @@ export const useXxxStore = create<XxxState>((set, get) => ({
 **Video sources:** `"youtube" | "local" | "external"`
 
 **Queue item status:** `"pending" | "playing" | "completed" | "skipped"`
+
+## Authentication
+
+The app uses Supabase Auth with OAuth (Google, Apple, Email) for user authentication.
+
+### Architecture
+
+- **Keychain Storage:** Tokens stored securely via `keyring` crate (`src-tauri/src/keychain.rs`)
+- **Deep Links:** `homekaraoke://` scheme handles OAuth callbacks (`tauri-plugin-deep-link`)
+- **Auth Service:** `src/services/auth.ts` wraps Tauri commands for token management
+- **Auth Store:** `src/stores/authStore.ts` manages auth state and token refresh
+
+### Tauri Commands
+
+```rust
+// src-tauri/src/commands/auth.rs
+auth_store_tokens(access, refresh, expires_at)  // Store tokens in keychain
+auth_get_tokens() -> Option<AuthTokens>         // Retrieve tokens from keychain
+auth_clear_tokens()                              // Clear tokens from keychain
+auth_open_login()                                // Open browser for OAuth flow
+```
+
+### Frontend Pattern
+
+```typescript
+// Initialize auth on app startup (in App.tsx useEffect)
+const { initialize } = useAuthStore();
+useEffect(() => {
+  initialize().catch(console.error);
+}, [initialize]);
+
+// Token refresh runs automatically every 4 minutes when authenticated
+// Offline detection pauses refresh and shows UI indicator
+```
+
+### Environment Variables
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
 
 ## Logging
 

@@ -1,180 +1,199 @@
-# Cloud Playlists - Host Client Implementation
+# Fix Plan
 
-**GitHub Issue:** #194
+Prioritized list of tasks for Ralph autonomous development.
 
-See `plan/future/cloud-playlists.md` for feature specification.
-
-**Prerequisites:** The homekaraoke.app backend must be deployed first (separate project). API contracts will be shared when ready.
-
----
-
-## Phase 1: Authentication & API Client Setup
-
-### P1.1: API Client Integration
-- [ ] Create `src/services/api.ts` with base HTTP client for homekaraoke.app
-- [ ] Add environment config for `API_BASE_URL`
-- [ ] Create `.env.example` with required variables
-- [ ] Handle auth token storage and refresh
-- [ ] Add request/response interceptors for error handling
-
-### P1.2: Auth Store & Service
-- [ ] Create `src/stores/authStore.ts` (Zustand) with state: user, isAuthenticated, isLoading
-- [ ] Create `src/services/authService.ts` for OAuth flows
-- [ ] Implement Google OAuth login (opens browser, handles callback)
-- [ ] Implement Apple OAuth login (opens browser, handles callback)
-- [ ] Implement logout functionality
-- [ ] Persist auth session across app restarts
-- [ ] Handle token expiry and refresh
-
-### P1.3: Login/Logout UI
-- [ ] Create `src/components/auth/LoginDialog.tsx` with OAuth buttons
-- [ ] Create `src/components/auth/UserMenu.tsx` (avatar, name, logout)
-- [ ] Add user menu to app header/sidebar
-- [ ] Show login prompt when accessing cloud features while logged out
-- [ ] Handle OAuth callback deep links in Tauri
+## Status Legend
+- [ ] Not started
+- [~] In progress
+- [x] Complete
 
 ---
 
-## Phase 2: Cloud Playlists
+# Current: Desktop App Authentication - Implementation
 
-### P2.1: Cloud Playlist Store & Service
-- [ ] Create `src/stores/cloudPlaylistStore.ts` with playlists, items, sync status
-- [ ] Create `src/services/cloudPlaylistService.ts` for CRUD operations
-- [ ] Implement `fetchPlaylists()` - list user's cloud playlists
-- [ ] Implement `createPlaylist(name)` - create new playlist
-- [ ] Implement `updatePlaylist(id, name)` - rename playlist
-- [ ] Implement `deletePlaylist(id)` - delete playlist
-- [ ] Implement `fetchPlaylistItems(playlistId)` - get playlist items
-- [ ] Implement `addToPlaylist(playlistId, video)` - add song
-- [ ] Implement `removeFromPlaylist(playlistId, itemId)` - remove song
-- [ ] Implement `reorderPlaylistItems(playlistId, itemIds)` - reorder
-
-### P2.2: Cloud Playlist UI
-- [ ] Create `src/components/playlists/CloudPlaylistList.tsx`
-- [ ] Create `src/components/playlists/CloudPlaylistItems.tsx`
-- [ ] Create `src/components/playlists/CreatePlaylistDialog.tsx`
-- [ ] Add "Add to Cloud Playlist" option in search results context menu
-- [ ] Add "Add to Cloud Playlist" option in queue item context menu
-- [ ] Add cloud playlist browser to Library view (new tab)
-- [ ] Implement "Load to Queue" action for cloud playlists
-
-### P2.3: Sync Indicator
-- [ ] Add cloud/local indicator icon to playlist items
-- [ ] Show sync status in playlist list (synced, syncing, error)
-- [ ] Add "Sync Now" manual trigger button
-- [ ] Handle offline gracefully (show cached data, queue changes)
+References:
+- `plan/desktop-app-authentication-prd.md` for full specification.
+- `plan/desktop-app-authentication-tasks.md` for detailed task breakdown.
 
 ---
 
-## Phase 3: Host Sessions (Cloud-Connected)
+## Phase 1: Deep Link Plugin Setup
 
-### P3.1: Host Session Store
-- [ ] Create `src/stores/hostSessionStore.ts` with:
-  - `cloudSession`: active session info (id, code, status, config)
-  - `connectedGuests`: list of connected guests
-  - `pendingRequests`: song requests awaiting approval
-  - `approvedRequests`: requests added to queue
-- [ ] Create `src/services/hostSessionService.ts` for session management
+### P1.1: Add deep-link dependency
+- [x] Add `tauri-plugin-deep-link = "2"` to `src-tauri/Cargo.toml`
+- [x] Run `cargo check`
 
-### P3.2: Session Creation
-- [ ] Implement `startCloudSession(config)` - calls Edge Function
-- [ ] Create `src/components/session/StartCloudSessionDialog.tsx`:
-  - Session name input
-  - Mode toggle: "Require Approval" / "Direct to Queue"
-  - Max song duration setting (optional)
-  - Songs per guest limit (optional)
-  - Session duration (default 8 hours)
-- [ ] Generate and display session code (format: `HK-XXXX-XXXX`)
-- [ ] Generate QR code URL for `homekaraoke.app/join/{code}`
+### P1.2: Configure deep link scheme
+- [x] Add `deep-link` plugin config to `src-tauri/tauri.conf.json`
+- [x] Set scheme to `homekaraoke`
 
-### P3.3: QR Code Display
-- [ ] Install QR code generation library (e.g., `qrcode.react`)
-- [ ] Create `src/components/session/SessionQRCode.tsx`
-- [ ] Display QR code in session controls panel
-- [ ] Option to show QR code in NextSongOverlay (between songs)
-- [ ] Option to show QR code on secondary display (full screen)
-- [ ] Add "Copy Join Link" button
-
-### P3.4: Real-Time Subscriptions
-- [ ] Create `src/services/realtimeService.ts` for WebSocket connection
-- [ ] Subscribe to song request events for session
-- [ ] Subscribe to guest connect/disconnect events
-- [ ] Handle new request notifications
-- [ ] Implement heartbeat to keep session alive (every 30s)
-- [ ] Handle reconnection after network interruption
-
-### P3.5: Pending Requests Panel
-- [ ] Create `src/components/session/PendingRequestsPanel.tsx`
-- [ ] Group requests by guest
-- [ ] Show song title, artist, duration for each request
-- [ ] Highlight songs exceeding max duration limit
-- [ ] Show "Already in queue" warning for duplicates
-- [ ] Add notification badge for new requests count
-
-### P3.6: Request Approval UI
-- [ ] Implement approve single request
-- [ ] Implement reject single request (with optional reason)
-- [ ] Implement "Approve All" for a guest's batch
-- [ ] Implement "Reject All" for a guest's batch
-- [ ] Auto-add approved songs to local queue with guest name as singer
-- [ ] Update request status in cloud (triggers guest notification)
+### P1.3: Initialize plugin
+- [x] Add `mod keychain;` to `src-tauri/src/lib.rs`
+- [x] Add `.plugin(tauri_plugin_deep_link::init())` to builder
+- [x] Register deep link handler in setup closure
+- [x] Emit `auth:callback` event to frontend on deep link receive
 
 ---
 
-## Phase 4: Session Management
+## Phase 2: Keychain Storage
 
-### P4.1: Session Controls
-- [ ] Create `src/components/session/CloudSessionControls.tsx`
-- [ ] Implement pause session (guests see "Session Paused")
-- [ ] Implement resume session
-- [ ] Implement end session (with confirmation)
-- [ ] Implement regenerate session code
-- [ ] Show session duration timer
-- [ ] Show connected guests count
+### P2.1: Add keyring dependency
+- [x] Add `keyring = "3"` to `src-tauri/Cargo.toml`
+- [x] Run `cargo check`
 
-### P4.2: Connected Guests Panel
-- [ ] Create `src/components/session/ConnectedGuestsPanel.tsx`
-- [ ] List all connected guests with:
-  - Display name
-  - Account status (logged in vs anonymous)
-  - Request count (total, pending)
-- [ ] Implement remove guest action
-- [ ] Implement promote to co-host action (if guest has account)
-
-### P4.3: Co-Host Management
-- [ ] Create `src/components/session/CoHostsPanel.tsx`
-- [ ] Add co-host by email input
-- [ ] List current co-hosts
-- [ ] Remove co-host action
-- [ ] Co-hosts receive same real-time notifications as host
-
-### P4.4: Session Rules
-- [ ] Create `src/components/session/SessionRulesPanel.tsx`
-- [ ] Edit max song duration mid-session
-- [ ] Edit songs per guest limit mid-session
-- [ ] Toggle approval mode mid-session (with warning about pending requests)
+### P2.2: Create keychain module
+- [x] Create `src-tauri/src/keychain.rs`
+- [x] Add `mod keychain;` to `lib.rs`
+- [x] Implement `store_auth_tokens(access, refresh, expires_at)`
+- [x] Implement `get_auth_tokens() -> Option<AuthTokens>`
+- [x] Implement `clear_auth_tokens()`
+- [x] Handle keychain access errors gracefully
 
 ---
 
-## Phase 5: Edge Cases & Polish
+## Phase 3: Tauri Auth Commands
 
-### P5.1: Offline Handling
-- [ ] Detect network disconnection
-- [ ] Continue local playback when offline
-- [ ] Queue cloud operations for when reconnected
-- [ ] Show "Offline" indicator in session panel
-- [ ] Auto-reconnect and sync when back online
+### P3.1: Create auth commands
+- [x] Create `src-tauri/src/commands/auth.rs`
+- [x] Add `mod auth;` to `commands/mod.rs`
+- [x] Implement `auth_store_tokens` command
+- [x] Implement `auth_get_tokens` command
+- [x] Implement `auth_clear_tokens` command
+- [x] Implement `auth_open_login` command (opens browser)
 
-### P5.2: Error Handling
-- [ ] Handle session expiry gracefully
-- [ ] Handle API errors with user-friendly messages
-- [ ] Handle rate limiting from server
-- [ ] Handle YouTube API quota exceeded (via server)
+### P3.2: Register commands
+- [x] Add auth commands to `invoke_handler![]` in `lib.rs`
+- [x] Run `cargo check`
 
-### P5.3: Notifications
-- [ ] In-app notification for new song requests
-- [ ] In-app notification for guest joins
-- [ ] Sound notification option for requests (configurable)
+---
+
+## Phase 4: Frontend Auth Service
+
+### P4.1: Create auth service
+- [x] Create `src/services/auth.ts`
+- [x] Export from `src/services/index.ts`
+- [x] Implement `storeTokens(access, refresh, expiresAt)`
+- [x] Implement `getTokens(): Promise<AuthTokens | null>`
+- [x] Implement `clearTokens()`
+- [x] Implement `openLogin()`
+- [x] Add logging with `createLogger("AuthService")`
+
+### P4.2: Add token refresh logic
+- [x] Implement `refreshTokenIfNeeded(): Promise<string | null>`
+- [x] Check expiry with 5-minute margin
+- [x] Call Supabase refresh endpoint
+- [x] Store new tokens on success
+
+### P4.3: Create Supabase client wrapper
+- [x] Create `src/services/supabase.ts`
+- [x] Export from `src/services/index.ts`
+- [x] Add Supabase URL and anon key constants
+- [x] Implement `createAuthenticatedClient()`
+
+---
+
+## Phase 5: Auth Zustand Store
+
+### P5.1: Create auth store
+- [x] Create `src/stores/authStore.ts`
+- [x] Export from `src/stores/index.ts`
+- [x] Define `AuthState` interface (user, isAuthenticated, isLoading, isOffline)
+- [x] Define `User` interface (id, email, displayName, avatarUrl)
+- [x] Initialize store with `create<AuthState>()`
+
+### P5.2: Implement store actions
+- [x] Implement `initialize()` - check existing tokens on app start
+- [x] Implement `signIn()` - open browser for OAuth
+- [x] Implement `signOut()` - clear tokens and state
+- [x] Implement `handleAuthCallback(params)` - process deep link
+- [x] Implement `refreshSession()` - refresh tokens
+
+### P5.3: Add deep link listener
+- [x] Listen for `auth:callback` Tauri event
+- [x] Parse URL params (access_token, refresh_token, expires_at, state)
+- [x] Validate state param for CSRF protection
+- [x] Call `handleAuthCallback` on valid callback
+
+---
+
+## Phase 6: Auth UI Components
+
+### P6.1: Create SignInPrompt component
+- [x] Create `src/components/auth/SignInPrompt.tsx`
+- [x] Add "Sign in with Google" button
+- [x] Add "Sign in with Apple" button
+- [x] Add "Sign in with Email" button
+- [x] Add "Continue without account" link
+- [x] Add loading spinner state
+
+### P6.2: Create UserMenu component
+- [x] Create `src/components/auth/UserMenu.tsx`
+- [x] Show user avatar and name
+- [x] Add dropdown with "Account Settings" link
+- [x] Add "Sign Out" button in dropdown
+
+### P6.3: Create AuthStatus wrapper
+- [x] Create `src/components/auth/AuthStatus.tsx`
+- [x] Create `src/components/auth/index.ts` barrel export
+- [x] Show compact Sign In button when not authenticated
+- [x] Show UserMenu when authenticated
+- [x] Handle loading state
+
+---
+
+## Phase 7: App Integration
+
+### P7.1: Initialize auth on startup
+- [x] Import authStore in `src/App.tsx`
+- [x] Call `authStore.initialize()` in useEffect
+- [x] Set up token refresh interval (every 4 minutes)
+
+### P7.2: Add AuthStatus to header
+- [x] Import AuthStatus in App.tsx
+- [x] Position next to SearchBar in header area
+- [x] Verify responsive layout
+
+### P7.3: Handle offline mode
+- [x] Add `isOffline` state to authStore
+- [x] Listen for `online`/`offline` window events
+- [x] Skip token refresh when offline
+- [x] Add offline indicator to UI
+
+---
+
+## Phase 8: Testing
+
+### P8.1: Manual test cases (requires human QA)
+> **Note:** These are manual QA tasks requiring real OAuth providers, network
+> conditions, and app restarts. Cannot be automated - must be performed by
+> a human tester before release.
+
+- [ ] Fresh sign in (no existing session)
+- [ ] Session persistence (restart app, still signed in)
+- [ ] Token refresh (wait for near-expiry)
+- [ ] Sign out (clears everything)
+- [ ] Cancel sign in (close browser mid-flow)
+- [ ] Offline mode (disconnect network)
+- [ ] Account switch (sign out, sign in different account)
+
+### P8.2: E2E tests (mock callback)
+- [x] Create `tests/e2e/auth.spec.ts`
+- [x] Test sign-in button opens browser
+- [x] Test mock callback stores tokens
+- [x] Test sign-out clears state
+
+---
+
+## Phase 9: Documentation
+
+### P9.1: Update CLAUDE.md
+- [x] Document authStore pattern
+- [x] Document auth service pattern
+- [x] Document keychain commands
+
+### P9.2: Update deployment docs
+- [x] Note deep link requirements in `plan/deployment.md`
+- [x] Document any macOS entitlements needed
 
 ---
 
@@ -182,91 +201,71 @@ See `plan/future/cloud-playlists.md` for feature specification.
 
 A task is complete when:
 1. Code compiles without warnings
-2. `just check` passes (typecheck + lint + cargo check)
-3. **New tests added** for testable functionality
+2. `just check` passes
+3. Tests added for testable functionality
 4. All tests pass (`just test`)
-5. Changelog updated (if user-facing change)
+5. Changelog updated (if user-facing)
 
 ---
 
 ## Workflow
 
 ### At Phase Start
-1. Ensure web backend is deployed and accessible
-2. Update the "GitHub Issue:" line at the top of this file
-3. Create/use feature branch: `feature/194-cloud-playlists`
+1. Ensure website auth endpoints are deployed
+2. Create GitHub issue and update line 3
+3. Create feature branch: `feature/<issue>-desktop-auth`
 
-### During Development Loop
+### During Development
 1. Pick next unchecked task
-2. **Write failing test first** (when testable):
-   - Unit test in `src/**/*.test.ts` for logic/utilities
-   - Component test for React components
-   - Skip tests for pure UI changes (styles, layouts)
-3. Implement the feature until test passes
-4. Run `just check` before committing
+2. Write failing test first (when testable)
+3. Implement until test passes
+4. Run `just check`
 5. Commit with descriptive message
-6. **Add comment to the GitHub issue** noting completed task
-7. Mark task as done in this file: `- [x]`
-8. Push commits regularly
-9. Repeat until all tasks in current phase are checked
+6. Mark task done: `- [x]`
+7. Push regularly
 
 ### At Phase End
-1. Verify all tasks in phase are `[x]` checked
-2. Run `just test` to confirm no regressions
-3. Update `CHANGELOG.md` with user-facing changes
-4. Create PR referencing the issue: `gh pr create`
-5. **STOP** - wait for human approval before next phase
-
-### Guidelines
-- **Web backend must exist first** - don't implement API calls until backend is deployed
-- Test with real Supabase project (not mocks) for integration testing
-- Ask user before running E2E tests (`just e2e`)
-- Do not merge PRs - only humans can approve and merge
-- If stuck on a task, comment on the issue and move to next task
+1. Verify all tasks checked
+2. Run `just test`
+3. Update `CHANGELOG.md`
+4. Create PR: `gh pr create`
+5. **STOP** - wait for approval
 
 ---
 
 ## Dependencies
 
-### npm packages to install:
-```bash
-npm install qrcode.react
+### Cargo dependencies:
+```toml
+tauri-plugin-deep-link = "2"
+keyring = "3"
 ```
 
-### Environment variables needed:
+### npm dependencies:
+```bash
+npm install @supabase/supabase-js
+```
+
+### Environment variables:
 ```env
-VITE_API_BASE_URL=https://homekaraoke.app/api
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
 ---
 
-## New Files to Create
+## New Files
 
-### Stores (Zustand)
+### Rust
+- `src-tauri/src/keychain.rs`
+- `src-tauri/src/commands/auth.rs`
+
+### TypeScript
+- `src/services/auth.ts`
+- `src/services/supabase.ts`
 - `src/stores/authStore.ts`
-- `src/stores/cloudPlaylistStore.ts`
-- `src/stores/hostSessionStore.ts`
-
-### Services
-- `src/services/api.ts`
-- `src/services/authService.ts`
-- `src/services/realtimeService.ts`
-- `src/services/cloudPlaylistService.ts`
-- `src/services/hostSessionService.ts`
-
-### Components
-- `src/components/auth/LoginDialog.tsx`
+- `src/components/auth/SignInPrompt.tsx`
 - `src/components/auth/UserMenu.tsx`
+- `src/components/auth/AuthStatus.tsx`
 - `src/components/auth/index.ts`
-- `src/components/playlists/CloudPlaylistList.tsx`
-- `src/components/playlists/CloudPlaylistItems.tsx`
-- `src/components/playlists/CreatePlaylistDialog.tsx`
-- `src/components/playlists/index.ts`
-- `src/components/session/StartCloudSessionDialog.tsx`
-- `src/components/session/SessionQRCode.tsx`
-- `src/components/session/PendingRequestsPanel.tsx`
-- `src/components/session/CloudSessionControls.tsx`
-- `src/components/session/ConnectedGuestsPanel.tsx`
-- `src/components/session/CoHostsPanel.tsx`
-- `src/components/session/SessionRulesPanel.tsx`
-- `src/components/session/index.ts`
+- `tests/e2e/auth.spec.ts`

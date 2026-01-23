@@ -337,7 +337,6 @@ export function PlayerControls() {
       (currentVideo?.source === "local" && currentVideo?.filePath);
     if (!isDetached || !hasPlayableContent) return;
     windowManager.syncState(buildPlayerState());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDetached, currentVideo?.streamUrl, currentVideo?.youtubeId, currentVideo?.source, currentVideo?.filePath, isPlaying, volume, isMuted, nextQueueItem, currentQueueItem, queueSingerAssignments.size, singers.length, playbackMode]);
 
   // Send play/pause commands to detached window

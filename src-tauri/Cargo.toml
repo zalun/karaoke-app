@@ -38,15 +38,19 @@ sha2 = "0.10"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 regex = "1"
 tauri-plugin-os = "2.3.2"
+tauri-plugin-deep-link = "2"
+keyring = { version = "3", default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.24"
 souvlaki = "0.8"
+keyring = { version = "3", features = ["apple-native"] }
 
 # Linux uses zbus for MPRIS media controls (pure Rust D-Bus implementation)
 [target.'cfg(target_os = "linux")'.dependencies]
 souvlaki = { version = "0.8", default-features = false, features = ["use_zbus"] }
 
-# Windows uses Windows Media Controls (automatic, no special features needed)
+# Windows uses Windows Media Controls and native keyring
 [target.'cfg(target_os = "windows")'.dependencies]
 souvlaki = "0.8"
+keyring = { version = "3", features = ["windows-native"] }

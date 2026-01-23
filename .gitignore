@@ -59,5 +59,7 @@ playwright/.cache/
 .last_output_length
 .last_reset
 .response_analysis
+.ralph_session
+.ralph_session_history
 progress.json
 status.json

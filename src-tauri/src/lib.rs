@@ -1,10 +1,11 @@
 mod commands;
 mod db;
+mod keychain;
 mod services;
 
 use chrono::Datelike;
 use db::Database;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -23,6 +24,7 @@ use std::time::Duration;
 use tauri::menu::{AboutMetadata, CheckMenuItem, Menu, MenuItemKind, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_opener::OpenerExt;
 
 pub struct AppState {
@@ -30,6 +32,8 @@ pub struct AppState {
     pub keep_awake: Mutex<Option<keepawake::KeepAwake>>,
     pub debug_mode: AtomicBool,
     pub log_dir: std::path::PathBuf,
+    /// Pending auth callback from deep link (stored until frontend is ready)
+    pub pending_auth_callback: Mutex<Option<std::collections::HashMap<String, String>>>,
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     pub media_controls: Mutex<Option<MediaControlsService>>,
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
@@ -227,6 +231,7 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
@@ -349,6 +354,12 @@ pub fn run() {
             commands::search_history_get,
             commands::search_history_clear,
             commands::search_history_clear_session,
+            // Auth commands
+            commands::auth_store_tokens,
+            commands::auth_get_tokens,
+            commands::auth_clear_tokens,
+            commands::auth_open_login,
+            commands::auth_get_pending_callback,
         ])
         .setup(|app| {
             info!("Starting HomeKaraoke application");
@@ -428,6 +439,7 @@ pub fn run() {
                 keep_awake: Mutex::new(None),
                 debug_mode: AtomicBool::new(debug_enabled),
                 log_dir: log_dir.clone(),
+                pending_auth_callback: Mutex::new(None),
                 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
                 media_controls: Mutex::new(media_controls),
                 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
@@ -589,6 +601,82 @@ pub fn run() {
                     *guard = Some(thread_handle);
                 };
             }
+
+            // Register deep link handler for OAuth callback
+            let app_handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                let urls = event.urls();
+                info!("Deep link handler triggered with {} URL(s)", urls.len());
+                for (i, url) in urls.iter().enumerate() {
+                    info!("Deep link URL[{}]: scheme={}, host={:?}, path={}, query={:?}, fragment={:?}",
+                        i, url.scheme(), url.host_str(), url.path(), url.query(), url.fragment());
+                }
+                if let Some(url) = urls.first() {
+                    debug!("Processing first URL: {}", url);
+                    // URL homekaraoke://auth/callback parses as host="auth", path="/callback"
+                    let is_auth_callback = url.host_str() == Some("auth") && url.path() == "/callback";
+                    info!("Is auth callback? {} (host={:?}, path='{}')", is_auth_callback, url.host_str(), url.path());
+                    if is_auth_callback {
+                        // Parse parameters from query string OR hash fragment
+                        // Supabase uses hash fragments for implicit grant flow
+                        let mut params: std::collections::HashMap<String, String> = url
+                            .query_pairs()
+                            .map(|(k, v)| (k.to_string(), v.to_string()))
+                            .collect();
+
+                        // If no query params, check hash fragment
+                        if params.is_empty() {
+                            if let Some(fragment) = url.fragment() {
+                                debug!("Parsing hash fragment for auth params");
+                                // Parse fragment as if it were a query string
+                                for pair in fragment.split('&') {
+                                    if let Some((key, value)) = pair.split_once('=') {
+                                        params.insert(
+                                            key.to_string(),
+                                            urlencoding::decode(value).unwrap_or_else(|_| value.into()).to_string()
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        info!("Auth callback received with {} params", params.len());
+                        for (key, value) in &params {
+                            // Mask token values for security
+                            let display_value = if key.contains("token") {
+                                format!("{}...", &value[..value.len().min(10)])
+                            } else {
+                                value.clone()
+                            };
+                            debug!("  param: {} = {}", key, display_value);
+                        }
+
+                        // Store in AppState for frontend to retrieve (handles race condition)
+                        // Only store if no pending callback exists to prevent overwrites
+                        if let Some(state) = app_handle.try_state::<AppState>() {
+                            match state.pending_auth_callback.lock() {
+                                Ok(mut pending) => {
+                                    if pending.is_some() {
+                                        warn!("Rejecting auth callback - one already pending");
+                                    } else {
+                                        *pending = Some(params.clone());
+                                        debug!("Stored pending auth callback");
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("Failed to lock pending_auth_callback mutex: {}", e);
+                                }
+                            }
+                        }
+
+                        // Also emit event to frontend (in case listener is already set up)
+                        if let Err(e) = app_handle.emit("auth:callback", params) {
+                            error!("Failed to emit auth:callback event: {}", e);
+                        }
+                    }
+                }
+            });
+            info!("Deep link handler registered for homekaraoke:// scheme");
 
             // Create the application menu
             let menu = create_menu(app, debug_enabled)?;

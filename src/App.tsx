@@ -25,7 +25,8 @@ import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
 import { SettingsDialog } from "./components/settings";
-import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, getStreamUrlWithCache, showWindowsAudioNoticeOnce, notify, SETTINGS_KEYS, type QueueItem, type LibraryVideo, type Video } from "./stores";
+import { AuthStatus } from "./components/auth";
+import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, useAuthStore, getStreamUrlWithCache, showWindowsAudioNoticeOnce, notify, SETTINGS_KEYS, type QueueItem, type LibraryVideo, type Video } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star } from "lucide-react";
 import { youtubeService, createLogger, getErrorMessage } from "./services";
@@ -125,6 +126,14 @@ function App() {
 
   // Initialize macOS Now Playing media controls
   useMediaControls();
+
+  // Initialize authentication on app startup
+  const { initialize: initializeAuth } = useAuthStore();
+  useEffect(() => {
+    initializeAuth().catch((err) => {
+      log.error("Failed to initialize auth:", err);
+    });
+  }, [initializeAuth]);
 
   // Focus search bar and switch to search tab
   const handleFocusSearch = useCallback(() => {
@@ -554,8 +563,13 @@ function App() {
       <div data-tauri-drag-region className="h-full grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left: Main content area */}
         <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
-          {/* Search Bar - always visible */}
-          <SearchBar ref={searchBarRef} onSearch={handleSearch} isLoading={isSearching} />
+          {/* Search Bar with Auth Status */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <SearchBar ref={searchBarRef} onSearch={handleSearch} isLoading={isSearching} />
+            </div>
+            <AuthStatus />
+          </div>
 
           {/* Player Controls - always visible, disabled when no video */}
           <PlayerControls />

@@ -41,7 +41,7 @@ vi.mock("./queueStore", () => ({
 }));
 
 // Helper to create a complete mock QueueState
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function createMockQueueState(overrides?: {
   queue?: { id: string }[];
   history?: { id: string }[];
