@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen, Star, Globe, Loader2 } from "lucide-react";
+import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen, Star, Radio, Loader2 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { useSessionStore, useFavoritesStore, useAuthStore, notify } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
@@ -522,35 +522,6 @@ export function SessionBar() {
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             {session.name && <span className="text-sm text-gray-400">{session.name}</span>}
-
-            {/* Host button - shown when authenticated, session active, not already hosting */}
-            {isAuthenticated && !hostedSession && (
-              <button
-                onClick={handleHostSession}
-                disabled={isHostingLoading}
-                className="flex items-center gap-1 px-2 py-1 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
-                title="Host session for guests to join"
-              >
-                {isHostingLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Globe size={14} />
-                )}
-                <span>Host</span>
-              </button>
-            )}
-
-            {/* Join code badge - shown when hosting */}
-            {hostedSession && (
-              <button
-                onClick={openHostModal}
-                className="flex items-center gap-1.5 px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-mono rounded transition-colors"
-                title="Click to view join details"
-              >
-                <Globe size={14} />
-                {hostedSession.sessionCode}
-              </button>
-            )}
           </div>
 
           {/* Singers indicator */}
@@ -590,6 +561,26 @@ export function SessionBar() {
           >
             <Star size={16} />
           </button>
+          {/* Host button - shown when authenticated */}
+          {isAuthenticated && (
+            <button
+              onClick={hostedSession ? openHostModal : handleHostSession}
+              disabled={isHostingLoading}
+              className={`p-1.5 rounded transition-colors ${
+                hostedSession
+                  ? "text-green-400 hover:bg-gray-700"
+                  : "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+              } disabled:opacity-50`}
+              title={hostedSession ? "View hosted session details" : "Host session for guests"}
+              aria-label={hostedSession ? "Hosting" : "Host"}
+            >
+              {isHostingLoading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Radio size={16} />
+              )}
+            </button>
+          )}
           <button
             onClick={handleEndSession}
             disabled={isLoading}

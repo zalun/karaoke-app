@@ -16,9 +16,11 @@ const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 /**
  * Check if token is expired or about to expire.
  * Returns true if token is valid and has enough time remaining.
+ * Note: expiresAt is in Unix seconds, Date.now() is in milliseconds.
  */
 function isTokenValid(expiresAt: number): boolean {
-  return Date.now() < expiresAt - TOKEN_EXPIRY_BUFFER_MS;
+  const expiresAtMs = expiresAt * 1000;
+  return Date.now() < expiresAtMs - TOKEN_EXPIRY_BUFFER_MS;
 }
 
 interface SessionState {
