@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+
+// Timeout for QR code loading (10 seconds)
+const QR_LOAD_TIMEOUT_MS = 10 * 1000;
 
 interface JoinCodeQRProps {
   url: string;
@@ -9,6 +12,26 @@ interface JoinCodeQRProps {
 export function JoinCodeQR({ url, size = 200 }: JoinCodeQRProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+
+  // Set timeout for loading
+  useEffect(() => {
+    if (!isLoading) return;
+
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        setIsLoading(false);
+        setHasError(true);
+      }
+    }, QR_LOAD_TIMEOUT_MS);
+
+    return () => clearTimeout(timeout);
+  }, [isLoading, url]);
+
+  // Reset state when URL changes
+  useEffect(() => {
+    setIsLoading(true);
+    setHasError(false);
+  }, [url]);
 
   return (
     <div

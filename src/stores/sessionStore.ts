@@ -10,9 +10,22 @@ const log = createLogger("SessionStore");
 // Polling interval for hosted session stats (30 seconds)
 const HOSTED_SESSION_POLL_INTERVAL_MS = 30 * 1000;
 
+// Buffer time before token expiry to consider it expired (5 minutes)
+const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
+
+/**
+ * Check if token is expired or about to expire.
+ * Returns true if token is valid and has enough time remaining.
+ */
+function isTokenValid(expiresAt: number): boolean {
+  return Date.now() < expiresAt - TOKEN_EXPIRY_BUFFER_MS;
+}
+
 interface SessionState {
   // Internal state for polling interval (not exposed to consumers)
   _hostedSessionPollInterval: ReturnType<typeof setInterval> | null;
+  // Flag to prevent concurrent refresh requests
+  _isRefreshingHostedSession: boolean;
   // Session state
   session: Session | null;
   isLoading: boolean;
@@ -78,6 +91,7 @@ interface SessionState {
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   _hostedSessionPollInterval: null,
+  _isRefreshingHostedSession: false,
   session: null,
   isLoading: false,
   showRenameDialog: false,
@@ -513,6 +527,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         throw new Error("Not authenticated");
       }
 
+      // Validate token is not expired
+      if (!isTokenValid(tokens.expires_at)) {
+        log.error("Cannot host session: token expired");
+        throw new Error("Session expired. Please sign in again.");
+      }
+
       const hostedSession = await hostedSessionService.createHostedSession(
         tokens.access_token,
         session.name ?? undefined
@@ -547,6 +567,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
 
     log.info("Stopping hosted session");
+    let apiCallFailed = false;
     try {
       // Get access token from auth service
       const tokens = await authService.getTokens();
@@ -560,27 +581,46 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to stop hosted session: ${message}`);
-      throw error;
+      apiCallFailed = true;
+      // Don't throw - we still want to clean up local state
     } finally {
       // Always clear polling interval and local state, even if API call fails
       if (_hostedSessionPollInterval) {
         clearInterval(_hostedSessionPollInterval);
       }
       set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
+
+      // Notify user if API call failed (backend may still think session is hosted)
+      if (apiCallFailed) {
+        notify("warning", "Could not end session on server. It may expire automatically.");
+      }
     }
   },
 
   refreshHostedSession: async () => {
-    const { hostedSession } = get();
+    const { hostedSession, _isRefreshingHostedSession } = get();
     if (!hostedSession) {
       return;
     }
 
+    // Prevent concurrent refresh requests (race condition protection)
+    if (_isRefreshingHostedSession) {
+      log.debug("Skipping refresh: previous request still in flight");
+      return;
+    }
+
     log.debug("Refreshing hosted session stats");
+    set({ _isRefreshingHostedSession: true });
     try {
       const tokens = await authService.getTokens();
       if (!tokens) {
         log.warn("Cannot refresh hosted session: not authenticated");
+        return;
+      }
+
+      // Skip refresh if token is expired (will be handled by auth refresh)
+      if (!isTokenValid(tokens.expires_at)) {
+        log.warn("Cannot refresh hosted session: token expired");
         return;
       }
 
@@ -614,6 +654,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
         notify("warning", "Hosted session has ended or expired.");
       }
+    } finally {
+      set({ _isRefreshingHostedSession: false });
     }
   },
 

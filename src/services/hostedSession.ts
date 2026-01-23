@@ -48,6 +48,10 @@ export const hostedSessionService = {
     accessToken: string,
     sessionName?: string
   ): Promise<HostedSession> {
+    if (!accessToken || accessToken.trim() === "") {
+      throw new Error("Access token is required");
+    }
+
     log.info("Creating hosted session");
 
     let response: Response;
@@ -98,6 +102,13 @@ export const hostedSessionService = {
     accessToken: string,
     sessionId: string
   ): Promise<HostedSession> {
+    if (!accessToken || accessToken.trim() === "") {
+      throw new Error("Access token is required");
+    }
+    if (!sessionId || sessionId.trim() === "") {
+      throw new Error("Session ID is required");
+    }
+
     log.debug(`Getting session: ${sessionId}`);
 
     let response: Response;
@@ -145,6 +156,13 @@ export const hostedSessionService = {
     accessToken: string,
     sessionId: string
   ): Promise<void> {
+    if (!accessToken || accessToken.trim() === "") {
+      throw new Error("Access token is required");
+    }
+    if (!sessionId || sessionId.trim() === "") {
+      throw new Error("Session ID is required");
+    }
+
     log.info(`Ending hosted session: ${sessionId}`);
 
     let response: Response;
