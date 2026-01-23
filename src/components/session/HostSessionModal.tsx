@@ -14,15 +14,23 @@ export function HostSessionModal() {
   }
 
   const handleCopyCode = async () => {
-    await navigator.clipboard.writeText(hostedSession.sessionCode);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
+    try {
+      await navigator.clipboard.writeText(hostedSession.sessionCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      // Clipboard API can fail due to permissions - silently ignore
+    }
   };
 
   const handleCopyLink = async () => {
-    await navigator.clipboard.writeText(hostedSession.joinUrl);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+    try {
+      await navigator.clipboard.writeText(hostedSession.joinUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      // Clipboard API can fail due to permissions - silently ignore
+    }
   };
 
   const handleStopHosting = async () => {

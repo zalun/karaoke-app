@@ -132,7 +132,7 @@ test.describe("Hosted Session", () => {
       }).toPass({ timeout: 5000 });
 
       // Verify QR code is displayed (image element)
-      const qrCodeImage = page.locator("img[alt='QR Code']");
+      const qrCodeImage = page.locator("img[alt='Scan to join']");
       await expect(qrCodeImage).toBeVisible();
 
       // Verify join URL is displayed

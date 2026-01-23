@@ -599,9 +599,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to refresh hosted session: ${message}`);
-      // If session is ended or invalid, clear it
-      if (message.includes("404") || message.includes("NOT_FOUND")) {
-        log.warn("Hosted session no longer exists, clearing");
+      // If session is ended, invalid, or auth failed, clear it
+      const shouldClear =
+        message.includes("404") ||
+        message.includes("NOT_FOUND") ||
+        message.includes("401") ||
+        message.includes("403") ||
+        message.includes("UNAUTHORIZED");
+      if (shouldClear) {
+        log.warn("Hosted session no longer valid, clearing");
         if (hostedSessionPollInterval) {
           clearInterval(hostedSessionPollInterval);
           hostedSessionPollInterval = null;
