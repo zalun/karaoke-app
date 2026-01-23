@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, Copy, Check, StopCircle, Users, Clock } from "lucide-react";
 import { useSessionStore } from "../../stores";
+import { notify } from "../../stores/notificationStore";
 import { JoinCodeQR } from "./JoinCodeQR";
 
 export function HostSessionModal() {
@@ -19,7 +20,7 @@ export function HostSessionModal() {
       setCopiedCode(true);
       setTimeout(() => setCopiedCode(false), 2000);
     } catch {
-      // Clipboard API can fail due to permissions - silently ignore
+      notify("error", "Failed to copy code to clipboard");
     }
   };
 
@@ -29,7 +30,7 @@ export function HostSessionModal() {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
     } catch {
-      // Clipboard API can fail due to permissions - silently ignore
+      notify("error", "Failed to copy link to clipboard");
     }
   };
 

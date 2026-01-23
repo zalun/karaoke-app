@@ -1,9 +1,8 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import { createLogger } from "./logger";
+import { HOMEKARAOKE_API_URL, buildJoinUrl, buildQrCodeUrl } from "../constants";
 
 const log = createLogger("HostedSessionService");
-
-const API_BASE = "https://homekaraoke.app";
 
 export interface SessionStats {
   pendingRequests: number;
@@ -16,7 +15,7 @@ export interface HostedSession {
   sessionCode: string;
   joinUrl: string;
   qrCodeUrl: string;
-  expiresAt: string;
+  expiresAt?: string;
   status: "active" | "paused" | "ended";
   stats: SessionStats;
 }
@@ -53,7 +52,7 @@ export const hostedSessionService = {
 
     let response: Response;
     try {
-      response = await fetch(`${API_BASE}/api/session/create`, {
+      response = await fetch(`${HOMEKARAOKE_API_URL}/api/session/create`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -103,7 +102,7 @@ export const hostedSessionService = {
 
     let response: Response;
     try {
-      response = await fetch(`${API_BASE}/api/session/${sessionId}`, {
+      response = await fetch(`${HOMEKARAOKE_API_URL}/api/session/${sessionId}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -123,12 +122,12 @@ export const hostedSessionService = {
 
     const data: GetSessionResponse = await response.json();
 
+    const joinUrl = buildJoinUrl(data.session_code);
     return {
       id: data.id,
       sessionCode: data.session_code,
-      joinUrl: `${API_BASE}/join/${data.session_code}`,
-      qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${API_BASE}/join/${data.session_code}`)}`,
-      expiresAt: "",
+      joinUrl,
+      qrCodeUrl: buildQrCodeUrl(joinUrl),
       status: data.status,
       stats: {
         pendingRequests: data.stats.pending_requests,
@@ -150,7 +149,7 @@ export const hostedSessionService = {
 
     let response: Response;
     try {
-      response = await fetch(`${API_BASE}/api/session/${sessionId}`, {
+      response = await fetch(`${HOMEKARAOKE_API_URL}/api/session/${sessionId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${accessToken}`,

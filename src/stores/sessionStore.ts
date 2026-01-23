@@ -10,10 +10,9 @@ const log = createLogger("SessionStore");
 // Polling interval for hosted session stats (30 seconds)
 const HOSTED_SESSION_POLL_INTERVAL_MS = 30 * 1000;
 
-// Store polling interval reference for cleanup
-let hostedSessionPollInterval: ReturnType<typeof setInterval> | null = null;
-
 interface SessionState {
+  // Internal state for polling interval (not exposed to consumers)
+  _hostedSessionPollInterval: ReturnType<typeof setInterval> | null;
   // Session state
   session: Session | null;
   isLoading: boolean;
@@ -78,6 +77,7 @@ interface SessionState {
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
+  _hostedSessionPollInterval: null,
   session: null,
   isLoading: false,
   showRenameDialog: false,
@@ -518,15 +518,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         session.name ?? undefined
       );
 
-      set({ hostedSession, showHostModal: true });
+      // Clear any existing polling interval
+      const existingInterval = get()._hostedSessionPollInterval;
+      if (existingInterval) {
+        clearInterval(existingInterval);
+      }
 
       // Start polling for stats
-      if (hostedSessionPollInterval) {
-        clearInterval(hostedSessionPollInterval);
-      }
-      hostedSessionPollInterval = setInterval(() => {
+      const pollInterval = setInterval(() => {
         get().refreshHostedSession();
       }, HOSTED_SESSION_POLL_INTERVAL_MS);
+
+      set({ hostedSession, showHostModal: true, _hostedSessionPollInterval: pollInterval });
 
       log.info(`Hosted session started: ${hostedSession.sessionCode}`);
     } catch (error) {
@@ -537,7 +540,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   stopHosting: async () => {
-    const { hostedSession } = get();
+    const { hostedSession, _hostedSessionPollInterval } = get();
     if (!hostedSession) {
       log.debug("No hosted session to stop");
       return;
@@ -545,12 +548,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     log.info("Stopping hosted session");
     try {
-      // Clear polling interval
-      if (hostedSessionPollInterval) {
-        clearInterval(hostedSessionPollInterval);
-        hostedSessionPollInterval = null;
-      }
-
       // Get access token from auth service
       const tokens = await authService.getTokens();
       if (tokens) {
@@ -559,15 +556,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           hostedSession.id
         );
       }
-
-      set({ hostedSession: null, showHostModal: false });
       log.info("Hosted session stopped");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to stop hosted session: ${message}`);
-      // Still clear local state even if API call fails
-      set({ hostedSession: null, showHostModal: false });
       throw error;
+    } finally {
+      // Always clear polling interval and local state, even if API call fails
+      if (_hostedSessionPollInterval) {
+        clearInterval(_hostedSessionPollInterval);
+      }
+      set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
     }
   },
 
@@ -608,11 +607,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         message.includes("UNAUTHORIZED");
       if (shouldClear) {
         log.warn("Hosted session no longer valid, clearing");
-        if (hostedSessionPollInterval) {
-          clearInterval(hostedSessionPollInterval);
-          hostedSessionPollInterval = null;
+        const interval = get()._hostedSessionPollInterval;
+        if (interval) {
+          clearInterval(interval);
         }
-        set({ hostedSession: null, showHostModal: false });
+        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
         notify("warning", "Hosted session has ended or expired.");
       }
     }
