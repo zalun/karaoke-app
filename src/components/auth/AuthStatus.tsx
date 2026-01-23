@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, LogIn, LogOut, User, WifiOff } from "lucide-react";
+import { Loader2, LogIn, User, WifiOff } from "lucide-react";
 import { useAuthStore } from "../../stores";
 import { UserMenu } from "./UserMenu";
 import { SignInModal } from "./SignInModal";
