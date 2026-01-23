@@ -90,6 +90,7 @@ export const authService = {
   /**
    * Validate the state parameter from the OAuth callback.
    * Returns true if the state matches the pending state.
+   * Only clears pending state on successful validation to allow retries.
    */
   validateState(state: string): boolean {
     if (!pendingAuthState) {
@@ -99,9 +100,10 @@ export const authService = {
     const isValid = state === pendingAuthState;
     if (!isValid) {
       log.error("State mismatch - possible CSRF attack");
+      return false; // Don't clear state - allow retry with correct state
     }
-    pendingAuthState = null;
-    return isValid;
+    pendingAuthState = null; // Only clear on success
+    return true;
   },
 
   /**

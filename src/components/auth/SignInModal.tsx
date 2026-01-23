@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Loader2, ExternalLink, ClipboardPaste } from "lucide-react";
 import { useAuthStore } from "../../stores";
+import { authService } from "../../services/auth";
 
 interface SignInModalProps {
   isOpen: boolean;
@@ -25,12 +26,36 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
       // Parse the URL to extract query params
       const url = new URL(manualUrl);
       const params: Record<string, string> = {};
+
+      // First try query parameters
       url.searchParams.forEach((value, key) => {
         params[key] = value;
       });
 
+      // If no query params, check hash fragment (Supabase uses hash)
+      if (Object.keys(params).length === 0 && url.hash) {
+        const fragment = url.hash.substring(1);
+        fragment.split("&").forEach((pair) => {
+          const [key, value] = pair.split("=");
+          if (key && value) {
+            params[key] = decodeURIComponent(value);
+          }
+        });
+      }
+
       if (!params.access_token || !params.refresh_token) {
         setError("Invalid callback URL - missing tokens");
+        return;
+      }
+
+      // Validate state for CSRF protection (required for manual input too)
+      if (!params.state) {
+        setError("Invalid callback URL - missing state parameter");
+        return;
+      }
+
+      if (!authService.validateState(params.state)) {
+        setError("Security validation failed - please try signing in again");
         return;
       }
 
