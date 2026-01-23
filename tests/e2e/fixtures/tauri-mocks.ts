@@ -144,6 +144,9 @@ export async function injectTauriMocks(
     let callbackId = 0;
     const callbacks: Record<number, (data: unknown) => void> = {};
 
+    // Event listener storage for plugin:event|listen
+    const pluginEventListeners = new Map<string, Set<number>>();
+
     // Mock the Tauri __TAURI_INTERNALS__ object
     (window as unknown as { __TAURI_INTERNALS__: {
       invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -398,12 +401,13 @@ export async function injectTauriMocks(
 
           // Auth commands (keychain storage)
           case "auth_store_tokens":
+            // Service uses camelCase: accessToken, refreshToken, expiresAt
             authTokens = {
-              access_token: args?.access_token as string,
-              refresh_token: args?.refresh_token as string,
-              expires_at: args?.expires_at as number,
+              access_token: args?.accessToken as string,
+              refresh_token: args?.refreshToken as string,
+              expires_at: args?.expiresAt as number,
             };
-            console.log(`[Tauri Mock] auth_store_tokens: tokens stored`);
+            console.log(`[Tauri Mock] auth_store_tokens: tokens stored`, authTokens);
             return null;
 
           case "auth_get_tokens":
@@ -459,13 +463,22 @@ export async function injectTauriMocks(
             const eventName = args?.event as string;
             const handler = args?.handler as number;
             console.log(`[Tauri Mock] plugin:event|listen: ${eventName}, handler: ${handler}`);
+            // Store the handler ID for this event
+            if (!pluginEventListeners.has(eventName)) {
+              pluginEventListeners.set(eventName, new Set());
+            }
+            pluginEventListeners.get(eventName)!.add(handler);
             // Return a listener ID that can be used to unregister
             return handler;
           }
 
-          case "plugin:event|unlisten":
-            console.log(`[Tauri Mock] plugin:event|unlisten`);
+          case "plugin:event|unlisten": {
+            const eventName = args?.event as string;
+            const handler = args?.id as number;
+            console.log(`[Tauri Mock] plugin:event|unlisten: ${eventName}, handler: ${handler}`);
+            pluginEventListeners.get(eventName)?.delete(handler);
             return null;
+          }
 
           case "plugin:event|emit":
             console.log(`[Tauri Mock] plugin:event|emit`, args);
@@ -516,9 +529,21 @@ export async function injectTauriMocks(
     } }).__TAURI_PLUGIN_EVENT__ = {
       emit: async (event: string, payload?: unknown) => {
         console.log(`[Tauri Mock] emit: ${event}`, payload);
+        // Call handlers registered via __TAURI_PLUGIN_EVENT__.listen
         const listeners = eventListeners.get(event);
         if (listeners) {
           listeners.forEach((cb) => cb({ payload }));
+        }
+        // Also call handlers registered via plugin:event|listen (Tauri API's listen function)
+        const pluginListeners = pluginEventListeners.get(event);
+        if (pluginListeners) {
+          pluginListeners.forEach((handlerId) => {
+            const cb = callbacks[handlerId];
+            if (cb) {
+              console.log(`[Tauri Mock] calling callback ${handlerId} for event ${event}`);
+              cb({ event, payload });
+            }
+          });
         }
       },
       listen: async (event: string, handler: EventCallback) => {
