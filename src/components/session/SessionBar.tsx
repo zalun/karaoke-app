@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen, Star } from "lucide-react";
+import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen, Star, Globe, Loader2 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
-import { useSessionStore, useFavoritesStore } from "../../stores";
+import { useSessionStore, useFavoritesStore, useAuthStore, notify } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
 import { sessionService, createLogger } from "../../services";
+import { HostSessionModal } from "./HostSessionModal";
 
 const log = createLogger("SessionBar");
 const MAX_VISIBLE_SINGERS = 10;
@@ -24,6 +25,7 @@ export function SessionBar() {
     showLoadDialog,
     recentSessions,
     recentSessionSingers,
+    hostedSession,
     startSession,
     endSession,
     loadSession,
@@ -38,7 +40,11 @@ export function SessionBar() {
     deleteSession,
     renameStoredSession,
     loadSingers,
+    hostSession,
+    openHostModal,
   } = useSessionStore();
+
+  const { isAuthenticated } = useAuthStore();
 
   // Check if a singer is assigned to any queue item
   const isSingerAssigned = (singerId: number): boolean => {
@@ -53,6 +59,9 @@ export function SessionBar() {
   const [newSingerName, setNewSingerName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Hosting state
+  const [isHostingLoading, setIsHostingLoading] = useState(false);
+  
   // State for editing stored session names
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editingSessionName, setEditingSessionName] = useState("");
@@ -185,6 +194,21 @@ export function SessionBar() {
 
   const handleStartSession = async () => {
     await startSession();
+  };
+
+  const handleHostSession = async () => {
+    setIsHostingLoading(true);
+    try {
+      await hostSession();
+      notify("success", "Session is now hosted! Guests can join with the code.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to host session";
+      log.error(`Failed to host session: ${message}`);
+      notify("error", "Failed to host session. Please try again.");
+    } finally {
+      setIsHostingLoading(false);
+    }
   };
 
   const handleEndSession = async () => {
@@ -498,6 +522,35 @@ export function SessionBar() {
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             {session.name && <span className="text-sm text-gray-400">{session.name}</span>}
+
+            {/* Host button - shown when authenticated, session active, not already hosting */}
+            {isAuthenticated && !hostedSession && (
+              <button
+                onClick={handleHostSession}
+                disabled={isHostingLoading}
+                className="flex items-center gap-1 px-2 py-1 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                title="Host session for guests to join"
+              >
+                {isHostingLoading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Globe size={14} />
+                )}
+                <span>Host</span>
+              </button>
+            )}
+
+            {/* Join code badge - shown when hosting */}
+            {hostedSession && (
+              <button
+                onClick={openHostModal}
+                className="flex items-center gap-1.5 px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-mono rounded transition-colors"
+                title="Click to view join details"
+              >
+                <Globe size={14} />
+                {hostedSession.sessionCode}
+              </button>
+            )}
           </div>
 
           {/* Singers indicator */}
@@ -743,6 +796,9 @@ export function SessionBar() {
 
       {/* Load session dialog */}
       {loadSessionDialog}
+
+      {/* Host session modal */}
+      <HostSessionModal />
     </div>
   );
 }

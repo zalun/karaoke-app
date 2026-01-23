@@ -17,6 +17,7 @@ interface MockSessionState {
   showLoadDialog: boolean;
   recentSessions: Session[];
   recentSessionSingers: Map<number, Singer[]>;
+  hostedSession: null;
   startSession: ReturnType<typeof vi.fn>;
   endSession: ReturnType<typeof vi.fn>;
   loadSession: ReturnType<typeof vi.fn>;
@@ -31,12 +32,18 @@ interface MockSessionState {
   deleteSession: ReturnType<typeof vi.fn>;
   renameStoredSession: ReturnType<typeof vi.fn>;
   loadSingers: ReturnType<typeof vi.fn>;
+  hostSession: ReturnType<typeof vi.fn>;
+  openHostModal: ReturnType<typeof vi.fn>;
 }
 
 interface MockFavoritesState {
   persistentSingers: Singer[];
   loadPersistentSingers: ReturnType<typeof vi.fn>;
   openLoadFavoritesDialog: ReturnType<typeof vi.fn>;
+}
+
+interface MockAuthState {
+  isAuthenticated: boolean;
 }
 
 // =============================================================================
@@ -66,6 +73,7 @@ const createMockSession = (id: number = 1, name: string | null = "Test Session")
 
 let mockSessionStore: MockSessionState;
 let mockFavoritesStore: MockFavoritesState;
+let mockAuthStore: MockAuthState;
 
 // =============================================================================
 // Mock Definitions
@@ -83,6 +91,12 @@ vi.mock("../../stores", () => ({
       return selector(mockFavoritesStore);
     }
     return mockFavoritesStore;
+  },
+  useAuthStore: (selector?: (state: MockAuthState) => unknown) => {
+    if (selector) {
+      return selector(mockAuthStore);
+    }
+    return mockAuthStore;
   },
 }));
 
@@ -117,6 +131,13 @@ vi.mock("lucide-react", () => ({
   Check: () => <span data-testid="check-icon">✓</span>,
   FolderOpen: () => <span data-testid="folder-icon">📁</span>,
   Star: () => <span data-testid="star-icon">★</span>,
+  Globe: () => <span data-testid="globe-icon">🌐</span>,
+  Loader2: () => <span data-testid="loader-icon">⏳</span>,
+}));
+
+// Mock HostSessionModal component
+vi.mock("./HostSessionModal", () => ({
+  HostSessionModal: () => <div data-testid="host-session-modal">Mock Modal</div>,
 }));
 
 // Mock singer components
@@ -169,6 +190,7 @@ function setupMocks(options: {
     showLoadDialog: options.showLoadDialog || false,
     recentSessions: options.recentSessions || [],
     recentSessionSingers: options.recentSessionSingers || new Map(),
+    hostedSession: null,
     startSession: vi.fn().mockResolvedValue(undefined),
     endSession: vi.fn().mockResolvedValue(undefined),
     loadSession: vi.fn().mockResolvedValue(undefined),
@@ -183,12 +205,18 @@ function setupMocks(options: {
     deleteSession: vi.fn().mockResolvedValue(undefined),
     renameStoredSession: vi.fn().mockResolvedValue(undefined),
     loadSingers: vi.fn().mockResolvedValue(undefined),
+    hostSession: vi.fn().mockResolvedValue(undefined),
+    openHostModal: vi.fn(),
   };
 
   mockFavoritesStore = {
     persistentSingers: options.persistentSingers || [],
     loadPersistentSingers: vi.fn().mockResolvedValue(undefined),
     openLoadFavoritesDialog: vi.fn(),
+  };
+
+  mockAuthStore = {
+    isAuthenticated: false,
   };
 }
 

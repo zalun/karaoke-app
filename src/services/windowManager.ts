@@ -6,6 +6,7 @@ import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { availableMonitors, type Monitor } from "@tauri-apps/api/window";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createLogger } from "./logger";
+import type { HostedSession } from "./hostedSession";
 
 const log = createLogger("WindowManager");
 
@@ -44,6 +45,8 @@ export interface PlayerState {
   playbackId?: string;
   /** Seconds before song ends to show next song overlay (0 = disabled) */
   nextSongOverlaySeconds?: number;
+  /** Hosted session info for join code display */
+  hostedSession?: HostedSession;
 }
 
 // Minimum number of pixels that must be visible on a display for a window to be considered "on screen"

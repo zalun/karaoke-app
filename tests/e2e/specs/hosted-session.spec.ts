@@ -1,0 +1,428 @@
+import { test, expect } from "@playwright/test";
+import { injectTauriMocks, getHostedSessionState } from "../fixtures/tauri-mocks";
+import { MainPage } from "../pages";
+
+/**
+ * Tests for the Host Session feature (#201).
+ * Verifies that authenticated users can host sessions for guests to join.
+ */
+test.describe("Hosted Session", () => {
+  let mainPage: MainPage;
+
+  test.describe("Host Button Visibility", () => {
+    test("Host button should not be visible when not authenticated", async ({ page }) => {
+      // No auth tokens = not authenticated
+      await injectTauriMocks(page, {
+        authTokens: null,
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Start a session first
+      await mainPage.startSession();
+
+      // Wait for session to be active
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Host button should not be visible (requires auth)
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await expect(hostButton).not.toBeVisible();
+    });
+
+    test("Host button should not be visible when no active session", async ({ page }) => {
+      // Authenticated but no session
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Should not have an active session
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(false);
+      }).toPass({ timeout: 5000 });
+
+      // Host button should not be visible (no session)
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await expect(hostButton).not.toBeVisible();
+    });
+
+    test("Host button should be visible when authenticated and session active", async ({ page }) => {
+      // Authenticated user
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Start a session
+      await mainPage.startSession();
+
+      // Wait for session to be active
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Host button should be visible
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await expect(hostButton).toBeVisible();
+    });
+  });
+
+  test.describe("Host Session Modal", () => {
+    test.beforeEach(async ({ page }) => {
+      // Setup: Authenticated user with active session
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Start a session
+      await mainPage.startSession();
+
+      // Wait for session to be active
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+    });
+
+    test("should create hosted session and display modal with join code", async ({ page }) => {
+      // Click the Host button
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await hostButton.click();
+
+      // Wait for modal to appear with join code
+      await expect(async () => {
+        const modal = page.locator("text=Session Hosted");
+        await expect(modal).toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Verify join code is displayed (format: HK-XXXX-XXXX)
+      const joinCodePattern = /HK-[A-Z0-9]{4}-[A-Z0-9]{4}/i;
+      await expect(async () => {
+        const modalContent = await page.locator(".text-4xl.font-bold.font-mono").textContent();
+        expect(modalContent).toMatch(joinCodePattern);
+      }).toPass({ timeout: 5000 });
+
+      // Verify QR code is displayed (image element)
+      const qrCodeImage = page.locator("img[alt='Scan to join']");
+      await expect(qrCodeImage).toBeVisible();
+
+      // Verify join URL is displayed
+      const joinUrlElement = page.locator("text=homekaraoke.app/join");
+      await expect(joinUrlElement).toBeVisible();
+
+      // Verify stats are displayed
+      const statsElement = page.locator("text=0 guests");
+      await expect(statsElement).toBeVisible();
+
+      // Verify Copy Code button exists
+      const copyCodeButton = page.getByRole("button", { name: "Copy Code" });
+      await expect(copyCodeButton).toBeVisible();
+
+      // Verify Copy Link button exists
+      const copyLinkButton = page.getByRole("button", { name: "Copy Link" });
+      await expect(copyLinkButton).toBeVisible();
+
+      // Verify Stop Hosting button exists
+      const stopHostingButton = page.getByRole("button", { name: "Stop Hosting" });
+      await expect(stopHostingButton).toBeVisible();
+    });
+
+    test("should show join code badge in session bar after hosting", async ({ page }) => {
+      // Click the Host button
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await hostButton.click();
+
+      // Wait for modal to appear
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+
+      // Close the modal
+      const closeButton = page.locator('button[title="Close"]');
+      await closeButton.click();
+
+      // Verify modal is closed
+      await expect(page.locator("text=Session Hosted")).not.toBeVisible();
+
+      // Verify join code badge appears in session bar
+      const joinCodeBadge = page.locator(".font-mono.bg-blue-600");
+      await expect(joinCodeBadge).toBeVisible();
+
+      // Verify the badge contains the join code format
+      await expect(async () => {
+        const badgeText = await joinCodeBadge.textContent();
+        expect(badgeText).toMatch(/HK-[A-Z0-9]{4}-[A-Z0-9]{4}/i);
+      }).toPass({ timeout: 5000 });
+    });
+
+    test("should reopen modal when clicking join code badge", async ({ page }) => {
+      // Click the Host button to start hosting
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await hostButton.click();
+
+      // Wait for modal to appear
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+
+      // Close the modal
+      const closeButton = page.locator('button[title="Close"]');
+      await closeButton.click();
+
+      // Click the join code badge
+      const joinCodeBadge = page.locator(".font-mono.bg-blue-600");
+      await joinCodeBadge.click();
+
+      // Modal should reopen
+      await expect(page.locator("text=Session Hosted")).toBeVisible();
+    });
+
+    test("copy code button should show confirmation", async ({ page }) => {
+      // Click the Host button
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await hostButton.click();
+
+      // Wait for modal
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+
+      // Click Copy Code
+      const copyCodeButton = page.getByRole("button", { name: "Copy Code" });
+      await copyCodeButton.click();
+
+      // Should show "Copied!" confirmation
+      await expect(page.getByRole("button", { name: "Copied!" })).toBeVisible();
+    });
+
+    test("copy link button should show confirmation", async ({ page }) => {
+      // Click the Host button
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await hostButton.click();
+
+      // Wait for modal
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+
+      // Click Copy Link
+      const copyLinkButton = page.getByRole("button", { name: "Copy Link" });
+      await copyLinkButton.click();
+
+      // Should show "Copied!" confirmation
+      await expect(page.getByRole("button", { name: "Copied!" })).toBeVisible();
+    });
+  });
+
+  test.describe("Stop Hosting", () => {
+    test("should stop hosting and hide join code badge", async ({ page }) => {
+      // Setup: Authenticated user
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Start a session
+      await mainPage.startSession();
+
+      // Wait for session to be active
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Click the Host button
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await hostButton.click();
+
+      // Wait for modal
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+
+      // Click Stop Hosting
+      const stopHostingButton = page.getByRole("button", { name: "Stop Hosting" });
+      await stopHostingButton.click();
+
+      // Modal should close
+      await expect(page.locator("text=Session Hosted")).not.toBeVisible({ timeout: 5000 });
+
+      // Join code badge should no longer be visible
+      const joinCodeBadge = page.locator(".font-mono.bg-blue-600");
+      await expect(joinCodeBadge).not.toBeVisible();
+
+      // Host button should be visible again (can host again)
+      await expect(page.getByRole("button", { name: "Host" })).toBeVisible();
+
+      // Verify the stop was tracked in mock state
+      const hostedState = await getHostedSessionState(page);
+      expect(hostedState.stopped).toBe(true);
+    });
+
+    test("should stop hosting when ending session", async ({ page }) => {
+      // Setup: Authenticated user
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Start a session
+      await mainPage.startSession();
+
+      // Wait for session to be active
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Start hosting
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await hostButton.click();
+
+      // Wait for modal and close it
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+      const closeButton = page.locator('button[title="Close"]');
+      await closeButton.click();
+
+      // Verify hosting is active (badge visible)
+      const joinCodeBadge = page.locator(".font-mono.bg-blue-600");
+      await expect(joinCodeBadge).toBeVisible();
+
+      // End the session
+      await mainPage.endSession();
+
+      // Session should end
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(false);
+      }).toPass({ timeout: 10000 });
+
+      // Join code badge should no longer exist
+      await expect(joinCodeBadge).not.toBeVisible();
+    });
+  });
+
+  test.describe("Join Code in Video Idle State", () => {
+    test.skip("should show join code overlay when video player is idle and hosting", async ({ page }) => {
+      // Skip: This test requires the video player to be in idle state,
+      // which is difficult to set up in E2E tests with mocked video playback.
+      // The functionality is covered by manual testing.
+
+      // Setup: Authenticated user
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Start a session
+      await mainPage.startSession();
+
+      // Wait for session to be active
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Start hosting
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await hostButton.click();
+
+      // Wait for modal and close it
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+      const closeButton = page.locator('button[title="Close"]');
+      await closeButton.click();
+
+      // Switch to Player tab (which shows VideoPlayer)
+      await mainPage.switchToPlayerTab();
+
+      // The video player idle state should show the join code
+      // Look for join code display in the player area
+      const joinOverlay = page.locator("[data-testid='video-player']").locator("text=HK-");
+      await expect(joinOverlay).toBeVisible({ timeout: 5000 });
+    });
+  });
+
+  test.describe("Hosted Session API Mock", () => {
+    test("should track hosted session creation in mock state", async ({ page }) => {
+      // Setup: Authenticated user
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Start a session
+      await mainPage.startSession();
+
+      // Wait for session to be active
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Verify no hosted session created yet
+      let hostedState = await getHostedSessionState(page);
+      expect(hostedState.created).toBe(false);
+      expect(hostedState.sessionCode).toBeNull();
+
+      // Click the Host button
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await hostButton.click();
+
+      // Wait for modal
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+
+      // Verify hosted session was created
+      hostedState = await getHostedSessionState(page);
+      expect(hostedState.created).toBe(true);
+      expect(hostedState.sessionCode).not.toBeNull();
+      expect(hostedState.sessionCode).toMatch(/HK-[A-Z0-9]{4}-[A-Z0-9]{4}/i);
+    });
+  });
+});

@@ -23,6 +23,7 @@ import { MIN_RESTORE_POSITION_SECONDS } from "./DetachedPlayer";
 import { YouTubePlayer } from "./YouTubePlayer";
 import { NativePlayer, type NativePlayerRef } from "./NativePlayer";
 import { Z_INDEX_PRIMING_OVERLAY } from "../../styles/zIndex";
+import { JoinCodeQR } from "../session";
 
 const log = createLogger("VideoPlayer");
 
@@ -100,6 +101,9 @@ export function VideoPlayer() {
     clearSeek,
     setIsDetached,
   } = usePlayerStore();
+
+  // Get hosted session for join overlay
+  const hostedSession = useSessionStore((state) => state.hostedSession);
 
   // Get playback mode from settings with runtime validation
   const rawPlaybackMode = useSettingsStore((state) =>
@@ -533,6 +537,17 @@ export function VideoPlayer() {
               <DetachIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
               <p>Video playing in separate window</p>
             </div>
+          ) : hostedSession ? (
+            /* Join info overlay - shown when hosting and idle */
+            <div className="flex flex-col items-center text-center">
+              <JoinCodeQR url={hostedSession.qrCodeUrl} size={300} />
+              <p className="text-4xl font-bold font-mono text-white tracking-wider mt-6">
+                {hostedSession.sessionCode}
+              </p>
+              <p className="text-gray-400 mt-4">
+                Scan to join or visit <span className="text-blue-400">homekaraoke.app/join</span>
+              </p>
+            </div>
           ) : null}
         </div>
       </div>
@@ -632,7 +647,7 @@ function NextSongOverlayWithSingers({
   currentTime: number;
   isLoading: boolean;
 }) {
-  const { session, singers, queueSingerAssignments, getQueueItemSingerIds, getSingerById, loadQueueItemSingers } = useSessionStore();
+  const { session, singers, queueSingerAssignments, getQueueItemSingerIds, getSingerById, loadQueueItemSingers, hostedSession } = useSessionStore();
 
   // Get overlay setting from store (0 = Off, 10/20/30 = seconds before end)
   const rawOverlaySeconds = useSettingsStore((state) =>
@@ -674,6 +689,7 @@ function NextSongOverlayWithSingers({
       artist={nextQueueItem.video.artist}
       countdown={timeRemaining <= COUNTDOWN_START_THRESHOLD_SECONDS ? timeRemaining : undefined}
       singers={nextSingers}
+      joinCode={hostedSession?.sessionCode}
     />
   );
 }
