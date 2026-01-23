@@ -35,6 +35,10 @@ export interface AuthState {
 let unlistenDeepLink: UnlistenFn | null = null;
 let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
+// Store references to event handlers for cleanup (fix memory leak)
+let onlineHandler: (() => void) | null = null;
+let offlineHandler: (() => void) | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: false,
@@ -67,9 +71,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      // Set up online/offline listeners
-      window.addEventListener("online", () => get().setOffline(false));
-      window.addEventListener("offline", () => get().setOffline(true));
+      // Set up online/offline listeners (store references for cleanup)
+      if (!onlineHandler) {
+        onlineHandler = () => get().setOffline(false);
+        offlineHandler = () => get().setOffline(true);
+        window.addEventListener("online", onlineHandler);
+        window.addEventListener("offline", offlineHandler);
+      }
       set({ isOffline: !navigator.onLine });
 
       // Check for existing tokens
@@ -94,15 +102,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Fetch user profile
       await get().fetchUserProfile(validTokens);
 
-      // Set up token refresh interval
-      if (!refreshInterval) {
-        refreshInterval = setInterval(() => {
-          if (!get().isOffline) {
-            get().refreshSession();
-          }
-        }, TOKEN_REFRESH_INTERVAL_MS);
-        log.debug("Token refresh interval set");
+      // Set up token refresh interval (clear any existing to prevent duplicates)
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
       }
+      refreshInterval = setInterval(() => {
+        if (!get().isOffline) {
+          get().refreshSession();
+        }
+      }, TOKEN_REFRESH_INTERVAL_MS);
+      log.debug("Token refresh interval set");
 
       set({ isLoading: false });
     } catch (error) {
@@ -191,8 +200,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // Validate state for CSRF protection
-      if (state && !authService.validateState(state)) {
+      // Validate state for CSRF protection (required - reject if missing or invalid)
+      if (!state) {
+        log.error("Missing state parameter - possible CSRF attack");
+        notify("error", "Sign in failed: security validation error");
+        set({ isLoading: false });
+        return;
+      }
+      if (!authService.validateState(state)) {
         log.error("Invalid state parameter - possible CSRF attack");
         notify("error", "Sign in failed: security validation error");
         set({ isLoading: false });
@@ -200,7 +215,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // Parse expires_at (comes as string from URL params)
-      const expiresAt = parseInt(expires_at, 10) || Math.floor(Date.now() / 1000) + 3600;
+      let expiresAt = parseInt(expires_at, 10);
+      if (isNaN(expiresAt) || expiresAt <= 0) {
+        log.warn("Invalid or missing expires_at, using 1 hour fallback");
+        expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      }
 
       // Store tokens securely
       await authService.storeTokens(access_token, refresh_token, expiresAt);
@@ -214,14 +233,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Fetch user profile
       await get().fetchUserProfile(tokens);
 
-      // Set up token refresh interval
-      if (!refreshInterval) {
-        refreshInterval = setInterval(() => {
-          if (!get().isOffline) {
-            get().refreshSession();
-          }
-        }, TOKEN_REFRESH_INTERVAL_MS);
+      // Set up token refresh interval (clear any existing to prevent duplicates)
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
       }
+      refreshInterval = setInterval(() => {
+        if (!get().isOffline) {
+          get().refreshSession();
+        }
+      }, TOKEN_REFRESH_INTERVAL_MS);
+      log.debug("Token refresh interval set");
 
       set({ isLoading: false });
       log.info("Auth callback handled successfully");
@@ -274,6 +295,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       clearInterval(refreshInterval);
       refreshInterval = null;
     }
+    // Remove online/offline listeners to prevent memory leak
+    if (onlineHandler) {
+      window.removeEventListener("online", onlineHandler);
+      onlineHandler = null;
+    }
+    if (offlineHandler) {
+      window.removeEventListener("offline", offlineHandler);
+      offlineHandler = null;
+    }
   },
 
   // Internal helper to fetch user profile
@@ -291,6 +321,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error || !user) {
         log.error(`Failed to fetch user profile: ${error?.message || "No user"}`);
         notify("error", "Sign in failed: unable to load user profile");
+        // Clear tokens to avoid inconsistent state
+        await authService.clearTokens();
         set({ isAuthenticated: false, user: null });
         return;
       }

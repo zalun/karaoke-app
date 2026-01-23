@@ -421,11 +421,14 @@ export async function injectTauriMocks(
 
           case "auth_open_login": {
             _authLoginOpened = true;
-            console.log(`[Tauri Mock] auth_open_login: browser opened`);
+            const state = args?.state as string;
+            console.log(`[Tauri Mock] auth_open_login: browser opened, state: ${state?.slice(0, 10)}...`);
             // Track that login was opened for test assertions
             if (config.trackAuthLoginOpened) {
               (window as unknown as { __AUTH_LOGIN_OPENED__: boolean }).__AUTH_LOGIN_OPENED__ = true;
             }
+            // Store the state for tests to use in callback simulation
+            (window as unknown as { __AUTH_PENDING_STATE__: string | null }).__AUTH_PENDING_STATE__ = state;
             return null;
           }
 

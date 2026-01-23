@@ -653,9 +653,14 @@ pub fn run() {
 
                         // Store in AppState for frontend to retrieve (handles race condition)
                         if let Some(state) = app_handle.try_state::<AppState>() {
-                            if let Ok(mut pending) = state.pending_auth_callback.lock() {
-                                *pending = Some(params.clone());
-                                debug!("Stored pending auth callback");
+                            match state.pending_auth_callback.lock() {
+                                Ok(mut pending) => {
+                                    *pending = Some(params.clone());
+                                    debug!("Stored pending auth callback");
+                                }
+                                Err(e) => {
+                                    error!("Failed to lock pending_auth_callback mutex: {}", e);
+                                }
                             }
                         }
 

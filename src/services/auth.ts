@@ -145,10 +145,16 @@ export const authService = {
         return null;
       }
 
+      let expiresAt = data.session.expires_at;
+      if (!expiresAt) {
+        log.warn("Missing expires_at in refreshed session, using 1 hour fallback");
+        expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      }
+
       const newTokens: AuthTokens = {
         access_token: data.session.access_token,
         refresh_token: data.session.refresh_token,
-        expires_at: data.session.expires_at || Math.floor(Date.now() / 1000) + 3600,
+        expires_at: expiresAt,
       };
 
       await this.storeTokens(

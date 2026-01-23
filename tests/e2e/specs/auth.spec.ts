@@ -54,38 +54,44 @@ test.describe("Authentication", () => {
       const signInButton = page.getByRole("button", { name: "Sign In" });
       await expect(signInButton).toBeVisible();
 
+      // Click sign in to initiate OAuth flow (sets pending state for CSRF protection)
+      await signInButton.click();
+
+      // Get the CSRF state that was generated when sign in was clicked
+      const pendingState = await page.evaluate(() => {
+        return (window as unknown as { __AUTH_PENDING_STATE__?: string }).__AUTH_PENDING_STATE__;
+      });
+      expect(pendingState).toBeTruthy();
+
       // Simulate auth callback event (as if user completed OAuth in browser)
       const mockTokens = {
         access_token: "mock_access_token_123",
         refresh_token: "mock_refresh_token_456",
         expires_at: Math.floor(Date.now() / 1000) + 3600,
-        state: "", // No state for this test
+        state: pendingState, // Use the actual CSRF state
       };
 
       await emitTauriEvent(page, "auth:callback", mockTokens);
 
-      // Wait for auth state to update
-      // Since Supabase isn't configured in tests, the button should still be visible
-      // but we can verify that tokens were stored via the mock
-      await page.waitForTimeout(500);
+      // Wait for auth state to update and verify tokens were stored
+      await expect(async () => {
+        const storedTokens = await page.evaluate(async () => {
+          const internals = (window as unknown as {
+            __TAURI_INTERNALS__?: {
+              invoke: (cmd: string) => Promise<unknown>;
+            };
+          }).__TAURI_INTERNALS__;
+          if (!internals) return null;
+          return internals.invoke("auth_get_tokens");
+        });
 
-      // Check that tokens were stored by invoking auth_get_tokens
-      const storedTokens = await page.evaluate(async () => {
-        const internals = (window as unknown as {
-          __TAURI_INTERNALS__?: {
-            invoke: (cmd: string) => Promise<unknown>;
-          };
-        }).__TAURI_INTERNALS__;
-        if (!internals) return null;
-        return internals.invoke("auth_get_tokens");
-      });
-
-      expect(storedTokens).toEqual(
-        expect.objectContaining({
-          access_token: "mock_access_token_123",
-          refresh_token: "mock_refresh_token_456",
-        })
-      );
+        expect(storedTokens).toEqual(
+          expect.objectContaining({
+            access_token: "mock_access_token_123",
+            refresh_token: "mock_refresh_token_456",
+          })
+        );
+      }).toPass({ timeout: 5000 });
     });
   });
 
