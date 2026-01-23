@@ -2,6 +2,15 @@ import { test, expect } from "@playwright/test";
 import { injectTauriMocks, emitTauriEvent } from "../fixtures/tauri-mocks";
 import { MainPage } from "../pages";
 
+/** Type-safe interface for mock window properties injected by tauri-mocks */
+interface MockWindow {
+  __AUTH_PENDING_STATE__?: string;
+  __AUTH_LOGIN_OPENED__?: boolean;
+  __TAURI_INTERNALS__?: {
+    invoke: (cmd: string) => Promise<unknown>;
+  };
+}
+
 test.describe("Authentication", () => {
   let mainPage: MainPage;
 
@@ -30,7 +39,7 @@ test.describe("Authentication", () => {
       // Verify the auth_open_login command was called
       await expect(async () => {
         const loginOpened = await page.evaluate(() => {
-          return (window as unknown as { __AUTH_LOGIN_OPENED__?: boolean }).__AUTH_LOGIN_OPENED__;
+          return (window as unknown as MockWindow).__AUTH_LOGIN_OPENED__;
         });
         expect(loginOpened).toBe(true);
       }).toPass({ timeout: 5000 });
@@ -59,7 +68,7 @@ test.describe("Authentication", () => {
 
       // Get the CSRF state that was generated when sign in was clicked
       const pendingState = await page.evaluate(() => {
-        return (window as unknown as { __AUTH_PENDING_STATE__?: string }).__AUTH_PENDING_STATE__;
+        return (window as unknown as MockWindow).__AUTH_PENDING_STATE__;
       });
       expect(pendingState).toBeTruthy();
 
@@ -76,11 +85,7 @@ test.describe("Authentication", () => {
       // Wait for auth state to update and verify tokens were stored
       await expect(async () => {
         const storedTokens = await page.evaluate(async () => {
-          const internals = (window as unknown as {
-            __TAURI_INTERNALS__?: {
-              invoke: (cmd: string) => Promise<unknown>;
-            };
-          }).__TAURI_INTERNALS__;
+          const internals = (window as unknown as MockWindow).__TAURI_INTERNALS__;
           if (!internals) return null;
           return internals.invoke("auth_get_tokens");
         });
@@ -115,22 +120,14 @@ test.describe("Authentication", () => {
       // Since user menu requires a real user profile (from Supabase),
       // and Supabase isn't configured in tests, we test the command directly
       await page.evaluate(async () => {
-        const internals = (window as unknown as {
-          __TAURI_INTERNALS__?: {
-            invoke: (cmd: string) => Promise<unknown>;
-          };
-        }).__TAURI_INTERNALS__;
+        const internals = (window as unknown as MockWindow).__TAURI_INTERNALS__;
         if (!internals) return;
         await internals.invoke("auth_clear_tokens");
       });
 
       // Verify tokens were cleared
       const storedTokens = await page.evaluate(async () => {
-        const internals = (window as unknown as {
-          __TAURI_INTERNALS__?: {
-            invoke: (cmd: string) => Promise<unknown>;
-          };
-        }).__TAURI_INTERNALS__;
+        const internals = (window as unknown as MockWindow).__TAURI_INTERNALS__;
         if (!internals) return null;
         return internals.invoke("auth_get_tokens");
       });

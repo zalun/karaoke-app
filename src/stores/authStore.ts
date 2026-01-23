@@ -321,8 +321,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error || !user) {
         log.error(`Failed to fetch user profile: ${error?.message || "No user"}`);
         notify("error", "Sign in failed: unable to load user profile");
-        // Clear tokens to avoid inconsistent state
+        // Clear tokens and refresh interval to avoid inconsistent state
         await authService.clearTokens();
+        if (refreshInterval) {
+          clearInterval(refreshInterval);
+          refreshInterval = null;
+        }
         set({ isAuthenticated: false, user: null });
         return;
       }
