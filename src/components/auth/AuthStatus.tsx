@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, LogIn, User, WifiOff } from "lucide-react";
+import { CircleUserRound, Loader2, WifiOff } from "lucide-react";
 import { useAuthStore } from "../../stores";
 import { UserMenu } from "./UserMenu";
 import { SignInModal } from "./SignInModal";
@@ -52,9 +52,13 @@ export function AuthStatus() {
           onClick={() => useAuthStore.getState().signOut()}
           disabled={isLoading}
           title="Sign Out"
-          className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center text-white hover:bg-green-600 transition-colors disabled:opacity-50"
+          className="text-green-400 hover:text-green-300 transition-colors disabled:opacity-50"
         >
-          {isLoading ? <Loader2 size={18} className="animate-spin" /> : <User size={18} />}
+          {isLoading ? (
+            <Loader2 size={32} strokeWidth={1.5} className="animate-spin" />
+          ) : (
+            <CircleUserRound size={32} strokeWidth={1.5} />
+          )}
         </button>
       </div>
     );
@@ -66,8 +70,8 @@ export function AuthStatus() {
     return (
       <div className="flex items-center gap-2">
         {isOffline && <OfflineIndicator />}
-        <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
-          <Loader2 size={18} className="animate-spin text-gray-400" />
+        <div className="text-gray-400">
+          <Loader2 size={32} strokeWidth={1.5} className="animate-spin" />
         </div>
       </div>
     );
@@ -82,9 +86,9 @@ export function AuthStatus() {
           onClick={handleSignIn}
           disabled={isOffline || isLoading}
           title={isOffline ? "Sign in unavailable while offline" : "Sign In"}
-          className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-600 transition-colors disabled:opacity-50"
+          className="text-gray-400 hover:text-gray-200 transition-colors disabled:opacity-50"
         >
-          <LogIn size={18} />
+          <CircleUserRound size={32} strokeWidth={1.5} />
         </button>
       </div>
 
