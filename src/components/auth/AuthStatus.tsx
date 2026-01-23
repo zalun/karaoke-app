@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, LogIn, WifiOff } from "lucide-react";
+import { Loader2, LogIn, LogOut, User, WifiOff } from "lucide-react";
 import { useAuthStore } from "../../stores";
 import { UserMenu } from "./UserMenu";
 import { SignInModal } from "./SignInModal";
@@ -48,12 +48,13 @@ export function AuthStatus() {
     return (
       <div className="flex items-center gap-2">
         {isOffline && <OfflineIndicator />}
-        <span className="text-sm text-green-400">Signed In</span>
         <button
           onClick={() => useAuthStore.getState().signOut()}
-          className="text-xs text-gray-400 hover:text-white transition-colors"
+          disabled={isLoading}
+          title="Sign Out"
+          className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center text-white hover:bg-green-600 transition-colors disabled:opacity-50"
         >
-          Sign Out
+          {isLoading ? <Loader2 size={18} className="animate-spin" /> : <User size={18} />}
         </button>
       </div>
     );
@@ -63,8 +64,11 @@ export function AuthStatus() {
   // We check !showSignInModal to keep the modal visible during sign-in
   if (isLoading && !showSignInModal) {
     return (
-      <div className="flex items-center justify-center p-2">
-        <Loader2 size={18} className="animate-spin text-gray-400" />
+      <div className="flex items-center gap-2">
+        {isOffline && <OfflineIndicator />}
+        <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+          <Loader2 size={18} className="animate-spin text-gray-400" />
+        </div>
       </div>
     );
   }
@@ -77,11 +81,10 @@ export function AuthStatus() {
         <button
           onClick={handleSignIn}
           disabled={isOffline || isLoading}
-          title={isOffline ? "Sign in unavailable while offline" : undefined}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+          title={isOffline ? "Sign in unavailable while offline" : "Sign In"}
+          className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-600 transition-colors disabled:opacity-50"
         >
-          <LogIn size={16} />
-          <span>Sign In</span>
+          <LogIn size={18} />
         </button>
       </div>
 
