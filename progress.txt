@@ -186,3 +186,9 @@
   - only_returns_active_session_hosted_fields: verifies correct session's fields returned
 - Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration.json, progress.txt
 - All 361 (JS) + 130 (Rust) tests pass, cargo check passes, lint passes, typecheck passes
+
+## TYPE-002: TypeScript Session interface includes hosted fields
+- Added hosted_session_id?: string, hosted_by_user_id?: string, hosted_session_status?: string to Session interface
+- Fields are optional (undefined for sessions not hosted) to match Rust Option<String>
+- File changed: src/services/session.ts:32-41
+- All 361 tests pass, typecheck passes, lint passes

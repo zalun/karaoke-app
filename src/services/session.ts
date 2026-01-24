@@ -35,6 +35,9 @@ export interface Session {
   started_at: string;
   ended_at: string | null;
   is_active: boolean;
+  hosted_session_id?: string;
+  hosted_by_user_id?: string;
+  hosted_session_status?: string;
 }
 
 export const sessionService = {

@@ -98,7 +98,8 @@
         "Verify Session interface has hosted_by_user_id?: string",
         "Verify Session interface has hosted_session_status?: string"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added hosted_session_id?: string, hosted_by_user_id?: string, hosted_session_status?: string to Session interface in src/services/session.ts:32-41."
     },
     {
       "id": "HOST-001",
