@@ -205,11 +205,11 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           return { queue };
         });
       } catch (error) {
-        log.error("Failed to add queue item with fair position:", error);
+        log.error("Failed to compute fair position, falling back to append-to-end:", error);
         // Fallback: add to end of queue
         set((state) => {
           const newQueue = [...state.queue, newItem];
-          log.debug(`Fallback: Queue size: ${state.queue.length} -> ${newQueue.length}`);
+          log.warn(`Fair queue fallback: appending to end (position ${newQueue.length - 1})`);
           return { queue: newQueue };
         });
         // Try to persist at end position

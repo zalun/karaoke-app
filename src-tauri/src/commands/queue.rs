@@ -768,7 +768,15 @@ pub fn queue_compute_fair_position(
         queue_singer_ids.len()
     );
 
-    Ok(position as i32)
+    // Safe conversion from usize to i32
+    let position_i32: i32 = position.try_into().map_err(|_| {
+        CommandError::Validation(format!(
+            "Fair position {} exceeds i32::MAX, queue too large",
+            position
+        ))
+    })?;
+
+    Ok(position_i32)
 }
 
 // ============ State Recovery Commands ============
@@ -1081,6 +1089,19 @@ mod tests {
         // But wait - there's only 1 A, so round 2 never completes. Append.
         let queue = vec![1]; // A=1 with 1 song
         assert_eq!(compute_fair_position(&queue, 1), 1); // Append
+    }
+
+    #[test]
+    fn test_fair_position_single_singer_multiple_songs() {
+        // A has 2 songs [A, A], adding another A
+        // N=2, need round 3 (all have 3). Only A exists.
+        // With only one singer, new song should append after existing songs.
+        let queue = vec![1, 1]; // A=1 with 2 songs
+        assert_eq!(compute_fair_position(&queue, 1), 2); // Append after both
+
+        // A has 3 songs, adding 4th
+        let queue = vec![1, 1, 1];
+        assert_eq!(compute_fair_position(&queue, 1), 3); // Append
     }
 
     #[test]
