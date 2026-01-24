@@ -69,6 +69,22 @@ describe("hostedSession persistence functions", () => {
       expect(result).toBeNull();
     });
 
+    it("should return null when session ID is empty string", async () => {
+      mockInvoke.mockResolvedValue("");
+
+      const result = await getPersistedSessionId();
+
+      expect(result).toBeNull();
+    });
+
+    it("should return null when session ID is whitespace only", async () => {
+      mockInvoke.mockResolvedValue("   ");
+
+      const result = await getPersistedSessionId();
+
+      expect(result).toBeNull();
+    });
+
     it("should propagate errors from invoke", async () => {
       mockInvoke.mockRejectedValue(new Error("Database error"));
 

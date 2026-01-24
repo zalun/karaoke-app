@@ -8,3 +8,11 @@
 - Files changed: src/services/hostedSession.ts, src-tauri/src/commands/settings.rs, src/services/hostedSession.test.ts
 - All tests pass (305 total), typecheck passes
 - Note: Pre-existing lint error in tests/e2e/fixtures/tauri-mocks.ts (not related to this change)
+
+## persist-2: Fix getPersistedSessionId() to return null for empty strings
+- Function existed but didn't handle empty string case (clearPersistedSessionId sets "")
+- Added logic to treat empty/whitespace-only strings as null
+- Added 2 new tests: empty string returns null, whitespace-only returns null
+- Fixed pre-existing lint error in tests/e2e/fixtures/tauri-mocks.ts (renamed HttpMockGlobals to _HttpMockGlobals)
+- Files changed: src/services/hostedSession.ts, src/services/hostedSession.test.ts, tests/e2e/fixtures/tauri-mocks.ts
+- All 307 tests pass, typecheck passes, lint passes

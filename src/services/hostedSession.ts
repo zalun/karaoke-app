@@ -22,8 +22,10 @@ export async function persistSessionId(sessionId: string): Promise<void> {
  */
 export async function getPersistedSessionId(): Promise<string | null> {
   const sessionId = await invoke<string | null>("settings_get", { key: HOSTED_SESSION_KEY });
-  log.debug(`Retrieved persisted session ID: ${sessionId ?? "none"}`);
-  return sessionId;
+  // Treat empty string as null (clearPersistedSessionId sets empty string)
+  const result = sessionId && sessionId.trim() !== "" ? sessionId : null;
+  log.debug(`Retrieved persisted session ID: ${result ?? "none"}`);
+  return result;
 }
 
 /**
