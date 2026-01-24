@@ -369,7 +369,8 @@
         "Sign back in as same user",
         "Verify restoration can occur"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Verified behavior: signOut (authStore) only clears legacy persisted ID in settings table via clearPersistedSessionId(). The session table fields (hosted_session_id, hosted_by_user_id, hosted_session_status) are NOT modified by signOut and remain preserved. When user signs back in, restoreHostedSession() uses session.hosted_session_id for restoration. 5 unit tests added: preserve hosted fields in session state, DB not updated on signOut, restoration works when same user signs back in, uses session.hosted_session_id when legacy persisted ID is null, fields preserved even when hostedSession state cleared."
     },
     {
       "id": "EDGE-002",

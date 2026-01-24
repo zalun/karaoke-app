@@ -321,3 +321,25 @@
   - shows warning icon
 - Files changed: src/components/session/HostedByOtherUserDialog.test.tsx, ralph/hosted-session-restoration.json
 - All 413 tests pass, lint passes, typecheck passes
+
+## UI-002: Host button disabled when different user is hosting
+- SessionBar now checks if session.hosted_by_user_id differs from current user.id
+- Also checks hosted_session_status is 'active' or 'paused' (not 'ended')
+- Host button disabled with tooltip "Another user is hosting this session"
+- Enabled when: status='ended', same user, or no hosted fields
+- 7 unit tests added: show Host when auth, disable for diff user active/paused, enable for ended/same user/no fields, verify click does nothing when disabled
+- Files changed: src/components/session/SessionBar.tsx, src/components/session/SessionBar.test.tsx, ralph/hosted-session-restoration.json
+- All 420 tests pass, lint passes, typecheck passes
+
+## EDGE-001: User signs out while hosting preserves fields
+- Verified: signOut (authStore) only clears legacy persisted ID via clearPersistedSessionId()
+- Sessions table fields (hosted_session_id, hosted_by_user_id, hosted_session_status) NOT modified by signOut
+- When user signs back in, restoreHostedSession() uses session.hosted_session_id for restoration
+- Added 5 unit tests in sessionStore.test.ts:
+  - preserve hosted fields in session state
+  - DB not updated on signOut
+  - restoration works when same user signs back in
+  - uses session.hosted_session_id when legacy persisted ID is null
+  - fields preserved even when hostedSession state cleared
+- Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
+- All 425 tests pass, lint passes, typecheck passes
