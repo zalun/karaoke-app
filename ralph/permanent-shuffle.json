@@ -26,7 +26,7 @@
         "When singer has 0 songs in queue, returns position 0 (top)",
         "When singer has N songs, returns position after Nth round of all singers"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-003",

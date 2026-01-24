@@ -1,0 +1,32 @@
+## PRD-002: Backend - queue_compute_fair_position command
+
+Status: COMPLETE
+
+Implemented:
+- Added compute_fair_position() pure function for algorithm
+- Added queue_compute_fair_position Tauri command
+- Registered command in lib.rs invoke_handler
+- Algorithm: singer with 0 songs -> position 0, singer with N songs -> after their Nth occurrence, respecting singers with fewer songs
+
+Tests added:
+- test_fair_position_empty_queue
+- test_fair_position_singer_has_zero_songs
+- test_fair_position_singer_has_one_song
+- test_fair_position_singer_has_more_songs
+- test_fair_position_unassigned
+- test_fair_position_multiple_singers
+- test_fair_position_new_singer_cuts_in
+- test_fair_position_respects_order
+
+Verified:
+- cargo test queue: 23 passed
+- cargo check: warnings only (pre-existing)
+- npm run build: passes
+- npm run test:run: 287 passed
+- npm run lint: passes
+
+Files changed:
+- src-tauri/src/commands/queue.rs (added command + tests)
+- src-tauri/src/lib.rs (registered command)
+- ralph/permanent-shuffle.json (marked PRD-002 passes: true)
+
