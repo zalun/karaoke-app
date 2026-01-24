@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { createLogger, queueService, type QueueItemData } from "../services";
 import type { Video } from "./playerStore";
+import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
+import { useSessionStore } from "./sessionStore";
 
 const log = createLogger("QueueStore");
 
@@ -174,20 +176,70 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       video,
       addedAt: new Date(),
     };
-    set((state) => {
-      const newQueue = [...state.queue, newItem];
-      const position = newQueue.length - 1;
-      log.debug(`Queue size: ${state.queue.length} -> ${newQueue.length}`);
 
-      // Persist to database (tracked for session transitions)
+    // Check if fair queue is enabled and we have an active singer
+    const fairQueueEnabled =
+      useSettingsStore.getState().getSetting(SETTINGS_KEYS.FAIR_QUEUE_ENABLED) === "true";
+    const { activeSingerId } = useSessionStore.getState();
+
+    if (fairQueueEnabled && activeSingerId !== null) {
+      // Fair queue mode: compute fair position and insert there
+      log.debug(`Fair queue enabled, computing position for singer ${activeSingerId}`);
+
+      // First, add to UI at end (optimistic) then move to fair position
+      set((state) => {
+        const newQueue = [...state.queue, newItem];
+        log.debug(`Queue size: ${state.queue.length} -> ${newQueue.length}`);
+        return { queue: newQueue };
+      });
+
+      // Persist to database and move to fair position
       trackOperation(
-        queueService.addItem(toQueueItemData(newItem, position)).catch((error) => {
-          log.error("Failed to persist queue item:", error);
-        })
-      );
+        (async () => {
+          try {
+            // Get the fair position for this singer
+            const fairPosition = await queueService.computeFairPosition(activeSingerId);
+            log.debug(`Fair position for singer ${activeSingerId}: ${fairPosition}`);
 
-      return { queue: newQueue };
-    });
+            // Add item to database (appends to end)
+            await queueService.addItem(toQueueItemData(newItem, 0));
+
+            // Reorder to the fair position
+            await queueService.reorder(newItem.id, fairPosition);
+
+            // Update UI to reflect the correct position
+            set((state) => {
+              const queue = [...state.queue];
+              const currentIndex = queue.findIndex((item) => item.id === newItem.id);
+              if (currentIndex !== -1 && currentIndex !== fairPosition) {
+                const [item] = queue.splice(currentIndex, 1);
+                queue.splice(fairPosition, 0, item);
+              }
+              return { queue };
+            });
+          } catch (error) {
+            log.error("Failed to persist queue item with fair position:", error);
+          }
+        })()
+      );
+    } else {
+      // Standard mode: append to end
+      set((state) => {
+        const newQueue = [...state.queue, newItem];
+        const position = newQueue.length - 1;
+        log.debug(`Queue size: ${state.queue.length} -> ${newQueue.length}`);
+
+        // Persist to database (tracked for session transitions)
+        trackOperation(
+          queueService.addItem(toQueueItemData(newItem, position)).catch((error) => {
+            log.error("Failed to persist queue item:", error);
+          })
+        );
+
+        return { queue: newQueue };
+      });
+    }
+
     return newItem;
   },
 

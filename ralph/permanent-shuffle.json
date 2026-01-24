@@ -64,7 +64,7 @@
         "When enabled AND activeSingerId is set, calls computeFairPosition and inserts at that position",
         "When enabled but no activeSingerId, falls back to append behavior"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-006",

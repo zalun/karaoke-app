@@ -74,3 +74,27 @@ Files changed:
 - src/services/queue.ts (added computeFairPosition method)
 - ralph/permanent-shuffle.json (marked PRD-004 passes: true)
 
+## PRD-005: Queue Store - addToQueue fair position integration
+
+Status: COMPLETE
+
+Implemented:
+- Modified addToQueue in queueStore.ts to check FAIR_QUEUE_ENABLED setting
+- When enabled AND activeSingerId is set: computes fair position, adds to DB, reorders to position
+- When disabled OR no activeSingerId: falls back to append-to-end behavior
+- UI first shows item at end, then repositions after backend response (optimistic update)
+
+Unit tests added:
+- src/stores/queueStore.fairQueue.test.ts (7 tests)
+- Tests disabled behavior, enabled with/without singer, position calculations
+
+Verified:
+- just check: all passed
+- npm run test: 294 passed (7 new)
+- npm run lint: passes
+
+Files changed:
+- src/stores/queueStore.ts (modified addToQueue, added imports)
+- src/stores/queueStore.fairQueue.test.ts (new test file)
+- ralph/permanent-shuffle.json (marked PRD-005 passes: true)
+
