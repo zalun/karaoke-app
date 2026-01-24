@@ -414,6 +414,61 @@ test.describe("Hosted Session", () => {
       }).toPass({ timeout: 5000 });
     });
 
+    test("E2E-003: ended session not restored on app reopen", async ({ page }) => {
+      // Setup: Pre-populate session with hosted fields where status='ended'
+      // This simulates: User hosted -> stopped hosting -> quit app -> reopened app
+      const hostedSessionId = "mock-session-" + Math.random().toString(36).substring(7);
+      const testUserId = "test-user-id";
+
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+        mockUser: {
+          id: testUserId,
+          email: "test@example.com",
+          displayName: "Test User",
+        },
+        // Simulate app restart with persisted session that was hosted but then stopped
+        initialSession: {
+          id: 1,
+          name: "Test Session",
+          hosted_session_id: hostedSessionId,
+          hosted_by_user_id: testUserId,
+          hosted_session_status: "ended", // Key difference: status is 'ended'
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for session to be loaded
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Verify NOT hosting - "Host" button should be visible (grey state, not "Hosting")
+      // This confirms restoration was NOT attempted due to status='ended'
+      await expect(async () => {
+        const hostButton = page.getByRole("button", { name: "Host" });
+        await expect(hostButton).toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Verify "Hosting" button is NOT visible (not actively hosting)
+      const hostingButton = page.getByRole("button", { name: "Hosting" });
+      await expect(hostingButton).not.toBeVisible();
+
+      // Verify the mock state shows status is still 'ended' (not changed to 'active')
+      const hostedState = await getHostedSessionState(page);
+      expect(hostedState.status).toBe("ended");
+      // Session was never "created" in this run (no POST to /api/session/create)
+      expect(hostedState.created).toBe(false);
+    });
+
     test("should stop hosting when ending session", async ({ page }) => {
       // Setup: Authenticated user
       await injectTauriMocks(page, {

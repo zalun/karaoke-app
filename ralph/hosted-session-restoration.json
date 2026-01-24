@@ -452,7 +452,8 @@
         "Reopen the app",
         "Verify not hosting (status='ended' prevents restoration)"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added E2E test 'E2E-003: ended session not restored on app reopen' in hosted-session.spec.ts. Test uses initialSession mock config with hosted_session_status='ended' to simulate app restart after stopping hosting. Verifies Host button visible (not Hosting), status remains 'ended', no session created."
     },
     {
       "id": "E2E-004",

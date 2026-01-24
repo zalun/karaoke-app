@@ -380,3 +380,12 @@
   - NOT show notification on token refresh failure (silent failure for retry)
 - Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
 - All 437 tests pass, lint passes, just check passes
+
+## E2E-003: Ended session not restored on app reopen
+- Added E2E test in tests/e2e/specs/hosted-session.spec.ts verifying no restoration when status='ended'
+- Test uses initialSession mock config with hosted_session_status='ended' to simulate:
+  - User hosted session -> stopped hosting -> quit app -> reopened app
+- Verifies: Host button visible (not "Hosting"), status remains 'ended', no session created
+- Confirms RESTORE-002 implementation works correctly in E2E context
+- Files changed: tests/e2e/specs/hosted-session.spec.ts, ralph/hosted-session-restoration.json
+- E2E tests pass (chromium + webkit), all 437 unit tests pass, lint passes, typecheck passes
