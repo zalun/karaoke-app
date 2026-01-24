@@ -44,6 +44,7 @@ interface MockFavoritesState {
 
 interface MockAuthState {
   isAuthenticated: boolean;
+  user: { id: string; email: string } | null;
 }
 
 // =============================================================================
@@ -63,12 +64,23 @@ const createMockSinger = (
   unique_name: null,
 });
 
-const createMockSession = (id: number = 1, name: string | null = "Test Session"): Session => ({
+const createMockSession = (
+  id: number = 1,
+  name: string | null = "Test Session",
+  options?: {
+    hosted_session_id?: string;
+    hosted_by_user_id?: string;
+    hosted_session_status?: string;
+  }
+): Session => ({
   id,
   name,
   started_at: "2025-01-01T12:00:00Z",
   ended_at: null,
   is_active: true,
+  hosted_session_id: options?.hosted_session_id,
+  hosted_by_user_id: options?.hosted_by_user_id,
+  hosted_session_status: options?.hosted_session_status,
 });
 
 let mockSessionStore: MockSessionState;
@@ -132,6 +144,7 @@ vi.mock("lucide-react", () => ({
   FolderOpen: () => <span data-testid="folder-icon">📁</span>,
   Star: () => <span data-testid="star-icon">★</span>,
   Globe: () => <span data-testid="globe-icon">🌐</span>,
+  Radio: () => <span data-testid="radio-icon">📻</span>,
   Loader2: () => <span data-testid="loader-icon">⏳</span>,
 }));
 
@@ -180,6 +193,8 @@ function setupMocks(options: {
   recentSessionSingers?: Map<number, Singer[]>;
   queueSingerAssignments?: Map<string, number[]>;
   persistentSingers?: Singer[];
+  isAuthenticated?: boolean;
+  user?: { id: string; email: string } | null;
 } = {}) {
   mockSessionStore = {
     session: options.session ?? null,
@@ -216,7 +231,8 @@ function setupMocks(options: {
   };
 
   mockAuthStore = {
-    isAuthenticated: false,
+    isAuthenticated: options.isAuthenticated ?? false,
+    user: options.user ?? null,
   };
 }
 
@@ -771,6 +787,117 @@ describe("SessionBar", () => {
       render(<SessionBar />);
 
       expect(mockSessionStore.loadSession).toHaveBeenCalled();
+    });
+  });
+
+  describe("Host button blocking (UI-002)", () => {
+    it("shows Host button when authenticated", () => {
+      setupMocks({
+        session: createMockSession(),
+        isAuthenticated: true,
+        user: { id: "user-a", email: "a@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Host session for guests");
+      expect(hostButton).toBeInTheDocument();
+      expect(hostButton).not.toBeDisabled();
+    });
+
+    it("disables Host button when different user has active session", () => {
+      setupMocks({
+        session: createMockSession(1, "Test Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        }),
+        isAuthenticated: true,
+        user: { id: "user-b", email: "b@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Another user is hosting this session");
+      expect(hostButton).toBeDisabled();
+    });
+
+    it("disables Host button when different user has paused session", () => {
+      setupMocks({
+        session: createMockSession(1, "Test Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "paused",
+        }),
+        isAuthenticated: true,
+        user: { id: "user-b", email: "b@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Another user is hosting this session");
+      expect(hostButton).toBeDisabled();
+    });
+
+    it("enables Host button when different user's session is ended", () => {
+      setupMocks({
+        session: createMockSession(1, "Test Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "ended",
+        }),
+        isAuthenticated: true,
+        user: { id: "user-b", email: "b@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Host session for guests");
+      expect(hostButton).not.toBeDisabled();
+    });
+
+    it("enables Host button when same user has active session", () => {
+      setupMocks({
+        session: createMockSession(1, "Test Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        }),
+        isAuthenticated: true,
+        user: { id: "user-a", email: "a@test.com" },
+      });
+      render(<SessionBar />);
+
+      // Same user should see "View hosted session details" since they're hosting
+      // But mock doesn't have hostedSession set, so it shows normal host button
+      const hostButton = screen.getByTitle("Host session for guests");
+      expect(hostButton).not.toBeDisabled();
+    });
+
+    it("enables Host button when session has no hosted fields", () => {
+      setupMocks({
+        session: createMockSession(),
+        isAuthenticated: true,
+        user: { id: "user-a", email: "a@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Host session for guests");
+      expect(hostButton).not.toBeDisabled();
+    });
+
+    it("does not call hostSession when clicking disabled button", async () => {
+      setupMocks({
+        session: createMockSession(1, "Test Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        }),
+        isAuthenticated: true,
+        user: { id: "user-b", email: "b@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Another user is hosting this session");
+      await userEvent.click(hostButton);
+
+      expect(mockSessionStore.hostSession).not.toHaveBeenCalled();
     });
   });
 });

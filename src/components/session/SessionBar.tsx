@@ -44,7 +44,15 @@ export function SessionBar() {
     openHostModal,
   } = useSessionStore();
 
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
+
+  // Check if hosting is blocked due to another user's active session
+  const isHostingBlockedByOtherUser = Boolean(
+    session?.hosted_session_id &&
+    session?.hosted_by_user_id &&
+    session?.hosted_by_user_id !== user?.id &&
+    session?.hosted_session_status !== "ended"
+  );
 
   // Check if a singer is assigned to any queue item
   const isSingerAssigned = (singerId: number): boolean => {
@@ -565,13 +573,19 @@ export function SessionBar() {
           {isAuthenticated && (
             <button
               onClick={hostedSession ? openHostModal : handleHostSession}
-              disabled={isHostingLoading}
+              disabled={isHostingLoading || isHostingBlockedByOtherUser}
               className={`p-1.5 rounded transition-colors ${
                 hostedSession
                   ? "text-green-400 hover:bg-gray-700"
                   : "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
-              } disabled:opacity-50`}
-              title={hostedSession ? "View hosted session details" : "Host session for guests"}
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+              title={
+                isHostingBlockedByOtherUser
+                  ? "Another user is hosting this session"
+                  : hostedSession
+                    ? "View hosted session details"
+                    : "Host session for guests"
+              }
               aria-label={hostedSession ? "Hosting" : "Host"}
             >
               {isHostingLoading ? (
