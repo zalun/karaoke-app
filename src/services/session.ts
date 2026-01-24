@@ -182,4 +182,23 @@ export const sessionService = {
     log.debug(`Getting active singer for session ${sessionId}`);
     return await invoke<Singer | null>("session_get_active_singer", { sessionId });
   },
+
+  // Hosted session management
+  async setHostedSession(
+    sessionId: number,
+    hostedSessionId: string,
+    hostedByUserId: string,
+    status: "active" | "paused" | "ended"
+  ): Promise<void> {
+    log.debug(`Setting hosted session for session ${sessionId}: hosted_id=${hostedSessionId}, status=${status}`);
+    await invoke("session_set_hosted", { sessionId, hostedSessionId, hostedByUserId, status });
+  },
+
+  async updateHostedSessionStatus(
+    sessionId: number,
+    status: "active" | "paused" | "ended"
+  ): Promise<void> {
+    log.debug(`Updating hosted session status for session ${sessionId}: ${status}`);
+    await invoke("session_update_hosted_status", { sessionId, status });
+  },
 };

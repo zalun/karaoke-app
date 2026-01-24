@@ -14,6 +14,7 @@ import { authService } from "../services/auth";
 import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
 import { notify } from "./notificationStore";
+import { useAuthStore } from "./authStore";
 
 const log = createLogger("SessionStore");
 
@@ -551,12 +552,47 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         throw new Error("Session expired. Please sign in again.");
       }
 
+      // Get current user ID from auth store
+      const currentUser = useAuthStore.getState().user;
+      if (!currentUser) {
+        log.error("Cannot host session: user not loaded");
+        throw new Error("User not loaded. Please sign in again.");
+      }
+
+      // Check for existing hosted session conflicts
+      // Block if a different user has an active or paused session
+      if (
+        session.hosted_session_id &&
+        session.hosted_by_user_id &&
+        session.hosted_by_user_id !== currentUser.id &&
+        session.hosted_session_status !== "ended"
+      ) {
+        log.error("Cannot host session: another user is hosting");
+        throw new Error("Another user is hosting this session");
+      }
+
       const hostedSession = await hostedSessionService.createHostedSession(
         tokens.access_token,
         session.name ?? undefined
       );
 
-      // Persist the session ID for app restart recovery
+      // Store hosted session info in the database
+      await sessionService.setHostedSession(
+        session.id,
+        hostedSession.id,
+        currentUser.id,
+        "active"
+      );
+
+      // Update local session state with hosted fields
+      const updatedSession: Session = {
+        ...session,
+        hosted_session_id: hostedSession.id,
+        hosted_by_user_id: currentUser.id,
+        hosted_session_status: "active",
+      };
+
+      // Persist the session ID for app restart recovery (legacy, keep for backward compat)
       await persistSessionId(hostedSession.id);
 
       // Clear any existing polling interval
@@ -570,7 +606,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         get().refreshHostedSession();
       }, HOSTED_SESSION_POLL_INTERVAL_MS);
 
-      set({ hostedSession, showHostModal: true, _hostedSessionPollInterval: pollInterval });
+      set({
+        session: updatedSession,
+        hostedSession,
+        showHostModal: true,
+        _hostedSessionPollInterval: pollInterval,
+      });
 
       log.info(`Hosted session started: ${hostedSession.sessionCode}`);
     } catch (error) {

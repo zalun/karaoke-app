@@ -29,6 +29,8 @@ vi.mock("../services", () => ({
     getQueueItemSingers: vi.fn(),
     setActiveSinger: vi.fn(),
     getActiveSinger: vi.fn(),
+    setHostedSession: vi.fn(),
+    updateHostedSessionStatus: vi.fn(),
   },
   hostedSessionService: {
     getSession: vi.fn(),
@@ -61,6 +63,27 @@ vi.mock("./queueStore", () => ({
 // Mock notificationStore
 vi.mock("./notificationStore", () => ({
   notify: vi.fn(),
+}));
+
+// Mock authStore
+vi.mock("./authStore", () => ({
+  useAuthStore: {
+    getState: vi.fn(() => ({
+      isAuthenticated: false,
+      user: null,
+      isLoading: false,
+      isOffline: false,
+      initialize: vi.fn(),
+      signIn: vi.fn(),
+      cancelSignIn: vi.fn(),
+      signOut: vi.fn(),
+      handleAuthCallback: vi.fn(),
+      refreshSession: vi.fn(),
+      setOffline: vi.fn(),
+      _cleanup: vi.fn(),
+      fetchUserProfile: vi.fn(),
+    })),
+  },
 }));
 
 // Helper to create a complete mock QueueState
@@ -104,6 +127,7 @@ import { sessionService, hostedSessionService, persistSessionId, getPersistedSes
 import { authService } from "../services/auth";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
 import { notify } from "./notificationStore";
+import { useAuthStore } from "./authStore";
 
 const mockSession: Session = {
   id: 1,
@@ -1164,9 +1188,32 @@ describe("sessionStore - Host Session", () => {
     expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
   };
 
+  const mockUser = {
+    id: "user-123",
+    email: "test@example.com",
+    displayName: "Test User",
+    avatarUrl: null,
+  };
+
   beforeEach(() => {
     resetStoreState();
     vi.clearAllMocks();
+    // Set up default auth mock with authenticated user
+    vi.mocked(useAuthStore.getState).mockReturnValue({
+      isAuthenticated: true,
+      user: mockUser,
+      isLoading: false,
+      isOffline: false,
+      initialize: vi.fn(),
+      signIn: vi.fn(),
+      cancelSignIn: vi.fn(),
+      signOut: vi.fn(),
+      handleAuthCallback: vi.fn(),
+      refreshSession: vi.fn(),
+      setOffline: vi.fn(),
+      _cleanup: vi.fn(),
+      fetchUserProfile: vi.fn(),
+    });
   });
 
   describe("hostSession", () => {
@@ -1213,6 +1260,139 @@ describe("sessionStore - Host Session", () => {
       );
       expect(persistSessionId).toHaveBeenCalledWith("new-session-123");
       expect(useSessionStore.getState().hostedSession).toEqual(mockCreatedSession);
+    });
+
+    it("should throw error when user not loaded (HOST-005)", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(useAuthStore.getState).mockReturnValue({
+        isAuthenticated: true,
+        user: null, // User not loaded
+        isLoading: false,
+        isOffline: false,
+        initialize: vi.fn(),
+        signIn: vi.fn(),
+        cancelSignIn: vi.fn(),
+        signOut: vi.fn(),
+        handleAuthCallback: vi.fn(),
+        refreshSession: vi.fn(),
+        setOffline: vi.fn(),
+        _cleanup: vi.fn(),
+        fetchUserProfile: vi.fn(),
+      });
+
+      await expect(useSessionStore.getState().hostSession()).rejects.toThrow("User not loaded");
+      expect(hostedSessionService.createHostedSession).not.toHaveBeenCalled();
+    });
+
+    it("should store all three hosted fields in DB after API success (HOST-001)", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      // Verify setHostedSession was called with correct parameters
+      expect(sessionService.setHostedSession).toHaveBeenCalledWith(
+        mockSession.id,
+        mockCreatedSession.id,
+        mockUser.id,
+        "active"
+      );
+    });
+
+    it("should update local session state with hosted fields (HOST-001)", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      const updatedSession = useSessionStore.getState().session;
+      expect(updatedSession?.hosted_session_id).toBe(mockCreatedSession.id);
+      expect(updatedSession?.hosted_by_user_id).toBe(mockUser.id);
+      expect(updatedSession?.hosted_session_status).toBe("active");
+    });
+
+    it("should block when different user has status active (HOST-003)", async () => {
+      const sessionWithOtherUserHosting: Session = {
+        ...mockSession,
+        hosted_session_id: "other-session-id",
+        hosted_by_user_id: "other-user-id", // Different user
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithOtherUserHosting, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await expect(useSessionStore.getState().hostSession()).rejects.toThrow(
+        "Another user is hosting this session"
+      );
+      expect(hostedSessionService.createHostedSession).not.toHaveBeenCalled();
+      // Verify original fields are preserved
+      expect(useSessionStore.getState().session?.hosted_session_id).toBe("other-session-id");
+      expect(useSessionStore.getState().session?.hosted_by_user_id).toBe("other-user-id");
+    });
+
+    it("should block when different user has status paused (HOST-004)", async () => {
+      const sessionWithOtherUserHosting: Session = {
+        ...mockSession,
+        hosted_session_id: "other-session-id",
+        hosted_by_user_id: "other-user-id", // Different user
+        hosted_session_status: "paused",
+      };
+      useSessionStore.setState({ session: sessionWithOtherUserHosting, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await expect(useSessionStore.getState().hostSession()).rejects.toThrow(
+        "Another user is hosting this session"
+      );
+      expect(hostedSessionService.createHostedSession).not.toHaveBeenCalled();
+    });
+
+    it("should allow override when status is ended (HOST-002)", async () => {
+      const sessionWithEndedHosting: Session = {
+        ...mockSession,
+        hosted_session_id: "old-session-id",
+        hosted_by_user_id: "other-user-id", // Different user but ended
+        hosted_session_status: "ended",
+      };
+      useSessionStore.setState({ session: sessionWithEndedHosting, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      // Should have created a new hosted session
+      expect(hostedSessionService.createHostedSession).toHaveBeenCalled();
+      // Verify new fields are stored
+      expect(sessionService.setHostedSession).toHaveBeenCalledWith(
+        mockSession.id,
+        mockCreatedSession.id,
+        mockUser.id,
+        "active"
+      );
+      // Local session should have new values
+      const updatedSession = useSessionStore.getState().session;
+      expect(updatedSession?.hosted_session_id).toBe(mockCreatedSession.id);
+      expect(updatedSession?.hosted_by_user_id).toBe(mockUser.id);
+      expect(updatedSession?.hosted_session_status).toBe("active");
+    });
+
+    it("should allow same user to host again when already hosting", async () => {
+      const sessionWithSameUserHosting: Session = {
+        ...mockSession,
+        hosted_session_id: "old-session-id",
+        hosted_by_user_id: mockUser.id, // Same user
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithSameUserHosting, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      // Should have created a new hosted session (reconnect scenario)
+      expect(hostedSessionService.createHostedSession).toHaveBeenCalled();
     });
 
     it("should persist session ID after createHostedSession succeeds", async () => {

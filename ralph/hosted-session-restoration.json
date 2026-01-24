@@ -113,7 +113,8 @@
         "Verify hosted_by_user_id is set to current user's id",
         "Verify hosted_session_status is set to 'active'"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Updated hostSession() to: 1) Get current user ID from authStore, 2) Check for existing hosted session conflicts (blocks if different user has active/paused), 3) Call sessionService.setHostedSession after API success to persist hosted_session_id, hosted_by_user_id, hosted_session_status='active' to DB, 4) Update local session state with hosted fields. Added setHostedSession and updateHostedSessionStatus to sessionService. 8 unit tests: stores fields, updates local state, blocks different user active/paused, allows override when ended, allows same user reconnect, throws when user not loaded."
     },
     {
       "id": "HOST-002",
@@ -126,7 +127,8 @@
         "Verify new hosted_by_user_id matches current user",
         "Verify status is updated to 'active'"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Implemented in HOST-001. hostSession() only blocks when hosted_session_status !== 'ended'. Unit test verifies override works when status='ended'."
     },
     {
       "id": "HOST-003",
@@ -139,7 +141,8 @@
         "Verify error is returned indicating another user is hosting",
         "Verify original hosted fields are preserved"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Implemented in HOST-001. Throws 'Another user is hosting this session' when different user has active/paused status. Unit test verifies blocking and field preservation."
     },
     {
       "id": "HOST-004",
@@ -152,7 +155,8 @@
         "Verify error is returned indicating another user is hosting",
         "Verify original hosted fields are preserved"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Implemented in HOST-001. Same logic as HOST-003 - blocks when status is 'paused'. Unit test verifies this case."
     },
     {
       "id": "HOST-005",
@@ -164,7 +168,8 @@
         "Verify appropriate error is returned",
         "Verify no hosted fields are set"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Throws 'Not authenticated' if no tokens, 'Session expired' if token expired, 'User not loaded' if user object is null. Existing tests for auth check, added new test for user not loaded case."
     },
     {
       "id": "STOP-001",
