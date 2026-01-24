@@ -51,7 +51,7 @@
         "Skips if no session exists",
         "Skips if user is not authenticated"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "restore-2",

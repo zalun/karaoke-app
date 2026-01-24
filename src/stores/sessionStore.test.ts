@@ -767,3 +767,102 @@ describe("sessionStore - Dialog Actions", () => {
     });
   });
 });
+
+describe("sessionStore - Hosted Session Restoration", () => {
+  beforeEach(() => {
+    resetStoreState();
+    vi.clearAllMocks();
+  });
+
+  describe("restoreHostedSession", () => {
+    it("should skip if already hosting a session", async () => {
+      // Set up state with an existing hosted session
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: {
+          id: "existing-session-id",
+          sessionCode: "HK-TEST-1234",
+          joinUrl: "https://example.com/join",
+          qrCodeUrl: "https://example.com/qr",
+          status: "active",
+          stats: { pendingRequests: 0, approvedRequests: 0, totalGuests: 0 },
+        },
+      });
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should not have called any restore logic (verified by not throwing)
+      expect(useSessionStore.getState().hostedSession).not.toBeNull();
+    });
+
+    it("should skip if no active session exists", async () => {
+      useSessionStore.setState({ session: null, hostedSession: null });
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should complete without errors
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+
+    it("should skip if user is not authenticated", async () => {
+      // Mock authStore to return not authenticated
+      const { useAuthStore } = await import("./authStore");
+      vi.spyOn(useAuthStore, "getState").mockReturnValue({
+        isAuthenticated: false,
+        user: null,
+        isLoading: false,
+        isOffline: false,
+        initialize: vi.fn(),
+        signIn: vi.fn(),
+        cancelSignIn: vi.fn(),
+        signOut: vi.fn(),
+        handleAuthCallback: vi.fn(),
+        refreshSession: vi.fn(),
+        setOffline: vi.fn(),
+        _cleanup: vi.fn(),
+        fetchUserProfile: vi.fn(),
+      });
+
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should complete without errors
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+  });
+
+  describe("loadSession calls restoreHostedSession", () => {
+    it("should call restoreHostedSession at end of loadSession when session exists", async () => {
+      // Mock authStore to return authenticated
+      const { useAuthStore } = await import("./authStore");
+      vi.spyOn(useAuthStore, "getState").mockReturnValue({
+        isAuthenticated: true,
+        user: { id: "user-1", email: "test@example.com", displayName: "Test User", avatarUrl: null },
+        isLoading: false,
+        isOffline: false,
+        initialize: vi.fn(),
+        signIn: vi.fn(),
+        cancelSignIn: vi.fn(),
+        signOut: vi.fn(),
+        handleAuthCallback: vi.fn(),
+        refreshSession: vi.fn(),
+        setOffline: vi.fn(),
+        _cleanup: vi.fn(),
+        fetchUserProfile: vi.fn(),
+      });
+
+      vi.mocked(sessionService.getActiveSession).mockResolvedValue(mockSession);
+      vi.mocked(sessionService.getSessionSingers).mockResolvedValue([]);
+      vi.mocked(sessionService.getActiveSinger).mockResolvedValue(null);
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+
+      // Spy on restoreHostedSession
+      const restoreSpy = vi.spyOn(useSessionStore.getState(), "restoreHostedSession");
+
+      await useSessionStore.getState().loadSession();
+
+      expect(restoreSpy).toHaveBeenCalled();
+    });
+  });
+});

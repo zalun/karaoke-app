@@ -4,6 +4,7 @@ import { authService } from "../services/auth";
 import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
 import { notify } from "./notificationStore";
+import { useAuthStore } from "./authStore";
 
 const log = createLogger("SessionStore");
 
@@ -68,6 +69,7 @@ interface SessionState {
   hostSession: () => Promise<void>;
   stopHosting: () => Promise<void>;
   refreshHostedSession: () => Promise<void>;
+  restoreHostedSession: () => Promise<void>;
   openHostModal: () => void;
   closeHostModal: () => void;
 
@@ -121,6 +123,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         await useQueueStore.getState().loadPersistedState();
         // Load singer assignments for all queue and history items
         await get().loadAllQueueItemSingers();
+        // Attempt to restore hosted session from previous app run
+        await get().restoreHostedSession();
       }
     } catch (error) {
       log.error("Failed to load session:", error);
@@ -659,6 +663,32 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } finally {
       set({ _isRefreshingHostedSession: false });
     }
+  },
+
+  restoreHostedSession: async () => {
+    const { session, hostedSession } = get();
+
+    // Skip if already hosting
+    if (hostedSession) {
+      log.debug("Skipping restore: already hosting a session");
+      return;
+    }
+
+    // Skip if no session exists
+    if (!session) {
+      log.debug("Skipping restore: no active session");
+      return;
+    }
+
+    // Skip if user is not authenticated
+    const { isAuthenticated } = useAuthStore.getState();
+    if (!isAuthenticated) {
+      log.debug("Skipping restore: user not authenticated");
+      return;
+    }
+
+    log.debug("Attempting to restore hosted session");
+    // Actual restoration logic will be added in restore-2
   },
 
   openHostModal: () => {

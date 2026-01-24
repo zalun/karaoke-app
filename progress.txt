@@ -25,3 +25,13 @@
 - Unit tests already exist and pass (2 tests for this function)
 - Files changed: ralph/reopen-hosted-session.json (marked passes: true)
 - All 307 tests pass, typecheck passes, lint passes
+
+## restore-1: Add restoreHostedSession() action to sessionStore.ts
+- Added restoreHostedSession action to SessionState interface
+- Implemented restoreHostedSession() with skip conditions: already hosting, no session, not authenticated
+- Added call to restoreHostedSession() at end of loadSession() after session is loaded
+- Added useAuthStore import to check authentication status
+- Added 4 unit tests covering skip conditions and loadSession integration
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts
+- Note: Actual restoration logic (API calls, polling) will be added in restore-2
+- All 311 tests pass, typecheck passes, lint passes
