@@ -80,31 +80,42 @@ Add toggle button next to Fair Shuffle button:
 
 ## Fair Position Algorithm
 
-For a new song by Singer A with current queue state `{A: 2, B: 1, C: 1}`:
+**Rule:** Insert new song after all singers have sung at least N+1 times, where N = singer's current song count.
 
-1. A has 2 songs (most), so A should wait for others to catch up
-2. Position = after all singers with count < A's count have had their next turn
-3. Simplified formula: Insert at position where A's (count+1)th song would appear in a fair rotation
+### Algorithm
 
-**Logic:**
-- Count songs per singer in current queue
-- New song's singer count = N
-- Find the position after N complete "rounds" of all active singers
-- This ensures fair rotation without reshuffling existing items
+1. Count how many songs singer X already has in queue: `N`
+2. Iterate through queue, tracking each singer's cumulative song count
+3. Find the first position where ALL singers have sung at least `N+1` times (round N+1 complete)
+4. Insert X right after that position
+5. If round N+1 doesn't exist (queue ends first), append to end
+
+### Examples
+
+| Queue | Adding X | X count | Round to complete | Insert at | Result |
+|-------|----------|---------|-------------------|-----------|--------|
+| `ABCABCABC` | X (new) | 0 | Round 1 ends at pos 2 | 3 | `ABCXABCABC` |
+| `AAABCABBC` | X (new) | 0 | Round 1 ends at pos 4 | 5 | `AAABCXABBC` |
+| `ABCADAB` | X (new) | 0 | Round 1 ends at pos 4 (D) | 5 | `ABCADXAB` |
+| `ABCXABCABC` | X | 1 | Round 2 ends at pos 6 | 7 | `ABCXABCXABC` |
+| `ABXABX` | X | 2 | Round 3 doesn't exist | end | `ABXABXX` |
+| `AAA` | X (new) | 0 | Round 1 ends at pos 0 | 1 | `AXAA` |
+
+### Edge Cases
+
+- **Unassigned songs**: Treated as a separate "singer" group
+- **Empty queue**: Insert at position 0
+- **Singer has most/tied songs**: Append to end (their round doesn't exist yet)
 
 ## Verification
 
 1. Enable Fair Queue toggle
-2. Set active singer to "Alice"
-3. Add song → should appear at top (Alice has 0 songs)
-4. Add another song for Alice → should appear after other singers' songs
-5. Switch to "Bob", add song → should appear at position based on Bob's count
-6. Disable toggle → songs append to end as before
-7. Run E2E tests: `just e2e`
+2. Add songs for different singers and verify insertion positions match examples above
+3. Disable toggle → songs append to end as before
+4. Run E2E tests: `just e2e`
 
 ## Notes
 
 - Toggle state persists via settings store (SQLite)
-- Only affects new songs; existing queue untouched
-- Works with unassigned songs (treated as separate "singer")
-- Duets: use MAX singer count (consistent with fair shuffle algorithm)
+- Only affects new songs; existing queue order preserved
+- Unassigned songs treated as separate "singer" group

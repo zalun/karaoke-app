@@ -53,6 +53,10 @@ build-arm:
 build-intel:
     npm run tauri build -- --target x86_64-apple-darwin
 
+# Run local app
+run:
+    open ./src-tauri/target/release/bundle/macos/HomeKaraoke.app
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TESTING - UNIT TESTS
 # ══════════════════════════════════════════════════════════════════════════════
