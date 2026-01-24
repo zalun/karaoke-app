@@ -192,5 +192,103 @@ describe("queueStore fair queue functionality", () => {
         expect(queue[2].id).toBe(item.id);
       });
     });
+
+    it("should not reshuffle existing queue items when adding a new song (PRD-008)", async () => {
+      // Pre-populate queue with songs from different singers (simulated by their IDs)
+      // Representing: Singer A song, Singer B song, Singer C song
+      const existingQueue = [
+        { id: "song-a1", video: { ...mockVideo, id: "v-a1", title: "Song A1" }, addedAt: new Date() },
+        { id: "song-b1", video: { ...mockVideo, id: "v-b1", title: "Song B1" }, addedAt: new Date() },
+        { id: "song-c1", video: { ...mockVideo, id: "v-c1", title: "Song C1" }, addedAt: new Date() },
+      ];
+
+      useQueueStore.setState({ queue: existingQueue });
+
+      // Record original order of existing items
+      const originalOrder = existingQueue.map((item) => item.id);
+
+      // Set active singer (Singer A wants to add another song)
+      useSessionStore.setState({ activeSingerId: 1 }); // Singer A
+
+      // Fair position algorithm returns position 2 (after B and C get a turn)
+      // Queue should become: [A1, B1, A2, C1] - but existing A1, B1, C1 stay in place
+      vi.mocked(queueService.computeFairPosition).mockResolvedValue(2);
+
+      // Add new song for Singer A
+      const { addToQueue } = useQueueStore.getState();
+      const newSong: Video = { ...mockVideo, id: "v-a2", title: "Song A2" };
+      const addedItem = addToQueue(newSong);
+
+      // Wait for fair queue positioning to complete
+      await vi.waitFor(() => {
+        expect(queueService.reorder).toHaveBeenCalledWith(addedItem.id, 2);
+      });
+
+      // Verify existing items maintain their relative order
+      await vi.waitFor(() => {
+        const queue = useQueueStore.getState().queue;
+
+        // Filter to only the original items
+        const existingItemsInQueue = queue.filter((item) => originalOrder.includes(item.id));
+
+        // Verify all original items are still present
+        expect(existingItemsInQueue).toHaveLength(3);
+
+        // Verify the relative order of existing items is preserved
+        const existingItemOrder = existingItemsInQueue.map((item) => item.id);
+        expect(existingItemOrder).toEqual(originalOrder);
+
+        // Verify the new item was inserted (total should be 4)
+        expect(queue).toHaveLength(4);
+
+        // Verify the new item is at position 2
+        expect(queue[2].id).toBe(addedItem.id);
+      });
+    });
+
+    it("should preserve existing item positions when new singer's song goes to top (PRD-008)", async () => {
+      // Queue has songs from Singer A and Singer B
+      const existingQueue = [
+        { id: "song-a1", video: { ...mockVideo, id: "v-a1", title: "Song A1" }, addedAt: new Date() },
+        { id: "song-b1", video: { ...mockVideo, id: "v-b1", title: "Song B1" }, addedAt: new Date() },
+        { id: "song-a2", video: { ...mockVideo, id: "v-a2", title: "Song A2" }, addedAt: new Date() },
+      ];
+
+      useQueueStore.setState({ queue: existingQueue });
+
+      // Record original order
+      const originalOrder = existingQueue.map((item) => item.id);
+
+      // New singer C (with 0 songs) should go to top
+      useSessionStore.setState({ activeSingerId: 3 }); // Singer C
+      vi.mocked(queueService.computeFairPosition).mockResolvedValue(0);
+
+      const { addToQueue } = useQueueStore.getState();
+      const newSong: Video = { ...mockVideo, id: "v-c1", title: "Song C1" };
+      const addedItem = addToQueue(newSong);
+
+      // Wait for fair queue positioning to complete
+      await vi.waitFor(() => {
+        expect(queueService.reorder).toHaveBeenCalledWith(addedItem.id, 0);
+      });
+
+      // Verify existing items are shifted but maintain relative order
+      await vi.waitFor(() => {
+        const queue = useQueueStore.getState().queue;
+
+        // New item should be at position 0
+        expect(queue[0].id).toBe(addedItem.id);
+
+        // Existing items should be shifted down by 1 but maintain relative order
+        const existingItemsInQueue = queue.filter((item) => originalOrder.includes(item.id));
+        const existingItemOrder = existingItemsInQueue.map((item) => item.id);
+        expect(existingItemOrder).toEqual(originalOrder);
+
+        // Verify positions: new item at 0, then A1, B1, A2 at 1, 2, 3
+        expect(queue[1].id).toBe("song-a1");
+        expect(queue[2].id).toBe("song-b1");
+        expect(queue[3].id).toBe("song-a2");
+      });
+    });
   });
 });

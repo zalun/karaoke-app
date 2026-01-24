@@ -102,7 +102,7 @@
         "Verify songs B and C positions are unchanged",
         "Only the new song's position is calculated fairly"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-009",

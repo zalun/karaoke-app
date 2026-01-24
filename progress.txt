@@ -119,3 +119,27 @@ Files changed:
 - src/App.tsx (added ListOrdered import, Fair Queue toggle button, toggleFairQueue handler)
 - ralph/permanent-shuffle.json (marked PRD-006 and PRD-007 passes: true)
 
+## PRD-008: Integration - Fair Queue preserves existing queue order
+
+Status: COMPLETE
+
+Implemented:
+- Added 2 unit tests to queueStore.fairQueue.test.ts verifying existing items not reshuffled
+- test: "should not reshuffle existing queue items when adding a new song (PRD-008)"
+  - Pre-populates queue with A1, B1, C1
+  - Adds new song for Singer A at fair position 2
+  - Verifies A1, B1, C1 maintain relative order
+- test: "should preserve existing item positions when new singer's song goes to top (PRD-008)"
+  - Pre-populates queue with A1, B1, A2
+  - New singer C goes to position 0 (top)
+  - Verifies A1, B1, A2 shifted down but relative order preserved
+
+Verified:
+- npx tsc -b --noEmit: passes
+- npm run test:run: 296 passed (9 fair queue tests now)
+- npm run lint: passes
+
+Files changed:
+- src/stores/queueStore.fairQueue.test.ts (added 2 PRD-008 tests)
+- ralph/permanent-shuffle.json (marked PRD-008 passes: true)
+
