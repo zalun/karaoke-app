@@ -99,10 +99,15 @@ interface PendingHttpRequest {
   authToken?: string;
 }
 
+/**
+ * Type definitions for HTTP mock window globals.
+ * These are used inside addInitScript where window is available.
+ */
 interface HttpMockGlobals {
   __PENDING_HTTP_REQUESTS__?: Map<number, PendingHttpRequest>;
   __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array>;
   __HTTP_BODIES_READ__?: Set<number>;
+  __HTTP_NEXT_RID__?: number;
   __HOSTED_SESSION_CREATED__?: boolean;
   __HOSTED_SESSION_CODE__?: string;
   __HOSTED_SESSION_ID__?: string;
@@ -123,6 +128,40 @@ export async function injectTauriMocks(
   await page.addInitScript((mockConfig) => {
     // Store mock config globally for access in handlers
     (window as unknown as { __TAURI_MOCK_CONFIG__: typeof mockConfig }).__TAURI_MOCK_CONFIG__ = mockConfig;
+
+    // --- HTTP Mock Helper Functions ---
+    // These must be defined inside addInitScript where window is available
+
+    interface HttpMockGlobalsInternal {
+      __PENDING_HTTP_REQUESTS__?: Map<number, { method: string; url: string; body: number[] | null; authToken?: string }>;
+      __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array>;
+      __HTTP_BODIES_READ__?: Set<number>;
+      __HTTP_NEXT_RID__?: number;
+      __HOSTED_SESSION_CREATED__?: boolean;
+      __HOSTED_SESSION_CODE__?: string;
+      __HOSTED_SESSION_ID__?: string;
+      __HOSTED_SESSION_STOPPED__?: boolean;
+    }
+
+    /** Helper to get typed access to HTTP mock globals */
+    function getHttpMockGlobals(): HttpMockGlobalsInternal {
+      return window as unknown as HttpMockGlobalsInternal;
+    }
+
+    /** Get next unique request ID (avoids collisions vs random) */
+    function getNextRid(): number {
+      const globals = getHttpMockGlobals();
+      const rid = globals.__HTTP_NEXT_RID__ ?? 1;
+      globals.__HTTP_NEXT_RID__ = rid + 1;
+      return rid;
+    }
+
+    /** Clean up HTTP mock resources for a given request ID */
+    function cleanupHttpResources(rid: number): void {
+      const globals = getHttpMockGlobals();
+      globals.__HTTP_RESPONSE_BODIES__?.delete(rid);
+      globals.__HTTP_BODIES_READ__?.delete(rid);
+    }
 
     // Default settings matching SETTINGS_DEFAULTS from settingsStore.ts
     const defaultSettings: Record<string, string> = {
@@ -545,18 +584,19 @@ export async function injectTauriMocks(
             console.log(`[Tauri Mock] HTTP fetch init: ${method} ${url}`);
 
             // Store the pending request for fetch_send
-            const rid = Math.floor(Math.random() * 1000000);
-            const pendingRequests = (window as unknown as { __PENDING_HTTP_REQUESTS__?: Map<number, { method: string; url: string; body: number[] | null; authToken?: string }> }).__PENDING_HTTP_REQUESTS__ || new Map();
+            const globals = getHttpMockGlobals();
+            const rid = getNextRid();
+            const pendingRequests = globals.__PENDING_HTTP_REQUESTS__ || new Map();
             pendingRequests.set(rid, { method, url, body: clientConfig.data, authToken });
-            (window as unknown as { __PENDING_HTTP_REQUESTS__: Map<number, { method: string; url: string; body: number[] | null; authToken?: string }> }).__PENDING_HTTP_REQUESTS__ = pendingRequests;
+            globals.__PENDING_HTTP_REQUESTS__ = pendingRequests;
 
             return rid;
           }
 
           case "plugin:http|fetch_send": {
             const rid = (args as { rid: number }).rid;
-            const pendingRequests = (window as unknown as { __PENDING_HTTP_REQUESTS__?: Map<number, { method: string; url: string; body: number[] | null; authToken?: string }> }).__PENDING_HTTP_REQUESTS__;
-            const request = pendingRequests?.get(rid);
+            const globals = getHttpMockGlobals();
+            const request = globals.__PENDING_HTTP_REQUESTS__?.get(rid);
 
             if (!request) {
               throw new Error("Request not found");
@@ -572,16 +612,17 @@ export async function injectTauriMocks(
             // Handle hosted session API endpoints
             if (url.includes("homekaraoke.app/api/session")) {
               // Validate Authorization header for session endpoints
+              // Note: Mock only validates Bearer prefix, not token content
               if (!authToken?.startsWith("Bearer ")) {
                 status = 401;
                 statusText = "Unauthorized";
                 responseBody = JSON.stringify({ error: "Missing or invalid authorization token" });
 
                 // Store response and return early
-                const responseRid = Math.floor(Math.random() * 1000000);
-                const responseBodies = (window as unknown as { __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array> }).__HTTP_RESPONSE_BODIES__ || new Map();
+                const responseRid = getNextRid();
+                const responseBodies = globals.__HTTP_RESPONSE_BODIES__ || new Map();
                 responseBodies.set(responseRid, new TextEncoder().encode(responseBody));
-                (window as unknown as { __HTTP_RESPONSE_BODIES__: Map<number, Uint8Array> }).__HTTP_RESPONSE_BODIES__ = responseBodies;
+                globals.__HTTP_RESPONSE_BODIES__ = responseBodies;
 
                 return {
                   status,
@@ -605,9 +646,10 @@ export async function injectTauriMocks(
                   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
                   // Track state for test assertions
-                  (window as unknown as { __HOSTED_SESSION_CREATED__: boolean }).__HOSTED_SESSION_CREATED__ = true;
-                  (window as unknown as { __HOSTED_SESSION_CODE__: string }).__HOSTED_SESSION_CODE__ = sessionCode;
-                  (window as unknown as { __HOSTED_SESSION_ID__: string }).__HOSTED_SESSION_ID__ = sessionId;
+                  const sessionGlobals = getHttpMockGlobals();
+                  sessionGlobals.__HOSTED_SESSION_CREATED__ = true;
+                  sessionGlobals.__HOSTED_SESSION_CODE__ = sessionCode;
+                  sessionGlobals.__HOSTED_SESSION_ID__ = sessionId;
 
                   responseBody = JSON.stringify({
                     session_id: sessionId,
@@ -620,8 +662,9 @@ export async function injectTauriMocks(
               }
               // GET /api/session/[id] - Get session stats
               else if (url.match(/\/api\/session\/[^/]+$/) && method === "GET") {
-                const sessionId = (window as unknown as { __HOSTED_SESSION_ID__?: string }).__HOSTED_SESSION_ID__;
-                const sessionCode = (window as unknown as { __HOSTED_SESSION_CODE__?: string }).__HOSTED_SESSION_CODE__;
+                const statsGlobals = getHttpMockGlobals();
+                const sessionId = statsGlobals.__HOSTED_SESSION_ID__;
+                const sessionCode = statsGlobals.__HOSTED_SESSION_CODE__;
 
                 if (!sessionId || !sessionCode) {
                   status = 404;
@@ -638,7 +681,7 @@ export async function injectTauriMocks(
               }
               // DELETE /api/session/[id] - End session
               else if (url.match(/\/api\/session\/[^/]+$/) && method === "DELETE") {
-                (window as unknown as { __HOSTED_SESSION_STOPPED__: boolean }).__HOSTED_SESSION_STOPPED__ = true;
+                getHttpMockGlobals().__HOSTED_SESSION_STOPPED__ = true;
                 responseBody = "{}";
               }
             } else {
@@ -649,10 +692,10 @@ export async function injectTauriMocks(
             }
 
             // Store response body for fetch_read_body
-            const responseRid = Math.floor(Math.random() * 1000000);
-            const responseBodies = (window as unknown as { __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array> }).__HTTP_RESPONSE_BODIES__ || new Map();
+            const responseRid = getNextRid();
+            const responseBodies = globals.__HTTP_RESPONSE_BODIES__ || new Map();
             responseBodies.set(responseRid, new TextEncoder().encode(responseBody));
-            (window as unknown as { __HTTP_RESPONSE_BODIES__: Map<number, Uint8Array> }).__HTTP_RESPONSE_BODIES__ = responseBodies;
+            globals.__HTTP_RESPONSE_BODIES__ = responseBodies;
 
             return {
               status,
@@ -670,26 +713,27 @@ export async function injectTauriMocks(
            */
           case "plugin:http|fetch_read_body": {
             const rid = (args as { rid: number }).rid;
-            const bodies = (window as unknown as { __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array> }).__HTTP_RESPONSE_BODIES__;
-            const bodiesRead = (window as unknown as { __HTTP_BODIES_READ__?: Set<number> }).__HTTP_BODIES_READ__ || new Set();
-            (window as unknown as { __HTTP_BODIES_READ__: Set<number> }).__HTTP_BODIES_READ__ = bodiesRead;
+            const bodyGlobals = getHttpMockGlobals();
+            const body = bodyGlobals.__HTTP_RESPONSE_BODIES__?.get(rid);
 
-            const body = bodies?.get(rid);
+            // Body not found or already cleaned up
+            if (!body) {
+              return [1]; // Signal end of body
+            }
 
-            if (body && !bodiesRead.has(rid)) {
+            const bodiesRead = bodyGlobals.__HTTP_BODIES_READ__ || new Set();
+            bodyGlobals.__HTTP_BODIES_READ__ = bodiesRead;
+
+            if (!bodiesRead.has(rid)) {
               // First call: return body data with trailing 0 (more data coming)
               bodiesRead.add(rid);
               const result = new Uint8Array(body.length + 1);
               result.set(body);
               result[body.length] = 0; // Signal more data may come
               return Array.from(result);
-            } else if (body && bodiesRead.has(rid)) {
-              // Second call: cleanup and return end signal
-              bodies?.delete(rid);
-              bodiesRead.delete(rid);
-              return [1]; // Signal end of body
             } else {
-              // Body already cleaned up or never existed
+              // Second call: cleanup and return end signal
+              cleanupHttpResources(rid);
               return [1]; // Signal end of body
             }
           }
@@ -879,7 +923,11 @@ export async function injectTauriMocks(
       open: async () => {},
     };
 
-    // Mock clipboard API for tests (needed for copy buttons to work)
+    // Browser API mocks needed for E2E tests
+    // Clipboard API is mocked here (rather than in a separate function) because:
+    // 1. It's needed alongside Tauri mocks for copy buttons in hosted session modal
+    // 2. Must be injected before page load via addInitScript
+    // 3. Playwright's context.grantPermissions doesn't work reliably for clipboard
     const mockClipboard = {
       writeText: async (_text: string) => {
         console.log("[Tauri Mock] Clipboard writeText:", _text);
@@ -893,13 +941,35 @@ export async function injectTauriMocks(
         writable: true,
         configurable: true,
       });
-    } catch {
-      // If defineProperty fails, try direct assignment
+    } catch (e) {
+      // If defineProperty fails (some browsers), try direct assignment
+      console.warn("[Tauri Mock] Failed to defineProperty clipboard, using direct assignment", e);
       (navigator as unknown as { clipboard: typeof mockClipboard }).clipboard = mockClipboard;
     }
 
     console.log("[Tauri Mock] Tauri APIs mocked successfully");
   }, config);
+}
+
+/**
+ * Clean up HTTP mock resources after tests.
+ * Call this in test.afterEach to prevent memory leaks during long test runs.
+ *
+ * @param page - Playwright Page object
+ */
+export async function cleanupHttpMocks(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const globals = window as unknown as {
+      __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array>;
+      __PENDING_HTTP_REQUESTS__?: Map<number, unknown>;
+      __HTTP_BODIES_READ__?: Set<number>;
+      __HTTP_NEXT_RID__?: number;
+    };
+    globals.__HTTP_RESPONSE_BODIES__?.clear();
+    globals.__PENDING_HTTP_REQUESTS__?.clear();
+    globals.__HTTP_BODIES_READ__?.clear();
+    globals.__HTTP_NEXT_RID__ = 1;
+  });
 }
 
 /**
