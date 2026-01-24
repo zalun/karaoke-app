@@ -410,7 +410,8 @@
         "Load the session",
         "Verify hosted fields are preserved"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added 4 unit tests verifying preservation on token refresh failure: 1) preserves hosted_session_id/hosted_by_user_id/hosted_session_status when refreshTokenIfNeeded returns null, 2) preserves fields when refresh returns still-expired token, 3) does not update DB status on failure, 4) shows no notification (silent failure). Implementation at sessionStore.ts:835-844 already returns early without modifying hosted fields when refresh fails."
     },
     {
       "id": "E2E-001",

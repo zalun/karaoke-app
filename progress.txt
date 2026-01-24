@@ -368,3 +368,15 @@
   - preserves hosted fields after refresh+restore
 - Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
 - All 433 tests pass, lint passes, typecheck passes
+
+## EDGE-004: Token refresh failure preserves fields
+- Implementation already existed at sessionStore.ts:835-844
+- restoreHostedSession() returns early when refreshTokenIfNeeded returns null or still-expired token
+- Early return does NOT modify any hosted fields - they remain in session state unchanged
+- Added 4 new unit tests:
+  - preserve hosted fields when refreshTokenIfNeeded returns null
+  - preserve hosted fields when refreshed token is still expired
+  - NOT update DB status on token refresh failure
+  - NOT show notification on token refresh failure (silent failure for retry)
+- Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
+- All 437 tests pass, lint passes, just check passes
