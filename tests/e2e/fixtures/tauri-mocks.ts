@@ -90,6 +90,26 @@ export interface TauriMockConfig {
 }
 
 /**
+ * Type definitions for HTTP mock window globals
+ */
+interface PendingHttpRequest {
+  method: string;
+  url: string;
+  body: number[] | null;
+  authToken?: string;
+}
+
+interface HttpMockGlobals {
+  __PENDING_HTTP_REQUESTS__?: Map<number, PendingHttpRequest>;
+  __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array>;
+  __HTTP_BODIES_READ__?: Set<number>;
+  __HOSTED_SESSION_CREATED__?: boolean;
+  __HOSTED_SESSION_CODE__?: string;
+  __HOSTED_SESSION_ID__?: string;
+  __HOSTED_SESSION_STOPPED__?: boolean;
+}
+
+/**
  * Inject Tauri API mocks into the page before navigating.
  * This must be called before `page.goto()`.
  *
@@ -516,28 +536,33 @@ export async function injectTauriMocks(
             const clientConfig = (args as { clientConfig: { method: string; url: string; headers: [string, string][]; data: number[] | null } }).clientConfig;
             const url = clientConfig.url;
             const method = clientConfig.method || "GET";
+            const headers = clientConfig.headers || [];
+
+            // Extract Authorization header for validation
+            const authHeader = headers.find(([key]) => key.toLowerCase() === "authorization");
+            const authToken = authHeader?.[1];
 
             console.log(`[Tauri Mock] HTTP fetch init: ${method} ${url}`);
 
             // Store the pending request for fetch_send
             const rid = Math.floor(Math.random() * 1000000);
-            const pendingRequests = (window as unknown as { __PENDING_HTTP_REQUESTS__?: Map<number, { method: string; url: string; body: number[] | null }> }).__PENDING_HTTP_REQUESTS__ || new Map();
-            pendingRequests.set(rid, { method, url, body: clientConfig.data });
-            (window as unknown as { __PENDING_HTTP_REQUESTS__: Map<number, { method: string; url: string; body: number[] | null }> }).__PENDING_HTTP_REQUESTS__ = pendingRequests;
+            const pendingRequests = (window as unknown as { __PENDING_HTTP_REQUESTS__?: Map<number, { method: string; url: string; body: number[] | null; authToken?: string }> }).__PENDING_HTTP_REQUESTS__ || new Map();
+            pendingRequests.set(rid, { method, url, body: clientConfig.data, authToken });
+            (window as unknown as { __PENDING_HTTP_REQUESTS__: Map<number, { method: string; url: string; body: number[] | null; authToken?: string }> }).__PENDING_HTTP_REQUESTS__ = pendingRequests;
 
             return rid;
           }
 
           case "plugin:http|fetch_send": {
             const rid = (args as { rid: number }).rid;
-            const pendingRequests = (window as unknown as { __PENDING_HTTP_REQUESTS__?: Map<number, { method: string; url: string; body: number[] | null }> }).__PENDING_HTTP_REQUESTS__;
+            const pendingRequests = (window as unknown as { __PENDING_HTTP_REQUESTS__?: Map<number, { method: string; url: string; body: number[] | null; authToken?: string }> }).__PENDING_HTTP_REQUESTS__;
             const request = pendingRequests?.get(rid);
 
             if (!request) {
               throw new Error("Request not found");
             }
 
-            const { method, url } = request;
+            const { method, url, authToken } = request;
             console.log(`[Tauri Mock] HTTP fetch send: ${method} ${url}`);
 
             let responseBody = "{}";
@@ -546,6 +571,26 @@ export async function injectTauriMocks(
 
             // Handle hosted session API endpoints
             if (url.includes("homekaraoke.app/api/session")) {
+              // Validate Authorization header for session endpoints
+              if (!authToken?.startsWith("Bearer ")) {
+                status = 401;
+                statusText = "Unauthorized";
+                responseBody = JSON.stringify({ error: "Missing or invalid authorization token" });
+
+                // Store response and return early
+                const responseRid = Math.floor(Math.random() * 1000000);
+                const responseBodies = (window as unknown as { __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array> }).__HTTP_RESPONSE_BODIES__ || new Map();
+                responseBodies.set(responseRid, new TextEncoder().encode(responseBody));
+                (window as unknown as { __HTTP_RESPONSE_BODIES__: Map<number, Uint8Array> }).__HTTP_RESPONSE_BODIES__ = responseBodies;
+
+                return {
+                  status,
+                  statusText,
+                  url,
+                  headers: [["content-type", "application/json"]],
+                  rid: responseRid,
+                };
+              }
               // POST /api/session/create - Create hosted session
               if (url.endsWith("/api/session/create") && method === "POST") {
                 if (config.shouldFailHostSession) {
@@ -618,6 +663,11 @@ export async function injectTauriMocks(
             };
           }
 
+          /**
+           * Tauri's HTTP plugin streams response bodies in two calls:
+           * 1. First call returns body data with trailing 0 byte (more data signal)
+           * 2. Second call returns [1] (end of stream signal)
+           */
           case "plugin:http|fetch_read_body": {
             const rid = (args as { rid: number }).rid;
             const bodies = (window as unknown as { __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array> }).__HTTP_RESPONSE_BODIES__;
@@ -633,14 +683,15 @@ export async function injectTauriMocks(
               result.set(body);
               result[body.length] = 0; // Signal more data may come
               return Array.from(result);
-            }
-
-            // Second call or no body: return end signal and clean up
-            if (body) {
+            } else if (body && bodiesRead.has(rid)) {
+              // Second call: cleanup and return end signal
               bodies?.delete(rid);
               bodiesRead.delete(rid);
+              return [1]; // Signal end of body
+            } else {
+              // Body already cleaned up or never existed
+              return [1]; // Signal end of body
             }
-            return [1]; // Signal end of body
           }
 
           case "plugin:http|fetch_cancel":
