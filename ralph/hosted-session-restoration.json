@@ -230,7 +230,8 @@
         "Verify no API calls to verify hosted session",
         "Verify hosted fields are preserved"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added check in restoreHostedSession() for hosted_session_status === 'ended'. Returns early with debug log, skipping persisted ID lookup, auth token check, and API verification. Hosted fields remain preserved for reference. 3 unit tests: returns early if status is 'ended', preserves hosted fields when ended, no notification when ended."
     },
     {
       "id": "RESTORE-003",

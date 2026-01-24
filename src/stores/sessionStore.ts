@@ -775,6 +775,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return;
     }
 
+    // RESTORE-002: Skip if session status is 'ended'
+    // No need to verify with backend or attempt restoration - the user already stopped hosting
+    // Keep the hosted fields for reference (they can be overridden by hosting again)
+    if (session.hosted_session_status === "ended") {
+      log.debug("Skipping restore: hosted_session_status is 'ended'");
+      return;
+    }
+
     // Note: We don't check isAuthenticated here because of a race condition -
     // this function may be called before auth store finishes initializing.
     // Instead, we check for valid tokens below which is the actual requirement.

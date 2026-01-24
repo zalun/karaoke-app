@@ -978,6 +978,60 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(useSessionStore.getState().hostedSession).toBeNull();
     });
 
+    it("should return early if hosted_session_status is 'ended' (RESTORE-002)", async () => {
+      // Session with hosted_session_id but status='ended'
+      const sessionWithEndedStatus: Session = {
+        ...mockSession,
+        hosted_session_id: "old-session-id",
+        hosted_by_user_id: "user-1",
+        hosted_session_status: "ended",
+      };
+      useSessionStore.setState({ session: sessionWithEndedStatus, hostedSession: null });
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should not check for persisted ID or make API calls
+      expect(getPersistedSessionId).not.toHaveBeenCalled();
+      expect(authService.getTokens).not.toHaveBeenCalled();
+      expect(hostedSessionService.getSession).not.toHaveBeenCalled();
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+
+    it("should preserve hosted fields when status is 'ended' (RESTORE-002)", async () => {
+      // Session with hosted_session_id but status='ended'
+      const sessionWithEndedStatus: Session = {
+        ...mockSession,
+        hosted_session_id: "old-session-id",
+        hosted_by_user_id: "user-1",
+        hosted_session_status: "ended",
+      };
+      useSessionStore.setState({ session: sessionWithEndedStatus, hostedSession: null });
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Hosted fields should remain unchanged
+      const session = useSessionStore.getState().session;
+      expect(session?.hosted_session_id).toBe("old-session-id");
+      expect(session?.hosted_by_user_id).toBe("user-1");
+      expect(session?.hosted_session_status).toBe("ended");
+    });
+
+    it("should not show notification when status is 'ended' (RESTORE-002)", async () => {
+      // Session with hosted_session_id but status='ended'
+      const sessionWithEndedStatus: Session = {
+        ...mockSession,
+        hosted_session_id: "old-session-id",
+        hosted_by_user_id: "user-1",
+        hosted_session_status: "ended",
+      };
+      useSessionStore.setState({ session: sessionWithEndedStatus, hostedSession: null });
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // No notifications should be shown
+      expect(notify).not.toHaveBeenCalled();
+    });
+
     it("should return early if no persisted session ID exists and session has hosted_session_id", async () => {
       // Session with hosted_session_id but no persisted ID (will use hosted_session_id)
       const sessionWithHostedId: Session = {
