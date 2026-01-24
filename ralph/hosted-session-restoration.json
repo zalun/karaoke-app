@@ -302,7 +302,8 @@
         "Verify no restoration",
         "Verify hosted fields preserved"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "The early return for status='ended' in restoreHostedSession() (line 785-788) ensures no dialog is shown, no API calls are made, and hosted fields are preserved. This check happens before the user ownership check, so different users with ended status get the correct behavior. 4 unit tests: no dialog shown (existing), no API calls made, hosted fields preserved, no notification shown."
     },
     {
       "id": "RESTORE-008",

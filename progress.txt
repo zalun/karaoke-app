@@ -267,3 +267,16 @@
 - Updated resetStoreState() to include hostedSession, showHostModal, showHostedByOtherUserDialog
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, src/components/session/HostedByOtherUserDialog.tsx, src/components/session/index.ts, src/App.tsx, ralph/hosted-session-restoration.json
 - All 394 tests pass, typecheck passes, lint passes
+
+## RESTORE-007: Different user with ended status shows no dialog
+- Verified existing implementation handles this correctly:
+  - restoreHostedSession() returns early at line 785-788 when hosted_session_status === 'ended'
+  - This check happens BEFORE the user ownership check, so different users with ended status get correct behavior
+  - No dialog shown, no API calls made, hosted fields preserved
+- Added 3 new unit tests (1 existed already):
+  - no dialog shown (existing test at line 1236)
+  - no restoration attempt (no API calls)
+  - hosted fields preserved
+  - no notification shown
+- Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json
+- All 397 tests pass, typecheck passes, lint passes

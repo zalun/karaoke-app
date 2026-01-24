@@ -1251,6 +1251,64 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(useSessionStore.getState().showHostedByOtherUserDialog).toBe(false);
     });
 
+    it("should not attempt restoration for different user with ended status (RESTORE-007)", async () => {
+      // Session with hosted fields for a different user, ended status
+      // The 'ended' status check happens early in the flow (before user ownership check)
+      const sessionWithDifferentUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "different-user-id", // Different from mock user-1
+        hosted_session_status: "ended",
+      };
+      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should NOT make any API calls - restoration skipped due to 'ended' status
+      expect(hostedSessionService.getSession).not.toHaveBeenCalled();
+      expect(getPersistedSessionId).not.toHaveBeenCalled();
+      // Should NOT set hostedSession
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+
+    it("should preserve hosted fields for different user with ended status (RESTORE-007)", async () => {
+      // Session with hosted fields for a different user, ended status
+      const sessionWithDifferentUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "different-user-id",
+        hosted_session_status: "ended",
+      };
+      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Hosted fields should be preserved (not cleared)
+      const session = useSessionStore.getState().session;
+      expect(session?.hosted_session_id).toBe("session-123");
+      expect(session?.hosted_by_user_id).toBe("different-user-id");
+      expect(session?.hosted_session_status).toBe("ended");
+    });
+
+    it("should not show notification for different user with ended status (RESTORE-007)", async () => {
+      // Session with hosted fields for a different user, ended status
+      const sessionWithDifferentUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "different-user-id",
+        hosted_session_status: "ended",
+      };
+      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // No notification should be shown (silent skip)
+      expect(notify).not.toHaveBeenCalled();
+    });
+
     it("should skip restore when user profile not loaded", async () => {
       // Session with hosted fields
       const sessionWithHostedFields: Session = {
