@@ -330,7 +330,8 @@
         "Load the session",
         "Verify hosted_session_status updated to 'ended'"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Updated restoreHostedSession() error handling to call sessionService.updateHostedSessionStatus(session.id, 'ended') and update local session state when 401 or 403 errors occur. 404 errors only clear persisted ID without updating status (session may have never existed on this backend). 5 unit tests added: update DB status on 401, update local state on 401, update DB status on 403, update local state on 403, NOT update status on 404."
     },
     {
       "id": "UI-001",

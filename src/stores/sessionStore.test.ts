@@ -1681,6 +1681,78 @@ describe("sessionStore - Hosted Session Restoration", () => {
       // Should not show any notification on network error (silent failure)
       expect(notify).not.toHaveBeenCalled();
     });
+
+    it("should update hosted_session_status to 'ended' on 401 error (RESTORE-009)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("401 UNAUTHORIZED"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should update status to 'ended' in DB
+      expect(sessionService.updateHostedSessionStatus).toHaveBeenCalledWith(1, "ended");
+    });
+
+    it("should update local session state to 'ended' on 401 error (RESTORE-009)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("401 UNAUTHORIZED"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Local session state should have status='ended'
+      const session = useSessionStore.getState().session;
+      expect(session?.hosted_session_status).toBe("ended");
+      // Other hosted fields should be preserved
+      expect(session?.hosted_session_id).toBe("session-123");
+      expect(session?.hosted_by_user_id).toBe("user-1");
+    });
+
+    it("should update hosted_session_status to 'ended' on 403 error (RESTORE-009)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("403 Forbidden"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should update status to 'ended' in DB
+      expect(sessionService.updateHostedSessionStatus).toHaveBeenCalledWith(1, "ended");
+    });
+
+    it("should update local session state to 'ended' on 403 error (RESTORE-009)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("403 Forbidden"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Local session state should have status='ended'
+      const session = useSessionStore.getState().session;
+      expect(session?.hosted_session_status).toBe("ended");
+      // Other hosted fields should be preserved
+      expect(session?.hosted_session_id).toBe("session-123");
+      expect(session?.hosted_by_user_id).toBe("user-1");
+    });
+
+    it("should NOT update hosted_session_status on 404 error (RESTORE-009)", async () => {
+      // 404 means session not found - we clear persisted ID but don't update status
+      // because the session may never have existed on this backend
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("404 NOT_FOUND"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should NOT update status for 404 errors
+      expect(sessionService.updateHostedSessionStatus).not.toHaveBeenCalled();
+      // Persisted ID should still be cleared
+      expect(clearPersistedSessionId).toHaveBeenCalled();
+    });
   });
 });
 

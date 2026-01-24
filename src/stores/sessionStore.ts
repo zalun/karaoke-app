@@ -891,6 +891,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (shouldClear) {
         log.debug("Clearing invalid persisted session ID");
         await clearPersistedSessionId();
+
+        // RESTORE-009: Update hosted_session_status to 'ended' on 401/403 errors
+        // This prevents retry attempts for sessions that are no longer accessible
+        if (message.includes("401") || message.includes("403") || message.includes("UNAUTHORIZED")) {
+          log.debug("Updating hosted session status to 'ended' due to auth error");
+          await sessionService.updateHostedSessionStatus(session.id, "ended");
+          set({ session: { ...session, hosted_session_status: "ended" } });
+        }
       }
       // Don't show error to user - silent cleanup for expected scenarios
     }
