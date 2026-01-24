@@ -50,3 +50,12 @@
 - Added 10 new unit tests covering all restoration scenarios
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, src/services/index.ts
 - All 321 tests pass, typecheck passes, lint passes
+
+## restore-3: Add tests for notification on successful reconnect
+- Implementation already existed at sessionStore.ts:749 - notify("success", "Reconnected to hosted session")
+- Added 3 new unit tests to verify notification behavior:
+  1. "should show success notification on successful reconnect"
+  2. "should not show notification when no session to restore"
+  3. 3 tests for "should not show error notification on [404/401/403] error (expected cleanup)"
+- Files changed: src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
+- All 326 tests pass, typecheck passes, lint passes

@@ -75,7 +75,7 @@
         "Notification only appears when session is successfully restored",
         "No notification shown when no session to restore"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "restore-4",

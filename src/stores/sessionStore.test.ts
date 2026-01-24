@@ -102,6 +102,7 @@ function createMockQueueState(overrides?: {
 import { sessionService, hostedSessionService, getPersistedSessionId, clearPersistedSessionId } from "../services";
 import { authService } from "../services/auth";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
+import { notify } from "./notificationStore";
 
 const mockSession: Session = {
   id: 1,
@@ -977,6 +978,26 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(useSessionStore.getState().hostedSession).toEqual(mockHostedSession);
     });
 
+    it("should show success notification on successful reconnect", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue(mockHostedSession);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      expect(notify).toHaveBeenCalledWith("success", "Reconnected to hosted session");
+    });
+
+    it("should not show notification when no session to restore", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue(null);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      expect(notify).not.toHaveBeenCalled();
+    });
+
     it("should start polling after successful restoration", async () => {
       useSessionStore.setState({ session: mockSession, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
@@ -1023,6 +1044,18 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(useSessionStore.getState().hostedSession).toBeNull();
     });
 
+    it("should not show error notification on 404 error (expected cleanup)", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("Failed to get session: 404 NOT_FOUND"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // No error notification should be shown for expected cleanup scenarios
+      expect(notify).not.toHaveBeenCalled();
+    });
+
     it("should clear persisted ID on 401 error (unauthorized)", async () => {
       useSessionStore.setState({ session: mockSession, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
@@ -1035,6 +1068,18 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(useSessionStore.getState().hostedSession).toBeNull();
     });
 
+    it("should not show error notification on 401 error (expected cleanup)", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("401 UNAUTHORIZED"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // No error notification should be shown for expected cleanup scenarios
+      expect(notify).not.toHaveBeenCalled();
+    });
+
     it("should clear persisted ID on 403 error (forbidden)", async () => {
       useSessionStore.setState({ session: mockSession, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
@@ -1045,6 +1090,18 @@ describe("sessionStore - Hosted Session Restoration", () => {
 
       expect(clearPersistedSessionId).toHaveBeenCalled();
       expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+
+    it("should not show error notification on 403 error (expected cleanup)", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("403 Forbidden"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // No error notification should be shown for expected cleanup scenarios
+      expect(notify).not.toHaveBeenCalled();
     });
 
     it("should not clear persisted ID on network error (transient failure)", async () => {
