@@ -75,3 +75,16 @@
   - "should not clear persisted ID on network error (transient failure)"
 - Files changed: ralph/reopen-hosted-session.json, progress.txt
 - All 326 tests pass, typecheck passes, lint passes
+
+## host-1: hostSession() persists session ID after successful creation
+- Added persistSessionId import to sessionStore.ts
+- Added call to persistSessionId(hostedSession.id) in hostSession() after createHostedSession succeeds
+- Added 9 unit tests for hostSession() including:
+  - Error cases: no session, not authenticated, token expired
+  - Success case: creates session and persists ID
+  - Verifies call order: persistSessionId called after createHostedSession
+  - Opens host modal, starts polling interval
+  - Clears existing polling interval before starting new one
+  - Passes session name correctly (named and unnamed sessions)
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
+- All 336 tests pass, typecheck passes, lint passes

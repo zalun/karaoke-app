@@ -3,6 +3,7 @@ import {
   createLogger,
   sessionService,
   hostedSessionService,
+  persistSessionId,
   getPersistedSessionId,
   clearPersistedSessionId,
   type Singer,
@@ -552,6 +553,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         tokens.access_token,
         session.name ?? undefined
       );
+
+      // Persist the session ID for app restart recovery
+      await persistSessionId(hostedSession.id);
 
       // Clear any existing polling interval
       const existingInterval = get()._hostedSessionPollInterval;

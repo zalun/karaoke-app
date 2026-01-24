@@ -99,7 +99,7 @@ function createMockQueueState(overrides?: {
 }
 
 // Import mocked modules
-import { sessionService, hostedSessionService, getPersistedSessionId, clearPersistedSessionId } from "../services";
+import { sessionService, hostedSessionService, persistSessionId, getPersistedSessionId, clearPersistedSessionId } from "../services";
 import { authService } from "../services/auth";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
 import { notify } from "./notificationStore";
@@ -1115,6 +1115,176 @@ describe("sessionStore - Hosted Session Restoration", () => {
       // Should NOT clear persisted ID on network errors
       expect(clearPersistedSessionId).not.toHaveBeenCalled();
       expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+  });
+});
+
+describe("sessionStore - Host Session", () => {
+  const mockCreatedSession = {
+    id: "new-session-123",
+    sessionCode: "HK-NEW-5678",
+    joinUrl: "https://homekaraoke.app/join/HK-NEW-5678",
+    qrCodeUrl: "https://example.com/qr",
+    status: "active" as const,
+    stats: { pendingRequests: 0, approvedRequests: 0, totalGuests: 0 },
+  };
+
+  const mockTokens = {
+    access_token: "valid-access-token",
+    refresh_token: "refresh-token",
+    expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+  };
+
+  beforeEach(() => {
+    resetStoreState();
+    vi.clearAllMocks();
+  });
+
+  describe("hostSession", () => {
+    it("should throw error when no active session exists", async () => {
+      useSessionStore.setState({ session: null, hostedSession: null });
+
+      await expect(useSessionStore.getState().hostSession()).rejects.toThrow("No active session");
+
+      expect(hostedSessionService.createHostedSession).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when not authenticated", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await expect(useSessionStore.getState().hostSession()).rejects.toThrow("Not authenticated");
+
+      expect(hostedSessionService.createHostedSession).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when token is expired", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue({
+        access_token: "expired-token",
+        refresh_token: "refresh",
+        expires_at: Math.floor(Date.now() / 1000) - 3600, // Expired 1 hour ago
+      });
+
+      await expect(useSessionStore.getState().hostSession()).rejects.toThrow("Session expired. Please sign in again.");
+
+      expect(hostedSessionService.createHostedSession).not.toHaveBeenCalled();
+    });
+
+    it("should create hosted session and persist session ID", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      expect(hostedSessionService.createHostedSession).toHaveBeenCalledWith(
+        "valid-access-token",
+        "Test Session"
+      );
+      expect(persistSessionId).toHaveBeenCalledWith("new-session-123");
+      expect(useSessionStore.getState().hostedSession).toEqual(mockCreatedSession);
+    });
+
+    it("should persist session ID after createHostedSession succeeds", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      // Track call order
+      const callOrder: string[] = [];
+      vi.mocked(hostedSessionService.createHostedSession).mockImplementation(async () => {
+        callOrder.push("createHostedSession");
+        return mockCreatedSession;
+      });
+      vi.mocked(persistSessionId).mockImplementation(async () => {
+        callOrder.push("persistSessionId");
+      });
+
+      await useSessionStore.getState().hostSession();
+
+      // Verify persistSessionId is called after createHostedSession
+      expect(callOrder).toEqual(["createHostedSession", "persistSessionId"]);
+      expect(persistSessionId).toHaveBeenCalledWith("new-session-123");
+    });
+
+    it("should open host modal after successful creation", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null, showHostModal: false });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      expect(useSessionStore.getState().showHostModal).toBe(true);
+    });
+
+    it("should start polling interval after successful creation", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const state = useSessionStore.getState() as any;
+      expect(state._hostedSessionPollInterval).not.toBeNull();
+
+      // Clean up interval
+      if (state._hostedSessionPollInterval) {
+        clearInterval(state._hostedSessionPollInterval);
+      }
+    });
+
+    it("should clear existing polling interval before starting new one", async () => {
+      const existingInterval = setInterval(() => {}, 1000);
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: null,
+        _hostedSessionPollInterval: existingInterval,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+
+      await useSessionStore.getState().hostSession();
+
+      expect(clearIntervalSpy).toHaveBeenCalledWith(existingInterval);
+
+      // Clean up new interval
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const state = useSessionStore.getState() as any;
+      if (state._hostedSessionPollInterval) {
+        clearInterval(state._hostedSessionPollInterval);
+      }
+    });
+
+    it("should pass session name to createHostedSession", async () => {
+      const namedSession = { ...mockSession, name: "My Karaoke Party" };
+      useSessionStore.setState({ session: namedSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      expect(hostedSessionService.createHostedSession).toHaveBeenCalledWith(
+        "valid-access-token",
+        "My Karaoke Party"
+      );
+    });
+
+    it("should pass undefined for unnamed session", async () => {
+      const unnamedSession = { ...mockSession, name: null };
+      useSessionStore.setState({ session: unnamedSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      expect(hostedSessionService.createHostedSession).toHaveBeenCalledWith(
+        "valid-access-token",
+        undefined
+      );
     });
   });
 });

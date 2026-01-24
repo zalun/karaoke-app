@@ -98,7 +98,7 @@
         "Calls persistSessionId() with hostedSession.id",
         "Session ID is stored in SQLite settings"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "stop-1",
