@@ -56,3 +56,21 @@ Files changed:
 - src-tauri/src/commands/queue.rs (added PRD-003 tests)
 - ralph/permanent-shuffle.json (marked PRD-003 passes: true)
 
+## PRD-004: Frontend Service - computeFairPosition method
+
+Status: COMPLETE
+
+Implemented:
+- Added computeFairPosition(singerId: number | null): Promise<number> to queueService
+- Method calls invoke('queue_compute_fair_position', { singerId })
+- Returns position number from backend
+
+Verified:
+- npx tsc --noEmit: passes
+- npm run test: 287 passed
+- npm run lint: passes
+
+Files changed:
+- src/services/queue.ts (added computeFairPosition method)
+- ralph/permanent-shuffle.json (marked PRD-004 passes: true)
+

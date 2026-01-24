@@ -51,7 +51,7 @@
         "Method calls invoke('queue_compute_fair_position', { singerId })",
         "Method returns the computed position number"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-005",
