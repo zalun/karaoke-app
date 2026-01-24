@@ -1386,6 +1386,65 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(useSessionStore.getState().hostedSession).toBeNull();
     });
 
+    it("should update hosted_session_status to 'ended' in DB when API returns ended (RESTORE-005)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        status: "ended",
+      });
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should update status to 'ended' in DB
+      expect(sessionService.updateHostedSessionStatus).toHaveBeenCalledWith(1, "ended");
+    });
+
+    it("should update local session state to 'ended' when API returns ended (RESTORE-005)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        status: "ended",
+      });
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Local session state should have status='ended'
+      const session = useSessionStore.getState().session;
+      expect(session?.hosted_session_status).toBe("ended");
+      // Other hosted fields should be preserved
+      expect(session?.hosted_session_id).toBe("session-123");
+      expect(session?.hosted_by_user_id).toBe("user-1");
+    });
+
+    it("should not attempt restoration when API returns ended (RESTORE-005)", async () => {
+      // Clean up any existing polling interval from previous tests
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const existingInterval = (useSessionStore.getState() as any)._hostedSessionPollInterval;
+      if (existingInterval) {
+        clearInterval(existingInterval);
+      }
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null, _hostedSessionPollInterval: null } as ReturnType<typeof useSessionStore.getState>);
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        status: "ended",
+      });
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should NOT restore hosted session
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+      // Should NOT start polling
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const state = useSessionStore.getState() as any;
+      expect(state._hostedSessionPollInterval).toBeNull();
+    });
+
     it("should clear persisted ID on 404 error (session not found)", async () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");

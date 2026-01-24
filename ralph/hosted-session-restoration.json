@@ -272,7 +272,8 @@
         "Verify hosted_session_status updated to 'ended' in DB",
         "Verify no restoration"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Updated restoreHostedSession() to call sessionService.updateHostedSessionStatus(session.id, 'ended') and update local session state when API returns non-active status. 3 unit tests: updates DB status to 'ended', updates local session state, does not start polling."
     },
     {
       "id": "RESTORE-006",

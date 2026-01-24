@@ -842,9 +842,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         sessionIdToRestore
       );
 
-      // Only restore if session is still active
+      // RESTORE-005: If API returns non-active status, update local status to 'ended'
       if (restoredSession.status !== "active") {
-        log.info(`Persisted session is ${restoredSession.status}, clearing`);
+        log.info(`Persisted session is ${restoredSession.status}, updating status to 'ended'`);
+        // Update hosted_session_status to 'ended' in DB
+        await sessionService.updateHostedSessionStatus(session.id, "ended");
+        // Update local session state
+        set({ session: { ...session, hosted_session_status: "ended" } });
         await clearPersistedSessionId();
         return;
       }
