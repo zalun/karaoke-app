@@ -89,6 +89,13 @@ export interface TauriMockConfig {
   shouldFailHostSession?: boolean;
   /** Whether fair queue mode is enabled (default: false) */
   fairQueueEnabled?: boolean;
+  /** Mock user for auth store (used when testing features requiring authenticated user) */
+  mockUser?: {
+    id: string;
+    email: string;
+    displayName: string;
+    avatarUrl?: string;
+  } | null;
 }
 
 /**
@@ -114,6 +121,7 @@ interface _HttpMockGlobals {
   __HOSTED_SESSION_CODE__?: string;
   __HOSTED_SESSION_ID__?: string;
   __HOSTED_SESSION_STOPPED__?: boolean;
+  __HOSTED_SESSION_STATUS__?: string;
 }
 
 /**
@@ -143,6 +151,7 @@ export async function injectTauriMocks(
       __HOSTED_SESSION_CODE__?: string;
       __HOSTED_SESSION_ID__?: string;
       __HOSTED_SESSION_STOPPED__?: boolean;
+      __HOSTED_SESSION_STATUS__?: string;
     }
 
     /** Helper to get typed access to HTTP mock globals */
@@ -200,7 +209,15 @@ export async function injectTauriMocks(
 
     // In-memory session state
     let sessionIdCounter = 1;
-    let activeSession: { id: number; name: string | null; is_active: boolean; created_at: string } | null = null;
+    let activeSession: {
+      id: number;
+      name: string | null;
+      is_active: boolean;
+      created_at: string;
+      hosted_session_id?: string;
+      hosted_by_user_id?: string;
+      hosted_session_status?: string;
+    } | null = null;
 
     // In-memory search history state
     const searchHistoryStore: { youtube: string[]; local: string[] } = {
@@ -431,6 +448,37 @@ export async function injectTauriMocks(
 
           case "session_get_singers":
             return [];
+
+          // Hosted session commands
+          case "session_set_hosted": {
+            const sessionId = args?.sessionId as number;
+            const hostedSessionId = args?.hostedSessionId as string;
+            const hostedByUserId = args?.hostedByUserId as string;
+            const status = args?.status as string;
+            console.log(`[Tauri Mock] session_set_hosted: session=${sessionId}, hostedId=${hostedSessionId}, userId=${hostedByUserId}, status=${status}`);
+            if (activeSession && activeSession.id === sessionId) {
+              activeSession.hosted_session_id = hostedSessionId;
+              activeSession.hosted_by_user_id = hostedByUserId;
+              activeSession.hosted_session_status = status;
+              // Track for test assertions
+              const sessionGlobals = getHttpMockGlobals();
+              sessionGlobals.__HOSTED_SESSION_STATUS__ = status;
+            }
+            return null;
+          }
+
+          case "session_update_hosted_status": {
+            const sessionId = args?.sessionId as number;
+            const status = args?.status as string;
+            console.log(`[Tauri Mock] session_update_hosted_status: session=${sessionId}, status=${status}`);
+            if (activeSession && activeSession.id === sessionId) {
+              activeSession.hosted_session_status = status;
+              // Track for test assertions
+              const sessionGlobals = getHttpMockGlobals();
+              sessionGlobals.__HOSTED_SESSION_STATUS__ = status;
+            }
+            return null;
+          }
 
           // Persistent singers
           case "get_persistent_singers":
@@ -969,6 +1017,12 @@ export async function injectTauriMocks(
       (navigator as unknown as { clipboard: typeof mockClipboard }).clipboard = mockClipboard;
     }
 
+    // Store mock user for authStore to pick up
+    if (mockConfig.mockUser) {
+      (window as unknown as { __MOCK_USER__: typeof mockConfig.mockUser }).__MOCK_USER__ = mockConfig.mockUser;
+      console.log("[Tauri Mock] Mock user set:", mockConfig.mockUser.email);
+    }
+
     console.log("[Tauri Mock] Tauri APIs mocked successfully");
   }, config);
 }
@@ -1066,6 +1120,7 @@ interface HostedSessionTestState {
   created: boolean;
   sessionCode: string | null;
   stopped: boolean;
+  status: string | null;
 }
 
 /**
@@ -1077,6 +1132,7 @@ export async function getHostedSessionState(page: Page): Promise<HostedSessionTe
       created: !!(window as unknown as { __HOSTED_SESSION_CREATED__?: boolean }).__HOSTED_SESSION_CREATED__,
       sessionCode: (window as unknown as { __HOSTED_SESSION_CODE__?: string }).__HOSTED_SESSION_CODE__ ?? null,
       stopped: !!(window as unknown as { __HOSTED_SESSION_STOPPED__?: boolean }).__HOSTED_SESSION_STOPPED__,
+      status: (window as unknown as { __HOSTED_SESSION_STATUS__?: string }).__HOSTED_SESSION_STATUS__ ?? null,
     };
   });
 }

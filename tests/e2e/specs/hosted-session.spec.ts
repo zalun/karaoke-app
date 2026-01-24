@@ -97,6 +97,11 @@ test.describe("Hosted Session", () => {
           refresh_token: "test_refresh_token",
           expires_at: Math.floor(Date.now() / 1000) + 3600,
         },
+        mockUser: {
+          id: "test-user-id",
+          email: "test@example.com",
+          displayName: "Test User",
+        },
       });
 
       mainPage = new MainPage(page);
@@ -238,6 +243,11 @@ test.describe("Hosted Session", () => {
           refresh_token: "test_refresh_token",
           expires_at: Math.floor(Date.now() / 1000) + 3600,
         },
+        mockUser: {
+          id: "test-user-id",
+          email: "test@example.com",
+          displayName: "Test User",
+        },
       });
 
       mainPage = new MainPage(page);
@@ -277,6 +287,76 @@ test.describe("Hosted Session", () => {
       expect(hostedState.stopped).toBe(true);
     });
 
+    test("E2E-001: full hosting flow sets hosted_session_status to active then ended", async ({ page }) => {
+      // Setup: Authenticated user
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+        mockUser: {
+          id: "test-user-id",
+          email: "test@example.com",
+          displayName: "Test User",
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Start a session
+      await mainPage.startSession();
+
+      // Wait for session to be active
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Verify no hosted session status before hosting
+      let hostedState = await getHostedSessionState(page);
+      expect(hostedState.status).toBeNull();
+      expect(hostedState.created).toBe(false);
+
+      // Click the Host button
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await hostButton.click();
+
+      // Wait for modal with join code
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+
+      // Verify join code is displayed
+      const joinCodePattern = /HK-[A-Z0-9]{4}-[A-Z0-9]{4}/i;
+      await expect(async () => {
+        const modalContent = await page.locator(".text-4xl.font-bold.font-mono").textContent();
+        expect(modalContent).toMatch(joinCodePattern);
+      }).toPass({ timeout: 5000 });
+
+      // Verify QR code is displayed
+      const qrCodeImage = page.locator("img[alt='Scan to join']");
+      await expect(qrCodeImage).toBeVisible();
+
+      // Verify hosted session was created and status is 'active'
+      hostedState = await getHostedSessionState(page);
+      expect(hostedState.created).toBe(true);
+      expect(hostedState.sessionCode).toMatch(joinCodePattern);
+      expect(hostedState.status).toBe("active");
+
+      // Click Stop Hosting
+      const stopHostingButton = page.getByRole("button", { name: "Stop Hosting" });
+      await stopHostingButton.click();
+
+      // Modal should close
+      await expect(page.locator("text=Session Hosted")).not.toBeVisible({ timeout: 5000 });
+
+      // Verify hosted_session_status is now 'ended'
+      hostedState = await getHostedSessionState(page);
+      expect(hostedState.stopped).toBe(true);
+      expect(hostedState.status).toBe("ended");
+    });
+
     test("should stop hosting when ending session", async ({ page }) => {
       // Setup: Authenticated user
       await injectTauriMocks(page, {
@@ -284,6 +364,11 @@ test.describe("Hosted Session", () => {
           access_token: "test_access_token",
           refresh_token: "test_refresh_token",
           expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+        mockUser: {
+          id: "test-user-id",
+          email: "test@example.com",
+          displayName: "Test User",
         },
       });
 
@@ -336,6 +421,11 @@ test.describe("Hosted Session", () => {
           refresh_token: "test_refresh_token",
           expires_at: Math.floor(Date.now() / 1000) + 3600,
         },
+        mockUser: {
+          id: "test-user-id",
+          email: "test@example.com",
+          displayName: "Test User",
+        },
       });
 
       mainPage = new MainPage(page);
@@ -378,6 +468,11 @@ test.describe("Hosted Session", () => {
           access_token: "test_access_token",
           refresh_token: "test_refresh_token",
           expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+        mockUser: {
+          id: "test-user-id",
+          email: "test@example.com",
+          displayName: "Test User",
         },
       });
 

@@ -425,7 +425,8 @@
         "Click Stop Hosting",
         "Verify hosted_session_status is 'ended'"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added E2E test 'E2E-001: full hosting flow sets hosted_session_status to active then ended' in hosted-session.spec.ts. Fixed broken E2E tests by: 1) Adding mockUser support to TauriMockConfig, 2) Storing mockUser in window.__MOCK_USER__ for authStore to use, 3) Updating authStore.fetchUserProfile to check for mock user first, 4) Adding session_set_hosted and session_update_hosted_status mock commands to track hosted status, 5) Extending HostedSessionTestState to include status field. All 24 hosted-session E2E tests pass (2 intentionally skipped)."
     },
     {
       "id": "E2E-002",

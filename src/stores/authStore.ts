@@ -317,6 +317,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // Internal helper to fetch user profile
   fetchUserProfile: async (tokens: AuthTokens) => {
+    // Check for mock user (E2E testing)
+    const mockUser = (window as { __MOCK_USER__?: User }).__MOCK_USER__;
+    if (mockUser) {
+      log.info(`Using mock user: ${mockUser.email}`);
+      set({ isAuthenticated: true, user: mockUser });
+      return;
+    }
+
     if (!isSupabaseConfigured()) {
       log.warn("Supabase not configured, skipping profile fetch");
       set({ isAuthenticated: true, user: null });
