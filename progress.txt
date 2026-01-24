@@ -151,3 +151,14 @@
   - test_session_deletion_cascades_hosted_fields
 - Files changed: src-tauri/src/db/schema.rs, src-tauri/src/commands/session.rs, ralph/hosted-session-restoration.json
 - All 361 tests pass, typecheck passes, lint passes
+
+## CMD-001: session_set_hosted command stores all three hosted fields
+- Added session_set_hosted Tauri command to src-tauri/src/commands/session.rs
+- Command takes session_id, hosted_session_id, hosted_by_user_id, and status parameters
+- Validates status (must be 'active', 'paused', or 'ended')
+- Verifies session exists before updating
+- Updates all three fields atomically in single SQL UPDATE
+- Registered command in src-tauri/src/lib.rs invoke_handler
+- Added 5 unit tests covering: store all fields, update existing, paused/ended status, nonexistent session
+- Files changed: src-tauri/src/commands/session.rs, src-tauri/src/lib.rs, ralph/hosted-session-restoration.json
+- All 361 tests pass, cargo check passes, lint passes

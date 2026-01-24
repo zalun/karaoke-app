@@ -47,7 +47,8 @@
         "Query database: SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?",
         "Verify all three values are correctly stored"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added session_set_hosted Tauri command to session.rs. Validates status (active/paused/ended), verifies session exists, and updates all three fields atomically. 5 unit tests added covering: store all fields, update existing, paused/ended status, nonexistent session."
     },
     {
       "id": "CMD-002",
