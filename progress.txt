@@ -173,3 +173,16 @@
 - Added 6 unit tests: updates_status_only, active_to_paused, paused_to_ended, ended_to_active, nonexistent_session, preserves_null_fields
 - Files changed: src-tauri/src/commands/session.rs, src-tauri/src/lib.rs, ralph/hosted-session-restoration.json
 - All 361 tests pass (6 new), cargo check passes, lint passes
+
+## CMD-003 + TYPE-001: get_active_session returns hosted fields + Session struct updated
+- Added hosted_session_id, hosted_by_user_id, hosted_session_status to Rust Session struct (Option<String>)
+- Updated get_active_session query to SELECT and return all three hosted fields
+- Also updated: start_session, load_session, get_recent_sessions, rename_session (all return Session)
+- Added 5 unit tests in get_active_session_hosted_fields module:
+  - returns_hosted_fields_when_set: verifies all 3 fields returned
+  - returns_null_hosted_fields_when_not_set: verifies nulls for regular sessions
+  - returns_partial_hosted_fields: verifies handling when only some fields set
+  - returns_none_when_no_active_session: verifies None returned with no active session
+  - only_returns_active_session_hosted_fields: verifies correct session's fields returned
+- Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration.json, progress.txt
+- All 361 (JS) + 130 (Rust) tests pass, cargo check passes, lint passes, typecheck passes

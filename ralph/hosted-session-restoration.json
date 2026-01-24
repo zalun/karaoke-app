@@ -72,7 +72,8 @@
         "Call get_active_session()",
         "Verify response includes hosted_session_id, hosted_by_user_id, hosted_session_status"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Updated get_active_session, start_session, load_session, get_recent_sessions, and rename_session to query and return hosted_session_id, hosted_by_user_id, hosted_session_status. 5 unit tests added: returns_hosted_fields_when_set, returns_null_hosted_fields_when_not_set, returns_partial_hosted_fields, returns_none_when_no_active_session, only_returns_active_session_hosted_fields."
     },
     {
       "id": "TYPE-001",
@@ -84,7 +85,8 @@
         "Verify Session struct has hosted_by_user_id: Option<String>",
         "Verify Session struct has hosted_session_status: Option<String>"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added hosted_session_id: Option<String>, hosted_by_user_id: Option<String>, hosted_session_status: Option<String> to Rust Session struct at session.rs:17-26."
     },
     {
       "id": "TYPE-002",

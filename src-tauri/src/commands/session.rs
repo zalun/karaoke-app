@@ -20,6 +20,9 @@ pub struct Session {
     pub started_at: String,
     pub ended_at: Option<String>,
     pub is_active: bool,
+    pub hosted_session_id: Option<String>,
+    pub hosted_by_user_id: Option<String>,
+    pub hosted_session_status: Option<String>,
 }
 
 // ============ Singer Commands ============
@@ -308,7 +311,7 @@ pub fn start_session(
         }
 
         let session = conn.query_row(
-            "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
+            "SELECT id, name, started_at, ended_at, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
             [new_session_id],
             |row| {
                 Ok(Session {
@@ -317,6 +320,9 @@ pub fn start_session(
                     started_at: row.get(2)?,
                     ended_at: row.get(3)?,
                     is_active: row.get::<_, i32>(4)? != 0,
+                    hosted_session_id: row.get(5)?,
+                    hosted_by_user_id: row.get(6)?,
+                    hosted_session_status: row.get(7)?,
                 })
             },
         )?;
@@ -402,7 +408,7 @@ pub fn get_active_session(state: State<'_, AppState>) -> Result<Option<Session>,
     let db = state.db.lock().map_lock_err()?;
 
     let result = db.connection().query_row(
-        "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE is_active = 1",
+        "SELECT id, name, started_at, ended_at, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE is_active = 1",
         [],
         |row| {
             Ok(Session {
@@ -411,6 +417,9 @@ pub fn get_active_session(state: State<'_, AppState>) -> Result<Option<Session>,
                 started_at: row.get(2)?,
                 ended_at: row.get(3)?,
                 is_active: row.get::<_, i32>(4)? != 0,
+                hosted_session_id: row.get(5)?,
+                hosted_by_user_id: row.get(6)?,
+                hosted_session_status: row.get(7)?,
             })
         },
     );
@@ -661,7 +670,7 @@ pub fn get_recent_sessions(
     let db = state.db.lock().map_lock_err()?;
 
     let mut stmt = db.connection().prepare(
-        "SELECT id, name, started_at, ended_at, is_active FROM sessions
+        "SELECT id, name, started_at, ended_at, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions
              ORDER BY started_at DESC LIMIT ?1",
     )?;
 
@@ -673,6 +682,9 @@ pub fn get_recent_sessions(
                 started_at: row.get(2)?,
                 ended_at: row.get(3)?,
                 is_active: row.get::<_, i32>(4)? != 0,
+                hosted_session_id: row.get(5)?,
+                hosted_by_user_id: row.get(6)?,
+                hosted_session_status: row.get(7)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -708,7 +720,7 @@ pub fn rename_session(
     )?;
 
     let session = db.connection().query_row(
-        "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
+        "SELECT id, name, started_at, ended_at, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
         [session_id],
         |row| {
             Ok(Session {
@@ -717,6 +729,9 @@ pub fn rename_session(
                 started_at: row.get(2)?,
                 ended_at: row.get(3)?,
                 is_active: row.get::<_, i32>(4)? != 0,
+                hosted_session_id: row.get(5)?,
+                hosted_by_user_id: row.get(6)?,
+                hosted_session_status: row.get(7)?,
             })
         },
     )?;
@@ -791,7 +806,7 @@ pub fn load_session(
         )?;
 
         let session = conn.query_row(
-            "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
+            "SELECT id, name, started_at, ended_at, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
             [session_id],
             |row| {
                 Ok(Session {
@@ -800,6 +815,9 @@ pub fn load_session(
                     started_at: row.get(2)?,
                     ended_at: row.get(3)?,
                     is_active: row.get::<_, i32>(4)? != 0,
+                    hosted_session_id: row.get(5)?,
+                    hosted_by_user_id: row.get(6)?,
+                    hosted_session_status: row.get(7)?,
                 })
             },
         )?;
@@ -2463,6 +2481,137 @@ mod tests {
             assert_eq!(hosted_id, None, "hosted_session_id should remain NULL");
             assert_eq!(user_id, None, "hosted_by_user_id should remain NULL");
             assert_eq!(status, Some("ended".to_string()), "hosted_session_status should be updated");
+        }
+    }
+
+    mod get_active_session_hosted_fields {
+        use super::*;
+
+        #[test]
+        fn test_returns_hosted_fields_when_set() {
+            let conn = setup_test_db();
+
+            // Create an active session with all hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Hosted', 1, 'hs-abc', 'user-xyz', 'active')",
+                [],
+            )
+            .unwrap();
+
+            // Query using same pattern as get_active_session
+            let (id, name, is_active, hosted_id, user_id, status): (i64, Option<String>, i32, Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT id, name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+                )
+                .unwrap();
+
+            assert!(id > 0);
+            assert_eq!(name, Some("Hosted".to_string()));
+            assert_eq!(is_active, 1);
+            assert_eq!(hosted_id, Some("hs-abc".to_string()));
+            assert_eq!(user_id, Some("user-xyz".to_string()));
+            assert_eq!(status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_returns_null_hosted_fields_when_not_set() {
+            let conn = setup_test_db();
+
+            // Create an active session without hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active) VALUES ('Regular', 1)",
+                [],
+            )
+            .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, None);
+            assert_eq!(user_id, None);
+            assert_eq!(status, None);
+        }
+
+        #[test]
+        fn test_returns_partial_hosted_fields() {
+            let conn = setup_test_db();
+
+            // Create session with only some hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_session_status) VALUES ('Partial', 1, 'hs-partial', 'ended')",
+                [],
+            )
+            .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-partial".to_string()));
+            assert_eq!(user_id, None, "hosted_by_user_id should be NULL when not set");
+            assert_eq!(status, Some("ended".to_string()));
+        }
+
+        #[test]
+        fn test_returns_none_when_no_active_session() {
+            let conn = setup_test_db();
+
+            // Create an inactive session
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Inactive', 0, 'hs-old', 'user-old', 'ended')",
+                [],
+            )
+            .unwrap();
+
+            let result = conn.query_row(
+                "SELECT id FROM sessions WHERE is_active = 1",
+                [],
+                |row| row.get::<_, i64>(0),
+            );
+
+            assert!(matches!(result, Err(rusqlite::Error::QueryReturnedNoRows)));
+        }
+
+        #[test]
+        fn test_only_returns_active_session_hosted_fields() {
+            let conn = setup_test_db();
+
+            // Create an inactive session with hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Inactive', 0, 'hs-inactive', 'user-inactive', 'ended')",
+                [],
+            )
+            .unwrap();
+
+            // Create an active session with different hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Active', 1, 'hs-active', 'user-active', 'active')",
+                [],
+            )
+            .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-active".to_string()), "Should return active session's hosted_session_id");
+            assert_eq!(user_id, Some("user-active".to_string()), "Should return active session's hosted_by_user_id");
+            assert_eq!(status, Some("active".to_string()), "Should return active session's hosted_session_status");
         }
     }
 }
