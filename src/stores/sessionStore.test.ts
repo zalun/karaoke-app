@@ -1601,6 +1601,122 @@ describe("sessionStore - Host Session", () => {
         "Could not end session on server. It may expire automatically."
       );
     });
+
+    it("should update hosted_session_status to 'ended' in DB (STOP-001)", async () => {
+      const sessionWithHostedFields: Session = {
+        ...mockSession,
+        hosted_session_id: mockHostedSession.id,
+        hosted_by_user_id: "user-123",
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({
+        session: sessionWithHostedFields,
+        hostedSession: mockHostedSession,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockResolvedValue();
+
+      await useSessionStore.getState().stopHosting();
+
+      // Verify DB update was called with 'ended' status
+      expect(sessionService.updateHostedSessionStatus).toHaveBeenCalledWith(
+        mockSession.id,
+        "ended"
+      );
+      // Verify local session state reflects ended status
+      expect(useSessionStore.getState().session?.hosted_session_status).toBe("ended");
+    });
+
+    it("should preserve hosted_session_id and hosted_by_user_id after stop (STOP-002)", async () => {
+      const sessionWithHostedFields: Session = {
+        ...mockSession,
+        hosted_session_id: mockHostedSession.id,
+        hosted_by_user_id: "user-123",
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({
+        session: sessionWithHostedFields,
+        hostedSession: mockHostedSession,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockResolvedValue();
+
+      await useSessionStore.getState().stopHosting();
+
+      // Verify hosted_session_id and hosted_by_user_id are preserved
+      const updatedSession = useSessionStore.getState().session;
+      expect(updatedSession?.hosted_session_id).toBe(mockHostedSession.id);
+      expect(updatedSession?.hosted_by_user_id).toBe("user-123");
+      // Only status should change
+      expect(updatedSession?.hosted_session_status).toBe("ended");
+    });
+
+    it("should update status to 'ended' even if API call fails (STOP-003)", async () => {
+      const sessionWithHostedFields: Session = {
+        ...mockSession,
+        hosted_session_id: mockHostedSession.id,
+        hosted_by_user_id: "user-123",
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({
+        session: sessionWithHostedFields,
+        hostedSession: mockHostedSession,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockRejectedValue(new Error("Network error"));
+
+      await useSessionStore.getState().stopHosting();
+
+      // DB update should still have been called
+      expect(sessionService.updateHostedSessionStatus).toHaveBeenCalledWith(
+        mockSession.id,
+        "ended"
+      );
+      // Local state should still reflect ended status
+      expect(useSessionStore.getState().session?.hosted_session_status).toBe("ended");
+      // hosted_session_id and hosted_by_user_id should be preserved
+      expect(useSessionStore.getState().session?.hosted_session_id).toBe(mockHostedSession.id);
+      expect(useSessionStore.getState().session?.hosted_by_user_id).toBe("user-123");
+    });
+
+    it("should update local state even if DB update fails", async () => {
+      const sessionWithHostedFields: Session = {
+        ...mockSession,
+        hosted_session_id: mockHostedSession.id,
+        hosted_by_user_id: "user-123",
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({
+        session: sessionWithHostedFields,
+        hostedSession: mockHostedSession,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(sessionService.updateHostedSessionStatus).mockRejectedValue(new Error("DB error"));
+      vi.mocked(hostedSessionService.endHostedSession).mockResolvedValue();
+
+      await useSessionStore.getState().stopHosting();
+
+      // Local state should still reflect ended status even if DB update failed
+      expect(useSessionStore.getState().session?.hosted_session_status).toBe("ended");
+      // hostedSession should be cleared
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+
+    it("should handle stopHosting when session is null", async () => {
+      useSessionStore.setState({
+        session: null,
+        hostedSession: mockHostedSession,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockResolvedValue();
+
+      await useSessionStore.getState().stopHosting();
+
+      // Should not call updateHostedSessionStatus if session is null
+      expect(sessionService.updateHostedSessionStatus).not.toHaveBeenCalled();
+      // Should still clear hostedSession
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
   });
 
   describe("refreshHostedSession", () => {

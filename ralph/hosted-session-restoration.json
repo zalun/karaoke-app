@@ -180,7 +180,8 @@
         "Call stopHosting()",
         "Verify hosted_session_status is now 'ended'"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Updated stopHosting() to call sessionService.updateHostedSessionStatus(session.id, 'ended') before API call. Updates both DB and local session state. 5 unit tests added."
     },
     {
       "id": "STOP-002",
@@ -192,7 +193,8 @@
         "Verify hosted_session_id is unchanged",
         "Verify hosted_by_user_id is unchanged"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "stopHosting() now uses spread operator to update session state, only changing hosted_session_status to 'ended' while preserving hosted_session_id and hosted_by_user_id. Unit test verifies preservation."
     },
     {
       "id": "STOP-003",
@@ -204,7 +206,8 @@
         "Call stopHosting()",
         "Verify hosted_session_status is updated to 'ended' locally"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "DB status update happens before API call, and local state update happens in finally block. Both continue regardless of API failure. Unit test verifies status='ended' even when endHostedSession throws."
     },
     {
       "id": "RESTORE-001",

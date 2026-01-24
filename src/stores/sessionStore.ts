@@ -622,7 +622,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   stopHosting: async () => {
-    const { hostedSession, _hostedSessionPollInterval } = get();
+    const { session, hostedSession, _hostedSessionPollInterval } = get();
     if (!hostedSession) {
       log.debug("No hosted session to stop");
       return;
@@ -633,6 +633,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // Clear persisted session ID first (before API call) to ensure
     // no orphaned reference remains even if API call fails
     await clearPersistedSessionId();
+
+    // Update the hosted session status to 'ended' in the database
+    // This preserves hosted_session_id and hosted_by_user_id for reference
+    if (session) {
+      try {
+        await sessionService.updateHostedSessionStatus(session.id, "ended");
+        log.debug("Updated hosted session status to 'ended' in DB");
+      } catch (dbError) {
+        const dbMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        log.error(`Failed to update hosted session status in DB: ${dbMessage}`);
+        // Continue anyway - this is not critical for stopping
+      }
+    }
 
     let apiCallFailed = false;
     try {
@@ -655,7 +668,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (_hostedSessionPollInterval) {
         clearInterval(_hostedSessionPollInterval);
       }
-      set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
+
+      // Update local session state to reflect ended status
+      // while preserving hosted_session_id and hosted_by_user_id
+      if (session) {
+        set({
+          session: { ...session, hosted_session_status: "ended" },
+          hostedSession: null,
+          showHostModal: false,
+          _hostedSessionPollInterval: null,
+        });
+      } else {
+        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
+      }
 
       // Notify user if API call failed (backend may still think session is hosted)
       if (apiCallFailed) {

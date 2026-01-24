@@ -212,3 +212,20 @@
   - existing tests for auth/token validation
 - Files changed: src/stores/sessionStore.ts, src/services/session.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
 - All 368 tests pass, typecheck passes, lint passes
+
+## STOP-001/STOP-002/STOP-003: stopHosting() updates status to 'ended' and preserves fields
+- Updated stopHosting() in sessionStore.ts to:
+  1. Call sessionService.updateHostedSessionStatus(session.id, "ended") before API call
+  2. Update local session state with hosted_session_status: "ended" in finally block
+  3. Use spread operator to preserve hosted_session_id and hosted_by_user_id
+  4. Handle DB update failure gracefully (logs error, continues)
+- DB update happens before API call so status is persisted even if API fails
+- Local state update happens in finally block so it runs regardless of API success
+- Added 5 new unit tests:
+  - should update hosted_session_status to 'ended' in DB (STOP-001)
+  - should preserve hosted_session_id and hosted_by_user_id after stop (STOP-002)
+  - should update status to 'ended' even if API call fails (STOP-003)
+  - should update local state even if DB update fails
+  - should handle stopHosting when session is null
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
+- All 373 tests pass, typecheck passes, lint passes
