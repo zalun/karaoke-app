@@ -137,6 +137,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         await useQueueStore.getState().loadPersistedState();
         // Load singer assignments for all queue and history items
         await get().loadAllQueueItemSingers();
+
+        // MIGRATE-002: Clear old hosted_session_id from settings table
+        // The new system stores hosted info in sessions table (hosted_session_id,
+        // hosted_by_user_id, hosted_session_status). The old settings-based approach
+        // didn't track ownership, so we can't migrate - just clear and let user re-host.
+        // This runs once per session load but is idempotent (clears already-empty value).
+        try {
+          const legacyPersistedId = await getPersistedSessionId();
+          if (legacyPersistedId) {
+            log.info("MIGRATE-002: Clearing legacy hosted_session_id from settings table");
+            await clearPersistedSessionId();
+          }
+        } catch (migrationError) {
+          log.warn("MIGRATE-002: Failed to clear legacy settings:", migrationError);
+          // Continue - migration failure shouldn't block app startup
+        }
+
         // Attempt to restore hosted session from previous app run
         await get().restoreHostedSession();
       }
@@ -818,14 +835,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return;
     }
 
-    // Get persisted session ID (legacy fallback, will be removed in MIGRATE-001)
-    const persistedId = await getPersistedSessionId();
-    // Use hosted_session_id from session DB field (new approach)
-    const hostedSessionId = session.hosted_session_id;
-
-    // If we have a hosted_session_id in the session but no persisted ID,
-    // use the session's hosted_session_id for restoration
-    const sessionIdToRestore = persistedId || hostedSessionId;
+    // MIGRATE-002: Legacy fallback removed - old settings value cleared during loadSession()
+    // Use hosted_session_id from session DB field (the only source of truth now)
+    const sessionIdToRestore = session.hosted_session_id;
+    // Note: This check is technically redundant (RESTORE-001 already checked)
+    // but kept for defensive coding
     if (!sessionIdToRestore) {
       log.debug("No session ID available for restoration");
       return;

@@ -408,3 +408,13 @@
 - Full removal deferred to MIGRATE-002 which will migrate old data and remove legacy code
 - Files changed: src-tauri/src/commands/settings.rs, ralph/hosted-session-restoration.json
 - 437 unit tests pass, 129 Rust tests pass, lint passes, cargo check passes
+
+## MIGRATE-002: Old hosted_session_id in settings is cleared
+- Added migration code to loadSession() in sessionStore.ts
+- On session load, checks for legacy hosted_session_id in settings table
+- If found, clears it via clearPersistedSessionId() - old system didn't track user ownership so can't migrate
+- Wrapped in try/catch so migration failure doesn't block app startup
+- Removed legacy fallback in restoreHostedSession() - no longer calls getPersistedSessionId(), uses session.hosted_session_id only
+- Added 4 unit tests for MIGRATE-002: clear legacy ID if found, skip clear if no legacy ID, continue on error, no migration when no session
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
+- 441 unit tests pass, lint passes, cargo check passes, just check passes

@@ -400,6 +400,63 @@ describe("sessionStore - Session Lifecycle", () => {
     });
   });
 
+  describe("MIGRATE-002: Clear legacy hosted_session_id from settings", () => {
+    it("should clear legacy persisted session ID if found during loadSession", async () => {
+      vi.mocked(sessionService.getActiveSession).mockResolvedValue(mockSession);
+      vi.mocked(sessionService.getSessionSingers).mockResolvedValue([]);
+      vi.mocked(sessionService.getActiveSinger).mockResolvedValue(null);
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+      // Simulate legacy persisted ID existing
+      vi.mocked(getPersistedSessionId).mockResolvedValue("legacy-session-id");
+
+      await useSessionStore.getState().loadSession();
+
+      // Should have checked for legacy ID and cleared it
+      expect(getPersistedSessionId).toHaveBeenCalled();
+      expect(clearPersistedSessionId).toHaveBeenCalled();
+    });
+
+    it("should not call clearPersistedSessionId if no legacy ID exists", async () => {
+      vi.mocked(sessionService.getActiveSession).mockResolvedValue(mockSession);
+      vi.mocked(sessionService.getSessionSingers).mockResolvedValue([]);
+      vi.mocked(sessionService.getActiveSinger).mockResolvedValue(null);
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+      // No legacy persisted ID
+      vi.mocked(getPersistedSessionId).mockResolvedValue(null);
+
+      await useSessionStore.getState().loadSession();
+
+      expect(getPersistedSessionId).toHaveBeenCalled();
+      expect(clearPersistedSessionId).not.toHaveBeenCalled();
+    });
+
+    it("should continue loading even if migration fails", async () => {
+      vi.mocked(sessionService.getActiveSession).mockResolvedValue(mockSession);
+      vi.mocked(sessionService.getSessionSingers).mockResolvedValue([mockSinger1]);
+      vi.mocked(sessionService.getActiveSinger).mockResolvedValue(mockSinger1);
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+      // Migration throws error
+      vi.mocked(getPersistedSessionId).mockRejectedValue(new Error("DB error"));
+
+      // Should not throw - migration failure shouldn't block app
+      await useSessionStore.getState().loadSession();
+
+      // Session should still be loaded
+      expect(useSessionStore.getState().session).toEqual(mockSession);
+      expect(useSessionStore.getState().singers).toEqual([mockSinger1]);
+    });
+
+    it("should not run migration when no session is loaded", async () => {
+      vi.mocked(sessionService.getActiveSession).mockResolvedValue(null);
+
+      await useSessionStore.getState().loadSession();
+
+      // Migration should not run when no session
+      expect(getPersistedSessionId).not.toHaveBeenCalled();
+      expect(clearPersistedSessionId).not.toHaveBeenCalled();
+    });
+  });
+
   describe("startSession", () => {
     it("should flush pending operations and start a new session", async () => {
       const newSession = { ...mockSession, id: 2, name: "New Session" };

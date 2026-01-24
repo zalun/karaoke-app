@@ -489,7 +489,8 @@
         "Run the updated app",
         "Verify either: value is migrated to sessions table, or value is cleared"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added migration code to loadSession() that checks for legacy hosted_session_id in settings table and clears it. The old system didn't track user ownership, so migration to new sessions table fields not possible - just clear and let user re-host. Also removed legacy fallback in restoreHostedSession() that used getPersistedSessionId(). 4 unit tests added: clear legacy ID if found, skip clear if no legacy ID, continue loading if migration fails, no migration when no session."
     }
   ]
 }
