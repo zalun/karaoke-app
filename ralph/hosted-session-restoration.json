@@ -258,7 +258,8 @@
         "Verify polling starts",
         "Verify 'Reconnected to hosted session' shown"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added ownership check to restoreHostedSession(). When hosted_by_user_id matches current user and API returns active session, restoration proceeds: hostedSession state set, polling interval started, success notification shown. 3 unit tests added: restore for same user, polling starts, notification shown. Also added prep for RESTORE-006: different user skips restoration (2 tests) and user profile not loaded case (1 test)."
     },
     {
       "id": "RESTORE-005",

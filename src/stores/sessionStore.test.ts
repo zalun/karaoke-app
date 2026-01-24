@@ -1091,6 +1091,147 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(notify).not.toHaveBeenCalled();
     });
 
+    it("should restore session when same user with active session (RESTORE-004)", async () => {
+      // Session with hosted fields matching current user
+      const sessionWithSameUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "user-1", // Matches mock user from beforeEach
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithSameUser, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue(mockHostedSession);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should verify with backend and restore
+      expect(hostedSessionService.getSession).toHaveBeenCalledWith("valid-access-token", "session-123");
+      expect(useSessionStore.getState().hostedSession).toEqual(mockHostedSession);
+    });
+
+    it("should start polling when same user restores active session (RESTORE-004)", async () => {
+      // Session with hosted fields matching current user
+      const sessionWithSameUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "user-1", // Matches mock user from beforeEach
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithSameUser, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue(mockHostedSession);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Polling should start
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const state = useSessionStore.getState() as any;
+      expect(state._hostedSessionPollInterval).not.toBeNull();
+
+      // Clean up
+      if (state._hostedSessionPollInterval) {
+        clearInterval(state._hostedSessionPollInterval);
+      }
+    });
+
+    it("should show 'Reconnected to hosted session' notification for same user (RESTORE-004)", async () => {
+      // Session with hosted fields matching current user
+      const sessionWithSameUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "user-1", // Matches mock user from beforeEach
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithSameUser, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue(mockHostedSession);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      expect(notify).toHaveBeenCalledWith("success", "Reconnected to hosted session");
+    });
+
+    it("should skip restore when different user but preserve fields (RESTORE-006 prep)", async () => {
+      // Session with hosted fields for a different user
+      const sessionWithDifferentUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "different-user-id", // Different from mock user-1
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should NOT attempt to restore (different user)
+      expect(getPersistedSessionId).not.toHaveBeenCalled();
+      expect(hostedSessionService.getSession).not.toHaveBeenCalled();
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+      // Hosted fields should be preserved
+      const session = useSessionStore.getState().session;
+      expect(session?.hosted_session_id).toBe("session-123");
+      expect(session?.hosted_by_user_id).toBe("different-user-id");
+      expect(session?.hosted_session_status).toBe("active");
+    });
+
+    it("should not show notification when different user skips restore (RESTORE-006 prep)", async () => {
+      // Session with hosted fields for a different user
+      const sessionWithDifferentUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "different-user-id", // Different from mock user-1
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // No notification should be shown (silent skip for now, dialog comes with RESTORE-006)
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it("should skip restore when user profile not loaded", async () => {
+      // Session with hosted fields
+      const sessionWithHostedFields: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "user-1",
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithHostedFields, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      // User profile not loaded (null)
+      const { useAuthStore } = await import("./authStore");
+      vi.spyOn(useAuthStore, "getState").mockReturnValue({
+        isAuthenticated: true,
+        user: null, // User not loaded
+        isLoading: false,
+        isOffline: false,
+        initialize: vi.fn(),
+        signIn: vi.fn(),
+        cancelSignIn: vi.fn(),
+        signOut: vi.fn(),
+        handleAuthCallback: vi.fn(),
+        refreshSession: vi.fn(),
+        setOffline: vi.fn(),
+        _cleanup: vi.fn(),
+        fetchUserProfile: vi.fn(),
+      });
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should not attempt to restore
+      expect(getPersistedSessionId).not.toHaveBeenCalled();
+      expect(hostedSessionService.getSession).not.toHaveBeenCalled();
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+
     it("should return early if no persisted session ID exists and session has hosted_session_id", async () => {
       // Session with hosted_session_id but no persisted ID (will use hosted_session_id)
       const sessionWithHostedId: Session = {

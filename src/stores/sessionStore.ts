@@ -793,6 +793,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return;
     }
 
+    // RESTORE-004/RESTORE-006: Check if current user is the owner
+    // Get current user from auth store
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) {
+      log.debug("Skipping restore: user profile not loaded (preserving hosted fields for owner)");
+      return;
+    }
+
+    // RESTORE-006: Different user scenario - show dialog (skip restoration)
+    // RESTORE-004: Same user scenario - proceed with restoration
+    if (session.hosted_by_user_id && session.hosted_by_user_id !== currentUser.id) {
+      log.debug("Skipping restore: different user (session belongs to another user)");
+      // TODO: RESTORE-006 will implement showing a dialog here
+      // For now, just skip restoration and preserve fields for the original owner
+      return;
+    }
+
     // Get persisted session ID (legacy fallback, will be removed in MIGRATE-001)
     const persistedId = await getPersistedSessionId();
     // Use hosted_session_id from session DB field (new approach)
