@@ -14,7 +14,6 @@ import { authService } from "../services/auth";
 import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
 import { notify } from "./notificationStore";
-import { useAuthStore } from "./authStore";
 
 const log = createLogger("SessionStore");
 
@@ -703,12 +702,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return;
     }
 
-    // Skip if user is not authenticated
-    const { isAuthenticated } = useAuthStore.getState();
-    if (!isAuthenticated) {
-      log.debug("Skipping restore: user not authenticated");
-      return;
-    }
+    // Note: We don't check isAuthenticated here because of a race condition -
+    // this function may be called before auth store finishes initializing.
+    // Instead, we check for valid tokens below which is the actual requirement.
 
     log.debug("Attempting to restore hosted session");
 
