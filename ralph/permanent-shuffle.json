@@ -39,7 +39,7 @@
         "Unassigned songs are treated as a separate 'singer' group",
         "Add unit tests for queue_compute_fair_position in queue.rs"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-004",

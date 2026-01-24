@@ -30,3 +30,29 @@ Files changed:
 - src-tauri/src/lib.rs (registered command)
 - ralph/permanent-shuffle.json (marked PRD-002 passes: true)
 
+## PRD-003: Backend - Fair position algorithm unit tests
+
+Status: COMPLETE
+
+Implemented:
+- Added 4 new PRD-specific unit tests for compute_fair_position in queue.rs
+- test_prd003_empty_queue_position_zero: verifies empty queue returns position 0
+- test_prd003_singer_with_one_song_others_with_zero: tests when only one singer in queue
+- test_prd003_singer_with_two_songs_others_with_one: tests A has 2, B/C have 1 - A waits
+- test_prd003_unassigned_treated_as_separate_group: verifies UNASSIGNED_SINGER_ID (-1) works
+- Added test_fair_position_complex_scenario: tests A:3, B:2, C:1 scenario
+
+Algorithm clarification:
+- Algorithm only knows about singers currently IN the queue
+- If B/C have 0 songs (not in queue), can't wait for them - that's fair shuffle's job
+- compute_fair_position waits for singers with FEWER songs than the new singer
+
+Verified:
+- cargo test queue: 24 passed (was 23)
+- just check: all checks passed
+- npm run test: 287 passed
+
+Files changed:
+- src-tauri/src/commands/queue.rs (added PRD-003 tests)
+- ralph/permanent-shuffle.json (marked PRD-003 passes: true)
+

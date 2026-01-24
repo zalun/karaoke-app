@@ -1058,4 +1058,101 @@ mod tests {
         let queue = vec![1, 2, 1, 2]; // A, B, A, B
         assert_eq!(compute_fair_position(&queue, 1), 3); // A inserts after position 2
     }
+
+    // ============ PRD-003 Verification Tests ============
+
+    #[test]
+    fn test_prd003_empty_queue_position_zero() {
+        // PRD-003: With queue {A:0, B:0, C:0} and singer A, position = 0
+        // Empty queue means any new singer goes to position 0
+        let queue: Vec<i64> = vec![];
+        assert_eq!(compute_fair_position(&queue, 1), 0);
+        assert_eq!(compute_fair_position(&queue, 2), 0);
+        assert_eq!(compute_fair_position(&queue, 3), 0);
+    }
+
+    #[test]
+    fn test_prd003_singer_with_one_song_others_with_zero() {
+        // PRD-003: With queue {A:1, B:0, C:0} and singer A
+        // If only A is in the queue with 1 song, and A adds another:
+        // The algorithm only knows about singers currently in the queue.
+        // Since B and C have no songs (not in queue), it can't wait for them.
+        // A's new song goes right after A's current song.
+        let queue = vec![1]; // Only A with 1 song
+        assert_eq!(compute_fair_position(&queue, 1), 1);
+
+        // However, if B and C are also in the queue (each with 1 song):
+        // A should go after the round completes
+        let queue_with_others = vec![1, 2, 3]; // A, B, C each have 1
+        assert_eq!(compute_fair_position(&queue_with_others, 1), 1); // After A's last
+    }
+
+    #[test]
+    fn test_prd003_singer_with_two_songs_others_with_one() {
+        // PRD-003: With queue {A:2, B:1, C:1} and singer A
+        // A has 2 songs, B and C have 1 each
+        // A should insert after all singers with count < 2 have had their turn
+        // Queue could be: A, B, A, C or A, A, B, C etc.
+
+        // Test case 1: A, B, A, C (A has 2, B has 1, C has 1)
+        // A's last song is at position 2. After that is C at position 3.
+        // C has 1 song (< 2), so A waits. A goes to position 4.
+        let queue1 = vec![1, 2, 1, 3]; // A, B, A, C
+        assert_eq!(compute_fair_position(&queue1, 1), 4);
+
+        // Test case 2: A, A, B, C (A has 2, B has 1, C has 1)
+        // A's last song is at position 1. After that: B(1) at pos 2, C(1) at pos 3.
+        // Both B and C have fewer songs than A (1 < 2), so A waits for both.
+        let queue2 = vec![1, 1, 2, 3]; // A, A, B, C
+        assert_eq!(compute_fair_position(&queue2, 1), 4);
+
+        // Test case 3: B, A, C, A (A has 2, B has 1, C has 1)
+        // A's last song is at position 3. No items after, so position is 4.
+        let queue3 = vec![2, 1, 3, 1]; // B, A, C, A
+        assert_eq!(compute_fair_position(&queue3, 1), 4);
+    }
+
+    #[test]
+    fn test_prd003_unassigned_treated_as_separate_group() {
+        // PRD-003: Unassigned songs are treated as a separate 'singer' group
+        // Unassigned uses UNASSIGNED_SINGER_ID (-1)
+
+        // Unassigned singer in empty queue goes to top
+        let queue: Vec<i64> = vec![];
+        assert_eq!(compute_fair_position(&queue, UNASSIGNED_SINGER_ID), 0);
+
+        // Unassigned mixed with regular singers
+        let queue2 = vec![1, UNASSIGNED_SINGER_ID, 2]; // A, Unassigned, B
+        // Adding another unassigned: unassigned has 1 song at position 1
+        // After that: B(1 song) at pos 2. Same count, so insert right after unassigned's last.
+        assert_eq!(compute_fair_position(&queue2, UNASSIGNED_SINGER_ID), 2);
+
+        // Multiple unassigned songs
+        let queue3 = vec![UNASSIGNED_SINGER_ID, 1, UNASSIGNED_SINGER_ID]; // U, A, U
+        // Unassigned has 2 songs, A has 1 song
+        // Adding another unassigned: last at position 2. A has fewer songs, but no A after pos 2.
+        // So insert at position 3.
+        assert_eq!(compute_fair_position(&queue3, UNASSIGNED_SINGER_ID), 3);
+    }
+
+    #[test]
+    fn test_fair_position_complex_scenario() {
+        // Complex scenario: A has 3, B has 2, C has 1
+        // Queue: A, B, A, C, B, A
+        // Adding A: A has 3 songs, last at position 5
+        // No items after, so position = 6
+        let queue = vec![1, 2, 1, 3, 2, 1]; // A, B, A, C, B, A
+        assert_eq!(compute_fair_position(&queue, 1), 6);
+
+        // Adding B: B has 2 songs, last at position 4
+        // After position 4: A(3 songs) at pos 5. A has more, so insert before A.
+        assert_eq!(compute_fair_position(&queue, 2), 5);
+
+        // Adding C: C has 1 song, last at position 3
+        // After position 3: B(2) at pos 4, A(3) at pos 5. Both have more, insert at 4.
+        assert_eq!(compute_fair_position(&queue, 3), 4);
+
+        // Adding new singer D: D has 0 songs, goes to top
+        assert_eq!(compute_fair_position(&queue, 4), 0);
+    }
 }
