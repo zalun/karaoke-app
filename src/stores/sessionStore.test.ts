@@ -1433,6 +1433,87 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(useSessionStore.getState().hostedSession).toEqual(mockHostedSession);
     });
 
+    it("should start polling after successful restore with refreshed token (EDGE-003)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      // Token expired 1 hour ago
+      vi.mocked(authService.getTokens).mockResolvedValue({
+        access_token: "expired-token",
+        refresh_token: "refresh",
+        expires_at: Math.floor(Date.now() / 1000) - 3600,
+      });
+      // Refresh succeeds with fresh token
+      const freshTokens = {
+        access_token: "fresh-token",
+        refresh_token: "refresh",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      };
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(freshTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue(mockHostedSession);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Polling interval should be set after token refresh + restore
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const state = useSessionStore.getState() as any;
+      expect(state._hostedSessionPollInterval).not.toBeNull();
+
+      // Clean up interval to prevent memory leak in tests
+      if (state._hostedSessionPollInterval) {
+        clearInterval(state._hostedSessionPollInterval);
+      }
+    });
+
+    it("should show notification after successful restore with refreshed token (EDGE-003)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      // Token expired 1 hour ago
+      vi.mocked(authService.getTokens).mockResolvedValue({
+        access_token: "expired-token",
+        refresh_token: "refresh",
+        expires_at: Math.floor(Date.now() / 1000) - 3600,
+      });
+      // Refresh succeeds with fresh token
+      const freshTokens = {
+        access_token: "fresh-token",
+        refresh_token: "refresh",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      };
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(freshTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue(mockHostedSession);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      expect(notify).toHaveBeenCalledWith("success", "Reconnected to hosted session");
+    });
+
+    it("should preserve hosted fields after successful restore with refreshed token (EDGE-003)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      // Token expired 1 hour ago
+      vi.mocked(authService.getTokens).mockResolvedValue({
+        access_token: "expired-token",
+        refresh_token: "refresh",
+        expires_at: Math.floor(Date.now() / 1000) - 3600,
+      });
+      // Refresh succeeds with fresh token
+      const freshTokens = {
+        access_token: "fresh-token",
+        refresh_token: "refresh",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      };
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(freshTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue(mockHostedSession);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Session state should still have hosted fields preserved
+      const session = useSessionStore.getState().session;
+      expect(session?.hosted_session_id).toBe("session-123");
+      expect(session?.hosted_by_user_id).toBe("user-1");
+      expect(session?.hosted_session_status).toBe("active");
+    });
+
     it("should restore hosted session when valid persisted ID and tokens exist", async () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");

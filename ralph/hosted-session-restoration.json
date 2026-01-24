@@ -397,7 +397,8 @@
         "Load the session",
         "Verify restoration completes after token refresh"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added 3 unit tests to verify token refresh during restoration: 1) starts polling after restore with refreshed token, 2) shows 'Reconnected' notification after refresh+restore, 3) preserves hosted fields after refresh+restore. Existing test verifies basic restoration flow with refreshed token. Implementation already supports token refresh at sessionStore.ts:835-844."
     },
     {
       "id": "EDGE-004",

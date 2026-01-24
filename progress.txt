@@ -357,3 +357,14 @@
   - verify sessionService.loadSession returns hosted fields from DB
 - Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
 - All 430 tests pass, lint passes, typecheck passes
+
+## EDGE-003: Token refresh during restoration continues restoration
+- Implementation already existed at sessionStore.ts:835-844
+- restoreHostedSession() detects expired token, calls authService.refreshTokenIfNeeded()
+- If refresh succeeds with valid token, proceeds with restoration using refreshed token
+- Added 3 new unit tests (existing test verifies basic flow):
+  - starts polling after restore with refreshed token
+  - shows "Reconnected" notification after refresh+restore
+  - preserves hosted fields after refresh+restore
+- Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
+- All 433 tests pass, lint passes, typecheck passes
