@@ -76,7 +76,7 @@
         "Button uses appropriate icon (e.g., ListOrdered from lucide-react)",
         "Button has tooltip showing current state: 'Fair Queue: ON' or 'Fair Queue: OFF'"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-007",
@@ -88,7 +88,7 @@
         "Clicking toggles the setting and updates visual state immediately",
         "Visual state matches the persisted setting value"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-008",

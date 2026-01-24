@@ -98,3 +98,24 @@ Files changed:
 - src/stores/queueStore.fairQueue.test.ts (new test file)
 - ralph/permanent-shuffle.json (marked PRD-005 passes: true)
 
+## PRD-006 & PRD-007: UI - Fair Queue toggle button
+
+Status: COMPLETE
+
+Implemented:
+- Added Fair Queue toggle button in QueuePanel next to Fair Shuffle button
+- Button uses ListOrdered icon from lucide-react
+- Tooltip shows current state: "Fair Queue: ON" or "Fair Queue: OFF"
+- Visual states: OFF = text-gray-400, ON = text-blue-400 bg-blue-400/20
+- Clicking toggles FAIR_QUEUE_ENABLED setting via settingsStore
+- ml-auto on toggle button pushes both queue buttons to right side
+
+Verified:
+- just check: all passed
+- npm run test: 294 passed
+- npm run lint: passes
+
+Files changed:
+- src/App.tsx (added ListOrdered import, Fair Queue toggle button, toggleFairQueue handler)
+- ralph/permanent-shuffle.json (marked PRD-006 and PRD-007 passes: true)
+
