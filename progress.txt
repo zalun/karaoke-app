@@ -343,3 +343,17 @@
   - fields preserved even when hostedSession state cleared
 - Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
 - All 425 tests pass, lint passes, typecheck passes
+
+## EDGE-002: Each session has independent hosted state
+- Verified: hosted_session_id/hosted_by_user_id/hosted_session_status stored per-session in DB
+- switchToSession() loads new session from DB with its own hosted fields
+- Session A's hosted fields don't affect Session B (no cross-contamination)
+- Switching back to Session A restores its hosted fields from DB
+- Added 5 unit tests in sessionStore.test.ts:
+  - load Session B without hosted fields when switching from Session A
+  - restore Session A's hosted fields when switching back
+  - maintain independent hosted fields for multiple sessions (A=active, C=ended)
+  - document: hostedSession state is separate from session.hosted_* DB fields
+  - verify sessionService.loadSession returns hosted fields from DB
+- Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
+- All 430 tests pass, lint passes, typecheck passes

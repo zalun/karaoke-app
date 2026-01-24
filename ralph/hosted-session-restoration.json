@@ -384,7 +384,8 @@
         "Switch back to Session A",
         "Verify Session A still has hosted fields"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Verified via 5 unit tests: 1) Session B loads without hosted fields when switching from Session A, 2) Session A's hosted fields restored when switching back, 3) Multiple sessions maintain independent hosted fields (A=active, C=ended), 4) hostedSession state is separate from session.hosted_* DB fields, 5) sessionService.loadSession returns hosted fields from DB. The database schema stores hosted_session_id/hosted_by_user_id/hosted_session_status per session row, ensuring independence."
     },
     {
       "id": "EDGE-003",
