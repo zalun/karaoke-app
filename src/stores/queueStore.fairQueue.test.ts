@@ -327,5 +327,38 @@ describe("queueStore fair queue functionality", () => {
         expect(queue[3].id).toBe("song-a2");
       });
     });
+
+    it("should append to end when fair queue enabled but no active singer (PRD-011)", () => {
+      // PRD-011: Enable Fair Queue toggle, clear active singer, add a song
+      // Verify song is appended to end (fallback behavior when no singer)
+
+      // Pre-populate queue with existing songs
+      const existingQueue = [
+        { id: "song-a1", video: { ...mockVideo, id: "v-a1", title: "Song A1" }, addedAt: new Date() },
+        { id: "song-b1", video: { ...mockVideo, id: "v-b1", title: "Song B1" }, addedAt: new Date() },
+      ];
+      useQueueStore.setState({ queue: existingQueue });
+
+      // Fair Queue is enabled (set in beforeEach)
+      // No active singer
+      useSessionStore.setState({ activeSingerId: null });
+
+      const { addToQueue } = useQueueStore.getState();
+      const newSong: Video = { ...mockVideo, id: "v-new", title: "New Song" };
+      const addedItem = addToQueue(newSong);
+
+      // PRD-011: Should NOT compute fair position when no singer
+      expect(queueService.computeFairPosition).not.toHaveBeenCalled();
+
+      // Song should be appended to end (fallback behavior)
+      const queue = useQueueStore.getState().queue;
+      expect(queue).toHaveLength(3);
+      expect(queue[2].id).toBe(addedItem.id);
+      expect(queue[2].video.title).toBe("New Song");
+
+      // Existing items stay in place
+      expect(queue[0].id).toBe("song-a1");
+      expect(queue[1].id).toBe("song-b1");
+    });
   });
 });

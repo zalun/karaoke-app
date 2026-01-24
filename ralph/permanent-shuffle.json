@@ -142,7 +142,7 @@
         "Verify song is appended to end (fallback behavior when no singer)",
         "Unassigned songs in queue are treated as their own group for position calculation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-012",
