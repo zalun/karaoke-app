@@ -342,7 +342,8 @@
         "Verify dialog text says 'another user' not the email",
         "Verify dialog has OK button to dismiss"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Created HostedByOtherUserDialog.test.tsx with 8 unit tests verifying: dialog renders when showHostedByOtherUserDialog is true, displays anonymous text 'another user' (not email), shows OK button, closes dialog on OK/X click, shows warning icon. The existing HostedByOtherUserDialog component already implemented this correctly."
     },
     {
       "id": "UI-002",

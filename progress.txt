@@ -292,3 +292,32 @@
   - no notification shown on network error (RESTORE-008)
 - Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json
 - All 400 tests pass, lint passes
+
+## RESTORE-009: API 401/403 error updates status to ended
+- Updated restoreHostedSession() error handling (lines 879-896)
+- Added calls to sessionService.updateHostedSessionStatus(session.id, 'ended') for 401/403 errors
+- Also updates local session state with hosted_session_status: 'ended'
+- 404 errors only clear persisted ID (session may have never existed on backend)
+- Added 5 unit tests:
+  - update DB status on 401 error
+  - update local state on 401 error
+  - update DB status on 403 error
+  - update local state on 403 error
+  - NOT update status on 404 error (different handling)
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json
+- All 405 tests pass, lint passes
+
+## UI-001: Different user dialog is anonymous (no email shown)
+- Verified existing HostedByOtherUserDialog component shows "another user" not email
+- Has OK button that calls closeHostedByOtherUserDialog to dismiss
+- Created HostedByOtherUserDialog.test.tsx with 8 unit tests:
+  - renders nothing when hidden
+  - renders dialog when shown
+  - displays anonymous text (no email)
+  - displays helpful instruction text
+  - has OK button to dismiss
+  - closes on OK click
+  - closes on X click
+  - shows warning icon
+- Files changed: src/components/session/HostedByOtherUserDialog.test.tsx, ralph/hosted-session-restoration.json
+- All 413 tests pass, lint passes, typecheck passes
