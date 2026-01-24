@@ -247,3 +247,23 @@
 - Updated existing test to expect getPersistedSessionId not called when no tokens
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
 - All 381 tests pass, typecheck passes, lint passes
+
+## RESTORE-006: Different user with active status shows dialog
+- Added showHostedByOtherUserDialog state and closeHostedByOtherUserDialog action to sessionStore
+- Updated restoreHostedSession() to set showHostedByOtherUserDialog=true when different user detected with active/paused status
+- Does NOT show dialog when status='ended' (per RESTORE-007 behavior)
+- Created HostedByOtherUserDialog component with anonymous messaging ("another user" not email)
+- Uses AlertTriangle icon, styled consistent with DisplayRestoreDialog
+- Single OK button to dismiss, no actions (just informational)
+- Exported component from src/components/session/index.ts
+- Added to App.tsx alongside other dialogs
+- Added 6 unit tests:
+  - show dialog for different user with active status
+  - preserve hosted fields when different user
+  - no notification when different user
+  - show dialog for different user with paused status
+  - NOT show dialog for different user with ended status
+  - closeHostedByOtherUserDialog action
+- Updated resetStoreState() to include hostedSession, showHostModal, showHostedByOtherUserDialog
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, src/components/session/HostedByOtherUserDialog.tsx, src/components/session/index.ts, src/App.tsx, ralph/hosted-session-restoration.json
+- All 394 tests pass, typecheck passes, lint passes

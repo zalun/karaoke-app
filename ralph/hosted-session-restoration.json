@@ -287,7 +287,8 @@
         "Verify hosted fields are preserved",
         "Verify no restoration"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added showHostedByOtherUserDialog state and closeHostedByOtherUserDialog action to sessionStore. Created HostedByOtherUserDialog component with anonymous messaging (says 'another user' not email). restoreHostedSession() now shows dialog when different user detected with active/paused status. Also shows dialog for paused status. Does NOT show dialog when status='ended' (per RESTORE-007 behavior). 6 unit tests added: show dialog for active, preserve fields, no notification, show dialog for paused, no dialog for ended, closeHostedByOtherUserDialog action."
     },
     {
       "id": "RESTORE-007",

@@ -20,7 +20,7 @@ import { VideoPlayer, PlayerControls } from "./components/player";
 import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector, type SearchBarRef, type SearchResultsRef, type LocalSearchResultsRef } from "./components/search";
 import { LibraryBrowser, type LibraryBrowserRef } from "./components/library";
 import { DraggableQueueItem } from "./components/queue";
-import { SessionBar } from "./components/session";
+import { SessionBar, HostedByOtherUserDialog } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
@@ -551,6 +551,9 @@ function App() {
 
       {/* Display configuration restore dialog */}
       <DisplayRestoreDialog />
+
+      {/* Hosted session ownership dialog */}
+      <HostedByOtherUserDialog />
 
       {/* Favorites dialogs */}
       <LoadFavoritesDialog />

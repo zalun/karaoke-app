@@ -172,6 +172,9 @@ function resetStoreState() {
     singers: [],
     activeSingerId: null,
     queueSingerAssignments: new Map(),
+    hostedSession: null,
+    showHostModal: false,
+    showHostedByOtherUserDialog: false,
   });
 }
 
@@ -1155,7 +1158,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(notify).toHaveBeenCalledWith("success", "Reconnected to hosted session");
     });
 
-    it("should skip restore when different user but preserve fields (RESTORE-006 prep)", async () => {
+    it("should show dialog when different user with active status (RESTORE-006)", async () => {
       // Session with hosted fields for a different user
       const sessionWithDifferentUser: Session = {
         ...mockSession,
@@ -1163,23 +1166,40 @@ describe("sessionStore - Hosted Session Restoration", () => {
         hosted_by_user_id: "different-user-id", // Different from mock user-1
         hosted_session_status: "active",
       };
-      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null });
+      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null, showHostedByOtherUserDialog: false });
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
 
       await useSessionStore.getState().restoreHostedSession();
 
+      // Should show the dialog
+      expect(useSessionStore.getState().showHostedByOtherUserDialog).toBe(true);
       // Should NOT attempt to restore (different user)
       expect(getPersistedSessionId).not.toHaveBeenCalled();
       expect(hostedSessionService.getSession).not.toHaveBeenCalled();
       expect(useSessionStore.getState().hostedSession).toBeNull();
-      // Hosted fields should be preserved
+    });
+
+    it("should preserve hosted fields when different user with active status (RESTORE-006)", async () => {
+      // Session with hosted fields for a different user
+      const sessionWithDifferentUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "different-user-id", // Different from mock user-1
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null, showHostedByOtherUserDialog: false });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Hosted fields should be preserved for the original owner
       const session = useSessionStore.getState().session;
       expect(session?.hosted_session_id).toBe("session-123");
       expect(session?.hosted_by_user_id).toBe("different-user-id");
       expect(session?.hosted_session_status).toBe("active");
     });
 
-    it("should not show notification when different user skips restore (RESTORE-006 prep)", async () => {
+    it("should not show notification when different user skips restore (RESTORE-006)", async () => {
       // Session with hosted fields for a different user
       const sessionWithDifferentUser: Session = {
         ...mockSession,
@@ -1187,13 +1207,48 @@ describe("sessionStore - Hosted Session Restoration", () => {
         hosted_by_user_id: "different-user-id", // Different from mock user-1
         hosted_session_status: "active",
       };
-      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null });
+      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null, showHostedByOtherUserDialog: false });
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
 
       await useSessionStore.getState().restoreHostedSession();
 
-      // No notification should be shown (silent skip for now, dialog comes with RESTORE-006)
+      // No notification should be shown (dialog is used instead)
       expect(notify).not.toHaveBeenCalled();
+    });
+
+    it("should show dialog for different user with paused status (RESTORE-006)", async () => {
+      // Session with hosted fields for a different user, paused status
+      const sessionWithDifferentUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "different-user-id", // Different from mock user-1
+        hosted_session_status: "paused",
+      };
+      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null, showHostedByOtherUserDialog: false });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should show the dialog (paused is still active ownership)
+      expect(useSessionStore.getState().showHostedByOtherUserDialog).toBe(true);
+    });
+
+    it("should NOT show dialog for different user with ended status (RESTORE-006/RESTORE-007)", async () => {
+      // Session with hosted fields for a different user, ended status
+      // Different user + ended = no dialog needed (session already over)
+      const sessionWithDifferentUser: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "different-user-id", // Different from mock user-1
+        hosted_session_status: "ended",
+      };
+      useSessionStore.setState({ session: sessionWithDifferentUser, hostedSession: null, showHostedByOtherUserDialog: false });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should NOT show the dialog (status is ended - no active ownership concern)
+      expect(useSessionStore.getState().showHostedByOtherUserDialog).toBe(false);
     });
 
     it("should skip restore when user profile not loaded", async () => {
@@ -2283,6 +2338,21 @@ describe("sessionStore - Host Session", () => {
       expect(useSessionStore.getState().showHostModal).toBe(false);
       // New behavior: also clear persisted session ID
       expect(clearPersistedSessionId).toHaveBeenCalled();
+    });
+  });
+
+  describe("closeHostedByOtherUserDialog", () => {
+    beforeEach(() => {
+      resetStoreState();
+      vi.clearAllMocks();
+    });
+
+    it("should close the hosted by other user dialog", () => {
+      useSessionStore.setState({ showHostedByOtherUserDialog: true });
+
+      useSessionStore.getState().closeHostedByOtherUserDialog();
+
+      expect(useSessionStore.getState().showHostedByOtherUserDialog).toBe(false);
     });
   });
 });

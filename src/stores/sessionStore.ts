@@ -50,6 +50,8 @@ interface SessionState {
   // Hosted session state (for remote guest access)
   hostedSession: HostedSession | null;
   showHostModal: boolean;
+  // Dialog shown when another user was hosting this session (RESTORE-006)
+  showHostedByOtherUserDialog: boolean;
 
   // Singers state
   singers: Singer[];
@@ -82,6 +84,7 @@ interface SessionState {
   restoreHostedSession: () => Promise<void>;
   openHostModal: () => void;
   closeHostModal: () => void;
+  closeHostedByOtherUserDialog: () => void;
 
   // Singer actions
   loadSingers: () => Promise<void>;
@@ -114,6 +117,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   recentSessionSingers: new Map(),
   hostedSession: null,
   showHostModal: false,
+  showHostedByOtherUserDialog: false,
   singers: [],
   activeSingerId: null,
   queueSingerAssignments: new Map(),
@@ -805,8 +809,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // RESTORE-004: Same user scenario - proceed with restoration
     if (session.hosted_by_user_id && session.hosted_by_user_id !== currentUser.id) {
       log.debug("Skipping restore: different user (session belongs to another user)");
-      // TODO: RESTORE-006 will implement showing a dialog here
-      // For now, just skip restoration and preserve fields for the original owner
+      // Show dialog informing the user (anonymous - no email shown for privacy)
+      // Only show for active/paused status, not for ended
+      if (session.hosted_session_status !== "ended") {
+        set({ showHostedByOtherUserDialog: true });
+      }
+      // Preserve fields for the original owner
       return;
     }
 
@@ -894,5 +902,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   closeHostModal: () => {
     set({ showHostModal: false });
+  },
+
+  closeHostedByOtherUserDialog: () => {
+    set({ showHostedByOtherUserDialog: false });
   },
 }));
