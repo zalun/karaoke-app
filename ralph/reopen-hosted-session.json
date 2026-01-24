@@ -143,7 +143,7 @@
         "Called before auth tokens are cleared",
         "Prevents orphaned hosted session references after logout"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "e2e-1",

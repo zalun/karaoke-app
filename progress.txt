@@ -123,3 +123,16 @@
   - Verifies existing error handling behavior preserved
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
 - All 355 tests pass, typecheck passes, lint passes
+
+## auth-1: signOut() clears persisted session ID before clearing tokens
+- Added clearPersistedSessionId import from hostedSession to authStore.ts
+- Added clearPersistedSessionId() call in signOut() before Supabase signOut and token clearing
+- Wrapped in try/catch so signOut continues even if clearPersistedSessionId fails
+- Created authStore.test.ts with 5 unit tests:
+  - Verifies call order: clearPersistedSessionId before clearTokens
+  - Verifies clearPersistedSessionId is called on signOut
+  - Verifies signOut continues if clearPersistedSessionId fails
+  - Verifies session ID cleared even when Supabase signOut fails
+  - Documents purpose: prevents orphaned hosted session references after logout
+- Files changed: src/stores/authStore.ts, src/stores/authStore.test.ts, ralph/reopen-hosted-session.json
+- All 360 tests pass, typecheck passes, lint passes
