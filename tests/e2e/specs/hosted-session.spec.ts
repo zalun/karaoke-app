@@ -357,6 +357,63 @@ test.describe("Hosted Session", () => {
       expect(hostedState.status).toBe("ended");
     });
 
+    test("E2E-002: restart restoration restores hosted session on app reopen", async ({ page }) => {
+      // Setup: Pre-populate session with hosted fields (simulates app state after hosting then quitting)
+      const hostedSessionId = "mock-session-" + Math.random().toString(36).substring(7);
+      const testUserId = "test-user-id";
+
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+        mockUser: {
+          id: testUserId,
+          email: "test@example.com",
+          displayName: "Test User",
+        },
+        // Simulate app restart with persisted session that was being hosted
+        initialSession: {
+          id: 1,
+          name: "Test Session",
+          hosted_session_id: hostedSessionId,
+          hosted_by_user_id: testUserId,
+          hosted_session_status: "active",
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for session to be loaded with hosted fields (restoration happens automatically)
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Verify hosted session was restored - "Hosting" button should be visible (green state)
+      await expect(async () => {
+        const hostingButton = page.getByRole("button", { name: "Hosting" });
+        await expect(hostingButton).toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Click to open modal and verify session is active
+      const hostingButton = page.getByRole("button", { name: "Hosting" });
+      await hostingButton.click();
+
+      // Modal should show session info
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+
+      // Verify join code is displayed
+      const joinCodePattern = /HK-[A-Z0-9]{4}-[A-Z0-9]{4}/i;
+      await expect(async () => {
+        const modalContent = await page.locator(".text-4xl.font-bold.font-mono").textContent();
+        expect(modalContent).toMatch(joinCodePattern);
+      }).toPass({ timeout: 5000 });
+    });
+
     test("should stop hosting when ending session", async ({ page }) => {
       // Setup: Authenticated user
       await injectTauriMocks(page, {

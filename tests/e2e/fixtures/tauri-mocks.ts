@@ -96,6 +96,14 @@ export interface TauriMockConfig {
     displayName: string;
     avatarUrl?: string;
   } | null;
+  /** Initial session state for restoration tests (simulates app restart with persisted session) */
+  initialSession?: {
+    id: number;
+    name: string | null;
+    hosted_session_id?: string;
+    hosted_by_user_id?: string;
+    hosted_session_status?: string;
+  } | null;
 }
 
 /**
@@ -217,7 +225,26 @@ export async function injectTauriMocks(
       hosted_session_id?: string;
       hosted_by_user_id?: string;
       hosted_session_status?: string;
-    } | null = null;
+    } | null = mockConfig.initialSession ? {
+      id: mockConfig.initialSession.id,
+      name: mockConfig.initialSession.name,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      hosted_session_id: mockConfig.initialSession.hosted_session_id,
+      hosted_by_user_id: mockConfig.initialSession.hosted_by_user_id,
+      hosted_session_status: mockConfig.initialSession.hosted_session_status,
+    } : null;
+
+    // Track hosted session ID for restoration tests
+    if (mockConfig.initialSession?.hosted_session_id) {
+      const globals = getHttpMockGlobals();
+      globals.__HOSTED_SESSION_ID__ = mockConfig.initialSession.hosted_session_id;
+      globals.__HOSTED_SESSION_CODE__ = "HK-" + mockConfig.initialSession.hosted_session_id.slice(-8).toUpperCase().replace(/-/g, "").slice(0, 4) + "-" + mockConfig.initialSession.hosted_session_id.slice(-4).toUpperCase();
+      globals.__HOSTED_SESSION_STATUS__ = mockConfig.initialSession.hosted_session_status || null;
+      if (mockConfig.initialSession.hosted_session_status === "active") {
+        globals.__HOSTED_SESSION_CREATED__ = true;
+      }
+    }
 
     // In-memory search history state
     const searchHistoryStore: { youtube: string[]; local: string[] } = {
@@ -444,10 +471,16 @@ export async function injectTauriMocks(
           case "session_remove_singer":
           case "session_set_active_singer":
           case "session_assign_singer":
+          case "add_singer_to_session":
+          case "remove_singer_from_session":
             return null;
 
           case "session_get_singers":
+          case "get_session_singers":
             return [];
+
+          case "session_get_active_singer":
+            return null;
 
           // Hosted session commands
           case "session_set_hosted": {

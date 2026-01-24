@@ -438,7 +438,8 @@
         "Reopen the app",
         "Verify hosted session is restored automatically"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added E2E test 'E2E-002: restart restoration restores hosted session on app reopen' in hosted-session.spec.ts. Test uses initialSession mock config to pre-populate session with hosted fields, simulating app restart. Fixed tauri-mocks.ts: added initialSession config, fixed command names (get_session_singers, session_get_active_singer), ensured hosted session globals are initialized for restoration tests."
     },
     {
       "id": "E2E-003",
