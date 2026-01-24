@@ -191,10 +191,11 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         const fairPosition = await queueService.computeFairPosition(activeSingerId);
         log.debug(`Fair position for singer ${activeSingerId}: ${fairPosition}`);
 
-        // Add item to database (appends to end)
+        // Note: Two-step process (add then reorder) has a small race condition window
+        // where the item is briefly at the wrong position. This is acceptable for a
+        // single-user desktop app - similar trade-off as addToQueueNext (see line ~260).
+        // A crash between these calls would leave the item at the end, which is safe.
         await queueService.addItem(toQueueItemData(newItem, 0));
-
-        // Reorder to the fair position
         await queueService.reorder(newItem.id, fairPosition);
 
         // Update UI to reflect the correct position
