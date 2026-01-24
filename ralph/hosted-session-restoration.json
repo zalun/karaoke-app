@@ -218,7 +218,8 @@
         "Verify no API calls to verify hosted session",
         "Verify no restoration dialog or process"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Updated restoreHostedSession() to check session.hosted_session_id first. Returns early if null/undefined, skipping all restoration logic. Falls back to using hosted_session_id from session DB when persisted ID is null. 3 new unit tests: returns early if no hosted_session_id (RESTORE-001), uses hosted_session_id from DB when persisted ID null, no notification when no hosted_session_id."
     },
     {
       "id": "RESTORE-002",

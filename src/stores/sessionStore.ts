@@ -768,16 +768,29 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return;
     }
 
+    // RESTORE-001: Skip if session has no hosted_session_id
+    // This is the primary check - the session must have been hosted at some point
+    if (!session.hosted_session_id) {
+      log.debug("Skipping restore: no hosted_session_id on session");
+      return;
+    }
+
     // Note: We don't check isAuthenticated here because of a race condition -
     // this function may be called before auth store finishes initializing.
     // Instead, we check for valid tokens below which is the actual requirement.
 
     log.debug("Attempting to restore hosted session");
 
-    // Get persisted session ID
+    // Get persisted session ID (legacy fallback, will be removed in MIGRATE-001)
     const persistedId = await getPersistedSessionId();
-    if (!persistedId) {
-      log.debug("No persisted session ID found");
+    // Use hosted_session_id from session DB field (new approach)
+    const hostedSessionId = session.hosted_session_id;
+
+    // If we have a hosted_session_id in the session but no persisted ID,
+    // use the session's hosted_session_id for restoration
+    const sessionIdToRestore = persistedId || hostedSessionId;
+    if (!sessionIdToRestore) {
+      log.debug("No session ID available for restoration");
       return;
     }
 
@@ -804,7 +817,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Verify session is still active on backend
       const restoredSession = await hostedSessionService.getSession(
         tokens.access_token,
-        persistedId
+        sessionIdToRestore
       );
 
       // Only restore if session is still active
