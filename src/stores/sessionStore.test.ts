@@ -1032,6 +1032,65 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(notify).not.toHaveBeenCalled();
     });
 
+    it("should return early if user not authenticated (RESTORE-003)", async () => {
+      // Session with hosted fields but user is not authenticated
+      const sessionWithHostedFields: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "user-1",
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithHostedFields, hostedSession: null });
+      // No auth tokens = not authenticated
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should not attempt to get persisted ID or make API calls
+      expect(getPersistedSessionId).not.toHaveBeenCalled();
+      expect(hostedSessionService.getSession).not.toHaveBeenCalled();
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+
+    it("should preserve hosted fields when user not authenticated (RESTORE-003)", async () => {
+      // Session with hosted fields but user is not authenticated
+      const sessionWithHostedFields: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "user-1",
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithHostedFields, hostedSession: null });
+      // No auth tokens = not authenticated
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Hosted fields should remain unchanged (preserved for owner)
+      const session = useSessionStore.getState().session;
+      expect(session?.hosted_session_id).toBe("session-123");
+      expect(session?.hosted_by_user_id).toBe("user-1");
+      expect(session?.hosted_session_status).toBe("active");
+    });
+
+    it("should not show notification when user not authenticated (RESTORE-003)", async () => {
+      // Session with hosted fields but user is not authenticated
+      const sessionWithHostedFields: Session = {
+        ...mockSession,
+        hosted_session_id: "session-123",
+        hosted_by_user_id: "user-1",
+        hosted_session_status: "active",
+      };
+      useSessionStore.setState({ session: sessionWithHostedFields, hostedSession: null });
+      // No auth tokens = not authenticated
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // No notifications should be shown - silent skip
+      expect(notify).not.toHaveBeenCalled();
+    });
+
     it("should return early if no persisted session ID exists and session has hosted_session_id", async () => {
       // Session with hosted_session_id but no persisted ID (will use hosted_session_id)
       const sessionWithHostedId: Session = {
@@ -1065,13 +1124,13 @@ describe("sessionStore - Hosted Session Restoration", () => {
 
     it("should return early if no auth tokens available", async () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
-      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(null);
 
       await useSessionStore.getState().restoreHostedSession();
 
-      expect(getPersistedSessionId).toHaveBeenCalled();
+      // RESTORE-003: Auth is checked first, before persisted ID lookup
       expect(authService.getTokens).toHaveBeenCalled();
+      expect(getPersistedSessionId).not.toHaveBeenCalled();
       expect(hostedSessionService.getSession).not.toHaveBeenCalled();
       expect(useSessionStore.getState().hostedSession).toBeNull();
     });

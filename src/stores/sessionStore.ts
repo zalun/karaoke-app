@@ -783,11 +783,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return;
     }
 
-    // Note: We don't check isAuthenticated here because of a race condition -
-    // this function may be called before auth store finishes initializing.
-    // Instead, we check for valid tokens below which is the actual requirement.
-
     log.debug("Attempting to restore hosted session");
+
+    // RESTORE-003: Check if user is authenticated before attempting restoration
+    // If not authenticated, we preserve hosted fields for when the owner returns
+    let tokens = await authService.getTokens();
+    if (!tokens) {
+      log.debug("Skipping restore: user not authenticated (preserving hosted fields for owner)");
+      return;
+    }
 
     // Get persisted session ID (legacy fallback, will be removed in MIGRATE-001)
     const persistedId = await getPersistedSessionId();
@@ -799,13 +803,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const sessionIdToRestore = persistedId || hostedSessionId;
     if (!sessionIdToRestore) {
       log.debug("No session ID available for restoration");
-      return;
-    }
-
-    // Get access token to verify session
-    let tokens = await authService.getTokens();
-    if (!tokens) {
-      log.debug("No auth tokens available for session restore");
       return;
     }
 

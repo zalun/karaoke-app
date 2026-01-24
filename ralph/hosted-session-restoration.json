@@ -244,7 +244,8 @@
         "Verify no restoration attempted",
         "Verify hosted fields are preserved for when owner returns"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Auth token check moved earlier in restoreHostedSession() flow. When no tokens exist, returns early with debug log 'user not authenticated (preserving hosted fields for owner)'. 3 unit tests: returns early if not authenticated, preserves hosted fields when not authenticated, no notification when not authenticated."
     },
     {
       "id": "RESTORE-004",

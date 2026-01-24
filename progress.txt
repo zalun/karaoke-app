@@ -229,3 +229,21 @@
   - should handle stopHosting when session is null
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
 - All 373 tests pass, typecheck passes, lint passes
+
+## RESTORE-001/RESTORE-002: Check hosted_session_id and status before restoration
+- Already implemented in previous iteration
+- See earlier progress entries
+
+## RESTORE-003: No restoration when user not authenticated
+- Moved auth token check earlier in restoreHostedSession() flow
+- Now checks tokens before getPersistedSessionId() lookup
+- Returns early with debug log "user not authenticated (preserving hosted fields for owner)"
+- Hosted fields remain unchanged - preserved for when owner returns
+- No notification shown on unauthenticated skip
+- Added 3 unit tests:
+  - returns early if user not authenticated
+  - preserves hosted fields when not authenticated
+  - no notification when not authenticated
+- Updated existing test to expect getPersistedSessionId not called when no tokens
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
+- All 381 tests pass, typecheck passes, lint passes
