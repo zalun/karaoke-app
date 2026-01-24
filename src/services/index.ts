@@ -21,7 +21,12 @@ export type { QueueItemData, QueueState } from "./queue";
 export { favoritesService } from "./favorites";
 export { updateService } from "./update";
 export type { UpdateInfo } from "./update";
-export { hostedSessionService } from "./hostedSession";
+export {
+  hostedSessionService,
+  getPersistedSessionId,
+  persistSessionId,
+  clearPersistedSessionId,
+} from "./hostedSession";
 export type { HostedSession, SessionStats } from "./hostedSession";
 export {
   loadYouTubeAPI,

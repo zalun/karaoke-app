@@ -1,5 +1,14 @@
 import { create } from "zustand";
-import { createLogger, sessionService, hostedSessionService, type Singer, type Session, type HostedSession } from "../services";
+import {
+  createLogger,
+  sessionService,
+  hostedSessionService,
+  getPersistedSessionId,
+  clearPersistedSessionId,
+  type Singer,
+  type Session,
+  type HostedSession,
+} from "../services";
 import { authService } from "../services/auth";
 import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
@@ -688,7 +697,74 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
 
     log.debug("Attempting to restore hosted session");
-    // Actual restoration logic will be added in restore-2
+
+    // Get persisted session ID
+    const persistedId = await getPersistedSessionId();
+    if (!persistedId) {
+      log.debug("No persisted session ID found");
+      return;
+    }
+
+    // Get access token to verify session
+    const tokens = await authService.getTokens();
+    if (!tokens) {
+      log.debug("No auth tokens available for session restore");
+      return;
+    }
+
+    // Skip if token is expired
+    if (!isTokenValid(tokens.expires_at)) {
+      log.debug("Token expired, skipping session restore");
+      return;
+    }
+
+    try {
+      // Verify session is still active on backend
+      const restoredSession = await hostedSessionService.getSession(
+        tokens.access_token,
+        persistedId
+      );
+
+      // Only restore if session is still active
+      if (restoredSession.status !== "active") {
+        log.info(`Persisted session is ${restoredSession.status}, clearing`);
+        await clearPersistedSessionId();
+        return;
+      }
+
+      // Clear any existing polling interval
+      const existingInterval = get()._hostedSessionPollInterval;
+      if (existingInterval) {
+        clearInterval(existingInterval);
+      }
+
+      // Start polling for stats
+      const pollInterval = setInterval(() => {
+        get().refreshHostedSession();
+      }, HOSTED_SESSION_POLL_INTERVAL_MS);
+
+      set({ hostedSession: restoredSession, _hostedSessionPollInterval: pollInterval });
+
+      log.info(`Restored hosted session: ${restoredSession.sessionCode}`);
+      notify("success", "Reconnected to hosted session");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.warn(`Failed to restore hosted session: ${message}`);
+
+      // Clear persisted ID on auth errors or session not found
+      const shouldClear =
+        message.includes("404") ||
+        message.includes("NOT_FOUND") ||
+        message.includes("401") ||
+        message.includes("403") ||
+        message.includes("UNAUTHORIZED");
+
+      if (shouldClear) {
+        log.debug("Clearing invalid persisted session ID");
+        await clearPersistedSessionId();
+      }
+      // Don't show error to user - silent cleanup for expected scenarios
+    }
   },
 
   openHostModal: () => {

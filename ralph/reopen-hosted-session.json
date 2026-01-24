@@ -64,7 +64,7 @@
         "If session is active, restores hostedSession state",
         "If session is active, starts polling with refreshHostedSession()"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "restore-3",

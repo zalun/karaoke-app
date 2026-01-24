@@ -35,3 +35,18 @@
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts
 - Note: Actual restoration logic (API calls, polling) will be added in restore-2
 - All 311 tests pass, typecheck passes, lint passes
+
+## restore-2: Add restoration logic to restoreHostedSession()
+- Implemented full restoration flow in restoreHostedSession():
+  1. Calls getPersistedSessionId() to get stored session ID
+  2. Returns early if no persisted ID (no error)
+  3. Gets auth tokens, validates not expired
+  4. Calls hostedSessionService.getSession() to verify session still active
+  5. If active: sets hostedSession state, starts polling interval
+  6. If not active: clears persisted ID
+- Handles error cases: 404/401/403 clear persisted ID, network errors don't
+- Shows "Reconnected to hosted session" notification on success
+- Exported getPersistedSessionId and clearPersistedSessionId from services/index.ts
+- Added 10 new unit tests covering all restoration scenarios
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, src/services/index.ts
+- All 321 tests pass, typecheck passes, lint passes
