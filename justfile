@@ -324,19 +324,19 @@ db-schema:
 
 # Tail application logs
 logs:
-    tail -f ~/Library/Logs/app.homekaraoke/homekaraoke.log
+    tail -f ~/Library/Logs/app.homekaraoke/karaoke.log
 
 # Show last 100 log lines
 logs-recent:
-    tail -100 ~/Library/Logs/app.homekaraoke/homekaraoke.log
+    tail -100 ~/Library/Logs/app.homekaraoke/karaoke.log
 
 # Open log file in default editor
 logs-open:
-    open ~/Library/Logs/app.homekaraoke/homekaraoke.log
+    open ~/Library/Logs/app.homekaraoke/karaoke.log
 
 # Clear logs
 logs-clear:
-    echo "" > ~/Library/Logs/app.homekaraoke/homekaraoke.log
+    echo "" > ~/Library/Logs/app.homekaraoke/karaoke.log
     @echo "Logs cleared"
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -463,6 +463,10 @@ ralph +files:
 ralph-clean:
     rm -f ralph/progress.txt
     @echo "✓ Removed ralph/progress.txt"
+
+# Prepare JSON TASKS
+ralph-tasks *FILE:
+    ./ralph/prd-to-tasks.sh {{ FILE }}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HELP

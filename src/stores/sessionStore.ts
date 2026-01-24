@@ -716,16 +716,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
 
     // Get access token to verify session
-    const tokens = await authService.getTokens();
+    let tokens = await authService.getTokens();
     if (!tokens) {
       log.debug("No auth tokens available for session restore");
       return;
     }
 
-    // Skip if token is expired
+    // If token is expired, try to refresh it first
     if (!isTokenValid(tokens.expires_at)) {
-      log.debug("Token expired, skipping session restore");
-      return;
+      log.debug("Token expired, attempting refresh before restore");
+      const refreshedTokens = await authService.refreshTokenIfNeeded();
+      if (!refreshedTokens || !isTokenValid(refreshedTokens.expires_at)) {
+        log.debug("Token refresh failed or still expired, skipping session restore");
+        return;
+      }
+      tokens = refreshedTokens;
+      log.debug("Token refreshed successfully, proceeding with restore");
     }
 
     try {

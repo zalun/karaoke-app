@@ -46,6 +46,7 @@ vi.mock("../services/auth", () => ({
     getTokens: vi.fn(),
     storeTokens: vi.fn(),
     clearTokens: vi.fn(),
+    refreshTokenIfNeeded: vi.fn(),
   },
 }));
 
@@ -950,7 +951,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(useSessionStore.getState().hostedSession).toBeNull();
     });
 
-    it("should return early if token is expired", async () => {
+    it("should return early if token is expired and refresh fails", async () => {
       useSessionStore.setState({ session: mockSession, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       // Token expired 1 hour ago
@@ -959,11 +960,39 @@ describe("sessionStore - Hosted Session Restoration", () => {
         refresh_token: "refresh",
         expires_at: Math.floor(Date.now() / 1000) - 3600,
       });
+      // Refresh fails
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(null);
 
       await useSessionStore.getState().restoreHostedSession();
 
+      expect(authService.refreshTokenIfNeeded).toHaveBeenCalled();
       expect(hostedSessionService.getSession).not.toHaveBeenCalled();
       expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+
+    it("should restore session after token refresh succeeds", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      // Token expired 1 hour ago
+      vi.mocked(authService.getTokens).mockResolvedValue({
+        access_token: "expired-token",
+        refresh_token: "refresh",
+        expires_at: Math.floor(Date.now() / 1000) - 3600,
+      });
+      // Refresh succeeds with fresh token
+      const freshTokens = {
+        access_token: "fresh-token",
+        refresh_token: "refresh",
+        expires_at: Math.floor(Date.now() / 1000) + 3600, // Valid for 1 hour
+      };
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(freshTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue(mockHostedSession);
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      expect(authService.refreshTokenIfNeeded).toHaveBeenCalled();
+      expect(hostedSessionService.getSession).toHaveBeenCalledWith("fresh-token", "session-123");
+      expect(useSessionStore.getState().hostedSession).toEqual(mockHostedSession);
     });
 
     it("should restore hosted session when valid persisted ID and tokens exist", async () => {
