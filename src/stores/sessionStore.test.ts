@@ -1642,6 +1642,45 @@ describe("sessionStore - Hosted Session Restoration", () => {
       expect(clearPersistedSessionId).not.toHaveBeenCalled();
       expect(useSessionStore.getState().hostedSession).toBeNull();
     });
+
+    it("should preserve hosted fields on network error for retry (RESTORE-008)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("Network error: connection refused"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Hosted fields should be preserved unchanged for retry
+      const session = useSessionStore.getState().session;
+      expect(session?.hosted_session_id).toBe("session-123");
+      expect(session?.hosted_by_user_id).toBe("user-1");
+      expect(session?.hosted_session_status).toBe("active");
+    });
+
+    it("should not update DB status on network error (RESTORE-008)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("Network error: connection refused"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should NOT update status in DB on network errors (preserve for retry)
+      expect(sessionService.updateHostedSessionStatus).not.toHaveBeenCalled();
+    });
+
+    it("should not show notification on network error (RESTORE-008)", async () => {
+      useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
+      vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("Network error: connection refused"));
+
+      await useSessionStore.getState().restoreHostedSession();
+
+      // Should not show any notification on network error (silent failure)
+      expect(notify).not.toHaveBeenCalled();
+    });
   });
 });
 

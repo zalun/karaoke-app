@@ -316,7 +316,8 @@
         "Load the session",
         "Verify hosted fields are preserved unchanged"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Verified existing behavior: network errors don't trigger clearPersistedSessionId or updateHostedSessionStatus. Hosted fields (hosted_session_id, hosted_by_user_id, hosted_session_status) remain unchanged for retry. 3 unit tests added: preserve hosted fields on network error, don't update DB status, no notification shown."
     },
     {
       "id": "RESTORE-009",

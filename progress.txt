@@ -280,3 +280,15 @@
   - no notification shown
 - Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json
 - All 397 tests pass, typecheck passes, lint passes
+
+## RESTORE-008: API network error preserves fields for retry
+- Verified existing implementation handles this correctly:
+  - catch block (lines 879-896) only clears persisted ID for 404/401/403 errors
+  - Network errors don't trigger clearPersistedSessionId or updateHostedSessionStatus
+  - Hosted fields (hosted_session_id, hosted_by_user_id, hosted_session_status) remain unchanged
+- Added 3 unit tests:
+  - preserve hosted fields on network error (RESTORE-008)
+  - don't update DB status on network error (RESTORE-008)
+  - no notification shown on network error (RESTORE-008)
+- Files changed: src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json
+- All 400 tests pass, lint passes
