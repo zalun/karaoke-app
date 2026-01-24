@@ -167,3 +167,35 @@ Files changed:
 - src/stores/queueStore.fairQueue.test.ts (added PRD-009 test)
 - ralph/permanent-shuffle.json (marked PRD-009 passes: true)
 
+## PRD-010: Integration - Fair Queue setting persistence
+
+Status: COMPLETE
+
+Implemented:
+- Added E2E tests to verify Fair Queue setting persists via settingsStore
+- Added fairQueueEnabled config option to TauriMockConfig in tauri-mocks.ts
+- Added fair_queue_enabled setting to E2E mock's defaultSettings
+- Created tests/e2e/specs/fair-queue.spec.ts with 4 persistence tests
+
+E2E tests added:
+- Fair Queue toggle should show OFF state when disabled
+- Fair Queue toggle should show ON state when enabled
+- Fair Queue setting should persist when toggled
+- Fair Queue toggle updates visual state immediately when clicked
+
+Key decisions:
+- Setting already persists via existing settingsStore + SQLite infrastructure
+- E2E tests verify the UI reflects the persisted setting value
+- Tests require queue to have items (toggle only visible when queue non-empty)
+
+Verified:
+- just check: all passed
+- npm run test: 297 passed
+- npm run lint: passes
+- npx playwright test fair-queue: 8 passed (4 tests x 2 browsers)
+
+Files changed:
+- tests/e2e/fixtures/tauri-mocks.ts (added fairQueueEnabled config, fair_queue_enabled setting)
+- tests/e2e/specs/fair-queue.spec.ts (new E2E test file)
+- ralph/permanent-shuffle.json (marked PRD-010 passes: true)
+

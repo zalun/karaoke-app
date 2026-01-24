@@ -87,6 +87,8 @@ export interface TauriMockConfig {
   } | null;
   /** Whether creating a hosted session should fail */
   shouldFailHostSession?: boolean;
+  /** Whether fair queue mode is enabled (default: false) */
+  fairQueueEnabled?: boolean;
 }
 
 /**
@@ -124,6 +126,7 @@ export async function injectTauriMocks(
       search_history_global: "true",
       search_history_session_limit: "50",
       search_history_global_limit: "50",
+      fair_queue_enabled: mockConfig.fairQueueEnabled ? "true" : "false",
     };
 
     // In-memory settings store for tests

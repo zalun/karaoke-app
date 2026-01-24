@@ -129,7 +129,7 @@
         "Quit and restart the app",
         "Verify Fair Queue toggle is still OFF"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-011",
