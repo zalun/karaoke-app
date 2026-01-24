@@ -90,6 +90,31 @@ export interface TauriMockConfig {
 }
 
 /**
+ * Type definitions for HTTP mock window globals
+ */
+interface PendingHttpRequest {
+  method: string;
+  url: string;
+  body: number[] | null;
+  authToken?: string;
+}
+
+/**
+ * Type definitions for HTTP mock window globals.
+ * These are used inside addInitScript where window is available.
+ */
+interface HttpMockGlobals {
+  __PENDING_HTTP_REQUESTS__?: Map<number, PendingHttpRequest>;
+  __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array>;
+  __HTTP_BODIES_READ__?: Set<number>;
+  __HTTP_NEXT_RID__?: number;
+  __HOSTED_SESSION_CREATED__?: boolean;
+  __HOSTED_SESSION_CODE__?: string;
+  __HOSTED_SESSION_ID__?: string;
+  __HOSTED_SESSION_STOPPED__?: boolean;
+}
+
+/**
  * Inject Tauri API mocks into the page before navigating.
  * This must be called before `page.goto()`.
  *
@@ -103,6 +128,40 @@ export async function injectTauriMocks(
   await page.addInitScript((mockConfig) => {
     // Store mock config globally for access in handlers
     (window as unknown as { __TAURI_MOCK_CONFIG__: typeof mockConfig }).__TAURI_MOCK_CONFIG__ = mockConfig;
+
+    // --- HTTP Mock Helper Functions ---
+    // These must be defined inside addInitScript where window is available
+
+    interface HttpMockGlobalsInternal {
+      __PENDING_HTTP_REQUESTS__?: Map<number, { method: string; url: string; body: number[] | null; authToken?: string }>;
+      __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array>;
+      __HTTP_BODIES_READ__?: Set<number>;
+      __HTTP_NEXT_RID__?: number;
+      __HOSTED_SESSION_CREATED__?: boolean;
+      __HOSTED_SESSION_CODE__?: string;
+      __HOSTED_SESSION_ID__?: string;
+      __HOSTED_SESSION_STOPPED__?: boolean;
+    }
+
+    /** Helper to get typed access to HTTP mock globals */
+    function getHttpMockGlobals(): HttpMockGlobalsInternal {
+      return window as unknown as HttpMockGlobalsInternal;
+    }
+
+    /** Get next unique request ID (avoids collisions vs random) */
+    function getNextRid(): number {
+      const globals = getHttpMockGlobals();
+      const rid = globals.__HTTP_NEXT_RID__ ?? 1;
+      globals.__HTTP_NEXT_RID__ = rid + 1;
+      return rid;
+    }
+
+    /** Clean up HTTP mock resources for a given request ID */
+    function cleanupHttpResources(rid: number): void {
+      const globals = getHttpMockGlobals();
+      globals.__HTTP_RESPONSE_BODIES__?.delete(rid);
+      globals.__HTTP_BODIES_READ__?.delete(rid);
+    }
 
     // Default settings matching SETTINGS_DEFAULTS from settingsStore.ts
     const defaultSettings: Record<string, string> = {
@@ -510,6 +569,179 @@ export async function injectTauriMocks(
           case "plugin:webview|get_all_webviews":
             return [];
 
+          // HTTP plugin mock for hosted session API calls
+          // The plugin uses a multi-step process: fetch -> fetch_send -> fetch_read_body
+          case "plugin:http|fetch": {
+            const clientConfig = (args as { clientConfig: { method: string; url: string; headers: [string, string][]; data: number[] | null } }).clientConfig;
+            const url = clientConfig.url;
+            const method = clientConfig.method || "GET";
+            const headers = clientConfig.headers || [];
+
+            // Extract Authorization header for validation
+            const authHeader = headers.find(([key]) => key.toLowerCase() === "authorization");
+            const authToken = authHeader?.[1];
+
+            console.log(`[Tauri Mock] HTTP fetch init: ${method} ${url}`);
+
+            // Store the pending request for fetch_send
+            const globals = getHttpMockGlobals();
+            const rid = getNextRid();
+            const pendingRequests = globals.__PENDING_HTTP_REQUESTS__ || new Map();
+            pendingRequests.set(rid, { method, url, body: clientConfig.data, authToken });
+            globals.__PENDING_HTTP_REQUESTS__ = pendingRequests;
+
+            return rid;
+          }
+
+          case "plugin:http|fetch_send": {
+            const rid = (args as { rid: number }).rid;
+            const globals = getHttpMockGlobals();
+            const request = globals.__PENDING_HTTP_REQUESTS__?.get(rid);
+
+            if (!request) {
+              throw new Error("Request not found");
+            }
+
+            const { method, url, authToken } = request;
+            console.log(`[Tauri Mock] HTTP fetch send: ${method} ${url}`);
+
+            let responseBody = "{}";
+            let status = 200;
+            let statusText = "OK";
+
+            // Handle hosted session API endpoints
+            if (url.includes("homekaraoke.app/api/session")) {
+              // Validate Authorization header for session endpoints
+              // Note: Mock only validates Bearer prefix, not token content
+              if (!authToken?.startsWith("Bearer ")) {
+                status = 401;
+                statusText = "Unauthorized";
+                responseBody = JSON.stringify({ error: "Missing or invalid authorization token" });
+
+                // Store response and return early
+                const responseRid = getNextRid();
+                const responseBodies = globals.__HTTP_RESPONSE_BODIES__ || new Map();
+                responseBodies.set(responseRid, new TextEncoder().encode(responseBody));
+                globals.__HTTP_RESPONSE_BODIES__ = responseBodies;
+
+                return {
+                  status,
+                  statusText,
+                  url,
+                  headers: [["content-type", "application/json"]],
+                  rid: responseRid,
+                };
+              }
+              // POST /api/session/create - Create hosted session
+              if (url.endsWith("/api/session/create") && method === "POST") {
+                if (config.shouldFailHostSession) {
+                  status = 500;
+                  statusText = "Internal Server Error";
+                  responseBody = JSON.stringify({ error: "Failed to create session" });
+                } else {
+                  const sessionId = "mock-session-" + Math.random().toString(36).substring(7);
+                  const sessionCode = "HK-" + Math.random().toString(36).substring(2, 6).toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+                  const joinUrl = `https://homekaraoke.app/join/${sessionCode}`;
+                  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`;
+                  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+                  // Track state for test assertions
+                  const sessionGlobals = getHttpMockGlobals();
+                  sessionGlobals.__HOSTED_SESSION_CREATED__ = true;
+                  sessionGlobals.__HOSTED_SESSION_CODE__ = sessionCode;
+                  sessionGlobals.__HOSTED_SESSION_ID__ = sessionId;
+
+                  responseBody = JSON.stringify({
+                    session_id: sessionId,
+                    session_code: sessionCode,
+                    qr_code_url: qrCodeUrl,
+                    join_url: joinUrl,
+                    expires_at: expiresAt,
+                  });
+                }
+              }
+              // GET /api/session/[id] - Get session stats
+              else if (url.match(/\/api\/session\/[^/]+$/) && method === "GET") {
+                const statsGlobals = getHttpMockGlobals();
+                const sessionId = statsGlobals.__HOSTED_SESSION_ID__;
+                const sessionCode = statsGlobals.__HOSTED_SESSION_CODE__;
+
+                if (!sessionId || !sessionCode) {
+                  status = 404;
+                  statusText = "Not Found";
+                  responseBody = JSON.stringify({ error: "Session not found" });
+                } else {
+                  responseBody = JSON.stringify({
+                    id: sessionId,
+                    session_code: sessionCode,
+                    status: "active",
+                    stats: { pending_requests: 0, approved_requests: 0, total_guests: 0 },
+                  });
+                }
+              }
+              // DELETE /api/session/[id] - End session
+              else if (url.match(/\/api\/session\/[^/]+$/) && method === "DELETE") {
+                getHttpMockGlobals().__HOSTED_SESSION_STOPPED__ = true;
+                responseBody = "{}";
+              }
+            } else {
+              console.warn(`[Tauri Mock] Unmocked HTTP request: ${method} ${url}`);
+              status = 404;
+              statusText = "Not Found";
+              responseBody = "Not found";
+            }
+
+            // Store response body for fetch_read_body
+            const responseRid = getNextRid();
+            const responseBodies = globals.__HTTP_RESPONSE_BODIES__ || new Map();
+            responseBodies.set(responseRid, new TextEncoder().encode(responseBody));
+            globals.__HTTP_RESPONSE_BODIES__ = responseBodies;
+
+            return {
+              status,
+              statusText,
+              url,
+              headers: [["content-type", "application/json"]],
+              rid: responseRid,
+            };
+          }
+
+          /**
+           * Tauri's HTTP plugin streams response bodies in two calls:
+           * 1. First call returns body data with trailing 0 byte (more data signal)
+           * 2. Second call returns [1] (end of stream signal)
+           */
+          case "plugin:http|fetch_read_body": {
+            const rid = (args as { rid: number }).rid;
+            const bodyGlobals = getHttpMockGlobals();
+            const body = bodyGlobals.__HTTP_RESPONSE_BODIES__?.get(rid);
+
+            // Body not found or already cleaned up
+            if (!body) {
+              return [1]; // Signal end of body
+            }
+
+            const bodiesRead = bodyGlobals.__HTTP_BODIES_READ__ || new Set();
+            bodyGlobals.__HTTP_BODIES_READ__ = bodiesRead;
+
+            if (!bodiesRead.has(rid)) {
+              // First call: return body data with trailing 0 (more data coming)
+              bodiesRead.add(rid);
+              const result = new Uint8Array(body.length + 1);
+              result.set(body);
+              result[body.length] = 0; // Signal more data may come
+              return Array.from(result);
+            } else {
+              // Second call: cleanup and return end signal
+              cleanupHttpResources(rid);
+              return [1]; // Signal end of body
+            }
+          }
+
+          case "plugin:http|fetch_cancel":
+          case "plugin:http|fetch_cancel_body":
+            return null;
+
           default:
             console.warn(`[Tauri Mock] Unmocked command: ${cmd}`, args);
             return null;
@@ -691,113 +923,53 @@ export async function injectTauriMocks(
       open: async () => {},
     };
 
-    // Mock fetch for hosted session API
-    // Store hosted session state
-    let hostedSessionState: {
-      id: string;
-      sessionCode: string;
-      qrCodeUrl: string;
-      joinUrl: string;
-      expiresAt: string;
-      stats: {
-        pending_requests: number;
-        approved_requests: number;
-        total_guests: number;
-      };
-    } | null = mockConfig.hostedSession ? {
-      ...mockConfig.hostedSession,
-      stats: { pending_requests: 0, approved_requests: 0, total_guests: 0 },
-    } : null;
-
-    // Store the original fetch
-    const originalFetch = window.fetch;
-
-    // Override fetch to intercept hosted session API calls
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : input.toString();
-      const config = (window as unknown as { __TAURI_MOCK_CONFIG__?: typeof mockConfig }).__TAURI_MOCK_CONFIG__ || {};
-
-      // Handle hosted session API endpoints
-      if (url.includes("homekaraoke.app/api/session")) {
-        console.log(`[Tauri Mock] Intercepted fetch: ${init?.method || "GET"} ${url}`);
-
-        // POST /api/session/create - Create hosted session
-        if (url.endsWith("/api/session/create") && init?.method === "POST") {
-          if (config.shouldFailHostSession) {
-            return new Response(JSON.stringify({ error: "Failed to create session" }), {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            });
-          }
-
-          const sessionId = "mock-session-" + Math.random().toString(36).substring(7);
-          const sessionCode = "HK-" + Math.random().toString(36).substring(2, 6).toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
-          const joinUrl = `https://homekaraoke.app/join/${sessionCode}`;
-          const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`;
-          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-          hostedSessionState = {
-            id: sessionId,
-            sessionCode,
-            qrCodeUrl,
-            joinUrl,
-            expiresAt,
-            stats: { pending_requests: 0, approved_requests: 0, total_guests: 0 },
-          };
-
-          // Track that session was created for test assertions
-          (window as unknown as { __HOSTED_SESSION_CREATED__: boolean }).__HOSTED_SESSION_CREATED__ = true;
-          (window as unknown as { __HOSTED_SESSION_CODE__: string }).__HOSTED_SESSION_CODE__ = sessionCode;
-
-          return new Response(JSON.stringify({
-            session_id: sessionId,
-            session_code: sessionCode,
-            qr_code_url: qrCodeUrl,
-            join_url: joinUrl,
-            expires_at: expiresAt,
-          }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-
-        // GET /api/session/[id] - Get session stats
-        if (url.match(/\/api\/session\/[^/]+$/) && (!init?.method || init.method === "GET")) {
-          if (!hostedSessionState) {
-            return new Response(JSON.stringify({ error: "Session not found" }), {
-              status: 404,
-              headers: { "Content-Type": "application/json" },
-            });
-          }
-
-          return new Response(JSON.stringify({
-            id: hostedSessionState.id,
-            session_code: hostedSessionState.sessionCode,
-            status: "active",
-            stats: hostedSessionState.stats,
-          }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-
-        // DELETE /api/session/[id] - End hosted session
-        if (url.match(/\/api\/session\/[^/]+$/) && init?.method === "DELETE") {
-          hostedSessionState = null;
-          (window as unknown as { __HOSTED_SESSION_STOPPED__: boolean }).__HOSTED_SESSION_STOPPED__ = true;
-
-          return new Response(null, {
-            status: 204,
-          });
-        }
-      }
-
-      // Fall through to original fetch for other requests
-      return originalFetch(input, init);
+    // Browser API mocks needed for E2E tests
+    // Clipboard API is mocked here (rather than in a separate function) because:
+    // 1. It's needed alongside Tauri mocks for copy buttons in hosted session modal
+    // 2. Must be injected before page load via addInitScript
+    // 3. Playwright's context.grantPermissions doesn't work reliably for clipboard
+    const mockClipboard = {
+      writeText: async (_text: string) => {
+        console.log("[Tauri Mock] Clipboard writeText:", _text);
+        return Promise.resolve();
+      },
+      readText: async () => "",
     };
+    try {
+      Object.defineProperty(navigator, "clipboard", {
+        value: mockClipboard,
+        writable: true,
+        configurable: true,
+      });
+    } catch (e) {
+      // If defineProperty fails (some browsers), try direct assignment
+      console.warn("[Tauri Mock] Failed to defineProperty clipboard, using direct assignment", e);
+      (navigator as unknown as { clipboard: typeof mockClipboard }).clipboard = mockClipboard;
+    }
 
     console.log("[Tauri Mock] Tauri APIs mocked successfully");
   }, config);
+}
+
+/**
+ * Clean up HTTP mock resources after tests.
+ * Call this in test.afterEach to prevent memory leaks during long test runs.
+ *
+ * @param page - Playwright Page object
+ */
+export async function cleanupHttpMocks(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const globals = window as unknown as {
+      __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array>;
+      __PENDING_HTTP_REQUESTS__?: Map<number, unknown>;
+      __HTTP_BODIES_READ__?: Set<number>;
+      __HTTP_NEXT_RID__?: number;
+    };
+    globals.__HTTP_RESPONSE_BODIES__?.clear();
+    globals.__PENDING_HTTP_REQUESTS__?.clear();
+    globals.__HTTP_BODIES_READ__?.clear();
+    globals.__HTTP_NEXT_RID__ = 1;
+  });
 }
 
 /**

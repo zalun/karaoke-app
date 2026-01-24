@@ -156,7 +156,7 @@ test.describe("Hosted Session", () => {
       await expect(stopHostingButton).toBeVisible();
     });
 
-    test("should show join code badge in session bar after hosting", async ({ page }) => {
+    test("should show green Host button after hosting starts", async ({ page }) => {
       // Click the Host button
       const hostButton = page.getByRole("button", { name: "Host" });
       await hostButton.click();
@@ -171,18 +171,12 @@ test.describe("Hosted Session", () => {
       // Verify modal is closed
       await expect(page.locator("text=Session Hosted")).not.toBeVisible();
 
-      // Verify join code badge appears in session bar
-      const joinCodeBadge = page.locator(".font-mono.bg-blue-600");
-      await expect(joinCodeBadge).toBeVisible();
-
-      // Verify the badge contains the join code format
-      await expect(async () => {
-        const badgeText = await joinCodeBadge.textContent();
-        expect(badgeText).toMatch(/HK-[A-Z0-9]{4}-[A-Z0-9]{4}/i);
-      }).toPass({ timeout: 5000 });
+      // Verify Host button now shows "Hosting" (green state)
+      const hostingButton = page.getByRole("button", { name: "Hosting" });
+      await expect(hostingButton).toBeVisible();
     });
 
-    test("should reopen modal when clicking join code badge", async ({ page }) => {
+    test("should reopen modal when clicking Host button while hosting", async ({ page }) => {
       // Click the Host button to start hosting
       const hostButton = page.getByRole("button", { name: "Host" });
       await hostButton.click();
@@ -194,9 +188,9 @@ test.describe("Hosted Session", () => {
       const closeButton = page.locator('button[title="Close"]');
       await closeButton.click();
 
-      // Click the join code badge
-      const joinCodeBadge = page.locator(".font-mono.bg-blue-600");
-      await joinCodeBadge.click();
+      // Click the Hosting button (green state)
+      const hostingButton = page.getByRole("button", { name: "Hosting" });
+      await hostingButton.click();
 
       // Modal should reopen
       await expect(page.locator("text=Session Hosted")).toBeVisible();
@@ -273,12 +267,10 @@ test.describe("Hosted Session", () => {
       // Modal should close
       await expect(page.locator("text=Session Hosted")).not.toBeVisible({ timeout: 5000 });
 
-      // Join code badge should no longer be visible
-      const joinCodeBadge = page.locator(".font-mono.bg-blue-600");
-      await expect(joinCodeBadge).not.toBeVisible();
-
-      // Host button should be visible again (can host again)
+      // Host button should be back to grey "Host" state (can host again)
       await expect(page.getByRole("button", { name: "Host" })).toBeVisible();
+      // "Hosting" button should no longer be visible
+      await expect(page.getByRole("button", { name: "Hosting" })).not.toBeVisible();
 
       // Verify the stop was tracked in mock state
       const hostedState = await getHostedSessionState(page);
@@ -317,9 +309,8 @@ test.describe("Hosted Session", () => {
       const closeButton = page.locator('button[title="Close"]');
       await closeButton.click();
 
-      // Verify hosting is active (badge visible)
-      const joinCodeBadge = page.locator(".font-mono.bg-blue-600");
-      await expect(joinCodeBadge).toBeVisible();
+      // Verify hosting is active (Hosting button visible)
+      await expect(page.getByRole("button", { name: "Hosting" })).toBeVisible();
 
       // End the session
       await mainPage.endSession();
@@ -329,9 +320,6 @@ test.describe("Hosted Session", () => {
         const hasSession = await mainPage.hasActiveSession();
         expect(hasSession).toBe(false);
       }).toPass({ timeout: 10000 });
-
-      // Join code badge should no longer exist
-      await expect(joinCodeBadge).not.toBeVisible();
     });
   });
 
