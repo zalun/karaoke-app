@@ -38,7 +38,7 @@
         "Calls Tauri invoke to remove the setting",
         "Returns Promise<void>"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "restore-1",

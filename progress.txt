@@ -16,3 +16,12 @@
 - Fixed pre-existing lint error in tests/e2e/fixtures/tauri-mocks.ts (renamed HttpMockGlobals to _HttpMockGlobals)
 - Files changed: src/services/hostedSession.ts, src/services/hostedSession.test.ts, tests/e2e/fixtures/tauri-mocks.ts
 - All 307 tests pass, typecheck passes, lint passes
+
+## persist-3: Verify clearPersistedSessionId() implementation
+- Function already existed from persist-1 implementation
+- Uses HOSTED_SESSION_KEY constant, calls settings_set with empty string
+- Since no settings_delete command exists, setting to "" is correct approach
+- getPersistedSessionId already handles "" as null, so behavior is correct
+- Unit tests already exist and pass (2 tests for this function)
+- Files changed: ralph/reopen-hosted-session.json (marked passes: true)
+- All 307 tests pass, typecheck passes, lint passes
