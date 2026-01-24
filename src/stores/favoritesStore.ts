@@ -186,7 +186,8 @@ export const useFavoritesStore = create<FavoritesState>((set, get) => ({
       }
 
       for (const favorite of favoritesToLoad) {
-        const queueItem = queueStore.addToQueue({
+        // addToQueue is async - waits for fair position calculation if enabled
+        const queueItem = await queueStore.addToQueue({
           id: favorite.video.video_id,
           title: favorite.video.title,
           artist: favorite.video.artist,

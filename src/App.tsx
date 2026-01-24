@@ -361,7 +361,8 @@ function App() {
   const handleAddToQueue = useCallback(
     async (result: SearchResult) => {
       log.info(`Adding to queue: "${result.title}"`);
-      const queueItem = addToQueue({
+      // addToQueue is async - waits for fair position calculation if enabled
+      const queueItem = await addToQueue({
         id: result.id,
         title: result.title,
         artist: result.channel,
@@ -371,10 +372,7 @@ function App() {
         youtubeId: result.id,
       });
 
-      // Auto-assign active singer if set.
-      // Note: No race condition here - addToQueue is synchronous and returns the item
-      // with a client-generated UUID immediately. DB persistence is async but the
-      // singer assignment only needs the item ID, which exists before persistence.
+      // Auto-assign active singer if set
       const { activeSingerId, assignSingerToQueueItem, getSingerById } = useSessionStore.getState();
       if (activeSingerId && queueItem) {
         try {
@@ -478,7 +476,8 @@ function App() {
       if (!video.is_available) return;
 
       log.info(`Adding local file to queue: "${video.title}"`);
-      const queueItem = addToQueue({
+      // addToQueue is async - waits for fair position calculation if enabled
+      const queueItem = await addToQueue({
         id: video.file_path,
         title: video.title,
         artist: video.artist || undefined,

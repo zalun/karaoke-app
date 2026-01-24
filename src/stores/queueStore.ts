@@ -80,7 +80,7 @@ interface QueueState {
   resetState: () => void;
 
   // Actions
-  addToQueue: (video: Video) => QueueItem;
+  addToQueue: (video: Video) => Promise<QueueItem>;
   addToQueueNext: (video: Video) => QueueItem;
   removeFromQueue: (itemId: string) => void;
   reorderQueue: (itemId: string, newPosition: number) => void;
@@ -169,7 +169,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     });
   },
 
-  addToQueue: (video) => {
+  addToQueue: async (video) => {
     log.info(`addToQueue: ${video.title}`);
     const newItem: QueueItem = {
       id: crypto.randomUUID(),
@@ -186,42 +186,39 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       // Fair queue mode: compute fair position and insert there
       log.debug(`Fair queue enabled, computing position for singer ${activeSingerId}`);
 
-      // First, add to UI at end (optimistic) then move to fair position
-      set((state) => {
-        const newQueue = [...state.queue, newItem];
-        log.debug(`Queue size: ${state.queue.length} -> ${newQueue.length}`);
-        return { queue: newQueue };
-      });
+      try {
+        // Get the fair position for this singer
+        const fairPosition = await queueService.computeFairPosition(activeSingerId);
+        log.debug(`Fair position for singer ${activeSingerId}: ${fairPosition}`);
 
-      // Persist to database and move to fair position
-      trackOperation(
-        (async () => {
-          try {
-            // Get the fair position for this singer
-            const fairPosition = await queueService.computeFairPosition(activeSingerId);
-            log.debug(`Fair position for singer ${activeSingerId}: ${fairPosition}`);
+        // Add item to database (appends to end)
+        await queueService.addItem(toQueueItemData(newItem, 0));
 
-            // Add item to database (appends to end)
-            await queueService.addItem(toQueueItemData(newItem, 0));
+        // Reorder to the fair position
+        await queueService.reorder(newItem.id, fairPosition);
 
-            // Reorder to the fair position
-            await queueService.reorder(newItem.id, fairPosition);
-
-            // Update UI to reflect the correct position
-            set((state) => {
-              const queue = [...state.queue];
-              const currentIndex = queue.findIndex((item) => item.id === newItem.id);
-              if (currentIndex !== -1 && currentIndex !== fairPosition) {
-                const [item] = queue.splice(currentIndex, 1);
-                queue.splice(fairPosition, 0, item);
-              }
-              return { queue };
-            });
-          } catch (error) {
-            log.error("Failed to persist queue item with fair position:", error);
-          }
-        })()
-      );
+        // Update UI to reflect the correct position
+        set((state) => {
+          const queue = [...state.queue];
+          queue.splice(fairPosition, 0, newItem);
+          log.debug(`Queue size: ${state.queue.length} -> ${queue.length}, inserted at position ${fairPosition}`);
+          return { queue };
+        });
+      } catch (error) {
+        log.error("Failed to add queue item with fair position:", error);
+        // Fallback: add to end of queue
+        set((state) => {
+          const newQueue = [...state.queue, newItem];
+          log.debug(`Fallback: Queue size: ${state.queue.length} -> ${newQueue.length}`);
+          return { queue: newQueue };
+        });
+        // Try to persist at end position
+        trackOperation(
+          queueService.addItem(toQueueItemData(newItem, get().queue.length - 1)).catch((e) => {
+            log.error("Failed to persist fallback queue item:", e);
+          })
+        );
+      }
     } else {
       // Standard mode: append to end
       set((state) => {

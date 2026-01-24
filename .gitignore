@@ -63,3 +63,6 @@ playwright/.cache/
 .ralph_session_history
 progress.json
 status.json
+
+progress.txt
+.progress.txt

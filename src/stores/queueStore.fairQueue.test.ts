@@ -64,21 +64,21 @@ describe("queueStore fair queue functionality", () => {
       });
     });
 
-    it("should append to end of queue when fair queue is disabled", () => {
+    it("should append to end of queue when fair queue is disabled", async () => {
       const { addToQueue } = useQueueStore.getState();
-      const item = addToQueue(mockVideo);
+      const item = await addToQueue(mockVideo);
 
       expect(item.video).toEqual(mockVideo);
       expect(useQueueStore.getState().queue).toHaveLength(1);
       expect(queueService.computeFairPosition).not.toHaveBeenCalled();
     });
 
-    it("should append to end even with active singer when fair queue is disabled", () => {
+    it("should append to end even with active singer when fair queue is disabled", async () => {
       // Set active singer
       useSessionStore.setState({ activeSingerId: 1 });
 
       const { addToQueue } = useQueueStore.getState();
-      addToQueue(mockVideo);
+      await addToQueue(mockVideo);
 
       expect(queueService.computeFairPosition).not.toHaveBeenCalled();
     });
@@ -110,12 +110,10 @@ describe("queueStore fair queue functionality", () => {
       useSessionStore.setState({ activeSingerId: 42 });
 
       const { addToQueue } = useQueueStore.getState();
-      addToQueue(mockVideo);
+      await addToQueue(mockVideo);
 
-      // Wait for async operations
-      await vi.waitFor(() => {
-        expect(queueService.computeFairPosition).toHaveBeenCalledWith(42);
-      });
+      // Verify computeFairPosition was called with singer ID
+      expect(queueService.computeFairPosition).toHaveBeenCalledWith(42);
     });
 
     it("should reorder item to fair position after adding", async () => {
@@ -124,16 +122,11 @@ describe("queueStore fair queue functionality", () => {
       vi.mocked(queueService.computeFairPosition).mockResolvedValue(0);
 
       const { addToQueue } = useQueueStore.getState();
-      const item = addToQueue(mockVideo);
+      const item = await addToQueue(mockVideo);
 
-      // Wait for async operations
-      await vi.waitFor(() => {
-        expect(queueService.addItem).toHaveBeenCalled();
-      });
-
-      await vi.waitFor(() => {
-        expect(queueService.reorder).toHaveBeenCalledWith(item.id, 0);
-      });
+      // Verify service calls
+      expect(queueService.addItem).toHaveBeenCalled();
+      expect(queueService.reorder).toHaveBeenCalledWith(item.id, 0);
     });
 
     it("should insert at position 0 for singer with no songs", async () => {
@@ -150,18 +143,14 @@ describe("queueStore fair queue functionality", () => {
       vi.mocked(queueService.computeFairPosition).mockResolvedValue(0);
 
       const { addToQueue } = useQueueStore.getState();
-      const item = addToQueue(mockVideo);
+      const item = await addToQueue(mockVideo);
 
-      // Wait for async operations to complete
-      await vi.waitFor(() => {
-        expect(queueService.reorder).toHaveBeenCalledWith(item.id, 0);
-      });
+      // Verify reorder was called with correct position
+      expect(queueService.reorder).toHaveBeenCalledWith(item.id, 0);
 
       // After reordering, the new item should be at position 0
-      await vi.waitFor(() => {
-        const queue = useQueueStore.getState().queue;
-        expect(queue[0].id).toBe(item.id);
-      });
+      const queue = useQueueStore.getState().queue;
+      expect(queue[0].id).toBe(item.id);
     });
 
     it("should insert at calculated fair position for singer with existing songs", async () => {
@@ -179,18 +168,14 @@ describe("queueStore fair queue functionality", () => {
       vi.mocked(queueService.computeFairPosition).mockResolvedValue(2);
 
       const { addToQueue } = useQueueStore.getState();
-      const item = addToQueue(mockVideo);
+      const item = await addToQueue(mockVideo);
 
-      // Wait for async operations
-      await vi.waitFor(() => {
-        expect(queueService.reorder).toHaveBeenCalledWith(item.id, 2);
-      });
+      // Verify reorder was called with correct position
+      expect(queueService.reorder).toHaveBeenCalledWith(item.id, 2);
 
       // After reordering, the new item should be at position 2
-      await vi.waitFor(() => {
-        const queue = useQueueStore.getState().queue;
-        expect(queue[2].id).toBe(item.id);
-      });
+      const queue = useQueueStore.getState().queue;
+      expect(queue[2].id).toBe(item.id);
     });
 
     it("should not reshuffle existing queue items when adding a new song (PRD-008)", async () => {
@@ -217,7 +202,7 @@ describe("queueStore fair queue functionality", () => {
       // Add new song for Singer A
       const { addToQueue } = useQueueStore.getState();
       const newSong: Video = { ...mockVideo, id: "v-a2", title: "Song A2" };
-      const addedItem = addToQueue(newSong);
+      const addedItem = await addToQueue(newSong);
 
       // Wait for fair queue positioning to complete
       await vi.waitFor(() => {
@@ -264,7 +249,7 @@ describe("queueStore fair queue functionality", () => {
       // PRD-009: Add a song
       const { addToQueue } = useQueueStore.getState();
       const newSong: Video = { ...mockVideo, id: "v-c1", title: "Song C1" };
-      const addedItem = addToQueue(newSong);
+      const addedItem = await addToQueue(newSong);
 
       // Wait for fair queue positioning to complete
       await vi.waitFor(() => {
@@ -302,7 +287,7 @@ describe("queueStore fair queue functionality", () => {
 
       const { addToQueue } = useQueueStore.getState();
       const newSong: Video = { ...mockVideo, id: "v-c1", title: "Song C1" };
-      const addedItem = addToQueue(newSong);
+      const addedItem = await addToQueue(newSong);
 
       // Wait for fair queue positioning to complete
       await vi.waitFor(() => {
@@ -328,7 +313,7 @@ describe("queueStore fair queue functionality", () => {
       });
     });
 
-    it("should append to end when fair queue enabled but no active singer (PRD-011)", () => {
+    it("should append to end when fair queue enabled but no active singer (PRD-011)", async () => {
       // PRD-011: Enable Fair Queue toggle, clear active singer, add a song
       // Verify song is appended to end (fallback behavior when no singer)
 
@@ -345,7 +330,7 @@ describe("queueStore fair queue functionality", () => {
 
       const { addToQueue } = useQueueStore.getState();
       const newSong: Video = { ...mockVideo, id: "v-new", title: "New Song" };
-      const addedItem = addToQueue(newSong);
+      const addedItem = await addToQueue(newSong);
 
       // PRD-011: Should NOT compute fair position when no singer
       expect(queueService.computeFairPosition).not.toHaveBeenCalled();
