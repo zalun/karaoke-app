@@ -132,7 +132,7 @@
         "When API returns 403, calls clearPersistedSessionId()",
         "Existing error handling behavior is preserved"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "auth-1",

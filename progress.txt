@@ -109,3 +109,17 @@
 - Updated test mock in sessionStore.activeSinger.test.ts to include clearPersistedSessionId
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.activeSinger.test.ts, ralph/reopen-hosted-session.json
 - All 342 tests pass, typecheck passes, lint passes
+
+## refresh-1: refreshHostedSession() clears persisted ID when session becomes invalid
+- Added clearPersistedSessionId() call in refreshHostedSession() error handling block
+- Called when shouldClear is true (404/401/403 errors indicating session ended/unauthorized)
+- Prevents stale persisted ID from causing restore attempts on next app startup
+- Added 13 unit tests for refreshHostedSession():
+  - No-op cases: no hosted session, refresh in progress, not authenticated, token expired
+  - Success case: updates session stats
+  - Error cases: clears persisted ID on 404/401/403, does NOT clear on network errors
+  - Verifies warning notification shown when session becomes invalid
+  - Verifies polling interval cleared, host modal closed
+  - Verifies existing error handling behavior preserved
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
+- All 355 tests pass, typecheck passes, lint passes

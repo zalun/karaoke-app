@@ -674,6 +674,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         message.includes("UNAUTHORIZED");
       if (shouldClear) {
         log.warn("Hosted session no longer valid, clearing");
+        // Clear persisted session ID to prevent restore attempts on next startup
+        await clearPersistedSessionId();
         const interval = get()._hostedSessionPollInterval;
         if (interval) {
           clearInterval(interval);
