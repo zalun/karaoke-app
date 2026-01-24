@@ -115,7 +115,7 @@
         "Add a song",
         "Verify the song appears at position 0 (top of queue)"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-010",

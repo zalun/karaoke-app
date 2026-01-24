@@ -246,6 +246,43 @@ describe("queueStore fair queue functionality", () => {
       });
     });
 
+    it("should insert first song for new singer at top of queue (PRD-009)", async () => {
+      // PRD-009: Have existing queue with songs from singers A and B
+      const existingQueue = [
+        { id: "song-a1", video: { ...mockVideo, id: "v-a1", title: "Song A1" }, addedAt: new Date() },
+        { id: "song-b1", video: { ...mockVideo, id: "v-b1", title: "Song B1" }, addedAt: new Date() },
+      ];
+
+      useQueueStore.setState({ queue: existingQueue });
+
+      // PRD-009: Set active singer to new singer C (who has 0 songs)
+      useSessionStore.setState({ activeSingerId: 3 }); // Singer C
+
+      // Backend returns position 0 for singer with 0 songs in queue
+      vi.mocked(queueService.computeFairPosition).mockResolvedValue(0);
+
+      // PRD-009: Add a song
+      const { addToQueue } = useQueueStore.getState();
+      const newSong: Video = { ...mockVideo, id: "v-c1", title: "Song C1" };
+      const addedItem = addToQueue(newSong);
+
+      // Wait for fair queue positioning to complete
+      await vi.waitFor(() => {
+        expect(queueService.computeFairPosition).toHaveBeenCalledWith(3);
+      });
+
+      await vi.waitFor(() => {
+        expect(queueService.reorder).toHaveBeenCalledWith(addedItem.id, 0);
+      });
+
+      // PRD-009: Verify the song appears at position 0 (top of queue)
+      await vi.waitFor(() => {
+        const queue = useQueueStore.getState().queue;
+        expect(queue[0].id).toBe(addedItem.id);
+        expect(queue[0].video.title).toBe("Song C1");
+      });
+    });
+
     it("should preserve existing item positions when new singer's song goes to top (PRD-008)", async () => {
       // Queue has songs from Singer A and Singer B
       const existingQueue = [

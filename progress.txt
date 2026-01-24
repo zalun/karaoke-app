@@ -143,3 +143,27 @@ Files changed:
 - src/stores/queueStore.fairQueue.test.ts (added 2 PRD-008 tests)
 - ralph/permanent-shuffle.json (marked PRD-008 passes: true)
 
+## PRD-009: Integration - First song for new singer goes to top
+
+Status: COMPLETE
+
+Implemented:
+- Added explicit test case "should insert first song for new singer at top of queue (PRD-009)"
+- Test verifies: existing queue with A1, B1, new singer C adds song, goes to position 0
+- Backend compute_fair_position already returns 0 for singers with 0 songs (existing)
+- Frontend queueStore.addToQueue calls computeFairPosition and reorders to position 0
+
+Key decisions:
+- PRD-009 functionality was already working from PRD-002 through PRD-008
+- Added explicit test to document the PRD-009 requirement clearly
+- No code changes needed - only test coverage to explicitly verify PRD-009
+
+Verified:
+- npx tsc --noEmit: passes
+- npm run test: 297 passed (10 fair queue tests now)
+- npm run lint: passes
+
+Files changed:
+- src/stores/queueStore.fairQueue.test.ts (added PRD-009 test)
+- ralph/permanent-shuffle.json (marked PRD-009 passes: true)
+
