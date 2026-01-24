@@ -170,6 +170,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (get().hostedSession) {
         await get().stopHosting();
       }
+      // Safety cleanup: clear persisted session ID even if stopHosting() wasn't called
+      // (e.g., if session was never hosted or if user somehow bypassed normal flow)
+      await clearPersistedSessionId();
       // Flush any pending queue operations before ending session
       await flushPendingOperations();
       await sessionService.endSession();

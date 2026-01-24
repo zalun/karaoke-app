@@ -120,7 +120,7 @@
         "Acts as safety net if stopHosting() wasn't called",
         "No error if no session ID was persisted"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "refresh-1",

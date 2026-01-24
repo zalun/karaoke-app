@@ -101,3 +101,11 @@
   - Shows warning notification when API call fails
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
 - All 342 tests pass, typecheck passes, lint passes
+
+## end-1: endSession() clears persisted session ID as safety cleanup
+- Added clearPersistedSessionId() call in endSession() after stopHosting() check
+- Acts as safety net if session was never hosted or user bypassed normal flow
+- clearPersistedSessionId is safe to call even if no session ID was persisted (sets empty string)
+- Updated test mock in sessionStore.activeSinger.test.ts to include clearPersistedSessionId
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.activeSinger.test.ts, ralph/reopen-hosted-session.json
+- All 342 tests pass, typecheck passes, lint passes

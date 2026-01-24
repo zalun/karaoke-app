@@ -29,6 +29,7 @@ vi.mock("../services", () => ({
     setActiveSinger: vi.fn(),
     getActiveSinger: vi.fn(),
   },
+  clearPersistedSessionId: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock queueStore
