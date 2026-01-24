@@ -874,6 +874,57 @@ pub fn session_set_hosted(
     Ok(())
 }
 
+#[tauri::command]
+pub fn session_update_hosted_status(
+    state: State<'_, AppState>,
+    session_id: i64,
+    status: String,
+) -> Result<(), CommandError> {
+    info!(
+        "Updating hosted session status for session {}: status={}",
+        session_id, status
+    );
+
+    // Validate status
+    let valid_statuses = ["active", "paused", "ended"];
+    if !valid_statuses.contains(&status.as_str()) {
+        return Err(CommandError::Validation(format!(
+            "Invalid hosted session status: '{}'. Must be one of: {:?}",
+            status, valid_statuses
+        )));
+    }
+
+    let db = state.db.lock().map_lock_err()?;
+
+    // Verify session exists
+    let session_exists: bool = db
+        .connection()
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
+            [session_id],
+            |row| row.get(0),
+        )?;
+
+    if !session_exists {
+        return Err(CommandError::Validation(format!(
+            "Session {} does not exist",
+            session_id
+        )));
+    }
+
+    // Update only the status field
+    db.connection().execute(
+        "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+        rusqlite::params![status, session_id],
+    )?;
+
+    info!(
+        "Hosted session status updated for session {}: status={}",
+        session_id, status
+    );
+    Ok(())
+}
+
 // ============ Active Singer Commands ============
 
 #[tauri::command]
@@ -2246,6 +2297,172 @@ mod tests {
                 .unwrap();
 
             assert_eq!(count, 0, "Deleting session should remove hosted fields with it");
+        }
+    }
+
+    mod session_update_hosted_status {
+        use super::*;
+
+        #[test]
+        fn test_updates_status_only() {
+            let conn = setup_test_db();
+
+            // Create a session with all hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-456', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Update only the status
+            conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["ended", session_id],
+            )
+            .unwrap();
+
+            // Verify status changed but other fields preserved
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-123".to_string()), "hosted_session_id should be unchanged");
+            assert_eq!(user_id, Some("user-456".to_string()), "hosted_by_user_id should be unchanged");
+            assert_eq!(status, Some("ended".to_string()), "hosted_session_status should be updated");
+        }
+
+        #[test]
+        fn test_updates_active_to_paused() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-456', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["paused", session_id],
+            )
+            .unwrap();
+
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(status, Some("paused".to_string()));
+        }
+
+        #[test]
+        fn test_updates_paused_to_ended() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-456', 'paused')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["ended", session_id],
+            )
+            .unwrap();
+
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(status, Some("ended".to_string()));
+        }
+
+        #[test]
+        fn test_updates_ended_to_active() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-456', 'ended')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["active", session_id],
+            )
+            .unwrap();
+
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_nonexistent_session_no_effect() {
+            let conn = setup_test_db();
+
+            // Try to update a non-existent session
+            let rows_affected = conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["ended", 9999i64],
+            )
+            .unwrap();
+
+            assert_eq!(rows_affected, 0);
+        }
+
+        #[test]
+        fn test_preserves_null_hosted_fields_when_updating_status() {
+            let conn = setup_test_db();
+
+            // Create a session with only status set (no hosted_session_id or hosted_by_user_id)
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["ended", session_id],
+            )
+            .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, None, "hosted_session_id should remain NULL");
+            assert_eq!(user_id, None, "hosted_by_user_id should remain NULL");
+            assert_eq!(status, Some("ended".to_string()), "hosted_session_status should be updated");
         }
     }
 }

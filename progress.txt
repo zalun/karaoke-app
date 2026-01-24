@@ -162,3 +162,14 @@
 - Added 5 unit tests covering: store all fields, update existing, paused/ended status, nonexistent session
 - Files changed: src-tauri/src/commands/session.rs, src-tauri/src/lib.rs, ralph/hosted-session-restoration.json
 - All 361 tests pass, cargo check passes, lint passes
+
+## CMD-002: session_update_hosted_status command updates only status field
+- Added session_update_hosted_status Tauri command to src-tauri/src/commands/session.rs
+- Command takes session_id and status parameters
+- Validates status (must be 'active', 'paused', or 'ended')
+- Verifies session exists before updating
+- Updates only hosted_session_status, preserves hosted_session_id and hosted_by_user_id
+- Registered command in src-tauri/src/lib.rs invoke_handler
+- Added 6 unit tests: updates_status_only, active_to_paused, paused_to_ended, ended_to_active, nonexistent_session, preserves_null_fields
+- Files changed: src-tauri/src/commands/session.rs, src-tauri/src/lib.rs, ralph/hosted-session-restoration.json
+- All 361 tests pass (6 new), cargo check passes, lint passes

@@ -60,7 +60,8 @@
         "Verify hosted_session_status changed to 'ended'",
         "Verify hosted_session_id and hosted_by_user_id remain unchanged"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added session_update_hosted_status command to session.rs. Validates status (active/paused/ended), verifies session exists, updates only hosted_session_status. 6 unit tests: updates_status_only, active_to_paused, paused_to_ended, ended_to_active, nonexistent_session, preserves_null_fields."
     },
     {
       "id": "CMD-003",
