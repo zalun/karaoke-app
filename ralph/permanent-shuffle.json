@@ -41,7 +41,7 @@
         "Unassigned songs are treated as a separate 'singer' group",
         "Add unit tests for queue_compute_fair_position in queue.rs"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-004",
@@ -66,7 +66,7 @@
         "When enabled AND activeSingerId is set, calls computeFairPosition and inserts at that position",
         "When enabled but no activeSingerId, falls back to append behavior"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-006",
@@ -104,7 +104,7 @@
         "Add 2nd song for A → queue is ABCA (A has 1, needs round 2, but B,C only have 1 each, so append)",
         "Verify existing songs A, B, C remain in their original positions"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-009",
@@ -117,7 +117,7 @@
         "Add a song for C",
         "Verify the song appears after position 1 (after A and B each sang once) → ABCAB"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-010",
@@ -131,7 +131,7 @@
         "Quit and restart the app",
         "Verify Fair Queue toggle is still OFF"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-011",
@@ -144,7 +144,7 @@
         "Verify song is appended to end (fallback behavior when no singer)",
         "Unassigned songs in queue are treated as their own group for position calculation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "PRD-012",
@@ -157,7 +157,7 @@
         "Add a new song",
         "Verify the song appears at the end of the queue regardless of singer"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }
