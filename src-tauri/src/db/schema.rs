@@ -290,6 +290,12 @@ const MIGRATIONS: &[&str] = &[
     -- Index for global queries (filter by search_type only)
     CREATE INDEX IF NOT EXISTS idx_search_history_search_type ON search_history(search_type);
     "#,
+    // Migration 11: Hosted session ownership tracking (Issue #207)
+    r#"
+    ALTER TABLE sessions ADD COLUMN hosted_session_id TEXT;
+    ALTER TABLE sessions ADD COLUMN hosted_by_user_id TEXT;
+    ALTER TABLE sessions ADD COLUMN hosted_session_status TEXT;
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
@@ -322,4 +328,72 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_migration_11_adds_hosted_session_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Verify we can query the new columns
+        conn.execute(
+            "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-test', 'user-test', 'active')",
+            [],
+        )
+        .unwrap();
+
+        let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE name = 'Test'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+
+        assert_eq!(hosted_id, Some("hs-test".to_string()));
+        assert_eq!(user_id, Some("user-test".to_string()));
+        assert_eq!(status, Some("active".to_string()));
+    }
+
+    #[test]
+    fn test_migration_11_columns_nullable() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Insert session without hosted fields
+        conn.execute("INSERT INTO sessions (name, is_active) VALUES ('NoHost', 1)", [])
+            .unwrap();
+
+        let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE name = 'NoHost'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+
+        assert_eq!(hosted_id, None);
+        assert_eq!(user_id, None);
+        assert_eq!(status, None);
+    }
+
+    #[test]
+    fn test_schema_version_is_11_after_all_migrations() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let version: i32 = conn
+            .query_row(
+                "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(version, 11);
+    }
 }

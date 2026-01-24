@@ -136,3 +136,18 @@
   - Documents purpose: prevents orphaned hosted session references after logout
 - Files changed: src/stores/authStore.ts, src/stores/authStore.test.ts, ralph/reopen-hosted-session.json
 - All 360 tests pass, typecheck passes, lint passes
+
+## DB-001/DB-002/DB-003: Migration 11 adds hosted_session_id, hosted_by_user_id, hosted_session_status columns
+- Added Migration 11 to src-tauri/src/db/schema.rs (Issue #207)
+- All three columns are nullable TEXT, added via ALTER TABLE sessions ADD COLUMN
+- Added unit tests in schema.rs verifying: columns exist, are nullable, schema version = 11
+- Updated test schema in session.rs to include the new columns
+- Added 6 new tests in session.rs hosted_session_columns module:
+  - test_hosted_session_id_column_exists
+  - test_hosted_by_user_id_column_exists
+  - test_hosted_session_status_column_exists
+  - test_all_hosted_fields_stored_and_retrieved
+  - test_hosted_fields_nullable
+  - test_session_deletion_cascades_hosted_fields
+- Files changed: src-tauri/src/db/schema.rs, src-tauri/src/commands/session.rs, ralph/hosted-session-restoration.json
+- All 361 tests pass, typecheck passes, lint passes

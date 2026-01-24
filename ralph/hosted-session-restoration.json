@@ -1,0 +1,462 @@
+{
+  "feature": "Hosted Session Restoration Improvement",
+  "description": "Move hosted session persistence from the generic settings table to the sessions table, storing hosted_session_id, hosted_by_user_id, and hosted_session_status for proper ownership tracking and cleaner restoration logic.",
+  "items": [
+    {
+      "id": "DB-001",
+      "category": "Database",
+      "description": "Migration adds hosted_session_id column to sessions table",
+      "steps_to_verify": [
+        "Run the app to trigger migration",
+        "Check SQLite schema: SELECT sql FROM sqlite_master WHERE name='sessions'",
+        "Verify hosted_session_id TEXT column exists"
+      ],
+      "passes": true,
+      "notes": "Migration 11 added to schema.rs. Unit tests verify column exists and is nullable."
+    },
+    {
+      "id": "DB-002",
+      "category": "Database",
+      "description": "Migration adds hosted_by_user_id column to sessions table",
+      "steps_to_verify": [
+        "Run the app to trigger migration",
+        "Check SQLite schema: SELECT sql FROM sqlite_master WHERE name='sessions'",
+        "Verify hosted_by_user_id TEXT column exists"
+      ],
+      "passes": true,
+      "notes": "Migration 11 added to schema.rs. Unit tests verify column exists and is nullable."
+    },
+    {
+      "id": "DB-003",
+      "category": "Database",
+      "description": "Migration adds hosted_session_status column to sessions table",
+      "steps_to_verify": [
+        "Run the app to trigger migration",
+        "Check SQLite schema: SELECT sql FROM sqlite_master WHERE name='sessions'",
+        "Verify hosted_session_status TEXT column exists"
+      ],
+      "passes": true,
+      "notes": "Migration 11 added to schema.rs. Unit tests verify column exists and is nullable."
+    },
+    {
+      "id": "CMD-001",
+      "category": "Tauri Commands",
+      "description": "session_set_hosted command stores all three hosted fields on a session",
+      "steps_to_verify": [
+        "Call session_set_hosted(session_id, hosted_session_id, hosted_by_user_id, 'active')",
+        "Query database: SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?",
+        "Verify all three values are correctly stored"
+      ],
+      "passes": false
+    },
+    {
+      "id": "CMD-002",
+      "category": "Tauri Commands",
+      "description": "session_update_hosted_status command updates only the status field",
+      "steps_to_verify": [
+        "Set up a session with hosted fields via session_set_hosted",
+        "Call session_update_hosted_status(session_id, 'ended')",
+        "Verify hosted_session_status changed to 'ended'",
+        "Verify hosted_session_id and hosted_by_user_id remain unchanged"
+      ],
+      "passes": false
+    },
+    {
+      "id": "CMD-003",
+      "category": "Tauri Commands",
+      "description": "get_active_session returns all hosted fields",
+      "steps_to_verify": [
+        "Create a session and set hosted fields",
+        "Call get_active_session()",
+        "Verify response includes hosted_session_id, hosted_by_user_id, hosted_session_status"
+      ],
+      "passes": false
+    },
+    {
+      "id": "TYPE-001",
+      "category": "Types",
+      "description": "Rust Session struct includes hosted fields",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs",
+        "Verify Session struct has hosted_session_id: Option<String>",
+        "Verify Session struct has hosted_by_user_id: Option<String>",
+        "Verify Session struct has hosted_session_status: Option<String>"
+      ],
+      "passes": false
+    },
+    {
+      "id": "TYPE-002",
+      "category": "Types",
+      "description": "TypeScript Session interface includes hosted fields",
+      "steps_to_verify": [
+        "Check src/services/session.ts",
+        "Verify Session interface has hosted_session_id?: string",
+        "Verify Session interface has hosted_by_user_id?: string",
+        "Verify Session interface has hosted_session_status?: string"
+      ],
+      "passes": false
+    },
+    {
+      "id": "HOST-001",
+      "category": "Host Session",
+      "description": "hostSession() stores all three fields after API success",
+      "steps_to_verify": [
+        "Sign in as a user",
+        "Create or load a session",
+        "Call hostSession()",
+        "Verify hosted_session_id is set to API response id",
+        "Verify hosted_by_user_id is set to current user's id",
+        "Verify hosted_session_status is set to 'active'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "HOST-002",
+      "category": "Host Session",
+      "description": "hostSession() allows override when status is 'ended'",
+      "steps_to_verify": [
+        "Set up a session with status='ended'",
+        "Call hostSession()",
+        "Verify new hosted_session_id is stored",
+        "Verify new hosted_by_user_id matches current user",
+        "Verify status is updated to 'active'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "HOST-003",
+      "category": "Host Session",
+      "description": "hostSession() blocks when different user has status 'active'",
+      "steps_to_verify": [
+        "Set up a session with hosted_by_user_id='user-A' and status='active'",
+        "Sign in as user-B",
+        "Attempt to call hostSession()",
+        "Verify error is returned indicating another user is hosting",
+        "Verify original hosted fields are preserved"
+      ],
+      "passes": false
+    },
+    {
+      "id": "HOST-004",
+      "category": "Host Session",
+      "description": "hostSession() blocks when different user has status 'paused'",
+      "steps_to_verify": [
+        "Set up a session with hosted_by_user_id='user-A' and status='paused'",
+        "Sign in as user-B",
+        "Attempt to call hostSession()",
+        "Verify error is returned indicating another user is hosting",
+        "Verify original hosted fields are preserved"
+      ],
+      "passes": false
+    },
+    {
+      "id": "HOST-005",
+      "category": "Host Session",
+      "description": "hostSession() fails gracefully if user not authenticated",
+      "steps_to_verify": [
+        "Ensure no user is signed in",
+        "Attempt to call hostSession()",
+        "Verify appropriate error is returned",
+        "Verify no hosted fields are set"
+      ],
+      "passes": false
+    },
+    {
+      "id": "STOP-001",
+      "category": "Stop Hosting",
+      "description": "stopHosting() updates status to 'ended'",
+      "steps_to_verify": [
+        "Start hosting a session",
+        "Call stopHosting()",
+        "Verify hosted_session_status is now 'ended'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "STOP-002",
+      "category": "Stop Hosting",
+      "description": "stopHosting() preserves hosted_session_id and hosted_by_user_id",
+      "steps_to_verify": [
+        "Start hosting a session, note the hosted_session_id and hosted_by_user_id",
+        "Call stopHosting()",
+        "Verify hosted_session_id is unchanged",
+        "Verify hosted_by_user_id is unchanged"
+      ],
+      "passes": false
+    },
+    {
+      "id": "STOP-003",
+      "category": "Stop Hosting",
+      "description": "stopHosting() updates status even if API call fails",
+      "steps_to_verify": [
+        "Start hosting a session",
+        "Simulate API failure (network offline)",
+        "Call stopHosting()",
+        "Verify hosted_session_status is updated to 'ended' locally"
+      ],
+      "passes": false
+    },
+    {
+      "id": "RESTORE-001",
+      "category": "Restoration",
+      "description": "No restoration attempted when hosted_session_id is null",
+      "steps_to_verify": [
+        "Load a session with no hosted_session_id",
+        "Verify no API calls to verify hosted session",
+        "Verify no restoration dialog or process"
+      ],
+      "passes": false
+    },
+    {
+      "id": "RESTORE-002",
+      "category": "Restoration",
+      "description": "No restoration when status is 'ended'",
+      "steps_to_verify": [
+        "Load a session with hosted_session_status='ended'",
+        "Verify no API calls to verify hosted session",
+        "Verify hosted fields are preserved"
+      ],
+      "passes": false
+    },
+    {
+      "id": "RESTORE-003",
+      "category": "Restoration",
+      "description": "No restoration when user not authenticated",
+      "steps_to_verify": [
+        "Set up session with hosted fields and status='active'",
+        "Ensure no user is signed in",
+        "Load the session",
+        "Verify no restoration attempted",
+        "Verify hosted fields are preserved for when owner returns"
+      ],
+      "passes": false
+    },
+    {
+      "id": "RESTORE-004",
+      "category": "Restoration",
+      "description": "Same user with active session restores successfully",
+      "steps_to_verify": [
+        "Set up session with hosted_by_user_id matching current user and status='active'",
+        "Mock API to return session as active",
+        "Load the session",
+        "Verify polling starts",
+        "Verify 'Reconnected to hosted session' shown"
+      ],
+      "passes": false
+    },
+    {
+      "id": "RESTORE-005",
+      "category": "Restoration",
+      "description": "Same user with ended session (per API) updates status",
+      "steps_to_verify": [
+        "Set up session with hosted_by_user_id matching current user and status='active'",
+        "Mock API to return session as ended",
+        "Load the session",
+        "Verify hosted_session_status updated to 'ended' in DB",
+        "Verify no restoration"
+      ],
+      "passes": false
+    },
+    {
+      "id": "RESTORE-006",
+      "category": "Restoration",
+      "description": "Different user with active status shows dialog",
+      "steps_to_verify": [
+        "Set up session with hosted_by_user_id='user-A' and status='active'",
+        "Sign in as user-B",
+        "Load the session",
+        "Verify dialog shown: 'Session hosted by another user'",
+        "Verify hosted fields are preserved",
+        "Verify no restoration"
+      ],
+      "passes": false
+    },
+    {
+      "id": "RESTORE-007",
+      "category": "Restoration",
+      "description": "Different user with ended status shows no dialog",
+      "steps_to_verify": [
+        "Set up session with hosted_by_user_id='user-A' and status='ended'",
+        "Sign in as user-B",
+        "Load the session",
+        "Verify no dialog shown",
+        "Verify no restoration",
+        "Verify hosted fields preserved"
+      ],
+      "passes": false
+    },
+    {
+      "id": "RESTORE-008",
+      "category": "Restoration",
+      "description": "API network error preserves fields for retry",
+      "steps_to_verify": [
+        "Set up session with hosted fields and status='active'",
+        "Sign in as matching user",
+        "Simulate network error on API call",
+        "Load the session",
+        "Verify hosted fields are preserved unchanged"
+      ],
+      "passes": false
+    },
+    {
+      "id": "RESTORE-009",
+      "category": "Restoration",
+      "description": "API 401/403 error updates status to ended",
+      "steps_to_verify": [
+        "Set up session with hosted fields and status='active'",
+        "Sign in as matching user",
+        "Mock API to return 401 or 403",
+        "Load the session",
+        "Verify hosted_session_status updated to 'ended'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "UI-001",
+      "category": "UI",
+      "description": "Different user dialog is anonymous (no email shown)",
+      "steps_to_verify": [
+        "Trigger the different-user scenario",
+        "Verify dialog text says 'another user' not the email",
+        "Verify dialog has OK button to dismiss"
+      ],
+      "passes": false
+    },
+    {
+      "id": "UI-002",
+      "category": "UI",
+      "description": "Different user with active session cannot start hosting",
+      "steps_to_verify": [
+        "Set up session with hosted_by_user_id='user-A' and status='active'",
+        "Sign in as user-B",
+        "Attempt to click Host button",
+        "Verify hosting is blocked with appropriate message"
+      ],
+      "passes": false
+    },
+    {
+      "id": "EDGE-001",
+      "category": "Edge Cases",
+      "description": "User signs out while hosting preserves fields",
+      "steps_to_verify": [
+        "Start hosting a session",
+        "Sign out",
+        "Verify hosted_session_id, hosted_by_user_id, hosted_session_status are preserved",
+        "Sign back in as same user",
+        "Verify restoration can occur"
+      ],
+      "passes": false
+    },
+    {
+      "id": "EDGE-002",
+      "category": "Edge Cases",
+      "description": "Each session has independent hosted state",
+      "steps_to_verify": [
+        "Create Session A and host it",
+        "Create Session B (don't host)",
+        "Switch to Session B",
+        "Verify Session B has no hosted fields",
+        "Switch back to Session A",
+        "Verify Session A still has hosted fields"
+      ],
+      "passes": false
+    },
+    {
+      "id": "EDGE-003",
+      "category": "Edge Cases",
+      "description": "Token refresh during restoration continues restoration",
+      "steps_to_verify": [
+        "Set up session with hosted fields",
+        "Simulate expired token that successfully refreshes",
+        "Load the session",
+        "Verify restoration completes after token refresh"
+      ],
+      "passes": false
+    },
+    {
+      "id": "EDGE-004",
+      "category": "Edge Cases",
+      "description": "Token refresh failure preserves fields",
+      "steps_to_verify": [
+        "Set up session with hosted fields",
+        "Simulate expired token with failed refresh",
+        "Load the session",
+        "Verify hosted fields are preserved"
+      ],
+      "passes": false
+    },
+    {
+      "id": "E2E-001",
+      "category": "E2E",
+      "description": "Full hosting flow: host, verify, stop",
+      "steps_to_verify": [
+        "Sign in",
+        "Create or load session",
+        "Click Host button",
+        "Verify QR code and join code displayed",
+        "Click Stop Hosting",
+        "Verify hosted_session_status is 'ended'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "E2E-002",
+      "category": "E2E",
+      "description": "Restart restoration: host, quit, reopen, verify restored",
+      "steps_to_verify": [
+        "Sign in and host a session",
+        "Quit the app",
+        "Reopen the app",
+        "Verify hosted session is restored automatically"
+      ],
+      "passes": false
+    },
+    {
+      "id": "E2E-003",
+      "category": "E2E",
+      "description": "Ended session not restored on restart",
+      "steps_to_verify": [
+        "Sign in and host a session",
+        "Stop hosting",
+        "Quit the app",
+        "Reopen the app",
+        "Verify not hosting (status='ended' prevents restoration)"
+      ],
+      "passes": false
+    },
+    {
+      "id": "E2E-004",
+      "category": "E2E",
+      "description": "Override ended session with new hosting",
+      "steps_to_verify": [
+        "Sign in and host a session",
+        "Stop hosting (status='ended')",
+        "Click Host again",
+        "Verify new hosted_session_id is generated",
+        "Verify status is 'active'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "MIGRATE-001",
+      "category": "Migration",
+      "description": "Remove hosted_session_id from settings ALLOWED_SETTING_KEYS",
+      "steps_to_verify": [
+        "Check settings implementation",
+        "Verify hosted_session_id is no longer in ALLOWED_SETTING_KEYS"
+      ],
+      "passes": false
+    },
+    {
+      "id": "MIGRATE-002",
+      "category": "Migration",
+      "description": "Old hosted_session_id in settings is cleared or migrated",
+      "steps_to_verify": [
+        "Set up app with hosted_session_id in settings table (old format)",
+        "Run the updated app",
+        "Verify either: value is migrated to sessions table, or value is cleared"
+      ],
+      "passes": false
+    }
+  ]
+}

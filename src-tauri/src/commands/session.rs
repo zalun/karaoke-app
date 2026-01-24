@@ -923,7 +923,10 @@ mod tests {
                 ended_at TIMESTAMP,
                 is_active INTEGER DEFAULT 1,
                 history_index INTEGER DEFAULT -1,
-                active_singer_id INTEGER REFERENCES singers(id) ON DELETE SET NULL
+                active_singer_id INTEGER REFERENCES singers(id) ON DELETE SET NULL,
+                hosted_session_id TEXT,
+                hosted_by_user_id TEXT,
+                hosted_session_status TEXT
             );
 
             CREATE TABLE session_singers (
@@ -1931,6 +1934,132 @@ mod tests {
                 )
                 .unwrap();
             assert!(!singer_exists, "Singer should not exist");
+        }
+    }
+
+    mod hosted_session_columns {
+        use super::*;
+
+        #[test]
+        fn test_hosted_session_id_column_exists() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active, hosted_session_id) VALUES ('Test', 1, 'hs-123')", [])
+                .unwrap();
+
+            let hosted_id: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_id FROM sessions WHERE name = 'Test'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-123".to_string()));
+        }
+
+        #[test]
+        fn test_hosted_by_user_id_column_exists() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active, hosted_by_user_id) VALUES ('Test', 1, 'user-456')", [])
+                .unwrap();
+
+            let user_id: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_by_user_id FROM sessions WHERE name = 'Test'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(user_id, Some("user-456".to_string()));
+        }
+
+        #[test]
+        fn test_hosted_session_status_column_exists() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, 'active')", [])
+                .unwrap();
+
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_status FROM sessions WHERE name = 'Test'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_all_hosted_fields_stored_and_retrieved() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-789', 'user-abc', 'paused')",
+                [],
+            )
+            .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE name = 'Test'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-789".to_string()));
+            assert_eq!(user_id, Some("user-abc".to_string()));
+            assert_eq!(status, Some("paused".to_string()));
+        }
+
+        #[test]
+        fn test_hosted_fields_nullable() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE name = 'Test'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, None);
+            assert_eq!(user_id, None);
+            assert_eq!(status, None);
+        }
+
+        #[test]
+        fn test_session_deletion_cascades_hosted_fields() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('ToDelete', 0, 'hs-del', 'user-del', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute("DELETE FROM sessions WHERE id = ?1", [session_id])
+                .unwrap();
+
+            let count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(count, 0, "Deleting session should remove hosted fields with it");
         }
     }
 }
