@@ -155,7 +155,7 @@
         "Add a new song",
         "Verify the song appears at the end of the queue regardless of singer"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }

@@ -223,3 +223,34 @@ Files changed:
 - src/stores/queueStore.fairQueue.test.ts (added PRD-011 test)
 - ralph/permanent-shuffle.json (marked PRD-011 passes: true)
 
+## PRD-012: Disabling Fair Queue reverts to append-to-end behavior
+
+Status: COMPLETE
+
+Implemented:
+- Added E2E tests in tests/e2e/specs/fair-queue.spec.ts
+- Added queue_compute_fair_position mock to tauri-mocks.ts for future fair queue E2E tests
+- Test 1: "Disabling Fair Queue should revert to append-to-end behavior"
+  - Starts with Fair Queue enabled, adds 2 songs
+  - Toggles Fair Queue OFF
+  - Adds 3rd song, verifies it goes to END of queue (not fair position)
+- Test 2: "Songs should append to end when Fair Queue is disabled from the start"
+  - Fair Queue disabled from start
+  - Adds 3 songs, verifies order: Song 1, Song 2, Song 3 (append order)
+
+Key decisions:
+- E2E tests verify toggle affects queue insertion behavior
+- Mock returns position 0 for new singer's first song, else queue length
+- Verification uses queue item text content to verify order
+
+Verified:
+- npx tsc --noEmit: passes
+- npm run test:run: 298 passed
+- npm run lint: passes
+- npx playwright test fair-queue: 12 passed (6 tests x 2 browsers)
+
+Files changed:
+- tests/e2e/specs/fair-queue.spec.ts (added PRD-012 E2E tests)
+- tests/e2e/fixtures/tauri-mocks.ts (added queue_compute_fair_position mock)
+- ralph/permanent-shuffle.json (marked PRD-012 passes: true)
+
