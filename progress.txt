@@ -1,263 +1,138 @@
-## PRD-002: Backend - queue_compute_fair_position command
+# Reopen Hosted Session - Progress Log
 
-Status: COMPLETE (UPDATED - algorithm rewritten to match spec)
+## persist-1: Add persistSessionId() function
+- Added HOSTED_SESSION_KEY constant and persistSessionId() function to src/services/hostedSession.ts
+- Also added getPersistedSessionId() and clearPersistedSessionId() in same file (related functions)
+- Added "hosted_session_id" to ALLOWED_SETTING_KEYS in src-tauri/src/commands/settings.rs
+- Created unit tests in src/services/hostedSession.test.ts (8 tests covering all 3 functions)
+- Files changed: src/services/hostedSession.ts, src-tauri/src/commands/settings.rs, src/services/hostedSession.test.ts
+- All tests pass (305 total), typecheck passes
+- Note: Pre-existing lint error in tests/e2e/fixtures/tauri-mocks.ts (not related to this change)
 
-Algorithm rewritten to match plan/permanent-shuffle.md:
-- Insert after OTHER singers have N+1 songs, where N = new singer's current count
-- Round N+1 completes when all OTHER singers (not including new singer) have N+1 songs
-- Special case: if no other singers exist, find N+1th occurrence of self or append
-- Example: ABCABCABC + X(new) → round 1 ends at pos 2 → insert at 3 → ABCXABCABC
+## persist-2: Fix getPersistedSessionId() to return null for empty strings
+- Function existed but didn't handle empty string case (clearPersistedSessionId sets "")
+- Added logic to treat empty/whitespace-only strings as null
+- Added 2 new tests: empty string returns null, whitespace-only returns null
+- Fixed pre-existing lint error in tests/e2e/fixtures/tauri-mocks.ts (renamed HttpMockGlobals to _HttpMockGlobals)
+- Files changed: src/services/hostedSession.ts, src/services/hostedSession.test.ts, tests/e2e/fixtures/tauri-mocks.ts
+- All 307 tests pass, typecheck passes, lint passes
 
-Tests rewritten (15 tests for compute_fair_position):
-- PRD-003 examples: ABCABCABC, AAABCABBC, ABCXABCABC, ABXABX, AAA
-- Edge cases: empty queue, single singer, unassigned songs, complex scenarios
+## persist-3: Verify clearPersistedSessionId() implementation
+- Function already existed from persist-1 implementation
+- Uses HOSTED_SESSION_KEY constant, calls settings_set with empty string
+- Since no settings_delete command exists, setting to "" is correct approach
+- getPersistedSessionId already handles "" as null, so behavior is correct
+- Unit tests already exist and pass (2 tests for this function)
+- Files changed: ralph/reopen-hosted-session.json (marked passes: true)
+- All 307 tests pass, typecheck passes, lint passes
 
-Verified:
-- cargo test queue: 104 passed (15 fair position tests)
-- just check: passes
-- npm run test: 298 passed
-- npm run lint: passes
+## restore-1: Add restoreHostedSession() action to sessionStore.ts
+- Added restoreHostedSession action to SessionState interface
+- Implemented restoreHostedSession() with skip conditions: already hosting, no session, not authenticated
+- Added call to restoreHostedSession() at end of loadSession() after session is loaded
+- Added useAuthStore import to check authentication status
+- Added 4 unit tests covering skip conditions and loadSession integration
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts
+- Note: Actual restoration logic (API calls, polling) will be added in restore-2
+- All 311 tests pass, typecheck passes, lint passes
 
-Files changed:
-- src-tauri/src/commands/queue.rs (rewrote compute_fair_position algorithm + tests)
-- ralph/permanent-shuffle.json (marked PRD-002 passes: true)
+## restore-2: Add restoration logic to restoreHostedSession()
+- Implemented full restoration flow in restoreHostedSession():
+  1. Calls getPersistedSessionId() to get stored session ID
+  2. Returns early if no persisted ID (no error)
+  3. Gets auth tokens, validates not expired
+  4. Calls hostedSessionService.getSession() to verify session still active
+  5. If active: sets hostedSession state, starts polling interval
+  6. If not active: clears persisted ID
+- Handles error cases: 404/401/403 clear persisted ID, network errors don't
+- Shows "Reconnected to hosted session" notification on success
+- Exported getPersistedSessionId and clearPersistedSessionId from services/index.ts
+- Added 10 new unit tests covering all restoration scenarios
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, src/services/index.ts
+- All 321 tests pass, typecheck passes, lint passes
 
-## PRD-003: Backend - Fair position algorithm unit tests
+## restore-3: Add tests for notification on successful reconnect
+- Implementation already existed at sessionStore.ts:749 - notify("success", "Reconnected to hosted session")
+- Added 3 new unit tests to verify notification behavior:
+  1. "should show success notification on successful reconnect"
+  2. "should not show notification when no session to restore"
+  3. 3 tests for "should not show error notification on [404/401/403] error (expected cleanup)"
+- Files changed: src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
+- All 326 tests pass, typecheck passes, lint passes
 
-Status: COMPLETE
+## restore-4: Verify graceful handling of invalid/expired sessions
+- Implementation already existed from restore-2 at sessionStore.ts:750-767
+- Error handling logic checks for 404, NOT_FOUND, 401, 403, UNAUTHORIZED in error message
+- Clears persisted ID on these errors, doesn't clear on network errors (transient)
+- No error notification shown for expected cleanup scenarios (line 767)
+- Tests already existed (added in restore-2 and restore-3):
+  - "should clear persisted ID on 404 error (session not found)"
+  - "should not show error notification on 404 error (expected cleanup)"
+  - "should clear persisted ID on 401 error (unauthorized)"
+  - "should not show error notification on 401 error (expected cleanup)"
+  - "should clear persisted ID on 403 error (forbidden)"
+  - "should not show error notification on 403 error (expected cleanup)"
+  - "should not clear persisted ID on network error (transient failure)"
+- Files changed: ralph/reopen-hosted-session.json, progress.txt
+- All 326 tests pass, typecheck passes, lint passes
 
-Implemented:
-- Added 4 new PRD-specific unit tests for compute_fair_position in queue.rs
-- test_prd003_empty_queue_position_zero: verifies empty queue returns position 0
-- test_prd003_singer_with_one_song_others_with_zero: tests when only one singer in queue
-- test_prd003_singer_with_two_songs_others_with_one: tests A has 2, B/C have 1 - A waits
-- test_prd003_unassigned_treated_as_separate_group: verifies UNASSIGNED_SINGER_ID (-1) works
-- Added test_fair_position_complex_scenario: tests A:3, B:2, C:1 scenario
+## host-1: hostSession() persists session ID after successful creation
+- Added persistSessionId import to sessionStore.ts
+- Added call to persistSessionId(hostedSession.id) in hostSession() after createHostedSession succeeds
+- Added 9 unit tests for hostSession() including:
+  - Error cases: no session, not authenticated, token expired
+  - Success case: creates session and persists ID
+  - Verifies call order: persistSessionId called after createHostedSession
+  - Opens host modal, starts polling interval
+  - Clears existing polling interval before starting new one
+  - Passes session name correctly (named and unnamed sessions)
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
+- All 336 tests pass, typecheck passes, lint passes
 
-Algorithm clarification:
-- Algorithm only knows about singers currently IN the queue
-- If B/C have 0 songs (not in queue), can't wait for them - that's fair shuffle's job
-- compute_fair_position waits for singers with FEWER songs than the new singer
+## stop-1: stopHosting() clears persisted session ID before API call
+- Added clearPersistedSessionId() call at start of stopHosting(), before API call
+- Ensures orphaned session references don't remain even if API call fails
+- Added 6 unit tests for stopHosting():
+  - Does nothing if no hosted session exists
+  - Clears persisted ID before API call (verified call order)
+  - Clears persisted ID even if API call fails
+  - Clears polling interval on stop
+  - Clears local state even if no auth tokens available
+  - Shows warning notification when API call fails
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
+- All 342 tests pass, typecheck passes, lint passes
 
-Verified:
-- cargo test queue: 24 passed (was 23)
-- just check: all checks passed
-- npm run test: 287 passed
+## end-1: endSession() clears persisted session ID as safety cleanup
+- Added clearPersistedSessionId() call in endSession() after stopHosting() check
+- Acts as safety net if session was never hosted or user bypassed normal flow
+- clearPersistedSessionId is safe to call even if no session ID was persisted (sets empty string)
+- Updated test mock in sessionStore.activeSinger.test.ts to include clearPersistedSessionId
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.activeSinger.test.ts, ralph/reopen-hosted-session.json
+- All 342 tests pass, typecheck passes, lint passes
 
-Files changed:
-- src-tauri/src/commands/queue.rs (added PRD-003 tests)
-- ralph/permanent-shuffle.json (marked PRD-003 passes: true)
+## refresh-1: refreshHostedSession() clears persisted ID when session becomes invalid
+- Added clearPersistedSessionId() call in refreshHostedSession() error handling block
+- Called when shouldClear is true (404/401/403 errors indicating session ended/unauthorized)
+- Prevents stale persisted ID from causing restore attempts on next app startup
+- Added 13 unit tests for refreshHostedSession():
+  - No-op cases: no hosted session, refresh in progress, not authenticated, token expired
+  - Success case: updates session stats
+  - Error cases: clears persisted ID on 404/401/403, does NOT clear on network errors
+  - Verifies warning notification shown when session becomes invalid
+  - Verifies polling interval cleared, host modal closed
+  - Verifies existing error handling behavior preserved
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
+- All 355 tests pass, typecheck passes, lint passes
 
-## PRD-004: Frontend Service - computeFairPosition method
-
-Status: COMPLETE
-
-Implemented:
-- Added computeFairPosition(singerId: number | null): Promise<number> to queueService
-- Method calls invoke('queue_compute_fair_position', { singerId })
-- Returns position number from backend
-
-Verified:
-- npx tsc --noEmit: passes
-- npm run test: 287 passed
-- npm run lint: passes
-
-Files changed:
-- src/services/queue.ts (added computeFairPosition method)
-- ralph/permanent-shuffle.json (marked PRD-004 passes: true)
-
-## PRD-005: Queue Store - addToQueue fair position integration
-
-Status: COMPLETE
-
-Implemented:
-- Modified addToQueue in queueStore.ts to check FAIR_QUEUE_ENABLED setting
-- When enabled AND activeSingerId is set: computes fair position, adds to DB, reorders to position
-- When disabled OR no activeSingerId: falls back to append-to-end behavior
-- UI first shows item at end, then repositions after backend response (optimistic update)
-
-Unit tests added:
-- src/stores/queueStore.fairQueue.test.ts (7 tests)
-- Tests disabled behavior, enabled with/without singer, position calculations
-
-Verified:
-- just check: all passed
-- npm run test: 294 passed (7 new)
-- npm run lint: passes
-
-Files changed:
-- src/stores/queueStore.ts (modified addToQueue, added imports)
-- src/stores/queueStore.fairQueue.test.ts (new test file)
-- ralph/permanent-shuffle.json (marked PRD-005 passes: true)
-
-## PRD-006 & PRD-007: UI - Fair Queue toggle button
-
-Status: COMPLETE
-
-Implemented:
-- Added Fair Queue toggle button in QueuePanel next to Fair Shuffle button
-- Button uses ListOrdered icon from lucide-react
-- Tooltip shows current state: "Fair Queue: ON" or "Fair Queue: OFF"
-- Visual states: OFF = text-gray-400, ON = text-blue-400 bg-blue-400/20
-- Clicking toggles FAIR_QUEUE_ENABLED setting via settingsStore
-- ml-auto on toggle button pushes both queue buttons to right side
-
-Verified:
-- just check: all passed
-- npm run test: 294 passed
-- npm run lint: passes
-
-Files changed:
-- src/App.tsx (added ListOrdered import, Fair Queue toggle button, toggleFairQueue handler)
-- ralph/permanent-shuffle.json (marked PRD-006 and PRD-007 passes: true)
-
-## PRD-008: Integration - Fair Queue preserves existing queue order
-
-Status: COMPLETE
-
-Implemented:
-- Added 2 unit tests to queueStore.fairQueue.test.ts verifying existing items not reshuffled
-- test: "should not reshuffle existing queue items when adding a new song (PRD-008)"
-  - Pre-populates queue with A1, B1, C1
-  - Adds new song for Singer A at fair position 2
-  - Verifies A1, B1, C1 maintain relative order
-- test: "should preserve existing item positions when new singer's song goes to top (PRD-008)"
-  - Pre-populates queue with A1, B1, A2
-  - New singer C goes to position 0 (top)
-  - Verifies A1, B1, A2 shifted down but relative order preserved
-
-Verified:
-- npx tsc -b --noEmit: passes
-- npm run test:run: 296 passed (9 fair queue tests now)
-- npm run lint: passes
-
-Files changed:
-- src/stores/queueStore.fairQueue.test.ts (added 2 PRD-008 tests)
-- ralph/permanent-shuffle.json (marked PRD-008 passes: true)
-
-## PRD-009: Integration - First song for new singer goes to top
-
-Status: COMPLETE
-
-Implemented:
-- Added explicit test case "should insert first song for new singer at top of queue (PRD-009)"
-- Test verifies: existing queue with A1, B1, new singer C adds song, goes to position 0
-- Backend compute_fair_position already returns 0 for singers with 0 songs (existing)
-- Frontend queueStore.addToQueue calls computeFairPosition and reorders to position 0
-
-Key decisions:
-- PRD-009 functionality was already working from PRD-002 through PRD-008
-- Added explicit test to document the PRD-009 requirement clearly
-- No code changes needed - only test coverage to explicitly verify PRD-009
-
-Verified:
-- npx tsc --noEmit: passes
-- npm run test: 297 passed (10 fair queue tests now)
-- npm run lint: passes
-
-Files changed:
-- src/stores/queueStore.fairQueue.test.ts (added PRD-009 test)
-- ralph/permanent-shuffle.json (marked PRD-009 passes: true)
-
-## PRD-010: Integration - Fair Queue setting persistence
-
-Status: COMPLETE
-
-Implemented:
-- Added E2E tests to verify Fair Queue setting persists via settingsStore
-- Added fairQueueEnabled config option to TauriMockConfig in tauri-mocks.ts
-- Added fair_queue_enabled setting to E2E mock's defaultSettings
-- Created tests/e2e/specs/fair-queue.spec.ts with 4 persistence tests
-
-E2E tests added:
-- Fair Queue toggle should show OFF state when disabled
-- Fair Queue toggle should show ON state when enabled
-- Fair Queue setting should persist when toggled
-- Fair Queue toggle updates visual state immediately when clicked
-
-Key decisions:
-- Setting already persists via existing settingsStore + SQLite infrastructure
-- E2E tests verify the UI reflects the persisted setting value
-- Tests require queue to have items (toggle only visible when queue non-empty)
-
-Verified:
-- just check: all passed
-- npm run test: 297 passed
-- npm run lint: passes
-- npx playwright test fair-queue: 8 passed (4 tests x 2 browsers)
-
-Files changed:
-- tests/e2e/fixtures/tauri-mocks.ts (added fairQueueEnabled config, fair_queue_enabled setting)
-- tests/e2e/specs/fair-queue.spec.ts (new E2E test file)
-- ralph/permanent-shuffle.json (marked PRD-010 passes: true)
-
-## PRD-011: Fair Queue with unassigned songs
-
-Status: COMPLETE
-
-Implemented:
-- Added unit test "should append to end when fair queue enabled but no active singer (PRD-011)"
-- Test verifies: Fair Queue ON + no active singer → appends to end (fallback)
-- Existing items preserved, new item added to position 2 (end)
-- Backend already handles unassigned as UNASSIGNED_SINGER_ID (-1) in compute_fair_position
-
-Key insight:
-- Frontend: activeSingerId=null → fallback to append-to-end (correct per PRD-011 step 4)
-- Backend: UNASSIGNED_SINGER_ID=-1 used when computing positions for queue items without singer
-- Backend test already covers: test_prd003_unassigned_treated_as_separate_group
-
-Verified:
-- npx tsc --noEmit: passes
-- npm run test: 298 passed (11 fair queue tests now)
-- npm run lint: passes
-
-Files changed:
-- src/stores/queueStore.fairQueue.test.ts (added PRD-011 test)
-- ralph/permanent-shuffle.json (marked PRD-011 passes: true)
-
-## PRD-012: Disabling Fair Queue reverts to append-to-end behavior
-
-Status: COMPLETE
-
-Implemented:
-- Added E2E tests in tests/e2e/specs/fair-queue.spec.ts
-- Added queue_compute_fair_position mock to tauri-mocks.ts for future fair queue E2E tests
-- Test 1: "Disabling Fair Queue should revert to append-to-end behavior"
-  - Starts with Fair Queue enabled, adds 2 songs
-  - Toggles Fair Queue OFF
-  - Adds 3rd song, verifies it goes to END of queue (not fair position)
-- Test 2: "Songs should append to end when Fair Queue is disabled from the start"
-  - Fair Queue disabled from start
-  - Adds 3 songs, verifies order: Song 1, Song 2, Song 3 (append order)
-
-Key decisions:
-- E2E tests verify toggle affects queue insertion behavior
-- Mock returns position 0 for new singer's first song, else queue length
-- Verification uses queue item text content to verify order
-
-Verified:
-- npx tsc --noEmit: passes
-- npm run test:run: 298 passed
-- npm run lint: passes
-- npx playwright test fair-queue: 12 passed (6 tests x 2 browsers)
-
-Files changed:
-- tests/e2e/specs/fair-queue.spec.ts (added PRD-012 E2E tests)
-- tests/e2e/fixtures/tauri-mocks.ts (added queue_compute_fair_position mock)
-- ralph/permanent-shuffle.json (marked PRD-012 passes: true)
-
-## JSON Sync - All PRD items verified complete
-
-Status: COMPLETE
-
-Action: JSON file was out of sync with progress.txt. All PRD items (001-012) verified:
-- Unit tests: 298 passed (npm run test)
-- Rust tests: 103 passed (cargo test --lib)
-- TypeScript: npx tsc -b passes
-- ESLint: npm run lint passes
-
-Updated ralph/permanent-shuffle.json to mark all remaining items as passes: true:
-- PRD-003, PRD-005, PRD-008, PRD-009, PRD-010, PRD-011, PRD-012
-
-All Fair Queue feature items are complete.
-
+## auth-1: signOut() clears persisted session ID before clearing tokens
+- Added clearPersistedSessionId import from hostedSession to authStore.ts
+- Added clearPersistedSessionId() call in signOut() before Supabase signOut and token clearing
+- Wrapped in try/catch so signOut continues even if clearPersistedSessionId fails
+- Created authStore.test.ts with 5 unit tests:
+  - Verifies call order: clearPersistedSessionId before clearTokens
+  - Verifies clearPersistedSessionId is called on signOut
+  - Verifies signOut continues if clearPersistedSessionId fails
+  - Verifies session ID cleared even when Supabase signOut fails
+  - Documents purpose: prevents orphaned hosted session references after logout
+- Files changed: src/stores/authStore.ts, src/stores/authStore.test.ts, ralph/reopen-hosted-session.json
+- All 360 tests pass, typecheck passes, lint passes

@@ -27,9 +27,8 @@ Instructions:
 - Commit your changes.
 
 Before committing, run ALL feedback loops:
-1. TypeScript: npm run typecheck (must pass with no errors)
-2. Tests: npm run test (must pass)
-3. Lint: npm run lint (must pass)
+1. Tests: just test (must pass)
+2. Lint: just lint-all (must pass)
 Do NOT commit if any feedback loop fails. Fix issues first.
 
 After completing each task, append to progress.txt:

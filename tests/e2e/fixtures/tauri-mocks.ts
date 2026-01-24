@@ -105,7 +105,7 @@ interface PendingHttpRequest {
  * Type definitions for HTTP mock window globals.
  * These are used inside addInitScript where window is available.
  */
-interface HttpMockGlobals {
+interface _HttpMockGlobals {
   __PENDING_HTTP_REQUESTS__?: Map<number, PendingHttpRequest>;
   __HTTP_RESPONSE_BODIES__?: Map<number, Uint8Array>;
   __HTTP_BODIES_READ__?: Set<number>;

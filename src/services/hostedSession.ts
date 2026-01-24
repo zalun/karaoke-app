@@ -1,8 +1,41 @@
 import { fetch } from "@tauri-apps/plugin-http";
+import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "./logger";
 import { HOMEKARAOKE_API_URL, buildJoinUrl, buildQrCodeUrl } from "../constants";
 
 const log = createLogger("HostedSessionService");
+
+const HOSTED_SESSION_KEY = "hosted_session_id";
+
+/**
+ * Persist the hosted session ID to SQLite settings.
+ * Used to restore the session after app restart.
+ */
+export async function persistSessionId(sessionId: string): Promise<void> {
+  log.debug(`Persisting session ID: ${sessionId}`);
+  await invoke("settings_set", { key: HOSTED_SESSION_KEY, value: sessionId });
+}
+
+/**
+ * Get the persisted hosted session ID from SQLite settings.
+ * Returns null if no session ID is stored.
+ */
+export async function getPersistedSessionId(): Promise<string | null> {
+  const sessionId = await invoke<string | null>("settings_get", { key: HOSTED_SESSION_KEY });
+  // Treat empty string as null (clearPersistedSessionId sets empty string)
+  const result = sessionId && sessionId.trim() !== "" ? sessionId : null;
+  log.debug(`Retrieved persisted session ID: ${result ?? "none"}`);
+  return result;
+}
+
+/**
+ * Clear the persisted hosted session ID from SQLite settings.
+ * Called when stopping hosting or signing out.
+ */
+export async function clearPersistedSessionId(): Promise<void> {
+  log.debug("Clearing persisted session ID");
+  await invoke("settings_set", { key: HOSTED_SESSION_KEY, value: "" });
+}
 
 export interface SessionStats {
   pendingRequests: number;

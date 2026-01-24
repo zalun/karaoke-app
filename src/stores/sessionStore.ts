@@ -1,5 +1,15 @@
 import { create } from "zustand";
-import { createLogger, sessionService, hostedSessionService, type Singer, type Session, type HostedSession } from "../services";
+import {
+  createLogger,
+  sessionService,
+  hostedSessionService,
+  persistSessionId,
+  getPersistedSessionId,
+  clearPersistedSessionId,
+  type Singer,
+  type Session,
+  type HostedSession,
+} from "../services";
 import { authService } from "../services/auth";
 import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
@@ -68,6 +78,7 @@ interface SessionState {
   hostSession: () => Promise<void>;
   stopHosting: () => Promise<void>;
   refreshHostedSession: () => Promise<void>;
+  restoreHostedSession: () => Promise<void>;
   openHostModal: () => void;
   closeHostModal: () => void;
 
@@ -121,6 +132,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         await useQueueStore.getState().loadPersistedState();
         // Load singer assignments for all queue and history items
         await get().loadAllQueueItemSingers();
+        // Attempt to restore hosted session from previous app run
+        await get().restoreHostedSession();
       }
     } catch (error) {
       log.error("Failed to load session:", error);
@@ -156,6 +169,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (get().hostedSession) {
         await get().stopHosting();
       }
+      // Safety cleanup: clear persisted session ID even if stopHosting() wasn't called
+      // (e.g., if session was never hosted or if user somehow bypassed normal flow)
+      await clearPersistedSessionId();
       // Flush any pending queue operations before ending session
       await flushPendingOperations();
       await sessionService.endSession();
@@ -540,6 +556,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         session.name ?? undefined
       );
 
+      // Persist the session ID for app restart recovery
+      await persistSessionId(hostedSession.id);
+
       // Clear any existing polling interval
       const existingInterval = get()._hostedSessionPollInterval;
       if (existingInterval) {
@@ -569,6 +588,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
 
     log.info("Stopping hosted session");
+
+    // Clear persisted session ID first (before API call) to ensure
+    // no orphaned reference remains even if API call fails
+    await clearPersistedSessionId();
+
     let apiCallFailed = false;
     try {
       // Get access token from auth service
@@ -649,6 +673,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         message.includes("UNAUTHORIZED");
       if (shouldClear) {
         log.warn("Hosted session no longer valid, clearing");
+        // Clear persisted session ID to prevent restore attempts on next startup
+        await clearPersistedSessionId();
         const interval = get()._hostedSessionPollInterval;
         if (interval) {
           clearInterval(interval);
@@ -658,6 +684,96 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
     } finally {
       set({ _isRefreshingHostedSession: false });
+    }
+  },
+
+  restoreHostedSession: async () => {
+    const { session, hostedSession } = get();
+
+    // Skip if already hosting
+    if (hostedSession) {
+      log.debug("Skipping restore: already hosting a session");
+      return;
+    }
+
+    // Skip if no session exists
+    if (!session) {
+      log.debug("Skipping restore: no active session");
+      return;
+    }
+
+    // Note: We don't check isAuthenticated here because of a race condition -
+    // this function may be called before auth store finishes initializing.
+    // Instead, we check for valid tokens below which is the actual requirement.
+
+    log.debug("Attempting to restore hosted session");
+
+    // Get persisted session ID
+    const persistedId = await getPersistedSessionId();
+    if (!persistedId) {
+      log.debug("No persisted session ID found");
+      return;
+    }
+
+    // Get access token to verify session
+    const tokens = await authService.getTokens();
+    if (!tokens) {
+      log.debug("No auth tokens available for session restore");
+      return;
+    }
+
+    // Skip if token is expired
+    if (!isTokenValid(tokens.expires_at)) {
+      log.debug("Token expired, skipping session restore");
+      return;
+    }
+
+    try {
+      // Verify session is still active on backend
+      const restoredSession = await hostedSessionService.getSession(
+        tokens.access_token,
+        persistedId
+      );
+
+      // Only restore if session is still active
+      if (restoredSession.status !== "active") {
+        log.info(`Persisted session is ${restoredSession.status}, clearing`);
+        await clearPersistedSessionId();
+        return;
+      }
+
+      // Clear any existing polling interval
+      const existingInterval = get()._hostedSessionPollInterval;
+      if (existingInterval) {
+        clearInterval(existingInterval);
+      }
+
+      // Start polling for stats
+      const pollInterval = setInterval(() => {
+        get().refreshHostedSession();
+      }, HOSTED_SESSION_POLL_INTERVAL_MS);
+
+      set({ hostedSession: restoredSession, _hostedSessionPollInterval: pollInterval });
+
+      log.info(`Restored hosted session: ${restoredSession.sessionCode}`);
+      notify("success", "Reconnected to hosted session");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.warn(`Failed to restore hosted session: ${message}`);
+
+      // Clear persisted ID on auth errors or session not found
+      const shouldClear =
+        message.includes("404") ||
+        message.includes("NOT_FOUND") ||
+        message.includes("401") ||
+        message.includes("403") ||
+        message.includes("UNAUTHORIZED");
+
+      if (shouldClear) {
+        log.debug("Clearing invalid persisted session ID");
+        await clearPersistedSessionId();
+      }
+      // Don't show error to user - silent cleanup for expected scenarios
     }
   },
 

@@ -1,0 +1,233 @@
+{
+  "feature": "Persist Hosted Sessions Across App Restarts",
+  "description": "When the app quits and reopens, reconnect to the existing hosted session instead of requiring the user to host again.",
+  "items": [
+    {
+      "id": "persist-1",
+      "category": "Persistence Helpers",
+      "description": "Add persistSessionId() function to hostedSession.ts that stores the session ID in SQLite settings table using existing Tauri settings commands",
+      "stepsToVerify": [
+        "Function exists in src/services/hostedSession.ts",
+        "Uses HOSTED_SESSION_KEY constant",
+        "Calls Tauri invoke with settings_set command",
+        "Accepts sessionId string parameter",
+        "Returns Promise<void>"
+      ],
+      "passes": true
+    },
+    {
+      "id": "persist-2",
+      "category": "Persistence Helpers",
+      "description": "Add getPersistedSessionId() function to hostedSession.ts that retrieves the session ID from SQLite settings table",
+      "stepsToVerify": [
+        "Function exists in src/services/hostedSession.ts",
+        "Uses HOSTED_SESSION_KEY constant",
+        "Calls Tauri invoke with settings_get command",
+        "Returns Promise<string | null>",
+        "Returns null when no session ID is stored"
+      ],
+      "passes": true
+    },
+    {
+      "id": "persist-3",
+      "category": "Persistence Helpers",
+      "description": "Add clearPersistedSessionId() function to hostedSession.ts that removes the session ID from SQLite settings table",
+      "stepsToVerify": [
+        "Function exists in src/services/hostedSession.ts",
+        "Uses HOSTED_SESSION_KEY constant",
+        "Calls Tauri invoke to remove the setting",
+        "Returns Promise<void>"
+      ],
+      "passes": true
+    },
+    {
+      "id": "restore-1",
+      "category": "Session Restoration",
+      "description": "Add restoreHostedSession() action to sessionStore.ts that restores hosted session state on app startup",
+      "stepsToVerify": [
+        "Function exists in sessionStore.ts",
+        "Called at end of loadSession() after session is loaded",
+        "Skips if already hosting (hostedSession is not null)",
+        "Skips if no session exists",
+        "Skips if user is not authenticated"
+      ],
+      "passes": true
+    },
+    {
+      "id": "restore-2",
+      "category": "Session Restoration",
+      "description": "restoreHostedSession() fetches and validates persisted session from backend",
+      "stepsToVerify": [
+        "Calls getPersistedSessionId() to get stored session ID",
+        "If no persisted ID, returns early without error",
+        "Calls getSession() API to verify session is still active",
+        "If session is active, restores hostedSession state",
+        "If session is active, starts polling with refreshHostedSession()"
+      ],
+      "passes": true
+    },
+    {
+      "id": "restore-3",
+      "category": "Session Restoration",
+      "description": "restoreHostedSession() shows notification on successful reconnect",
+      "stepsToVerify": [
+        "Shows toast/notification with message 'Reconnected to hosted session'",
+        "Notification only appears when session is successfully restored",
+        "No notification shown when no session to restore"
+      ],
+      "passes": true
+    },
+    {
+      "id": "restore-4",
+      "category": "Session Restoration",
+      "description": "restoreHostedSession() handles invalid/expired sessions gracefully",
+      "stepsToVerify": [
+        "When API returns 404 (session ended), clears persisted ID",
+        "When API returns 401/403 (unauthorized), clears persisted ID",
+        "When API returns error, clears persisted ID",
+        "No error toast shown to user for expected cleanup scenarios"
+      ],
+      "passes": true
+    },
+    {
+      "id": "host-1",
+      "category": "Host Session Updates",
+      "description": "hostSession() persists the session ID after successful creation",
+      "stepsToVerify": [
+        "After createHostedSession() API call succeeds",
+        "Calls persistSessionId() with hostedSession.id",
+        "Session ID is stored in SQLite settings"
+      ],
+      "passes": true
+    },
+    {
+      "id": "stop-1",
+      "category": "Stop Hosting Updates",
+      "description": "stopHosting() clears persisted session ID before API call",
+      "stepsToVerify": [
+        "Calls clearPersistedSessionId() at start of stopHosting()",
+        "Clears persisted ID before the API call to delete session",
+        "Ensures no orphaned session reference remains"
+      ],
+      "passes": true
+    },
+    {
+      "id": "end-1",
+      "category": "End Session Updates",
+      "description": "endSession() clears persisted session ID as safety cleanup",
+      "stepsToVerify": [
+        "Calls clearPersistedSessionId() in endSession()",
+        "Acts as safety net if stopHosting() wasn't called",
+        "No error if no session ID was persisted"
+      ],
+      "passes": true
+    },
+    {
+      "id": "refresh-1",
+      "category": "Refresh Error Handling",
+      "description": "refreshHostedSession() clears persisted ID when session becomes invalid",
+      "stepsToVerify": [
+        "When API returns 404, calls clearPersistedSessionId()",
+        "When API returns 401, calls clearPersistedSessionId()",
+        "When API returns 403, calls clearPersistedSessionId()",
+        "Existing error handling behavior is preserved"
+      ],
+      "passes": true
+    },
+    {
+      "id": "auth-1",
+      "category": "Auth Integration",
+      "description": "signOut() in authStore clears persisted session ID before clearing tokens",
+      "stepsToVerify": [
+        "Calls clearPersistedSessionId() in signOut() action",
+        "Called before auth tokens are cleared",
+        "Prevents orphaned hosted session references after logout"
+      ],
+      "passes": true
+    },
+    {
+      "id": "e2e-1",
+      "category": "End-to-End Flow",
+      "description": "Full flow: Host session, quit app, reopen, verify reconnection",
+      "stepsToVerify": [
+        "Sign in to the app",
+        "Start a session and add songs to queue",
+        "Click Host button to create hosted session",
+        "Note the session code (e.g., HK-XXXX-XXXX)",
+        "Quit app completely (Cmd+Q)",
+        "Reopen the app",
+        "Verify notification shows 'Reconnected to hosted session'",
+        "Verify Host button shows hosted state (not 'Host' text)",
+        "Verify same session code is restored"
+      ],
+      "passes": false
+    },
+    {
+      "id": "edge-1",
+      "category": "Edge Cases",
+      "description": "Signed out user does not restore hosted session",
+      "stepsToVerify": [
+        "Host a session while signed in",
+        "Sign out from the app",
+        "Quit and reopen the app",
+        "Verify no hosted session is restored",
+        "Verify no error notifications appear"
+      ],
+      "passes": false
+    },
+    {
+      "id": "edge-2",
+      "category": "Edge Cases",
+      "description": "Expired/ended session on backend is handled gracefully",
+      "stepsToVerify": [
+        "Host a session",
+        "Wait for backend to expire the session (or manually delete via API)",
+        "Quit and reopen the app",
+        "Verify no error notifications appear",
+        "Verify persisted session ID is cleared",
+        "Verify user can host a new session normally"
+      ],
+      "passes": false
+    },
+    {
+      "id": "edge-3",
+      "category": "Edge Cases",
+      "description": "Different user logged in does not restore another user's session",
+      "stepsToVerify": [
+        "User A signs in and hosts a session",
+        "User A signs out",
+        "User B signs in on same device",
+        "Quit and reopen the app",
+        "Verify User B does not see User A's hosted session",
+        "API returns 401/403 for mismatched user, session ID is cleared"
+      ],
+      "passes": false
+    },
+    {
+      "id": "edge-4",
+      "category": "Edge Cases",
+      "description": "Network offline skips restoration without error",
+      "stepsToVerify": [
+        "Host a session while online",
+        "Quit the app",
+        "Disable network connectivity",
+        "Reopen the app",
+        "Verify no error notifications appear",
+        "Verify app is usable without hosted session",
+        "Enable network, verify user can manually host again"
+      ],
+      "passes": false
+    },
+    {
+      "id": "edge-5",
+      "category": "Edge Cases",
+      "description": "Already hosting skips restoration (no-op)",
+      "stepsToVerify": [
+        "Verify restoreHostedSession() is a no-op when hostedSession is already set",
+        "No duplicate API calls occur",
+        "No duplicate notifications appear"
+      ],
+      "passes": false
+    }
+  ]
+}

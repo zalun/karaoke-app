@@ -27,4 +27,5 @@ Store in $TARGET"
 
 claude \
   --permission-mode acceptEdits \
+  --print \
   "$PROMPT"

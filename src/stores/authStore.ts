@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createLogger } from "../services";
 import { authService, type AuthTokens, type User } from "../services/auth";
+import { clearPersistedSessionId } from "../services/hostedSession";
 import { createAuthenticatedClient, isSupabaseConfigured } from "../services/supabase";
 import { notify } from "./notificationStore";
 
@@ -146,6 +147,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
 
     try {
+      // Clear persisted hosted session ID before clearing tokens
+      // This prevents orphaned session references after logout
+      try {
+        await clearPersistedSessionId();
+      } catch (e) {
+        log.warn(`Failed to clear persisted session ID (continuing): ${e}`);
+      }
+
       // Try to sign out from Supabase (optional, may fail if offline)
       const tokens = await authService.getTokens();
       if (tokens && isSupabaseConfigured()) {
