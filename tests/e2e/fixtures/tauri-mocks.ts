@@ -87,6 +87,8 @@ export interface TauriMockConfig {
   } | null;
   /** Whether creating a hosted session should fail */
   shouldFailHostSession?: boolean;
+  /** Whether fair queue mode is enabled (default: false) */
+  fairQueueEnabled?: boolean;
 }
 
 /**
@@ -183,6 +185,7 @@ export async function injectTauriMocks(
       search_history_global: "true",
       search_history_session_limit: "50",
       search_history_global_limit: "50",
+      fair_queue_enabled: mockConfig.fairQueueEnabled ? "true" : "false",
     };
 
     // In-memory settings store for tests
@@ -342,6 +345,25 @@ export async function injectTauriMocks(
             // Simple shuffle for testing
             queueState.queue.sort(() => Math.random() - 0.5);
             return null;
+
+          case "queue_compute_fair_position": {
+            // Compute fair position for a singer
+            // For testing: if singer has 0 songs in queue, return 0 (top)
+            // Otherwise return queue length (end)
+            const singerId = args?.singerId as number | null;
+            if (singerId === null) {
+              return queueState.queue.length;
+            }
+            // Count how many songs this singer has in the queue
+            // In the mock, we track singer assignments through a simple counter
+            // For simplicity, return 0 if this appears to be the singer's first song
+            // (simulating fair queue putting new singer's first song at top)
+            const singerSongCount = (queueState as unknown as { singerCounts?: Record<number, number> }).singerCounts?.[singerId] || 0;
+            if (singerSongCount === 0) {
+              return 0; // First song goes to top
+            }
+            return queueState.queue.length; // Subsequent songs go to end for simplicity
+          }
 
           case "queue_move_to_history": {
             const queueItem = queueState.queue.find(

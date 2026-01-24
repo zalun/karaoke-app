@@ -633,6 +633,152 @@ pub fn queue_fair_shuffle(state: State<'_, AppState>) -> Result<(), CommandError
     }
 }
 
+// ============ Fair Queue Position Command ============
+
+/// Pure function that computes the fair insertion position for a new song.
+/// Takes the current queue items as (singer_id) and the new singer_id.
+/// Returns the position where the new song should be inserted.
+///
+/// Algorithm (from plan/permanent-shuffle.md):
+/// 1. Count how many songs singer X already has in queue: N
+/// 2. Iterate through queue, tracking each singer's cumulative song count
+/// 3. Find the first position where ALL OTHER singers have sung at least N+1 times
+/// 4. Insert X right after that position
+/// 5. If round N+1 doesn't exist (queue ends first), append to end
+///
+/// The key insight: X waits for OTHER singers to have N+1 songs, not for X itself.
+/// This ensures X gets their fair turn after others have caught up.
+///
+/// Examples:
+/// - ABCABCABC + X (new, N=0) → round 1 ends at pos 2 → insert at 3 → ABCXABCABC
+/// - AAABCABBC + X (new, N=0) → round 1 ends at pos 4 → insert at 5 → AAABCXABBC
+/// - ABCXABCABC + X (N=1) → round 2 ends at pos 6 (A,B,C all have 2) → insert at 7
+/// - AAA + X (new, N=0) → round 1 ends at pos 0 (only A, A has 1) → insert at 1 → AXAA
+fn compute_fair_position(queue_singer_ids: &[i64], new_singer_id: i64) -> usize {
+    if queue_singer_ids.is_empty() {
+        return 0;
+    }
+
+    // Get all unique singers in the queue, EXCLUDING the new singer
+    let other_singers: std::collections::HashSet<i64> = queue_singer_ids
+        .iter()
+        .copied()
+        .filter(|&sid| sid != new_singer_id)
+        .collect();
+
+    // Count songs per singer in current queue (to find N)
+    let mut singer_counts: std::collections::HashMap<i64, usize> = std::collections::HashMap::new();
+    for &sid in queue_singer_ids {
+        *singer_counts.entry(sid).or_insert(0) += 1;
+    }
+
+    // How many songs does the new singer already have? This is N.
+    let n = *singer_counts.get(&new_singer_id).unwrap_or(&0);
+
+    // Special case: if no other singers exist, the new singer is alone or first.
+    // In this case, insert after the N+1th occurrence of the new singer (if exists),
+    // otherwise append.
+    if other_singers.is_empty() {
+        // Count occurrences of new singer
+        let mut count = 0;
+        for (pos, &sid) in queue_singer_ids.iter().enumerate() {
+            if sid == new_singer_id {
+                count += 1;
+                if count == n + 1 {
+                    // This is the N+1th song of new singer. Insert after.
+                    return pos + 1;
+                }
+            }
+        }
+        // N+1th song doesn't exist, append
+        return queue_singer_ids.len();
+    }
+
+    // We need to find where round N+1 completes for OTHER singers.
+    // Round N+1 completes when ALL other singers have sung at least N+1 times.
+    let mut running_counts: std::collections::HashMap<i64, usize> = std::collections::HashMap::new();
+
+    for (pos, &sid) in queue_singer_ids.iter().enumerate() {
+        *running_counts.entry(sid).or_insert(0) += 1;
+
+        // Check if round N+1 is complete for all OTHER singers at this position.
+        let round_complete = other_singers
+            .iter()
+            .all(|singer| running_counts.get(singer).copied().unwrap_or(0) >= n + 1);
+
+        if round_complete {
+            // Insert right after this position
+            return pos + 1;
+        }
+    }
+
+    // Round N+1 never completed - append to end
+    queue_singer_ids.len()
+}
+
+/// Compute the fair insertion position for a new song based on singer rotation.
+/// Returns the position (0-indexed) where the new song should be inserted.
+///
+/// When singer has 0 songs in queue: returns 0 (top)
+/// When singer has N songs: returns position after others have had fair turns
+#[tauri::command]
+pub fn queue_compute_fair_position(
+    state: State<'_, AppState>,
+    singer_id: Option<i64>,
+) -> Result<i32, CommandError> {
+    let effective_singer_id = singer_id.unwrap_or(UNASSIGNED_SINGER_ID);
+    debug!(
+        "Computing fair position for singer_id: {} (effective: {})",
+        singer_id.map_or("None".to_string(), |id| id.to_string()),
+        effective_singer_id
+    );
+
+    let db = state.db.lock().map_lock_err()?;
+    let conn = db.connection();
+
+    let session_id = get_active_session_id(&db)?;
+
+    // Get all queue items with their primary singer ID (first singer assigned)
+    // For simplicity, we use the first assigned singer; for duets we could use MAX
+    let mut stmt = conn.prepare(
+        "SELECT qi.id,
+                (SELECT qs.singer_id
+                 FROM queue_singers qs
+                 WHERE qs.queue_item_id = qi.id
+                 ORDER BY qs.position
+                 LIMIT 1) as singer_id
+         FROM queue_items qi
+         WHERE qi.session_id = ?1 AND qi.item_type = 'queue'
+         ORDER BY qi.position",
+    )?;
+
+    let queue_singer_ids: Vec<i64> = stmt
+        .query_map([session_id], |row| {
+            let singer_id: Option<i64> = row.get(1)?;
+            Ok(singer_id.unwrap_or(UNASSIGNED_SINGER_ID))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let position = compute_fair_position(&queue_singer_ids, effective_singer_id);
+
+    info!(
+        "Computed fair position {} for singer {} (queue has {} items)",
+        position,
+        effective_singer_id,
+        queue_singer_ids.len()
+    );
+
+    // Safe conversion from usize to i32
+    let position_i32: i32 = position.try_into().map_err(|_| {
+        CommandError::Validation(format!(
+            "Fair position {} exceeds i32::MAX, queue too large",
+            position
+        ))
+    })?;
+
+    Ok(position_i32)
+}
+
 // ============ State Recovery Commands ============
 
 #[tauri::command]
@@ -858,5 +1004,183 @@ mod tests {
         let items = items(&[("first", &[1]), ("second", &[1])]);
         let result = compute_fair_shuffle_order(&items);
         assert_eq!(ids(&result), vec!["first", "second"]);
+    }
+
+    // ============ Tests for compute_fair_position ============
+    // Based on algorithm from plan/permanent-shuffle.md:
+    // Insert new song after all singers have sung at least N+1 times,
+    // where N = singer's current song count.
+
+    #[test]
+    fn test_fair_position_empty_queue() {
+        // Empty queue -> position 0
+        let queue: Vec<i64> = vec![];
+        assert_eq!(compute_fair_position(&queue, 1), 0);
+    }
+
+    #[test]
+    fn test_fair_position_example_abcabcabc_new_x() {
+        // ABCABCABC + X (new, N=0) → round 1 ends at pos 2 → insert at 3
+        // Result: ABCXABCABC
+        let queue = vec![1, 2, 3, 1, 2, 3, 1, 2, 3]; // A=1, B=2, C=3
+        assert_eq!(compute_fair_position(&queue, 4), 3); // X=4 is new
+    }
+
+    #[test]
+    fn test_fair_position_example_aaabcabbc_new_x() {
+        // AAABCABBC + X (new, N=0) → round 1 ends at pos 4 → insert at 5
+        // Result: AAABCXABBC
+        let queue = vec![1, 1, 1, 2, 3, 1, 2, 2, 3]; // A=1, B=2, C=3
+        assert_eq!(compute_fair_position(&queue, 4), 5); // X=4 is new
+    }
+
+    #[test]
+    fn test_fair_position_example_abcadab_new_x() {
+        // ABCADAB + X (new, N=0) → round 1 ends at pos 4 (D) → insert at 5
+        // Result: ABCADXAB
+        let queue = vec![1, 2, 3, 1, 4, 1, 2]; // A=1, B=2, C=3, D=4
+        assert_eq!(compute_fair_position(&queue, 5), 5); // X=5 is new
+    }
+
+    #[test]
+    fn test_fair_position_example_abcxabcabc_x_has_1() {
+        // ABCXABCABC + X (N=1) → round 2 ends at pos 6 → insert at 7
+        // Result: ABCXABCXABC
+        let queue = vec![1, 2, 3, 4, 1, 2, 3, 1, 2, 3]; // A=1, B=2, C=3, X=4
+        assert_eq!(compute_fair_position(&queue, 4), 7); // X=4 has 1 song
+    }
+
+    #[test]
+    fn test_fair_position_example_abxabx_x_has_2() {
+        // ABXABX + X (N=2) → round 3 doesn't exist → append to end
+        // Result: ABXABXX
+        let queue = vec![1, 2, 3, 1, 2, 3]; // A=1, B=2, X=3
+        assert_eq!(compute_fair_position(&queue, 3), 6); // X=3 has 2 songs, append
+    }
+
+    #[test]
+    fn test_fair_position_example_aaa_new_x() {
+        // AAA + X (new, N=0) → round 1 ends at pos 0 → insert at 1
+        // Result: AXAA
+        let queue = vec![1, 1, 1]; // A=1
+        assert_eq!(compute_fair_position(&queue, 2), 1); // X=2 is new
+    }
+
+    #[test]
+    fn test_fair_position_unassigned_new() {
+        // Unassigned singer (id = -1) in empty queue
+        let queue: Vec<i64> = vec![];
+        assert_eq!(compute_fair_position(&queue, UNASSIGNED_SINGER_ID), 0);
+    }
+
+    #[test]
+    fn test_fair_position_unassigned_mixed() {
+        // A, U, B - unassigned has 1, others have 1 each
+        // New unassigned: N=1, need round 2 to complete
+        // Round 2 requires A:2, U:2, B:2 - doesn't exist, append
+        let queue = vec![1, UNASSIGNED_SINGER_ID, 2]; // A=1, U=-1, B=2
+        assert_eq!(compute_fair_position(&queue, UNASSIGNED_SINGER_ID), 3);
+    }
+
+    #[test]
+    fn test_fair_position_single_singer_adding_more() {
+        // A with 1 song, adding another A
+        // N=1, need round 2 (all singers have 2). Only A exists, round 2 ends at pos 1.
+        // But wait - there's only 1 A, so round 2 never completes. Append.
+        let queue = vec![1]; // A=1 with 1 song
+        assert_eq!(compute_fair_position(&queue, 1), 1); // Append
+    }
+
+    #[test]
+    fn test_fair_position_single_singer_multiple_songs() {
+        // A has 2 songs [A, A], adding another A
+        // N=2, need round 3 (all have 3). Only A exists.
+        // With only one singer, new song should append after existing songs.
+        let queue = vec![1, 1]; // A=1 with 2 songs
+        assert_eq!(compute_fair_position(&queue, 1), 2); // Append after both
+
+        // A has 3 songs, adding 4th
+        let queue = vec![1, 1, 1];
+        assert_eq!(compute_fair_position(&queue, 1), 3); // Append
+    }
+
+    #[test]
+    fn test_fair_position_two_singers_balanced() {
+        // A, B - each has 1
+        // Adding A: N=1, need round 2 to complete (all have 2)
+        // Round 2 never exists with current queue, append
+        let queue = vec![1, 2]; // A, B each have 1
+        assert_eq!(compute_fair_position(&queue, 1), 2); // Append
+    }
+
+    #[test]
+    fn test_fair_position_two_singers_interleaved() {
+        // A, B, A, B - each has 2
+        // Adding A: N=2, need round 3 (all have 3)
+        // Round 3 doesn't exist, append
+        let queue = vec![1, 2, 1, 2]; // A, B interleaved
+        assert_eq!(compute_fair_position(&queue, 1), 4); // Append
+    }
+
+    #[test]
+    fn test_fair_position_complex_scenario() {
+        // A has 3, B has 2, C has 1
+        // Queue: A, B, A, C, B, A (positions 0-5)
+        let queue = vec![1, 2, 1, 3, 2, 1]; // A=1, B=2, C=3
+
+        // Adding A: N=3, need OTHER singers (B,C) to have 4 songs each.
+        // B only has 2 total, C only has 1 total. Round 4 never completes. Append = 6.
+        assert_eq!(compute_fair_position(&queue, 1), 6);
+
+        // Adding B: N=2, need OTHER singers (A,C) to have 3 songs each.
+        // A reaches 3 at pos 5, but C only ever has 1. Round 3 never completes. Append = 6.
+        assert_eq!(compute_fair_position(&queue, 2), 6);
+
+        // Adding C: N=1, need OTHER singers (A,B) to have 2 songs each.
+        // At pos 4 (B's second song), running counts: A:2, B:2, C:1. Round 2 complete. Insert at 5.
+        assert_eq!(compute_fair_position(&queue, 3), 5);
+
+        // Adding new singer D: N=0, need OTHER singers (A,B,C) to have 1 song each.
+        // At pos 3 (C's first song), running counts: A:2, B:1, C:1. All have >=1. Insert at 4.
+        assert_eq!(compute_fair_position(&queue, 4), 4);
+    }
+
+    #[test]
+    fn test_fair_position_prd003_examples() {
+        // From PRD-003 verification steps:
+
+        // ABCABCABC + X (new) → ABCXABCABC (insert at pos 3, after round 1)
+        let queue1 = vec![1, 2, 3, 1, 2, 3, 1, 2, 3];
+        assert_eq!(compute_fair_position(&queue1, 4), 3);
+
+        // AAABCABBC + X (new) → AAABCXABBC (insert at pos 5, after C completes round 1)
+        let queue2 = vec![1, 1, 1, 2, 3, 1, 2, 2, 3];
+        assert_eq!(compute_fair_position(&queue2, 4), 5);
+
+        // ABCXABCABC + X (has 1) → ABCXABCXABC (insert at pos 7, after round 2)
+        let queue3 = vec![1, 2, 3, 4, 1, 2, 3, 1, 2, 3];
+        assert_eq!(compute_fair_position(&queue3, 4), 7);
+
+        // ABXABX + X (has 2) → ABXABXX (append, round 3 doesn't exist)
+        let queue4 = vec![1, 2, 3, 1, 2, 3];
+        assert_eq!(compute_fair_position(&queue4, 3), 6);
+
+        // AAA + X (new) → AXAA (insert at pos 1, after A completes round 1)
+        let queue5 = vec![1, 1, 1];
+        assert_eq!(compute_fair_position(&queue5, 2), 1);
+    }
+
+    #[test]
+    fn test_fair_position_unassigned_as_separate_group() {
+        // Unassigned songs treated as separate group
+        // Empty queue
+        let queue: Vec<i64> = vec![];
+        assert_eq!(compute_fair_position(&queue, UNASSIGNED_SINGER_ID), 0);
+
+        // All unassigned: UUU + U (N=3)
+        // No OTHER singers exist, so we use special case: find N+1=4th occurrence.
+        // Only 3 unassigned songs exist, so append = 3.
+        let queue_all_unassigned = vec![UNASSIGNED_SINGER_ID, UNASSIGNED_SINGER_ID, UNASSIGNED_SINGER_ID];
+        assert_eq!(compute_fair_position(&queue_all_unassigned, UNASSIGNED_SINGER_ID), 3);
     }
 }

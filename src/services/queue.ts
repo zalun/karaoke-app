@@ -77,6 +77,12 @@ export const queueService = {
     await invoke("queue_set_history_index", { index });
   },
 
+  // Fair queue
+  async computeFairPosition(singerId: number | null): Promise<number> {
+    log.debug(`Computing fair position for singer: ${singerId}`);
+    return await invoke<number>("queue_compute_fair_position", { singerId });
+  },
+
   // State recovery
   async getState(): Promise<QueueState | null> {
     log.debug("Fetching queue state");

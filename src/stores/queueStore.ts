@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { createLogger, queueService, type QueueItemData } from "../services";
 import type { Video } from "./playerStore";
+import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
+import { useSessionStore } from "./sessionStore";
 
 const log = createLogger("QueueStore");
 
@@ -78,7 +80,7 @@ interface QueueState {
   resetState: () => void;
 
   // Actions
-  addToQueue: (video: Video) => QueueItem;
+  addToQueue: (video: Video) => Promise<QueueItem>;
   addToQueueNext: (video: Video) => QueueItem;
   removeFromQueue: (itemId: string) => void;
   reorderQueue: (itemId: string, newPosition: number) => void;
@@ -167,27 +169,75 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     });
   },
 
-  addToQueue: (video) => {
+  addToQueue: async (video) => {
     log.info(`addToQueue: ${video.title}`);
     const newItem: QueueItem = {
       id: crypto.randomUUID(),
       video,
       addedAt: new Date(),
     };
-    set((state) => {
-      const newQueue = [...state.queue, newItem];
-      const position = newQueue.length - 1;
-      log.debug(`Queue size: ${state.queue.length} -> ${newQueue.length}`);
 
-      // Persist to database (tracked for session transitions)
-      trackOperation(
-        queueService.addItem(toQueueItemData(newItem, position)).catch((error) => {
-          log.error("Failed to persist queue item:", error);
-        })
-      );
+    // Check if fair queue is enabled and we have an active singer
+    const fairQueueEnabled =
+      useSettingsStore.getState().getSetting(SETTINGS_KEYS.FAIR_QUEUE_ENABLED) === "true";
+    const { activeSingerId } = useSessionStore.getState();
 
-      return { queue: newQueue };
-    });
+    if (fairQueueEnabled && activeSingerId !== null) {
+      // Fair queue mode: compute fair position and insert there
+      log.debug(`Fair queue enabled, computing position for singer ${activeSingerId}`);
+
+      try {
+        // Get the fair position for this singer
+        const fairPosition = await queueService.computeFairPosition(activeSingerId);
+        log.debug(`Fair position for singer ${activeSingerId}: ${fairPosition}`);
+
+        // Note: Two-step process (add then reorder) has a small race condition window
+        // where the item is briefly at the wrong position. This is acceptable for a
+        // single-user desktop app - similar trade-off as addToQueueNext (see line ~260).
+        // A crash between these calls would leave the item at the end, which is safe.
+        await queueService.addItem(toQueueItemData(newItem, 0));
+        await queueService.reorder(newItem.id, fairPosition);
+
+        // Update UI to reflect the correct position
+        set((state) => {
+          const queue = [...state.queue];
+          queue.splice(fairPosition, 0, newItem);
+          log.debug(`Queue size: ${state.queue.length} -> ${queue.length}, inserted at position ${fairPosition}`);
+          return { queue };
+        });
+      } catch (error) {
+        log.error("Failed to compute fair position, falling back to append-to-end:", error);
+        // Fallback: add to end of queue
+        set((state) => {
+          const newQueue = [...state.queue, newItem];
+          log.warn(`Fair queue fallback: appending to end (position ${newQueue.length - 1})`);
+          return { queue: newQueue };
+        });
+        // Try to persist at end position
+        trackOperation(
+          queueService.addItem(toQueueItemData(newItem, get().queue.length - 1)).catch((e) => {
+            log.error("Failed to persist fallback queue item:", e);
+          })
+        );
+      }
+    } else {
+      // Standard mode: append to end
+      set((state) => {
+        const newQueue = [...state.queue, newItem];
+        const position = newQueue.length - 1;
+        log.debug(`Queue size: ${state.queue.length} -> ${newQueue.length}`);
+
+        // Persist to database (tracked for session transitions)
+        trackOperation(
+          queueService.addItem(toQueueItemData(newItem, position)).catch((error) => {
+            log.error("Failed to persist queue item:", error);
+          })
+        );
+
+        return { queue: newQueue };
+      });
+    }
+
     return newItem;
   },
 

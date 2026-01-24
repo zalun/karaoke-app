@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Join code overlay on idle video player
   - Stop hosting button to end guest access
   - Automatic cleanup when ending session
+- Fair Queue toggle for automatic fair song insertion (#205)
+  - Toggle button next to Fair Shuffle in queue panel
+  - When enabled, new songs insert at fair position based on singer rotation
+  - Algorithm: insert after round N+1 completes (N = singer's current song count)
+  - Preserves existing queue order - only new songs are placed fairly
+  - Falls back to append-to-end when no singer selected
+  - Setting persists across app restarts
 
 ## [0.7.7] - 2026-01-18
 

@@ -28,7 +28,7 @@ import { SettingsDialog } from "./components/settings";
 import { AuthStatus } from "./components/auth";
 import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, useAuthStore, getStreamUrlWithCache, showWindowsAudioNoticeOnce, notify, SETTINGS_KEYS, type QueueItem, type LibraryVideo, type Video } from "./stores";
 import { SingerAvatar } from "./components/singers";
-import { Shuffle, Trash2, ListRestart, Star } from "lucide-react";
+import { Shuffle, Trash2, ListRestart, Star, ListOrdered } from "lucide-react";
 import { youtubeService, createLogger, getErrorMessage } from "./services";
 import { useMediaControls, useDisplayWatcher, useUpdateCheck, useKeyboardShortcuts } from "./hooks";
 import { NotificationBar } from "./components/notification";
@@ -361,7 +361,8 @@ function App() {
   const handleAddToQueue = useCallback(
     async (result: SearchResult) => {
       log.info(`Adding to queue: "${result.title}"`);
-      const queueItem = addToQueue({
+      // addToQueue is async - waits for fair position calculation if enabled
+      const queueItem = await addToQueue({
         id: result.id,
         title: result.title,
         artist: result.channel,
@@ -371,10 +372,7 @@ function App() {
         youtubeId: result.id,
       });
 
-      // Auto-assign active singer if set.
-      // Note: No race condition here - addToQueue is synchronous and returns the item
-      // with a client-generated UUID immediately. DB persistence is async but the
-      // singer assignment only needs the item ID, which exists before persistence.
+      // Auto-assign active singer if set
       const { activeSingerId, assignSingerToQueueItem, getSingerById } = useSessionStore.getState();
       if (activeSingerId && queueItem) {
         try {
@@ -478,7 +476,8 @@ function App() {
       if (!video.is_available) return;
 
       log.info(`Adding local file to queue: "${video.title}"`);
-      const queueItem = addToQueue({
+      // addToQueue is async - waits for fair position calculation if enabled
+      const queueItem = await addToQueue({
         id: video.file_path,
         title: video.title,
         artist: video.artist || undefined,
@@ -774,9 +773,18 @@ const queueLog = createLogger("QueuePanel");
 function QueuePanel() {
   const { queue, playFromQueue, removeFromQueue, reorderQueue, clearQueue, fairShuffle } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
+  const { getSetting, setSetting } = useSettingsStore();
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Fair Queue toggle state
+  const fairQueueEnabled = getSetting(SETTINGS_KEYS.FAIR_QUEUE_ENABLED) === "true";
+  const toggleFairQueue = useCallback(async () => {
+    const newValue = fairQueueEnabled ? "false" : "true";
+    await setSetting(SETTINGS_KEYS.FAIR_QUEUE_ENABLED, newValue);
+    queueLog.info(`Fair Queue toggled: ${newValue}`);
+  }, [fairQueueEnabled, setSetting]);
 
   // Clear selection when the selected item is removed from queue
   useEffect(() => {
@@ -978,6 +986,18 @@ function QueuePanel() {
       <div className="mt-3 flex items-center gap-2">
         <QueueSummary queue={queue} />
         <button
+          onClick={toggleFairQueue}
+          title={fairQueueEnabled ? "Fair Queue: ON" : "Fair Queue: OFF"}
+          aria-label={fairQueueEnabled ? "Fair Queue enabled - new songs inserted at fair position" : "Fair Queue disabled - new songs appended to end"}
+          className={`ml-auto p-2 rounded transition-colors ${
+            fairQueueEnabled
+              ? "text-blue-400 bg-blue-400/20"
+              : "text-gray-400 hover:text-blue-400 hover:bg-gray-700"
+          }`}
+        >
+          <ListOrdered size={18} />
+        </button>
+        <button
           onClick={async () => {
             queueLog.info(`Fair shuffling queue (${queue.length} items)`);
             try {
@@ -991,7 +1011,7 @@ function QueuePanel() {
           disabled={queue.length <= 1}
           title="Fair Shuffle"
           aria-label="Fair shuffle queue by singer"
-          className="ml-auto p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-gray-400 disabled:hover:bg-transparent"
+          className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-gray-400 disabled:hover:bg-transparent"
         >
           <Shuffle size={18} />
         </button>

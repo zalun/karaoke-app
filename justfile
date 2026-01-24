@@ -53,6 +53,10 @@ build-arm:
 build-intel:
     npm run tauri build -- --target x86_64-apple-darwin
 
+# Run local app
+run:
+    open ./src-tauri/target/release/bundle/macos/HomeKaraoke.app
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TESTING - UNIT TESTS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -450,6 +454,15 @@ ralph-clear:
 ralph-status:
     ralph --status
 
+# Run ralph automation with specified files
+# Usage: just ralph PRD.md TASKS.md
+ralph +files:
+    ./ralph/afk.sh {{ files }}
+
+# Clean up ralph progress file
+ralph-clean:
+    rm -f ralph/progress.txt
+    @echo "✓ Removed ralph/progress.txt"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HELP

@@ -1,0 +1,163 @@
+{
+  "feature": "Fair Queue Toggle",
+  "description": "Add a Fair Queue on/off toggle that inserts new songs at fair positions based on singer rotation instead of appending to the end",
+  "items": [
+    {
+      "id": "PRD-001",
+      "category": "Settings",
+      "description": "Add FAIR_QUEUE_ENABLED setting key to settingsStore with default value of 'false'",
+      "stepsToVerify": [
+        "Open src/stores/settingsStore.ts",
+        "Verify SETTINGS_KEYS contains FAIR_QUEUE_ENABLED: 'fair_queue_enabled'",
+        "Verify DEFAULT_SETTINGS contains [SETTINGS_KEYS.FAIR_QUEUE_ENABLED]: 'false'",
+        "Start app and verify setting can be toggled and persists across restarts"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-002",
+      "category": "Backend",
+      "description": "Add queue_compute_fair_position Tauri command that calculates the fair insertion position for a new song based on singer_id",
+      "stepsToVerify": [
+        "Open src-tauri/src/commands/queue.rs",
+        "Verify queue_compute_fair_position command exists and is registered",
+        "Command accepts optional singer_id: Option<i64> parameter",
+        "Command returns position: i32 indicating where to insert the new song",
+        "When singer has N songs, returns position after round N+1 completes",
+        "If round N+1 doesn't exist yet, returns queue length (append to end)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-003",
+      "category": "Backend",
+      "description": "Fair position algorithm: insert after round N+1 completes, where N = singer's current song count",
+      "stepsToVerify": [
+        "ABCABCABC + X (new) → ABCXABCABC (insert at pos 3, after round 1)",
+        "AAABCABBC + X (new) → AAABCXABBC (insert at pos 5, after C completes round 1)",
+        "ABCXABCABC + X (has 1) → ABCXABCXABC (insert at pos 7, after round 2)",
+        "ABXABX + X (has 2) → ABXABXX (append, round 3 doesn't exist)",
+        "AAA + X (new) → AXAA (insert at pos 1, after A completes round 1)",
+        "Unassigned songs are treated as a separate 'singer' group",
+        "Add unit tests for queue_compute_fair_position in queue.rs"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-004",
+      "category": "Frontend Service",
+      "description": "Add computeFairPosition method to queue service that invokes the Tauri command",
+      "stepsToVerify": [
+        "Open src/services/queue.ts",
+        "Verify computeFairPosition(singerId: number | null): Promise<number> method exists",
+        "Method calls invoke('queue_compute_fair_position', { singerId })",
+        "Method returns the computed position number"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-005",
+      "category": "Queue Store",
+      "description": "Modify addToQueue to check Fair Queue setting and insert at fair position when enabled",
+      "stepsToVerify": [
+        "Open src/stores/queueStore.ts",
+        "addToQueue checks FAIR_QUEUE_ENABLED setting from settingsStore",
+        "When disabled, songs append to end (existing behavior)",
+        "When enabled AND activeSingerId is set, calls computeFairPosition and inserts at that position",
+        "When enabled but no activeSingerId, falls back to append behavior"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-006",
+      "category": "UI",
+      "description": "Add Fair Queue toggle button next to Fair Shuffle button in QueuePanel",
+      "stepsToVerify": [
+        "Open src/App.tsx and locate Fair Shuffle button (around line 978-997)",
+        "New toggle button appears immediately before or after Fair Shuffle button",
+        "Button uses appropriate icon (e.g., ListOrdered from lucide-react)",
+        "Button has tooltip showing current state: 'Fair Queue: ON' or 'Fair Queue: OFF'"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-007",
+      "category": "UI",
+      "description": "Fair Queue toggle button shows active/inactive visual state",
+      "stepsToVerify": [
+        "When OFF: text-gray-400, hover:text-blue-400, hover:bg-gray-700",
+        "When ON: text-blue-400, bg-blue-400/20 (highlighted state)",
+        "Clicking toggles the setting and updates visual state immediately",
+        "Visual state matches the persisted setting value"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-008",
+      "category": "Integration",
+      "description": "Fair Queue does not reshuffle existing queue items when new song is added",
+      "stepsToVerify": [
+        "Enable Fair Queue toggle",
+        "Add song for A → queue is A",
+        "Add song for B → queue is AB (B after round 1)",
+        "Add song for C → queue is ABC (C after round 1)",
+        "Add 2nd song for A → queue is ABCA (A has 1, needs round 2, but B,C only have 1 each, so append)",
+        "Verify existing songs A, B, C remain in their original positions"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-009",
+      "category": "Integration",
+      "description": "New singer's first song is inserted after round 1 completes (all existing singers have sung once)",
+      "stepsToVerify": [
+        "Enable Fair Queue toggle",
+        "Have existing queue ABAB (A and B each have 2 songs)",
+        "Set active singer to new singer C (who has 0 songs)",
+        "Add a song for C",
+        "Verify the song appears after position 1 (after A and B each sang once) → ABCAB"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-010",
+      "category": "Integration",
+      "description": "Fair Queue setting persists across app restarts",
+      "stepsToVerify": [
+        "Enable Fair Queue toggle",
+        "Quit and restart the app",
+        "Verify Fair Queue toggle is still ON",
+        "Disable Fair Queue toggle",
+        "Quit and restart the app",
+        "Verify Fair Queue toggle is still OFF"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-011",
+      "category": "Integration",
+      "description": "Fair Queue works correctly with unassigned songs (no active singer)",
+      "stepsToVerify": [
+        "Enable Fair Queue toggle",
+        "Clear active singer (no singer selected)",
+        "Add a song",
+        "Verify song is appended to end (fallback behavior when no singer)",
+        "Unassigned songs in queue are treated as their own group for position calculation"
+      ],
+      "passes": true
+    },
+    {
+      "id": "PRD-012",
+      "category": "Integration",
+      "description": "Disabling Fair Queue reverts to append-to-end behavior",
+      "stepsToVerify": [
+        "Start with Fair Queue enabled",
+        "Add songs and verify fair positioning works",
+        "Disable Fair Queue toggle",
+        "Add a new song",
+        "Verify the song appears at the end of the queue regardless of singer"
+      ],
+      "passes": true
+    }
+  ]
+}
