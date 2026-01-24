@@ -477,7 +477,8 @@
         "Check settings implementation",
         "Verify hosted_session_id is no longer in ALLOWED_SETTING_KEYS"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Removed 'hosted_session_id' from ALLOWED_SETTING_KEYS in src-tauri/src/commands/settings.rs. This deprecates the key for settings_reset_all validation. Note: settings_get/settings_set don't validate against this list, so legacy persistSessionId/getPersistedSessionId/clearPersistedSessionId continue to work for backward compatibility until MIGRATE-002 completes full migration."
     },
     {
       "id": "MIGRATE-002",

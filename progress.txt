@@ -399,3 +399,12 @@
 - Confirms HOST-002 implementation (allows override when status='ended') works in E2E context
 - Files changed: tests/e2e/specs/hosted-session.spec.ts, ralph/hosted-session-restoration.json
 - E2E tests pass (30 passed, 2 skipped), 437 unit tests pass, lint passes
+
+## MIGRATE-001: Remove hosted_session_id from ALLOWED_SETTING_KEYS
+- Removed 'hosted_session_id' from ALLOWED_SETTING_KEYS array in settings.rs:30
+- This deprecates key for settings_reset_all validation only
+- settings_get/settings_set don't validate against this list, so legacy persist functions still work
+- Legacy functions (persistSessionId/getPersistedSessionId/clearPersistedSessionId) remain for backward compatibility
+- Full removal deferred to MIGRATE-002 which will migrate old data and remove legacy code
+- Files changed: src-tauri/src/commands/settings.rs, ralph/hosted-session-restoration.json
+- 437 unit tests pass, 129 Rust tests pass, lint passes, cargo check passes

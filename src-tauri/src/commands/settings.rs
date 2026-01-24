@@ -26,8 +26,7 @@ const ALLOWED_SETTING_KEYS: &[&str] = &[
     "search_history_global",         // show history from all sessions
     "search_history_session_limit",  // max entries per session
     "search_history_global_limit",   // max entries when showing global
-    // Hosted session persistence
-    "hosted_session_id",        // persisted session ID for restoration after app restart
+    // Note: hosted_session_id removed - now stored in sessions table (Migration 11)
 ];
 
 /// Get the current debug mode state
