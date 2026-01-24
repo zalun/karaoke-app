@@ -109,7 +109,7 @@
         "Clears persisted ID before the API call to delete session",
         "Ensures no orphaned session reference remains"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "end-1",

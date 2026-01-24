@@ -1287,4 +1287,110 @@ describe("sessionStore - Host Session", () => {
       );
     });
   });
+
+  describe("stopHosting", () => {
+    const mockHostedSession = {
+      id: "session-to-stop",
+      sessionCode: "HK-STOP-1234",
+      joinUrl: "https://homekaraoke.app/join/HK-STOP-1234",
+      qrCodeUrl: "https://example.com/qr",
+      status: "active" as const,
+      stats: { pendingRequests: 0, approvedRequests: 0, totalGuests: 0 },
+    };
+
+    it("should do nothing if no hosted session exists", async () => {
+      useSessionStore.setState({ hostedSession: null });
+
+      await useSessionStore.getState().stopHosting();
+
+      expect(clearPersistedSessionId).not.toHaveBeenCalled();
+      expect(hostedSessionService.endHostedSession).not.toHaveBeenCalled();
+    });
+
+    it("should clear persisted session ID before API call", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockResolvedValue();
+
+      // Track call order to verify clearPersistedSessionId is called first
+      const callOrder: string[] = [];
+      vi.mocked(clearPersistedSessionId).mockImplementation(async () => {
+        callOrder.push("clearPersistedSessionId");
+      });
+      vi.mocked(hostedSessionService.endHostedSession).mockImplementation(async () => {
+        callOrder.push("endHostedSession");
+      });
+
+      await useSessionStore.getState().stopHosting();
+
+      // Verify clearPersistedSessionId is called before endHostedSession
+      expect(callOrder).toEqual(["clearPersistedSessionId", "endHostedSession"]);
+    });
+
+    it("should clear persisted session ID even if API call fails", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockRejectedValue(new Error("Network error"));
+
+      await useSessionStore.getState().stopHosting();
+
+      expect(clearPersistedSessionId).toHaveBeenCalled();
+      // Local state should still be cleared
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+    });
+
+    it("should clear polling interval on stop", async () => {
+      const pollInterval = setInterval(() => {}, 1000);
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+        _hostedSessionPollInterval: pollInterval,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockResolvedValue();
+
+      const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+
+      await useSessionStore.getState().stopHosting();
+
+      expect(clearIntervalSpy).toHaveBeenCalledWith(pollInterval);
+    });
+
+    it("should clear local state even if no auth tokens available", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+        showHostModal: true,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await useSessionStore.getState().stopHosting();
+
+      expect(clearPersistedSessionId).toHaveBeenCalled();
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+      expect(useSessionStore.getState().showHostModal).toBe(false);
+    });
+
+    it("should show warning notification when API call fails", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockRejectedValue(new Error("Server error"));
+
+      await useSessionStore.getState().stopHosting();
+
+      expect(notify).toHaveBeenCalledWith(
+        "warning",
+        "Could not end session on server. It may expire automatically."
+      );
+    });
+  });
 });

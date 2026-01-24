@@ -88,3 +88,16 @@
   - Passes session name correctly (named and unnamed sessions)
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
 - All 336 tests pass, typecheck passes, lint passes
+
+## stop-1: stopHosting() clears persisted session ID before API call
+- Added clearPersistedSessionId() call at start of stopHosting(), before API call
+- Ensures orphaned session references don't remain even if API call fails
+- Added 6 unit tests for stopHosting():
+  - Does nothing if no hosted session exists
+  - Clears persisted ID before API call (verified call order)
+  - Clears persisted ID even if API call fails
+  - Clears polling interval on stop
+  - Clears local state even if no auth tokens available
+  - Shows warning notification when API call fails
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
+- All 342 tests pass, typecheck passes, lint passes

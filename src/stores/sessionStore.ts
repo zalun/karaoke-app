@@ -586,6 +586,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
 
     log.info("Stopping hosted session");
+
+    // Clear persisted session ID first (before API call) to ensure
+    // no orphaned reference remains even if API call fails
+    await clearPersistedSessionId();
+
     let apiCallFailed = false;
     try {
       // Get access token from auth service
