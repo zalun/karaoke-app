@@ -1,33 +1,25 @@
 ## PRD-002: Backend - queue_compute_fair_position command
 
-Status: COMPLETE
+Status: COMPLETE (UPDATED - algorithm rewritten to match spec)
 
-Implemented:
-- Added compute_fair_position() pure function for algorithm
-- Added queue_compute_fair_position Tauri command
-- Registered command in lib.rs invoke_handler
-- Algorithm: singer with 0 songs -> position 0, singer with N songs -> after their Nth occurrence, respecting singers with fewer songs
+Algorithm rewritten to match plan/permanent-shuffle.md:
+- Insert after OTHER singers have N+1 songs, where N = new singer's current count
+- Round N+1 completes when all OTHER singers (not including new singer) have N+1 songs
+- Special case: if no other singers exist, find N+1th occurrence of self or append
+- Example: ABCABCABC + X(new) → round 1 ends at pos 2 → insert at 3 → ABCXABCABC
 
-Tests added:
-- test_fair_position_empty_queue
-- test_fair_position_singer_has_zero_songs
-- test_fair_position_singer_has_one_song
-- test_fair_position_singer_has_more_songs
-- test_fair_position_unassigned
-- test_fair_position_multiple_singers
-- test_fair_position_new_singer_cuts_in
-- test_fair_position_respects_order
+Tests rewritten (15 tests for compute_fair_position):
+- PRD-003 examples: ABCABCABC, AAABCABBC, ABCXABCABC, ABXABX, AAA
+- Edge cases: empty queue, single singer, unassigned songs, complex scenarios
 
 Verified:
-- cargo test queue: 23 passed
-- cargo check: warnings only (pre-existing)
-- npm run build: passes
-- npm run test:run: 287 passed
+- cargo test queue: 104 passed (15 fair position tests)
+- just check: passes
+- npm run test: 298 passed
 - npm run lint: passes
 
 Files changed:
-- src-tauri/src/commands/queue.rs (added command + tests)
-- src-tauri/src/lib.rs (registered command)
+- src-tauri/src/commands/queue.rs (rewrote compute_fair_position algorithm + tests)
 - ralph/permanent-shuffle.json (marked PRD-002 passes: true)
 
 ## PRD-003: Backend - Fair position algorithm unit tests
