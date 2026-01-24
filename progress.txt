@@ -59,3 +59,19 @@
   3. 3 tests for "should not show error notification on [404/401/403] error (expected cleanup)"
 - Files changed: src/stores/sessionStore.test.ts, ralph/reopen-hosted-session.json
 - All 326 tests pass, typecheck passes, lint passes
+
+## restore-4: Verify graceful handling of invalid/expired sessions
+- Implementation already existed from restore-2 at sessionStore.ts:750-767
+- Error handling logic checks for 404, NOT_FOUND, 401, 403, UNAUTHORIZED in error message
+- Clears persisted ID on these errors, doesn't clear on network errors (transient)
+- No error notification shown for expected cleanup scenarios (line 767)
+- Tests already existed (added in restore-2 and restore-3):
+  - "should clear persisted ID on 404 error (session not found)"
+  - "should not show error notification on 404 error (expected cleanup)"
+  - "should clear persisted ID on 401 error (unauthorized)"
+  - "should not show error notification on 401 error (expected cleanup)"
+  - "should clear persisted ID on 403 error (forbidden)"
+  - "should not show error notification on 403 error (expected cleanup)"
+  - "should not clear persisted ID on network error (transient failure)"
+- Files changed: ralph/reopen-hosted-session.json, progress.txt
+- All 326 tests pass, typecheck passes, lint passes

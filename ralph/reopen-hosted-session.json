@@ -87,7 +87,7 @@
         "When API returns error, clears persisted ID",
         "No error toast shown to user for expected cleanup scenarios"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "host-1",
