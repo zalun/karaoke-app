@@ -466,7 +466,8 @@
         "Verify new hosted_session_id is generated",
         "Verify status is 'active'"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added E2E test 'E2E-004: override ended session with new hosting' in hosted-session.spec.ts. Test starts with initialSession containing status='ended', verifies Host button is clickable, clicks Host, verifies new session is created with different session code, status='active', and created=true."
     },
     {
       "id": "MIGRATE-001",

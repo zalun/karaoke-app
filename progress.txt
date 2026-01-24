@@ -389,3 +389,13 @@
 - Confirms RESTORE-002 implementation works correctly in E2E context
 - Files changed: tests/e2e/specs/hosted-session.spec.ts, ralph/hosted-session-restoration.json
 - E2E tests pass (chromium + webkit), all 437 unit tests pass, lint passes, typecheck passes
+
+## E2E-004: Override ended session with new hosting
+- Added E2E test 'E2E-004: override ended session with new hosting' in hosted-session.spec.ts
+- Test verifies: session with status='ended' can be overridden with new hosting
+- Setup: initialSession with old hosted_session_id and status='ended'
+- Actions: verify initial state, click Host button, wait for modal
+- Assertions: new session created (created=true), status='active', different session code than initial
+- Confirms HOST-002 implementation (allows override when status='ended') works in E2E context
+- Files changed: tests/e2e/specs/hosted-session.spec.ts, ralph/hosted-session-restoration.json
+- E2E tests pass (30 passed, 2 skipped), 437 unit tests pass, lint passes

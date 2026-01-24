@@ -469,6 +469,82 @@ test.describe("Hosted Session", () => {
       expect(hostedState.created).toBe(false);
     });
 
+    test("E2E-004: override ended session with new hosting", async ({ page }) => {
+      // Setup: Pre-populate session with hosted fields where status='ended'
+      // This simulates: User hosted -> stopped hosting -> now wants to host again
+      const oldHostedSessionId = "old-session-" + Math.random().toString(36).substring(7);
+      const testUserId = "test-user-id";
+
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+        mockUser: {
+          id: testUserId,
+          email: "test@example.com",
+          displayName: "Test User",
+        },
+        // Simulate session that was hosted but then stopped (status='ended')
+        initialSession: {
+          id: 1,
+          name: "Test Session",
+          hosted_session_id: oldHostedSessionId,
+          hosted_by_user_id: testUserId,
+          hosted_session_status: "ended",
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for session to be loaded
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Verify initial state: status='ended', not created in this run
+      let hostedState = await getHostedSessionState(page);
+      expect(hostedState.status).toBe("ended");
+      expect(hostedState.created).toBe(false);
+
+      // Capture the old session code for comparison
+      const oldSessionCode = hostedState.sessionCode;
+
+      // Verify Host button is visible (can host because status='ended' allows override)
+      const hostButton = page.getByRole("button", { name: "Host" });
+      await expect(hostButton).toBeVisible();
+
+      // Click Host to start new hosting (override the ended session)
+      await hostButton.click();
+
+      // Wait for modal with join code
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+
+      // Verify new join code is displayed
+      const joinCodePattern = /HK-[A-Z0-9]{4}-[A-Z0-9]{4}/i;
+      await expect(async () => {
+        const modalContent = await page.locator(".text-4xl.font-bold.font-mono").textContent();
+        expect(modalContent).toMatch(joinCodePattern);
+      }).toPass({ timeout: 5000 });
+
+      // Verify new hosted session state
+      hostedState = await getHostedSessionState(page);
+
+      // New session should be created
+      expect(hostedState.created).toBe(true);
+
+      // Status should be 'active'
+      expect(hostedState.status).toBe("active");
+
+      // New session code should be different from the old one (new session ID generated)
+      expect(hostedState.sessionCode).not.toBe(oldSessionCode);
+      expect(hostedState.sessionCode).toMatch(joinCodePattern);
+    });
+
     test("should stop hosting when ending session", async ({ page }) => {
       // Setup: Authenticated user
       await injectTauriMocks(page, {
