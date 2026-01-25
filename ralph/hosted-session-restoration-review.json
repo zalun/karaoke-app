@@ -326,7 +326,9 @@
         "Check src-tauri/src/commands/session.rs lines ~857-863 and ~910-916",
         "Verify manual valid_statuses check is removed or converted to enum parsing"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Already completed as part of TYPE-003 and TYPE-004. Both session_set_hosted (line 891-897) and session_update_hosted_status (line 963-969) now use HostedSessionStatus::from_str() instead of manual valid_statuses array. All 20 related tests pass."
     },
     {
       "id": "TYPE-006",

@@ -576,3 +576,12 @@
 - Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, 157 Rust tests pass, lint passes
 
+## TYPE-005: Remove redundant runtime validation now that enum handles it
+- Task already completed as part of TYPE-003 and TYPE-004 implementation
+- session_set_hosted (line 891-897) uses HostedSessionStatus::from_str() - no manual valid_statuses array
+- session_update_hosted_status (line 963-969) uses HostedSessionStatus::from_str() - no manual valid_statuses array
+- The steps_to_verify mentioned old line numbers (~857-863 and ~910-916) from before TYPE-003/TYPE-004 changes
+- Verification: All 20 related Rust tests pass (14 for session_set_hosted, 6 for session_update_hosted_status)
+- Files changed: ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, typecheck passes, lint passes
+
