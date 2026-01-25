@@ -1,7 +1,6 @@
 use super::errors::{CommandError, LockResultExt};
 use crate::AppState;
 use log::{debug, info};
-use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -863,54 +862,51 @@ pub fn session_set_hosted(
         )));
     }
 
-    let mut db = state.db.lock().map_lock_err()?;
+    let db = state.db.lock().map_lock_err()?;
 
-    // Use transaction for consistency: verify session exists, check ownership, and update atomically
-    // Race condition prevention: session could be deleted or modified between check and update
-    let tx = db.connection_mut().transaction()?;
-
-    // Query current session state for existence and ownership check
-    let current_state: Option<(Option<String>, Option<String>)> = tx
+    // First verify session exists (needed to distinguish "not found" from "ownership conflict")
+    let session_exists: bool = db
+        .connection()
         .query_row(
-            "SELECT hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
             [session_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()?;
+            |row| row.get(0),
+        )?;
 
-    let (current_user_id, current_status) = match current_state {
-        Some(state) => state,
-        None => {
-            // Transaction will be rolled back automatically when tx is dropped
-            return Err(CommandError::Validation(format!(
-                "Session {} does not exist",
-                session_id
-            )));
-        }
-    };
-
-    // Check for ownership conflict: different user has an active/paused session
-    if let (Some(ref existing_user), Some(ref existing_status)) = (&current_user_id, &current_status)
-    {
-        let is_different_user = existing_user != &hosted_by_user_id;
-        let is_active_or_paused = existing_status == "active" || existing_status == "paused";
-
-        if is_different_user && is_active_or_paused {
-            // Another user has an active hosted session - block this attempt
-            info!(
-                "Ownership conflict: session {} is being hosted by another user (status: {})",
-                session_id, existing_status
-            );
-            return Err(CommandError::OwnershipConflict);
-        }
+    if !session_exists {
+        return Err(CommandError::Validation(format!(
+            "Session {} does not exist",
+            session_id
+        )));
     }
 
-    tx.execute(
-        "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
+    // Use conditional UPDATE with WHERE clause for atomic ownership check (CONC-003).
+    // This prevents race conditions by combining the ownership check and update in a single
+    // SQL statement. The update only succeeds if:
+    // - No existing hosted_by_user_id (NULL) - session not currently hosted
+    // - Same user is updating (hosted_by_user_id matches)
+    // - Previous status is 'ended' (session was released, can be taken over)
+    let affected_rows = db.connection().execute(
+        "UPDATE sessions
+         SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
+         WHERE id = ?4
+         AND (
+             hosted_by_user_id IS NULL
+             OR hosted_by_user_id = ?2
+             OR hosted_session_status = 'ended'
+             OR hosted_session_status IS NULL
+         )",
         rusqlite::params![hosted_session_id, hosted_by_user_id, status, session_id],
     )?;
 
-    tx.commit()?;
+    // If no rows affected, it means ownership conflict (session exists but conditions not met)
+    if affected_rows == 0 {
+        info!(
+            "Ownership conflict: session {} is being hosted by another user",
+            session_id
+        );
+        return Err(CommandError::OwnershipConflict);
+    }
 
     info!(
         "Hosted session set for session {}: hosted_id={}, status={}",
@@ -2461,6 +2457,187 @@ mod tests {
 
             assert_eq!(new_hosted_id, Some("new-hs".to_string()));
             assert_eq!(new_status, Some("paused".to_string()));
+        }
+
+        #[test]
+        fn test_conditional_update_returns_zero_rows_on_ownership_conflict() {
+            // Test CONC-003: Verify the conditional UPDATE pattern returns 0 affected rows
+            // when a different user tries to take over an active session
+            let conn = setup_test_db();
+
+            // Create a session with an active hosted session by user-A
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-A', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // User-B tries to take over using the conditional UPDATE pattern
+            // This should affect 0 rows because user-A has an active session
+            let affected_rows = conn.execute(
+                "UPDATE sessions
+                 SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
+                 WHERE id = ?4
+                 AND (
+                     hosted_by_user_id IS NULL
+                     OR hosted_by_user_id = ?2
+                     OR hosted_session_status = 'ended'
+                     OR hosted_session_status IS NULL
+                 )",
+                rusqlite::params!["new-hs", "user-B", "active", session_id],
+            )
+            .unwrap();
+
+            // Should return 0 rows affected due to ownership conflict
+            assert_eq!(affected_rows, 0, "Should detect ownership conflict via affected_rows");
+
+            // Verify original data is unchanged
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-123".to_string()), "hosted_session_id should be unchanged");
+            assert_eq!(user_id, Some("user-A".to_string()), "hosted_by_user_id should be unchanged");
+            assert_eq!(status, Some("active".to_string()), "hosted_session_status should be unchanged");
+        }
+
+        #[test]
+        fn test_conditional_update_succeeds_when_same_user() {
+            // Test CONC-003: Verify the conditional UPDATE pattern succeeds when same user updates
+            let conn = setup_test_db();
+
+            // Create a session with an active hosted session by user-A
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-A', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // User-A updates their own session
+            let affected_rows = conn.execute(
+                "UPDATE sessions
+                 SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
+                 WHERE id = ?4
+                 AND (
+                     hosted_by_user_id IS NULL
+                     OR hosted_by_user_id = ?2
+                     OR hosted_session_status = 'ended'
+                     OR hosted_session_status IS NULL
+                 )",
+                rusqlite::params!["new-hs", "user-A", "paused", session_id],
+            )
+            .unwrap();
+
+            // Should return 1 row affected
+            assert_eq!(affected_rows, 1, "Same user should be able to update");
+
+            // Verify data was updated
+            let (hosted_id, status): (Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("new-hs".to_string()));
+            assert_eq!(status, Some("paused".to_string()));
+        }
+
+        #[test]
+        fn test_conditional_update_succeeds_when_status_ended() {
+            // Test CONC-003: Verify the conditional UPDATE pattern succeeds when status is 'ended'
+            let conn = setup_test_db();
+
+            // Create a session with an ended hosted session by user-A
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'old-hs', 'user-A', 'ended')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // User-B takes over (allowed because status is 'ended')
+            let affected_rows = conn.execute(
+                "UPDATE sessions
+                 SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
+                 WHERE id = ?4
+                 AND (
+                     hosted_by_user_id IS NULL
+                     OR hosted_by_user_id = ?2
+                     OR hosted_session_status = 'ended'
+                     OR hosted_session_status IS NULL
+                 )",
+                rusqlite::params!["new-hs", "user-B", "active", session_id],
+            )
+            .unwrap();
+
+            // Should return 1 row affected
+            assert_eq!(affected_rows, 1, "Should succeed when previous status is 'ended'");
+
+            // Verify data was updated
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("new-hs".to_string()));
+            assert_eq!(user_id, Some("user-B".to_string()));
+            assert_eq!(status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_conditional_update_succeeds_when_no_prior_host() {
+            // Test CONC-003: Verify the conditional UPDATE pattern succeeds when no prior host
+            let conn = setup_test_db();
+
+            // Create a session with no hosted info
+            conn.execute(
+                "INSERT INTO sessions (name, is_active) VALUES ('Test', 1)",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // First user claims the session
+            let affected_rows = conn.execute(
+                "UPDATE sessions
+                 SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
+                 WHERE id = ?4
+                 AND (
+                     hosted_by_user_id IS NULL
+                     OR hosted_by_user_id = ?2
+                     OR hosted_session_status = 'ended'
+                     OR hosted_session_status IS NULL
+                 )",
+                rusqlite::params!["new-hs", "user-A", "active", session_id],
+            )
+            .unwrap();
+
+            // Should return 1 row affected
+            assert_eq!(affected_rows, 1, "Should succeed when no prior host");
+
+            // Verify data was set
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("new-hs".to_string()));
+            assert_eq!(user_id, Some("user-A".to_string()));
+            assert_eq!(status, Some("active".to_string()));
         }
     }
 

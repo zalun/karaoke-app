@@ -516,3 +516,17 @@
 - Added test_ownership_conflict_error_serialization in errors.rs
 - Files changed: src-tauri/src/commands/errors.rs, src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json
 - 456 JS tests pass, 143 Rust tests pass (18 errors tests, 10 session_set_hosted tests), lint passes, cargo check passes
+
+## CONC-003: Conditional UPDATE with WHERE clause in session_set_hosted
+- Replaced SELECT+check+UPDATE pattern with conditional UPDATE that includes ownership check in WHERE clause
+- New WHERE clause: (hosted_by_user_id IS NULL OR hosted_by_user_id = ?2 OR hosted_session_status = 'ended' OR hosted_session_status IS NULL)
+- Checks affected_rows == 0 to detect ownership conflict (session exists but conditions not met)
+- Removed transaction - single UPDATE is atomic, EXISTS check runs first for "not found" error distinction
+- Removed unused rusqlite::OptionalExtension import
+- Added 4 unit tests verifying the conditional UPDATE logic:
+  - test_conditional_update_returns_zero_rows_on_ownership_conflict
+  - test_conditional_update_succeeds_when_same_user
+  - test_conditional_update_succeeds_when_status_ended
+  - test_conditional_update_succeeds_when_no_prior_host
+- Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json
+- 456 JS tests pass, 147 Rust tests pass (14 session_set_hosted tests), lint passes, cargo check passes

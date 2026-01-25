@@ -224,7 +224,9 @@
         "Verify UPDATE uses WHERE clause checking status and user_id",
         "Verify checks affected_rows to detect conflict"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Replaced SELECT+check+UPDATE pattern with conditional UPDATE that checks (hosted_by_user_id IS NULL OR hosted_by_user_id = ?2 OR hosted_session_status = 'ended' OR hosted_session_status IS NULL). Checks affected_rows == 0 to detect ownership conflict. Added 4 unit tests for the conditional UPDATE logic."
     },
     {
       "id": "CONC-004",
