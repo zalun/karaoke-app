@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { platform } from "@tauri-apps/plugin-os";
-import { youtubeService, createLogger } from "../services";
+import { youtubeService, createLogger, emitSignal, APP_SIGNALS } from "../services";
 import { notify } from "./notificationStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 
@@ -86,6 +86,8 @@ interface PlayerState {
   prefetchedStreamUrl: { videoId: string; url: string; timestamp: number } | null;
   // Track videos that don't allow embedding (error 101/150)
   nonEmbeddableVideoIds: Set<string>;
+  // Track last video ID for which VIDEO_METADATA_CHANGED was emitted
+  lastMetadataVideoId: string | null;
 
   // Actions
   setCurrentVideo: (video: Video | null) => void;
@@ -106,6 +108,9 @@ interface PlayerState {
   // Non-embeddable video tracking
   markAsNonEmbeddable: (videoId: string) => void;
   isNonEmbeddable: (videoId: string) => boolean;
+  // Metadata signal tracking
+  setLastMetadataVideoId: (videoId: string | null) => void;
+  getLastMetadataVideoId: () => string | null;
 }
 
 const initialState = {
@@ -121,6 +126,7 @@ const initialState = {
   seekTime: null,
   prefetchedStreamUrl: null,
   nonEmbeddableVideoIds: new Set<string>(),
+  lastMetadataVideoId: null,
 };
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -208,6 +214,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isNonEmbeddable: (videoId) => {
     return get().nonEmbeddableVideoIds.has(videoId);
   },
+  setLastMetadataVideoId: (videoId) => {
+    set({ lastMetadataVideoId: videoId });
+  },
+  getLastMetadataVideoId: () => {
+    return get().lastMetadataVideoId;
+  },
 }));
 
 /**
@@ -253,6 +265,111 @@ export function invalidatePrefetchIfStale(expectedVideoId: string | undefined): 
 }
 
 /**
+ * Stop the currently playing video and emit SONG_STOPPED signal.
+ * This should be called when the user manually stops playback (e.g., skip, clear).
+ * Does nothing if no video is currently playing.
+ *
+ * @returns Promise that resolves when the signal is emitted
+ */
+export async function stopVideo(): Promise<void> {
+  const { currentVideo, isPlaying, setIsPlaying } = usePlayerStore.getState();
+
+  if (!currentVideo || !isPlaying) {
+    log.debug("stopVideo: no video playing, skipping signal");
+    return;
+  }
+
+  log.info(`stopVideo: stopping "${currentVideo.title}"`);
+  setIsPlaying(false);
+  await emitSignal(APP_SIGNALS.SONG_STOPPED, undefined);
+}
+
+/**
+ * Pause the current video playback and emit PLAYBACK_PAUSED signal.
+ * This is a lower-level signal for video player state coordination.
+ * Does nothing if video is not currently playing.
+ *
+ * @returns Promise that resolves when the signal is emitted
+ */
+export async function pausePlayback(): Promise<void> {
+  const { currentVideo, isPlaying, setIsPlaying } = usePlayerStore.getState();
+
+  if (!currentVideo || !isPlaying) {
+    log.debug("pausePlayback: no video playing, skipping signal");
+    return;
+  }
+
+  log.info(`pausePlayback: pausing "${currentVideo.title}"`);
+  setIsPlaying(false);
+  await emitSignal(APP_SIGNALS.PLAYBACK_PAUSED, undefined);
+}
+
+/**
+ * Resume video playback and emit PLAYBACK_STARTED signal.
+ * This is a lower-level signal for video player state coordination.
+ * Does nothing if no video is loaded or already playing.
+ *
+ * @returns Promise that resolves when the signal is emitted
+ */
+export async function resumePlayback(): Promise<void> {
+  const { currentVideo, isPlaying, setIsPlaying } = usePlayerStore.getState();
+
+  if (!currentVideo) {
+    log.debug("resumePlayback: no video loaded, skipping signal");
+    return;
+  }
+
+  if (isPlaying) {
+    log.debug("resumePlayback: already playing, skipping signal");
+    return;
+  }
+
+  log.info(`resumePlayback: resuming "${currentVideo.title}"`);
+  setIsPlaying(true);
+  await emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined);
+}
+
+/**
+ * Notify that video playback has ended and emit PLAYBACK_ENDED signal.
+ * This is a lower-level signal distinct from SONG_ENDED.
+ * PLAYBACK_ENDED indicates the video player finished, while SONG_ENDED
+ * indicates a queue song completed (which may trigger autoplay).
+ *
+ * @returns Promise that resolves when the signal is emitted
+ */
+export async function notifyPlaybackEnded(): Promise<void> {
+  log.debug("notifyPlaybackEnded: emitting PLAYBACK_ENDED signal");
+  await emitSignal(APP_SIGNALS.PLAYBACK_ENDED, undefined);
+}
+
+/**
+ * Emit VIDEO_METADATA_CHANGED signal when a new video is loaded.
+ * Tracks the last emitted video ID to prevent duplicate emissions for same video replay.
+ *
+ * @param video - The video being played
+ * @returns Promise that resolves when the signal is emitted (or skipped if same video)
+ */
+export async function emitVideoMetadataChanged(video: Video): Promise<void> {
+  const videoId = video.youtubeId || video.id;
+  const lastVideoId = usePlayerStore.getState().getLastMetadataVideoId();
+
+  // Skip if same video (replay scenario)
+  if (lastVideoId === videoId) {
+    log.debug(`emitVideoMetadataChanged: skipping, same video (${videoId})`);
+    return;
+  }
+
+  log.info(`emitVideoMetadataChanged: emitting for "${video.title}" (${videoId})`);
+  usePlayerStore.getState().setLastMetadataVideoId(videoId);
+  await emitSignal(APP_SIGNALS.VIDEO_METADATA_CHANGED, {
+    title: video.title,
+    artist: video.artist,
+    duration: video.duration,
+    videoId,
+  });
+}
+
+/**
  * Play a video by fetching its stream URL (for yt-dlp mode) or directly (for YouTube mode).
  * Shared helper for playback logic used by both PlayerControls and useMediaControls.
  *
@@ -267,6 +384,9 @@ export async function playVideo(video: Video): Promise<void> {
     log.warn("playVideo: video has no youtubeId, cannot play");
     return;
   }
+
+  // Stop any currently playing video first (emits SONG_STOPPED if applicable)
+  await stopVideo();
 
   const { setIsLoading, setCurrentVideo, setIsPlaying } =
     usePlayerStore.getState();
@@ -284,6 +404,11 @@ export async function playVideo(video: Video): Promise<void> {
     log.info(`Playing via YouTube embed: ${video.title}`);
     setCurrentVideo(video);
     setIsPlaying(true);
+    // Emit video metadata changed signal (only if different video)
+    await emitVideoMetadataChanged(video);
+    // Emit both high-level (queue) and low-level (playback) signals
+    await emitSignal(APP_SIGNALS.SONG_STARTED, undefined);
+    await emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined);
     return;
   }
 
@@ -294,6 +419,11 @@ export async function playVideo(video: Video): Promise<void> {
     setCurrentVideo({ ...video, streamUrl });
     setIsPlaying(true);
     setIsLoading(false);
+    // Emit video metadata changed signal (only if different video)
+    await emitVideoMetadataChanged(video);
+    // Emit both high-level (queue) and low-level (playback) signals
+    await emitSignal(APP_SIGNALS.SONG_STARTED, undefined);
+    await emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined);
     log.info(`Now playing via yt-dlp: ${video.title}`);
   } catch (err) {
     log.error("Failed to play video", err);

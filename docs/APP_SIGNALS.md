@@ -10,11 +10,13 @@ This document describes the app-wide signal system used for cross-store coordina
 2. [Problem: Race Conditions](#problem-race-conditions)
 3. [Solution: Signal System](#solution-signal-system)
 4. [API Reference](#api-reference)
-5. [Available Signals](#available-signals)
-6. [Usage Patterns](#usage-patterns)
-7. [Hosted Session Restoration Flow](#hosted-session-restoration-flow)
-8. [Token Refresh Logic](#token-refresh-logic)
-9. [Testing](#testing)
+5. [Signal Emission Patterns](#signal-emission-patterns)
+6. [Signal Ordering Guarantees](#signal-ordering-guarantees)
+7. [Available Signals](#available-signals)
+8. [Usage Patterns](#usage-patterns)
+9. [Hosted Session Restoration Flow](#hosted-session-restoration-flow)
+10. [Token Refresh Logic](#token-refresh-logic)
+11. [Testing](#testing)
 
 ---
 
@@ -144,6 +146,131 @@ const user = await waitForSignalOrCondition(
 2. If result is not null/undefined → returns immediately
 3. Otherwise → waits for signal up to timeout
 4. If timeout → throws error
+
+---
+
+## Signal Emission Patterns
+
+`emitSignal()` is inherently fire-and-forget (errors are caught internally). However, there are different patterns for calling it depending on context:
+
+### Pattern 1: Await in Async Functions (Critical Path)
+
+Use `await` when the signal is part of a critical initialization sequence:
+
+```typescript
+// In sessionStore.loadSession()
+await emitSignal(APP_SIGNALS.SESSION_LOADED, undefined);
+// Subsequent code can assume listeners have been notified
+```
+
+**When to use:**
+- Auth initialization (`AUTH_INITIALIZED`, `USER_LOGGED_IN`)
+- Session lifecycle (`SESSION_LOADED`, `SESSION_STARTED`)
+- When signal timing affects correctness
+
+### Pattern 2: Fire-and-Forget (Notifications)
+
+Use without `await` for pure notifications where timing doesn't matter:
+
+```typescript
+// In queueStore.addToQueue()
+emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);  // fire-and-forget
+```
+
+**When to use:**
+- Queue operations (`QUEUE_ITEM_ADDED`, `QUEUE_ORDER_CHANGED`)
+- UI notifications (`NOTIFICATION_SHOWING`)
+- Analytics/logging signals
+
+### Pattern 3: Void Prefix (Explicit Discard)
+
+Use `void` to explicitly discard the promise (satisfies ESLint):
+
+```typescript
+// In settingsStore
+void emitSignal(APP_SIGNALS.YTDLP_AVAILABLE, undefined);
+```
+
+**When to use:**
+- When ESLint warns about floating promises
+- When you want to be explicit about fire-and-forget intent
+
+### Pattern 4: Catch in Callbacks (Non-Async Context)
+
+Use `.catch()` in non-async callbacks:
+
+```typescript
+// In VideoPlayer onEnded callback
+emitSignal(APP_SIGNALS.SONG_ENDED, undefined).catch(() => {});
+```
+
+**When to use:**
+- Event handlers that aren't async
+- React component callbacks
+
+---
+
+## Signal Ordering Guarantees
+
+### Sequential Emission
+
+When multiple signals are emitted with `await`, they are guaranteed to be delivered in order:
+
+```typescript
+// In playerStore.playVideo()
+await emitSignal(APP_SIGNALS.SONG_STARTED, undefined);
+await emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined);
+// Listeners receive SONG_STARTED before PLAYBACK_STARTED
+```
+
+**Why sequential?**
+- Listeners may depend on signal order (e.g., analytics tracking)
+- Predictable behavior makes debugging easier
+- Race conditions between related signals are avoided
+
+### When Order Matters
+
+Some signal pairs have semantic ordering requirements:
+
+| First Signal | Second Signal | Reason |
+|--------------|---------------|--------|
+| `SONG_STARTED` | `PLAYBACK_STARTED` | High-level event before low-level |
+| `SESSION_STARTED` | `SINGERS_LOADED` | Session must exist before loading singers |
+| `AUTH_INITIALIZED` | `USER_LOGGED_IN` | Auth system ready before user available |
+
+### When Order Doesn't Matter
+
+Fire-and-forget signals (Pattern 2/3) don't guarantee ordering relative to each other:
+
+```typescript
+void emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
+void emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
+// Order is not guaranteed - both are independent notifications
+```
+
+This is acceptable because:
+- Each signal represents an independent fact
+- Listeners should not depend on relative timing
+- Performance is better without awaiting
+
+### Parallel Emission (Not Used)
+
+We deliberately avoid `Promise.all()` for signal emission:
+
+```typescript
+// NOT RECOMMENDED - unpredictable order
+await Promise.all([
+  emitSignal(APP_SIGNALS.SONG_STARTED, undefined),
+  emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined),
+]);
+```
+
+**Why avoid parallel?**
+- Signal order becomes non-deterministic
+- Listeners may receive signals in different orders on different runs
+- Debugging becomes harder when order varies
+
+**Exception:** If signals are truly independent and performance is critical, parallel emission could be used. Currently, no such case exists in the codebase.
 
 ---
 

@@ -45,8 +45,28 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.QUEUE_ITEM_REMOVED).toBe("app:queue-item-removed");
     expect(APP_SIGNALS.SESSION_STARTED).toBe("app:session-started");
     expect(APP_SIGNALS.SESSION_ENDED).toBe("app:session-ended");
+    expect(APP_SIGNALS.SESSION_LOADED).toBe("app:session-loaded");
+    expect(APP_SIGNALS.SINGERS_LOADED).toBe("app:singers-loaded");
+    expect(APP_SIGNALS.QUEUE_LOADED).toBe("app:queue-loaded");
     expect(APP_SIGNALS.HOSTING_STARTED).toBe("app:hosting-started");
     expect(APP_SIGNALS.HOSTING_STOPPED).toBe("app:hosting-stopped");
+    expect(APP_SIGNALS.AUTH_INITIALIZED).toBe("app:auth-initialized");
+    expect(APP_SIGNALS.TOKENS_REFRESHED).toBe("app:tokens-refreshed");
+    expect(APP_SIGNALS.HOSTED_SESSION_UPDATED).toBe("app:hosted-session-updated");
+    expect(APP_SIGNALS.PLAYBACK_STARTED).toBe("app:playback-started");
+    expect(APP_SIGNALS.PLAYBACK_PAUSED).toBe("app:playback-paused");
+    expect(APP_SIGNALS.PLAYBACK_ENDED).toBe("app:playback-ended");
+    expect(APP_SIGNALS.VIDEO_METADATA_CHANGED).toBe("app:video-metadata-changed");
+    expect(APP_SIGNALS.QUEUE_ORDER_CHANGED).toBe("app:queue-order-changed");
+    expect(APP_SIGNALS.NEXT_SONG_CHANGED).toBe("app:next-song-changed");
+    expect(APP_SIGNALS.QUEUE_OPERATION_FAILED).toBe("app:queue-operation-failed");
+    expect(APP_SIGNALS.HOSTING_ERROR).toBe("app:hosting-error");
+    expect(APP_SIGNALS.MIGRATION_COMPLETE).toBe("app:migration-complete");
+    expect(APP_SIGNALS.YTDLP_AVAILABLE).toBe("app:ytdlp-available");
+    expect(APP_SIGNALS.YTDLP_UNAVAILABLE).toBe("app:ytdlp-unavailable");
+    expect(APP_SIGNALS.FILE_AVAILABILITY_CHECKED).toBe("app:file-availability-checked");
+    expect(APP_SIGNALS.LAYOUT_RESTORE_STARTED).toBe("app:layout-restore-started");
+    expect(APP_SIGNALS.LAYOUT_RESTORE_COMPLETE).toBe("app:layout-restore-complete");
   });
 });
 
@@ -86,6 +106,115 @@ describe("emitSignal", () => {
     ).resolves.toBeUndefined();
 
     expect(mockEmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("should emit QUEUE_OPERATION_FAILED with operation type and message", async () => {
+    mockEmit.mockResolvedValue(undefined);
+    const payload = {
+      operation: "moveAllHistoryToQueue" as const,
+      message: "Database error occurred",
+    };
+
+    await emitSignal(APP_SIGNALS.QUEUE_OPERATION_FAILED, payload);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith(
+      "app:queue-operation-failed",
+      payload
+    );
+  });
+
+  it("should emit HOSTING_ERROR with operation type and message", async () => {
+    mockEmit.mockResolvedValue(undefined);
+    const payload = {
+      operation: "hostSession" as const,
+      message: "Not authenticated",
+    };
+
+    await emitSignal(APP_SIGNALS.HOSTING_ERROR, payload);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith(
+      "app:hosting-error",
+      payload
+    );
+  });
+
+  it("should emit MIGRATION_COMPLETE with undefined payload", async () => {
+    mockEmit.mockResolvedValue(undefined);
+
+    await emitSignal(APP_SIGNALS.MIGRATION_COMPLETE, undefined);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith("app:migration-complete", undefined);
+  });
+
+  it("should emit YTDLP_AVAILABLE with undefined payload", async () => {
+    mockEmit.mockResolvedValue(undefined);
+
+    await emitSignal(APP_SIGNALS.YTDLP_AVAILABLE, undefined);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith("app:ytdlp-available", undefined);
+  });
+
+  it("should emit YTDLP_UNAVAILABLE with undefined payload", async () => {
+    mockEmit.mockResolvedValue(undefined);
+
+    await emitSignal(APP_SIGNALS.YTDLP_UNAVAILABLE, undefined);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith("app:ytdlp-unavailable", undefined);
+  });
+
+  it("should emit FILE_AVAILABILITY_CHECKED with file path and availability status", async () => {
+    mockEmit.mockResolvedValue(undefined);
+    const payload = {
+      filePath: "/path/to/song.mp4",
+      available: true,
+    };
+
+    await emitSignal(APP_SIGNALS.FILE_AVAILABILITY_CHECKED, payload);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith(
+      "app:file-availability-checked",
+      payload
+    );
+  });
+
+  it("should emit FILE_AVAILABILITY_CHECKED with unavailable status", async () => {
+    mockEmit.mockResolvedValue(undefined);
+    const payload = {
+      filePath: "/path/to/missing.mp4",
+      available: false,
+    };
+
+    await emitSignal(APP_SIGNALS.FILE_AVAILABILITY_CHECKED, payload);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith(
+      "app:file-availability-checked",
+      payload
+    );
+  });
+
+  it("should emit LAYOUT_RESTORE_STARTED with undefined payload", async () => {
+    mockEmit.mockResolvedValue(undefined);
+
+    await emitSignal(APP_SIGNALS.LAYOUT_RESTORE_STARTED, undefined);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith("app:layout-restore-started", undefined);
+  });
+
+  it("should emit LAYOUT_RESTORE_COMPLETE with undefined payload", async () => {
+    mockEmit.mockResolvedValue(undefined);
+
+    await emitSignal(APP_SIGNALS.LAYOUT_RESTORE_COMPLETE, undefined);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith("app:layout-restore-complete", undefined);
   });
 });
 

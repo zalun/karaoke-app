@@ -29,7 +29,7 @@ import { AuthStatus } from "./components/auth";
 import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, useAuthStore, getStreamUrlWithCache, showWindowsAudioNoticeOnce, notify, SETTINGS_KEYS, type QueueItem, type LibraryVideo, type Video } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star, ListOrdered } from "lucide-react";
-import { youtubeService, createLogger, getErrorMessage, runLegacyHostedSessionMigration } from "./services";
+import { youtubeService, createLogger, getErrorMessage, runLegacyHostedSessionMigration, emitSignal, APP_SIGNALS } from "./services";
 import { useMediaControls, useDisplayWatcher, useUpdateCheck, useKeyboardShortcuts } from "./hooks";
 import { NotificationBar } from "./components/notification";
 import type { SearchResult } from "./types";
@@ -138,10 +138,18 @@ function App() {
   // Run one-time legacy hosted session migration (REVIEW-005)
   // This clears the old hosted_session_id from settings table if it exists.
   // Must run before SessionBar mounts and calls loadSession().
+  // Emits MIGRATION_COMPLETE signal when done (success or failure).
   useEffect(() => {
-    runLegacyHostedSessionMigration().catch((err) => {
-      log.error("Failed to run legacy hosted session migration:", err);
-    });
+    runLegacyHostedSessionMigration()
+      .catch((err) => {
+        log.error("Failed to run legacy hosted session migration:", err);
+      })
+      .finally(() => {
+        // Signal emitted in both success and error cases - migration was attempted
+        emitSignal(APP_SIGNALS.MIGRATION_COMPLETE, undefined).catch(() => {
+          // Fire-and-forget, emitSignal already handles errors internally
+        });
+      });
   }, []);
 
   // Focus search bar and switch to search tab

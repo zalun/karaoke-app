@@ -68,6 +68,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (pendingCallback) {
           log.info("Found pending auth callback, processing...");
           await get().handleAuthCallback(pendingCallback);
+          // Emit signal indicating auth initialization is complete
+          // Check current state since handleAuthCallback may have failed
+          await emitSignal(APP_SIGNALS.AUTH_INITIALIZED, get().isAuthenticated);
           return; // handleAuthCallback will set the final state
         }
       }
@@ -86,6 +89,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!tokens) {
         log.info("No stored tokens found");
         set({ isLoading: false, isAuthenticated: false });
+        // Emit signal indicating auth initialization is complete (user is not authenticated)
+        await emitSignal(APP_SIGNALS.AUTH_INITIALIZED, false);
         return;
       }
 
@@ -97,6 +102,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         log.warn("Stored tokens are invalid, clearing");
         await authService.clearTokens();
         set({ isLoading: false, isAuthenticated: false, user: null });
+        // Emit signal indicating auth initialization is complete (user is not authenticated)
+        await emitSignal(APP_SIGNALS.AUTH_INITIALIZED, false);
         return;
       }
 
@@ -115,9 +122,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       log.debug("Token refresh interval set");
 
       set({ isLoading: false });
+
+      // Emit signal indicating auth initialization is complete (user is authenticated)
+      await emitSignal(APP_SIGNALS.AUTH_INITIALIZED, true);
     } catch (error) {
       log.error(`Initialize error: ${error}`);
       set({ isLoading: false, isAuthenticated: false, user: null });
+
+      // Emit signal indicating auth initialization is complete (user is not authenticated)
+      await emitSignal(APP_SIGNALS.AUTH_INITIALIZED, false);
     }
   },
 
@@ -286,6 +299,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Update user profile in case it changed
       await get().fetchUserProfile(tokens);
+
+      // Emit signal for cross-store coordination (e.g., retry failed API calls with fresh tokens)
+      await emitSignal(APP_SIGNALS.TOKENS_REFRESHED, undefined);
     } catch (error) {
       log.error(`Session refresh error: ${error}`);
     }

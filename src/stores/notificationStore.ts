@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { createLogger } from "../services";
+import { createLogger, emitSignal, APP_SIGNALS } from "../services";
 
 const log = createLogger("NotificationStore");
 
@@ -101,6 +101,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           animationTimeoutId = setTimeout(() => {
             if (get().current?.id === currentId) {
               set({ isVisible: false, isHiding: false, moreCount: 0 });
+              // Emit NOTIFICATION_HIDDEN signal (fire-and-forget)
+              if (currentId) {
+                void emitSignal(APP_SIGNALS.NOTIFICATION_HIDDEN, { id: currentId });
+              }
             }
           }, ANIMATION_DURATION_MS);
         }
@@ -128,6 +132,12 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       moreCount: 0,
     });
 
+    // Emit NOTIFICATION_SHOWING signal (fire-and-forget)
+    void emitSignal(APP_SIGNALS.NOTIFICATION_SHOWING, {
+      id: notification.id,
+      type: notification.type,
+    });
+
     // Set up auto-hide with notification ID check to prevent race conditions
     const notificationId = notification.id;
     autoHideTimeoutId = setTimeout(() => {
@@ -142,6 +152,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           // Double-check notification hasn't changed during animation
           if (get().current?.id === notificationId) {
             set({ isVisible: false, isHiding: false, moreCount: 0 });
+            // Emit NOTIFICATION_HIDDEN signal (fire-and-forget)
+            void emitSignal(APP_SIGNALS.NOTIFICATION_HIDDEN, { id: notificationId });
           }
         }, ANIMATION_DURATION_MS);
       }
@@ -150,6 +162,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   dismiss: () => {
     log.debug("Notification dismissed by user");
+
+    // Capture the current notification ID before clearing
+    const currentId = get().current?.id;
 
     // Clear all timeouts to prevent memory leaks
     clearAllTimeouts();
@@ -160,6 +175,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // After animation completes, hide fully
     animationTimeoutId = setTimeout(() => {
       set({ isVisible: false, isHiding: false, moreCount: 0 });
+      // Emit NOTIFICATION_HIDDEN signal (fire-and-forget)
+      if (currentId) {
+        void emitSignal(APP_SIGNALS.NOTIFICATION_HIDDEN, { id: currentId });
+      }
     }, ANIMATION_DURATION_MS);
   },
 

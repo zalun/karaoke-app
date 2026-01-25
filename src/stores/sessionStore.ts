@@ -8,6 +8,7 @@ import {
   HOSTED_SESSION_STATUS,
   ApiError,
   APP_SIGNALS,
+  emitSignal,
   waitForSignalOrCondition,
   type Singer,
   type Session,
@@ -144,6 +145,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         // Attempt to restore hosted session from previous app run
         // Note: MIGRATE-002 legacy cleanup now runs once at app startup (App.tsx)
         await get().restoreHostedSession();
+
+        // Emit signal after all session initialization is complete
+        await emitSignal(APP_SIGNALS.SESSION_LOADED, undefined);
       }
     } catch (error) {
       log.error("Failed to load session:", error);
@@ -165,6 +169,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Load singer assignments for all queue and history items
       await get().loadAllQueueItemSingers();
       log.info(`Session started: ${session.id}`);
+      // Emit signal for other stores/components that depend on session start
+      await emitSignal(APP_SIGNALS.SESSION_STARTED, undefined);
     } catch (error) {
       log.error("Failed to start session:", error);
       set({ isLoading: false });
@@ -190,6 +196,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Reset queue store (data already archived in DB)
       useQueueStore.getState().resetState();
       log.info("Session ended");
+      // Emit signal for other stores/components that depend on session end
+      await emitSignal(APP_SIGNALS.SESSION_ENDED, undefined);
     } catch (error) {
       log.error("Failed to end session:", error);
       set({ isLoading: false });
@@ -332,6 +340,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const singers = await sessionService.getSessionSingers(session.id);
       set({ singers });
       log.debug(`Loaded ${singers.length} singers for session ${session.id}`);
+      // Emit signal after singers are loaded
+      await emitSignal(APP_SIGNALS.SINGERS_LOADED, undefined);
     } catch (error) {
       log.error("Failed to load singers:", error);
       set({ singers: [] });
@@ -523,6 +533,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       await sessionService.setActiveSinger(session.id, singerId);
       set({ activeSingerId: singerId });
+      await emitSignal(APP_SIGNALS.ACTIVE_SINGER_CHANGED, singerId);
     } catch (error) {
       log.error("Failed to set active singer:", error);
       throw error;
@@ -676,9 +687,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       });
 
       log.info(`Hosted session started: ${hostedSession.sessionCode}`);
+      // Emit signal for other stores/components that depend on hosting start
+      await emitSignal(APP_SIGNALS.HOSTING_STARTED, undefined);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to start hosted session: ${message}`);
+      // Emit error signal for UI components to handle
+      await emitSignal(APP_SIGNALS.HOSTING_ERROR, {
+        operation: "hostSession",
+        message,
+      });
       throw error;
     }
   },
@@ -747,7 +765,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Notify user if API call failed (backend may still think session is hosted)
       if (apiCallFailed) {
         notify("warning", "Could not end session on server. It may expire automatically.");
+        // Emit error signal for UI components to handle
+        await emitSignal(APP_SIGNALS.HOSTING_ERROR, {
+          operation: "stopHosting",
+          message: "Could not end session on server. It may expire automatically.",
+        });
       }
+
+      // Emit signal for other stores/components that depend on hosting stop
+      // Signal is emitted in finally block so it fires in both success and error paths
+      await emitSignal(APP_SIGNALS.HOSTING_STOPPED, undefined);
     }
   },
 
@@ -789,9 +816,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           ? { ...state.hostedSession, stats: updated.stats, status: updated.status }
           : null,
       }));
+
+      // Emit signal after successful stats update
+      await emitSignal(APP_SIGNALS.HOSTED_SESSION_UPDATED, updated.stats);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to refresh hosted session: ${message}`);
+      // Emit error signal for UI components to handle
+      await emitSignal(APP_SIGNALS.HOSTING_ERROR, {
+        operation: "refreshHostedSession",
+        message,
+      });
       // If session is ended, invalid, or auth failed, clear it
       // Use ApiError instanceof check for reliable status code detection
       const shouldClear =
@@ -939,6 +974,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.warn(`Failed to restore hosted session: ${message}`);
+      // Emit error signal for UI components to handle (silent cleanup scenario)
+      await emitSignal(APP_SIGNALS.HOSTING_ERROR, {
+        operation: "restoreHostedSession",
+        message,
+      });
 
       // Clear persisted ID on auth errors or session not found
       // Use ApiError instanceof check for reliable status code detection

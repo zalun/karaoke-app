@@ -33,6 +33,16 @@ vi.mock("../services/windowManager", () => ({
   },
 }));
 
+// Mock appSignals
+const mockEmitSignal = vi.fn();
+vi.mock("../services/appSignals", () => ({
+  APP_SIGNALS: {
+    LAYOUT_RESTORE_STARTED: "app:layout-restore-started",
+    LAYOUT_RESTORE_COMPLETE: "app:layout-restore-complete",
+  },
+  emitSignal: (...args: unknown[]) => mockEmitSignal(...args),
+}));
+
 // Mock playerStore with a mutable state
 vi.mock("./playerStore", () => {
   const mockState = {
@@ -314,6 +324,81 @@ describe("displayStore", () => {
       expect(state.showRestoreDialog).toBe(false);
       expect(state.rememberChoice).toBe(false);
       expect(state.isLoading).toBe(false);
+    });
+
+    describe("signal emission", () => {
+      it("should emit LAYOUT_RESTORE_STARTED before and LAYOUT_RESTORE_COMPLETE after restoration", async () => {
+        mockEmitSignal.mockResolvedValue(undefined);
+        const savedConfig = createMockSavedConfig();
+        const windowStates: WindowState[] = [
+          createMockWindowState({ window_type: "main" }),
+        ];
+
+        await useDisplayStore.getState().restoreLayout({
+          savedConfig,
+          windowStates,
+        });
+
+        // Should emit LAYOUT_RESTORE_STARTED first
+        expect(mockEmitSignal).toHaveBeenNthCalledWith(
+          1,
+          "app:layout-restore-started",
+          undefined
+        );
+
+        // Should emit LAYOUT_RESTORE_COMPLETE last
+        expect(mockEmitSignal).toHaveBeenNthCalledWith(
+          2,
+          "app:layout-restore-complete",
+          undefined
+        );
+
+        // Should have emitted exactly 2 signals
+        expect(mockEmitSignal).toHaveBeenCalledTimes(2);
+      });
+
+      it("should emit LAYOUT_RESTORE_COMPLETE even when restoration fails", async () => {
+        mockEmitSignal.mockResolvedValue(undefined);
+        const savedConfig = createMockSavedConfig();
+        const windowStates: WindowState[] = [
+          createMockWindowState({
+            window_type: "video",
+            is_detached: true,
+          }),
+        ];
+
+        // Player is attached, so detachPlayer will be called
+        getMockPlayerState().isDetached = false;
+
+        // Make detachPlayer fail
+        vi.mocked(windowManager.detachPlayer).mockRejectedValue(new Error("Detach failed"));
+
+        // Should not throw, error is handled internally
+        await useDisplayStore.getState().restoreLayout({
+          savedConfig,
+          windowStates,
+        });
+
+        // Should still emit both signals
+        expect(mockEmitSignal).toHaveBeenCalledWith(
+          "app:layout-restore-started",
+          undefined
+        );
+        expect(mockEmitSignal).toHaveBeenCalledWith(
+          "app:layout-restore-complete",
+          undefined
+        );
+      });
+
+      it("should not emit signals when there is no pending restore", async () => {
+        mockEmitSignal.mockClear();
+
+        // No pending restore and no direct restore parameter
+        await useDisplayStore.getState().restoreLayout();
+
+        // Should not emit any signals
+        expect(mockEmitSignal).not.toHaveBeenCalled();
+      });
     });
   });
 

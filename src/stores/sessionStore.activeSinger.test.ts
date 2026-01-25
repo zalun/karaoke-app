@@ -30,6 +30,13 @@ vi.mock("../services", () => ({
     getActiveSinger: vi.fn(),
   },
   clearPersistedSessionId: vi.fn().mockResolvedValue(undefined),
+  // App signals for cross-store coordination
+  APP_SIGNALS: {
+    SESSION_STARTED: "app:session-started",
+    SESSION_ENDED: "app:session-ended",
+    ACTIVE_SINGER_CHANGED: "app:active-singer-changed",
+  },
+  emitSignal: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock queueStore
@@ -46,7 +53,7 @@ vi.mock("./queueStore", () => ({
 }));
 
 // Import mocked modules
-import { sessionService } from "../services";
+import { sessionService, emitSignal, APP_SIGNALS } from "../services";
 
 const mockSession: Session = {
   id: 1,
@@ -153,6 +160,56 @@ describe("sessionStore - Active Singer", () => {
       await expect(
         useSessionStore.getState().setActiveSinger(1)
       ).rejects.toThrow("Database error");
+    });
+
+    it("should emit ACTIVE_SINGER_CHANGED signal after setting active singer", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        singers: [mockSinger1, mockSinger2],
+      });
+      vi.mocked(sessionService.setActiveSinger).mockResolvedValue();
+
+      await useSessionStore.getState().setActiveSinger(1);
+
+      expect(emitSignal).toHaveBeenCalledWith(
+        APP_SIGNALS.ACTIVE_SINGER_CHANGED,
+        1
+      );
+    });
+
+    it("should emit ACTIVE_SINGER_CHANGED signal with null when clearing active singer", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        singers: [mockSinger1],
+        activeSingerId: 1,
+      });
+      vi.mocked(sessionService.setActiveSinger).mockResolvedValue();
+
+      await useSessionStore.getState().setActiveSinger(null);
+
+      expect(emitSignal).toHaveBeenCalledWith(
+        APP_SIGNALS.ACTIVE_SINGER_CHANGED,
+        null
+      );
+    });
+
+    it("should not emit ACTIVE_SINGER_CHANGED signal when backend call fails", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        singers: [mockSinger1],
+      });
+      vi.mocked(sessionService.setActiveSinger).mockRejectedValue(
+        new Error("Database error")
+      );
+
+      await expect(
+        useSessionStore.getState().setActiveSinger(1)
+      ).rejects.toThrow("Database error");
+
+      expect(emitSignal).not.toHaveBeenCalledWith(
+        APP_SIGNALS.ACTIVE_SINGER_CHANGED,
+        expect.anything()
+      );
     });
   });
 

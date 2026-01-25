@@ -141,6 +141,7 @@ let mockWindowManager = createMockWindowManager();
 let mockYoutubeService = createMockYoutubeService();
 const mockNotify = vi.fn();
 const mockGetStreamUrlWithCache = vi.fn(() => Promise.resolve("https://cached.stream.url"));
+const mockEmitSignal = vi.fn().mockResolvedValue(undefined);
 
 // Track call order for setIsPlaying
 let callOrder: string[] = [];
@@ -256,6 +257,11 @@ vi.mock("../../services", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+  emitSignal: (...args: unknown[]) => mockEmitSignal(...args),
+  APP_SIGNALS: {
+    SONG_ENDED: "app:song-ended",
+    PLAYBACK_ENDED: "app:playback-ended",
+  },
 }));
 
 vi.mock("../../hooks", () => ({
@@ -301,6 +307,7 @@ function resetMocks() {
   mockNotify.mockClear();
   mockGetStreamUrlWithCache.mockClear();
   mockGetStreamUrlWithCache.mockImplementation(() => Promise.resolve("https://cached.stream.url"));
+  mockEmitSignal.mockClear();
   capturedOnEnded = null;
   callOrder = [];
 
@@ -329,6 +336,29 @@ describe("VideoPlayer handleEnded", () => {
   });
 
   describe("when video ends", () => {
+    it("should emit SONG_ENDED signal when video ends naturally", async () => {
+      // Setup: video is playing in yt-dlp mode (needs streamUrl)
+      mockPlayerStore.currentVideo = {
+        id: "video-1",
+        title: "Current Song",
+        youtubeId: "abc123",
+        streamUrl: "https://stream.example.com/current",
+        source: "youtube",
+      };
+      mockPlayerStore.isPlaying = true;
+
+      render(<VideoPlayer />);
+
+      // Trigger the onEnded callback
+      expect(capturedOnEnded).not.toBeNull();
+      await act(async () => {
+        capturedOnEnded!();
+      });
+
+      // Verify SONG_ENDED signal was emitted
+      expect(mockEmitSignal).toHaveBeenCalledWith("app:song-ended", undefined);
+    });
+
     it("should call setIsPlaying(false) immediately to stop playback", async () => {
       // Setup: video is playing in yt-dlp mode (needs streamUrl)
       mockPlayerStore.currentVideo = {

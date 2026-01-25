@@ -23,6 +23,11 @@ vi.mock("../services", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+  emitSignal: vi.fn().mockResolvedValue(undefined),
+  APP_SIGNALS: {
+    QUEUE_ITEM_ADDED: "app:queue-item-added",
+    QUEUE_ITEM_REMOVED: "app:queue-item-removed",
+  },
 }));
 
 // Import after mocking

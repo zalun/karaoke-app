@@ -1,0 +1,459 @@
+{
+  "title": "App Signals System - Remaining Implementation",
+  "description": "Tasks for implementing signals defined in plan/207-app-signals.md but not yet emitting",
+  "items": [
+    {
+      "id": "SIG-101",
+      "category": "Session Lifecycle",
+      "description": "Emit SESSION_STARTED signal when a new session begins",
+      "acceptance_criteria": [
+        "Add emitSignal(APP_SIGNALS.SESSION_STARTED, undefined) in sessionStore.startSession() after session is created",
+        "Signal emitted after set({ session }) completes",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "npm test -- sessionStore passes",
+        "Add console.log listener for 'app:session-started' and start a new session"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-102",
+      "category": "Session Lifecycle",
+      "description": "Emit SESSION_ENDED signal when a session ends",
+      "acceptance_criteria": [
+        "Add emitSignal(APP_SIGNALS.SESSION_ENDED, undefined) in sessionStore.endSession() after session is cleared",
+        "Signal emitted after set({ session: null }) completes",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "npm test -- sessionStore passes",
+        "Add console.log listener for 'app:session-ended' and end a session"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-103",
+      "category": "Hosting Lifecycle",
+      "description": "Emit HOSTING_STARTED signal when hosted session begins",
+      "acceptance_criteria": [
+        "Add emitSignal(APP_SIGNALS.HOSTING_STARTED, undefined) in sessionStore.hostSession() after successful hosting",
+        "Signal emitted after set({ hostedSession }) completes",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "npm test -- sessionStore passes",
+        "Host a session and verify signal fires"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-104",
+      "category": "Hosting Lifecycle",
+      "description": "Emit HOSTING_STOPPED signal when hosted session stops",
+      "acceptance_criteria": [
+        "Add emitSignal(APP_SIGNALS.HOSTING_STOPPED, undefined) in sessionStore.stopHosting() after clearing hosted state",
+        "Signal emitted after set({ hostedSession: null }) completes",
+        "Signal emitted in both success and error cleanup paths",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "npm test -- sessionStore passes",
+        "Stop hosting and verify signal fires"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-105",
+      "category": "Queue Operations",
+      "description": "Emit QUEUE_ITEM_ADDED signal when item is added to queue",
+      "acceptance_criteria": [
+        "Add emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined) in queueStore.addToQueue() after item is added",
+        "Signal emitted after state update completes",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "npm test -- queueStore passes",
+        "Add a song to queue and verify signal fires"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-106",
+      "category": "Queue Operations",
+      "description": "Emit QUEUE_ITEM_REMOVED signal when item is removed from queue",
+      "acceptance_criteria": [
+        "Add emitSignal(APP_SIGNALS.QUEUE_ITEM_REMOVED, undefined) in queueStore.removeFromQueue() after item is removed",
+        "Signal emitted after state update completes",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "npm test -- queueStore passes",
+        "Remove a song from queue and verify signal fires"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-107",
+      "category": "Playback",
+      "description": "Emit SONG_STARTED signal when playback begins",
+      "acceptance_criteria": [
+        "Add emitSignal(APP_SIGNALS.SONG_STARTED, undefined) in playerStore.playVideo() after video starts",
+        "Signal emitted after set({ isPlaying: true }) completes",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "npm test -- playerStore passes",
+        "Play a video and verify signal fires"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-108",
+      "category": "Playback",
+      "description": "Emit SONG_STOPPED signal when playback is manually stopped",
+      "acceptance_criteria": [
+        "Add emitSignal(APP_SIGNALS.SONG_STOPPED, undefined) in playerStore when video is manually stopped (not ended)",
+        "Signal emitted after set({ isPlaying: false }) for manual stop",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "npm test -- playerStore passes",
+        "Stop a playing video manually and verify signal fires"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-109",
+      "category": "Playback",
+      "description": "Emit SONG_ENDED signal when video ends naturally",
+      "acceptance_criteria": [
+        "Add emitSignal(APP_SIGNALS.SONG_ENDED, undefined) when video playback completes",
+        "Signal emitted in onVideoEnd handler or equivalent",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "npm test -- playerStore passes",
+        "Let a video play to completion and verify signal fires"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-201",
+      "category": "Session Initialization (Priority 2)",
+      "description": "Add SESSION_LOADED signal definition and emit after loadSession()",
+      "acceptance_criteria": [
+        "Add SESSION_LOADED to APP_SIGNALS constant",
+        "Add payload type to SignalPayloads interface",
+        "Emit signal in sessionStore.loadSession() after all initialization completes",
+        "Signal emitted after singers, active singer, queue, and queue assignments are loaded",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes",
+        "Reload app and verify signal fires after session loads"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-202",
+      "category": "Session Initialization (Priority 2)",
+      "description": "Add SINGERS_LOADED signal definition and emit after loadSingers()",
+      "acceptance_criteria": [
+        "Add SINGERS_LOADED to APP_SIGNALS constant",
+        "Add payload type to SignalPayloads interface",
+        "Emit signal in sessionStore.loadSingers() after singers are loaded",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-203",
+      "category": "Queue Initialization (Priority 2)",
+      "description": "Add QUEUE_LOADED signal definition and emit after loadPersistedState()",
+      "acceptance_criteria": [
+        "Add QUEUE_LOADED to APP_SIGNALS constant",
+        "Add payload type to SignalPayloads interface",
+        "Emit signal in queueStore.loadPersistedState() after queue/history are loaded",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-301",
+      "category": "Auth Lifecycle (Priority 3)",
+      "description": "Add AUTH_INITIALIZED signal definition and emit after initialize()",
+      "acceptance_criteria": [
+        "Add AUTH_INITIALIZED to APP_SIGNALS constant",
+        "Add payload type to SignalPayloads interface (boolean for isAuthenticated)",
+        "Emit signal in authStore.initialize() at the end, in both success and failure paths",
+        "Signal indicates whether user is authenticated or not",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes",
+        "App startup emits signal regardless of auth state"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-302",
+      "category": "Auth Lifecycle (Priority 3)",
+      "description": "Add TOKENS_REFRESHED signal definition and emit after refreshSession()",
+      "acceptance_criteria": [
+        "Add TOKENS_REFRESHED to APP_SIGNALS constant",
+        "Add payload type to SignalPayloads interface",
+        "Emit signal in authStore.refreshSession() after successful token refresh",
+        "Signal NOT emitted if refresh fails",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes",
+        "Token refresh cycle emits signal"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-303",
+      "category": "Hosting (Priority 3)",
+      "description": "Add HOSTED_SESSION_UPDATED signal definition and emit after refreshHostedSession()",
+      "acceptance_criteria": [
+        "Add HOSTED_SESSION_UPDATED to APP_SIGNALS constant",
+        "Add payload type to SignalPayloads interface (SessionStats or similar)",
+        "Emit signal in sessionStore.refreshHostedSession() after stats are updated",
+        "Signal NOT emitted if refresh fails or session is cleared",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes",
+        "Polling cycle emits signal with updated stats"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-401",
+      "category": "Playback (Priority 4)",
+      "description": "Add PLAYBACK_STARTED/PAUSED/ENDED signals for player coordination",
+      "acceptance_criteria": [
+        "Add PLAYBACK_STARTED, PLAYBACK_PAUSED, PLAYBACK_ENDED to APP_SIGNALS",
+        "Add payload types to SignalPayloads interface",
+        "Emit PLAYBACK_STARTED in playerStore when video begins playing",
+        "Emit PLAYBACK_PAUSED in playerStore when video is paused",
+        "Emit PLAYBACK_ENDED in playerStore when video ends (distinct from SONG_ENDED)",
+        "Add unit tests for each signal"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes",
+        "Play, pause, and let video end - verify each signal fires"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-402",
+      "category": "Playback (Priority 4)",
+      "description": "Add VIDEO_METADATA_CHANGED signal for media controls coordination",
+      "acceptance_criteria": [
+        "Add VIDEO_METADATA_CHANGED to APP_SIGNALS constant",
+        "Add payload type with video title, artist, duration",
+        "Emit signal in playerStore when video changes (new video loaded)",
+        "Signal NOT emitted for same video replay",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes",
+        "Change videos and verify signal fires once per video"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-403",
+      "category": "Queue Coordination (Priority 4)",
+      "description": "Add QUEUE_ORDER_CHANGED and NEXT_SONG_CHANGED signals",
+      "acceptance_criteria": [
+        "Add QUEUE_ORDER_CHANGED and NEXT_SONG_CHANGED to APP_SIGNALS",
+        "Add payload types to SignalPayloads interface",
+        "Emit QUEUE_ORDER_CHANGED in queueStore when queue is reordered",
+        "Emit NEXT_SONG_CHANGED when first pending item changes",
+        "VideoPlayer can listen to invalidate prefetch cache",
+        "Add unit tests for each signal"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes",
+        "Reorder queue and verify signal fires"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-501",
+      "category": "Error Recovery (Priority 5)",
+      "description": "Add QUEUE_OPERATION_FAILED signal for error broadcasting",
+      "acceptance_criteria": [
+        "Add QUEUE_OPERATION_FAILED to APP_SIGNALS constant",
+        "Add payload type with error message and operation type",
+        "Emit signal in queueStore when critical operations fail (e.g., moveAllHistoryToQueue rollback)",
+        "UI components can listen to show meaningful error state",
+        "Add unit test verifying signal is emitted on failure"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-502",
+      "category": "Error Recovery (Priority 5)",
+      "description": "Add HOSTING_ERROR signal for hosting failure broadcasting",
+      "acceptance_criteria": [
+        "Add HOSTING_ERROR to APP_SIGNALS constant",
+        "Add payload type with error message",
+        "Emit signal in sessionStore when hosting operations fail",
+        "HostSessionModal can listen for specific error handling",
+        "Add unit test verifying signal is emitted on failure"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-503",
+      "category": "Migration (Priority 5)",
+      "description": "Add MIGRATION_COMPLETE signal after legacy migration",
+      "acceptance_criteria": [
+        "Add MIGRATION_COMPLETE to APP_SIGNALS constant",
+        "Add payload type to SignalPayloads interface",
+        "Emit signal in App.tsx after runLegacyHostedSessionMigration() completes",
+        "Signal emitted in both success and error cases (migration attempted)",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes",
+        "App startup emits signal after migration runs"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-601",
+      "category": "Availability (Priority 6)",
+      "description": "Add YTDLP_AVAILABLE/UNAVAILABLE signals",
+      "acceptance_criteria": [
+        "Add YTDLP_AVAILABLE and YTDLP_UNAVAILABLE to APP_SIGNALS",
+        "Add payload types to SignalPayloads interface",
+        "Emit appropriate signal in settingsStore after yt-dlp availability check",
+        "Player mode selector can listen to update UI",
+        "Add unit tests verifying signals are emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-602",
+      "category": "Availability (Priority 6)",
+      "description": "Add FILE_AVAILABILITY_CHECKED signal",
+      "acceptance_criteria": [
+        "Add FILE_AVAILABILITY_CHECKED to APP_SIGNALS constant",
+        "Add payload type with file path and availability status",
+        "Emit signal in libraryStore after file availability is determined",
+        "Library items can listen to update their UI",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-701",
+      "category": "Display (Priority 7)",
+      "description": "Add LAYOUT_RESTORE_STARTED/COMPLETE signals",
+      "acceptance_criteria": [
+        "Add LAYOUT_RESTORE_STARTED and LAYOUT_RESTORE_COMPLETE to APP_SIGNALS",
+        "Add payload types to SignalPayloads interface",
+        "Emit LAYOUT_RESTORE_STARTED in displayStore before restoreLayout()",
+        "Emit LAYOUT_RESTORE_COMPLETE in displayStore after restoreLayout()",
+        "Player window can pause state sync during restoration",
+        "Add unit tests verifying signals are emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-702",
+      "category": "Display (Priority 7)",
+      "description": "Add PLAYER_DETACHED/REATTACHED signals",
+      "acceptance_criteria": [
+        "Add PLAYER_DETACHED and PLAYER_REATTACHED to APP_SIGNALS",
+        "Add payload types to SignalPayloads interface",
+        "Emit PLAYER_DETACHED after detachPlayer() succeeds",
+        "Emit PLAYER_REATTACHED after reattachPlayer() succeeds",
+        "Main window and queue can listen to update UI",
+        "Add unit tests verifying signals are emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-801",
+      "category": "UI (Priority 8)",
+      "description": "Add ACTIVE_SINGER_CHANGED signal",
+      "acceptance_criteria": [
+        "Add ACTIVE_SINGER_CHANGED to APP_SIGNALS constant",
+        "Add payload type with singer ID (number | null)",
+        "Emit signal in sessionStore.setActiveSinger() after active singer changes",
+        "Queue add operations can listen to auto-assign singer",
+        "Add unit test verifying signal is emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-802",
+      "category": "UI (Priority 8)",
+      "description": "Add NOTIFICATION_SHOWING/HIDDEN signals",
+      "acceptance_criteria": [
+        "Add NOTIFICATION_SHOWING and NOTIFICATION_HIDDEN to APP_SIGNALS",
+        "Add payload types to SignalPayloads interface",
+        "Emit NOTIFICATION_SHOWING in notificationStore after notification appears",
+        "Emit NOTIFICATION_HIDDEN in notificationStore after notification is dismissed",
+        "Useful for accessibility and analytics tracking",
+        "Add unit tests verifying signals are emitted"
+      ],
+      "steps_to_verify": [
+        "TypeScript compiles without errors",
+        "npm test passes"
+      ],
+      "passes": true
+    }
+  ]
+}

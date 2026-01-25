@@ -1,7 +1,7 @@
 import { useRef, useCallback, useEffect } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { usePlayerStore, useQueueStore, useSessionStore, useSettingsStore, SETTINGS_KEYS, parseOverlaySeconds, playVideo, notify } from "../../stores";
-import { windowManager, youtubeService, createLogger } from "../../services";
+import { windowManager, youtubeService, createLogger, emitSignal, APP_SIGNALS } from "../../services";
 
 const log = createLogger("PlayerControls");
 
@@ -372,6 +372,7 @@ export function PlayerControls() {
     if (success) {
       setIsDetached(true);
       log.info("Player detached successfully");
+      await emitSignal(APP_SIGNALS.PLAYER_DETACHED, undefined);
     } else {
       log.error("Failed to detach player");
     }
@@ -379,8 +380,11 @@ export function PlayerControls() {
 
   const handleReattach = useCallback(async () => {
     log.info("Reattaching player");
-    await windowManager.reattachPlayer();
+    const success = await windowManager.reattachPlayer();
     setIsDetached(false);
+    if (success) {
+      await emitSignal(APP_SIGNALS.PLAYER_REATTACHED, undefined);
+    }
   }, [setIsDetached]);
 
   const handleSeek = useCallback(

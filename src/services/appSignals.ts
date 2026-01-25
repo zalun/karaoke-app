@@ -12,6 +12,7 @@
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createLogger } from "./logger";
 import type { User } from "./auth";
+import type { SessionStats } from "./hostedSession";
 
 const log = createLogger("AppSignals");
 
@@ -38,10 +39,60 @@ export const APP_SIGNALS = {
   SESSION_STARTED: "app:session-started",
   /** Emitted when a session ends */
   SESSION_ENDED: "app:session-ended",
+  /** Emitted after loadSession() completes all initialization */
+  SESSION_LOADED: "app:session-loaded",
+  /** Emitted after loadSingers() completes */
+  SINGERS_LOADED: "app:singers-loaded",
+  /** Emitted after loadPersistedState() completes in queueStore */
+  QUEUE_LOADED: "app:queue-loaded",
   /** Emitted when hosting a session starts */
   HOSTING_STARTED: "app:hosting-started",
   /** Emitted when hosting a session stops */
   HOSTING_STOPPED: "app:hosting-stopped",
+  /** Emitted after auth initialization completes (regardless of auth state) */
+  AUTH_INITIALIZED: "app:auth-initialized",
+  /** Emitted after successful token refresh in refreshSession() */
+  TOKENS_REFRESHED: "app:tokens-refreshed",
+  /** Emitted after refreshHostedSession() successfully updates stats */
+  HOSTED_SESSION_UPDATED: "app:hosted-session-updated",
+  /** Emitted when video playback starts (lower-level than SONG_STARTED) */
+  PLAYBACK_STARTED: "app:playback-started",
+  /** Emitted when video playback is paused */
+  PLAYBACK_PAUSED: "app:playback-paused",
+  /** Emitted when video playback ends (lower-level than SONG_ENDED) */
+  PLAYBACK_ENDED: "app:playback-ended",
+  /** Emitted when video metadata changes (new video loaded) */
+  VIDEO_METADATA_CHANGED: "app:video-metadata-changed",
+  /** Emitted when queue order changes (reorder, shuffle, etc.) */
+  QUEUE_ORDER_CHANGED: "app:queue-order-changed",
+  /** Emitted when the first pending item in queue changes */
+  NEXT_SONG_CHANGED: "app:next-song-changed",
+  /** Emitted when a critical queue operation fails */
+  QUEUE_OPERATION_FAILED: "app:queue-operation-failed",
+  /** Emitted when a hosting operation fails */
+  HOSTING_ERROR: "app:hosting-error",
+  /** Emitted after legacy hosted session migration completes (success or failure) */
+  MIGRATION_COMPLETE: "app:migration-complete",
+  /** Emitted when yt-dlp is confirmed available on the system */
+  YTDLP_AVAILABLE: "app:ytdlp-available",
+  /** Emitted when yt-dlp is confirmed unavailable on the system */
+  YTDLP_UNAVAILABLE: "app:ytdlp-unavailable",
+  /** Emitted when file availability is checked for a local library file */
+  FILE_AVAILABILITY_CHECKED: "app:file-availability-checked",
+  /** Emitted before layout restoration begins in displayStore */
+  LAYOUT_RESTORE_STARTED: "app:layout-restore-started",
+  /** Emitted after layout restoration completes in displayStore */
+  LAYOUT_RESTORE_COMPLETE: "app:layout-restore-complete",
+  /** Emitted after player window is detached successfully */
+  PLAYER_DETACHED: "app:player-detached",
+  /** Emitted after player window is reattached successfully */
+  PLAYER_REATTACHED: "app:player-reattached",
+  /** Emitted when the active singer changes in sessionStore.setActiveSinger() */
+  ACTIVE_SINGER_CHANGED: "app:active-singer-changed",
+  /** Emitted when a notification becomes visible */
+  NOTIFICATION_SHOWING: "app:notification-showing",
+  /** Emitted when a notification is hidden/dismissed */
+  NOTIFICATION_HIDDEN: "app:notification-hidden",
 } as const;
 
 /** Type for signal names */
@@ -61,8 +112,113 @@ export interface SignalPayloads {
   [APP_SIGNALS.QUEUE_ITEM_REMOVED]: undefined;
   [APP_SIGNALS.SESSION_STARTED]: undefined;
   [APP_SIGNALS.SESSION_ENDED]: undefined;
+  [APP_SIGNALS.SESSION_LOADED]: undefined;
+  [APP_SIGNALS.SINGERS_LOADED]: undefined;
+  [APP_SIGNALS.QUEUE_LOADED]: undefined;
   [APP_SIGNALS.HOSTING_STARTED]: undefined;
   [APP_SIGNALS.HOSTING_STOPPED]: undefined;
+  /** Payload is boolean indicating whether user is authenticated */
+  [APP_SIGNALS.AUTH_INITIALIZED]: boolean;
+  /** No payload - just signals that tokens were refreshed successfully */
+  [APP_SIGNALS.TOKENS_REFRESHED]: undefined;
+  /** Payload is the updated session stats */
+  [APP_SIGNALS.HOSTED_SESSION_UPDATED]: SessionStats;
+  /** No payload - signals video playback has started */
+  [APP_SIGNALS.PLAYBACK_STARTED]: undefined;
+  /** No payload - signals video playback has been paused */
+  [APP_SIGNALS.PLAYBACK_PAUSED]: undefined;
+  /** No payload - signals video playback has ended */
+  [APP_SIGNALS.PLAYBACK_ENDED]: undefined;
+  /** Payload contains video metadata (title, artist, duration) */
+  [APP_SIGNALS.VIDEO_METADATA_CHANGED]: VideoMetadata;
+  /** No payload - signals queue order has changed */
+  [APP_SIGNALS.QUEUE_ORDER_CHANGED]: undefined;
+  /** Payload contains the new next song ID, or null if queue is empty */
+  [APP_SIGNALS.NEXT_SONG_CHANGED]: NextSongPayload;
+  /** Payload contains operation type and error message for failed queue operations */
+  [APP_SIGNALS.QUEUE_OPERATION_FAILED]: QueueOperationFailedPayload;
+  /** Payload contains operation type and error message for failed hosting operations */
+  [APP_SIGNALS.HOSTING_ERROR]: HostingErrorPayload;
+  /** No payload - signals that legacy migration has been attempted (success or failure) */
+  [APP_SIGNALS.MIGRATION_COMPLETE]: undefined;
+  /** No payload - signals that yt-dlp is available on the system */
+  [APP_SIGNALS.YTDLP_AVAILABLE]: undefined;
+  /** No payload - signals that yt-dlp is unavailable on the system */
+  [APP_SIGNALS.YTDLP_UNAVAILABLE]: undefined;
+  /** Payload contains file path and availability status */
+  [APP_SIGNALS.FILE_AVAILABILITY_CHECKED]: FileAvailabilityPayload;
+  /** No payload - signals that layout restoration is starting */
+  [APP_SIGNALS.LAYOUT_RESTORE_STARTED]: undefined;
+  /** No payload - signals that layout restoration has completed */
+  [APP_SIGNALS.LAYOUT_RESTORE_COMPLETE]: undefined;
+  /** No payload - signals that player window was detached */
+  [APP_SIGNALS.PLAYER_DETACHED]: undefined;
+  /** No payload - signals that player window was reattached */
+  [APP_SIGNALS.PLAYER_REATTACHED]: undefined;
+  /** Payload is the singer ID (number) or null when active singer is cleared */
+  [APP_SIGNALS.ACTIVE_SINGER_CHANGED]: number | null;
+  /** Payload contains notification ID and type when notification becomes visible */
+  [APP_SIGNALS.NOTIFICATION_SHOWING]: NotificationShowingPayload;
+  /** Payload contains notification ID when notification is hidden */
+  [APP_SIGNALS.NOTIFICATION_HIDDEN]: NotificationHiddenPayload;
+}
+
+/** Video metadata payload for VIDEO_METADATA_CHANGED signal */
+export interface VideoMetadata {
+  /** Video title */
+  title: string;
+  /** Artist name, if available */
+  artist?: string;
+  /** Video duration in seconds, if available */
+  duration?: number;
+  /** Video ID for deduplication (prevents emitting for same video) */
+  videoId: string;
+}
+
+/** Payload for NEXT_SONG_CHANGED signal */
+export interface NextSongPayload {
+  /** The queue item ID of the next song, or null if queue is empty */
+  nextItemId: string | null;
+  /** The video ID of the next song, or null if queue is empty */
+  nextVideoId: string | null;
+}
+
+/** Payload for QUEUE_OPERATION_FAILED signal */
+export interface QueueOperationFailedPayload {
+  /** The type of operation that failed */
+  operation: "moveAllHistoryToQueue" | "addToQueue" | "removeFromQueue" | "reorderQueue" | "clearQueue" | "fairShuffle";
+  /** Human-readable error message */
+  message: string;
+}
+
+/** Payload for HOSTING_ERROR signal */
+export interface HostingErrorPayload {
+  /** The type of hosting operation that failed */
+  operation: "hostSession" | "stopHosting" | "refreshHostedSession" | "restoreHostedSession";
+  /** Human-readable error message */
+  message: string;
+}
+
+/** Payload for FILE_AVAILABILITY_CHECKED signal */
+export interface FileAvailabilityPayload {
+  /** The file path that was checked */
+  filePath: string;
+  /** Whether the file is available */
+  available: boolean;
+}
+
+/** Payload for NOTIFICATION_SHOWING signal */
+export interface NotificationShowingPayload {
+  /** The notification ID */
+  id: string;
+  /** The notification type */
+  type: "error" | "warning" | "success" | "info";
+}
+
+/** Payload for NOTIFICATION_HIDDEN signal */
+export interface NotificationHiddenPayload {
+  /** The notification ID that was hidden */
+  id: string;
 }
 
 /**

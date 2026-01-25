@@ -9,6 +9,7 @@ import {
 import { windowManager } from "../services/windowManager";
 import { createLogger } from "../services/logger";
 import { usePlayerStore } from "./playerStore";
+import { APP_SIGNALS, emitSignal } from "../services/appSignals";
 
 const log = createLogger("DisplayStore");
 
@@ -106,6 +107,9 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     }
 
     set({ isLoading: true });
+
+    // Emit signal before restoration begins
+    await emitSignal(APP_SIGNALS.LAYOUT_RESTORE_STARTED, undefined);
 
     try {
       const { savedConfig, windowStates } = restoreData;
@@ -212,6 +216,9 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
         showRestoreDialog: false,
         rememberChoice: false,
       });
+
+      // Emit signal after restoration completes (success or failure)
+      await emitSignal(APP_SIGNALS.LAYOUT_RESTORE_COMPLETE, undefined);
     }
   },
 
