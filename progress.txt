@@ -726,3 +726,17 @@
 - Mock returns condition result immediately if truthy, rejects if not (simulates timeout)
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/app-signals-hosted-session.json, progress.txt
 - 459 JS tests pass, lint passes, typecheck passes
+
+## SIG-006: Create unit tests for appSignals.ts
+- Created src/services/appSignals.test.ts with 17 unit tests
+- Tests organized in 5 describe blocks:
+  - APP_SIGNALS: 3 tests verifying constants (USER_LOGGED_IN, USER_LOGGED_OUT, all signals)
+  - emitSignal: 3 tests (emit with payload, emit undefined, graceful error handling)
+  - listenForSignal: 2 tests (registers listener + calls callback, returns working unlisten)
+  - waitForSignal: 4 tests (resolve on signal, reject on timeout, default timeout 5000ms, reject if listen fails)
+  - waitForSignalOrCondition: 5 tests (resolve immediately if condition met, wait for signal if null/undefined, reject on timeout, custom timeout)
+- Used vi.mock for @tauri-apps/api/event (emit, listen) and logger
+- Used vi.useFakeTimers/useRealTimers for timeout testing
+- Used sync advanceTimersByTime to catch rejections in same tick (avoids unhandled rejection warnings)
+- Files changed: src/services/appSignals.test.ts, ralph/app-signals-hosted-session.json, progress.txt
+- 476 JS tests pass, lint passes, typecheck passes

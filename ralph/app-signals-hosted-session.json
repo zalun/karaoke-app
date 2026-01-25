@@ -124,7 +124,8 @@
         "All 9+ test cases pass",
         "No console errors during test run"
       ],
-      "passes": false
+      "passes": true,
+      "completed_notes": "Created src/services/appSignals.test.ts with 17 tests: APP_SIGNALS constant tests (3), emitSignal tests (3), listenForSignal tests (2), waitForSignal tests (4), waitForSignalOrCondition tests (5). All tests mock @tauri-apps/api/event emit and listen functions. Used vi.useFakeTimers for timeout testing. All 476 unit tests pass."
     },
     {
       "id": "SIG-007",
