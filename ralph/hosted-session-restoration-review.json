@@ -70,7 +70,7 @@
         "Check src/services/index.ts exports ApiError",
         "Verify can import { ApiError } from './services'"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ERR-006",

@@ -27,6 +27,7 @@ export {
   persistSessionId,
   clearPersistedSessionId,
   runLegacyHostedSessionMigration,
+  ApiError,
 } from "./hostedSession";
 export type { HostedSession, SessionStats } from "./hostedSession";
 export {
