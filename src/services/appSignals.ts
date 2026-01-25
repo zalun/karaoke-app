@@ -63,6 +63,10 @@ export const APP_SIGNALS = {
   PLAYBACK_ENDED: "app:playback-ended",
   /** Emitted when video metadata changes (new video loaded) */
   VIDEO_METADATA_CHANGED: "app:video-metadata-changed",
+  /** Emitted when queue order changes (reorder, shuffle, etc.) */
+  QUEUE_ORDER_CHANGED: "app:queue-order-changed",
+  /** Emitted when the first pending item in queue changes */
+  NEXT_SONG_CHANGED: "app:next-song-changed",
 } as const;
 
 /** Type for signal names */
@@ -101,6 +105,10 @@ export interface SignalPayloads {
   [APP_SIGNALS.PLAYBACK_ENDED]: undefined;
   /** Payload contains video metadata (title, artist, duration) */
   [APP_SIGNALS.VIDEO_METADATA_CHANGED]: VideoMetadata;
+  /** No payload - signals queue order has changed */
+  [APP_SIGNALS.QUEUE_ORDER_CHANGED]: undefined;
+  /** Payload contains the new next song ID, or null if queue is empty */
+  [APP_SIGNALS.NEXT_SONG_CHANGED]: NextSongPayload;
 }
 
 /** Video metadata payload for VIDEO_METADATA_CHANGED signal */
@@ -113,6 +121,14 @@ export interface VideoMetadata {
   duration?: number;
   /** Video ID for deduplication (prevents emitting for same video) */
   videoId: string;
+}
+
+/** Payload for NEXT_SONG_CHANGED signal */
+export interface NextSongPayload {
+  /** The queue item ID of the next song, or null if queue is empty */
+  nextItemId: string | null;
+  /** The video ID of the next song, or null if queue is empty */
+  nextVideoId: string | null;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { createLogger, queueService, type QueueItemData, emitSignal, APP_SIGNALS } from "../services";
+import { createLogger, queueService, type QueueItemData, emitSignal, APP_SIGNALS, type NextSongPayload } from "../services";
 import type { Video } from "./playerStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 import { useSessionStore } from "./sessionStore";
@@ -67,6 +67,27 @@ export interface QueueItem {
   id: string;
   video: Video;
   addedAt: Date;
+}
+
+/**
+ * Helper to emit NEXT_SONG_CHANGED signal when the first pending queue item changes.
+ * Compares previous and current first item to avoid unnecessary emissions.
+ */
+function emitNextSongChangedIfDifferent(
+  previousFirstItemId: string | null,
+  currentQueue: QueueItem[]
+): void {
+  const currentFirstItem = currentQueue[0] ?? null;
+  const currentFirstItemId = currentFirstItem?.id ?? null;
+
+  // Only emit if the first item actually changed
+  if (previousFirstItemId !== currentFirstItemId) {
+    const payload: NextSongPayload = {
+      nextItemId: currentFirstItemId,
+      nextVideoId: currentFirstItem?.video.id ?? null,
+    };
+    emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
+  }
 }
 
 interface QueueState {
@@ -180,6 +201,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
   addToQueue: async (video) => {
     log.info(`addToQueue: ${video.title}`);
+    const previousFirstItemId = get().queue[0]?.id ?? null;
     const newItem: QueueItem = {
       id: crypto.randomUUID(),
       video,
@@ -249,6 +271,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
     // Emit signal after item is added to queue (fire-and-forget)
     emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
+    // Emit next song changed if first item changed (e.g., queue was empty or fair position was 0)
+    emitNextSongChangedIfDifferent(previousFirstItemId, get().queue);
 
     return newItem;
   },
@@ -285,12 +309,20 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
     // Emit signal after item is added to queue (fire-and-forget)
     emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
+    // Always emits since new item is always first
+    const payload: NextSongPayload = {
+      nextItemId: newItem.id,
+      nextVideoId: newItem.video.id,
+    };
+    emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
 
     return newItem;
   },
 
   removeFromQueue: (itemId) => {
     log.debug(`removeFromQueue: ${itemId}`);
+    const previousFirstItemId = get().queue[0]?.id ?? null;
+
     set((state) => {
       // Persist to database (tracked for session transitions)
       trackOperation(
@@ -304,10 +336,14 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
     // Emit signal after item is removed from queue (fire-and-forget)
     emitSignal(APP_SIGNALS.QUEUE_ITEM_REMOVED, undefined);
+    // Emit next song changed if the removed item was first
+    emitNextSongChangedIfDifferent(previousFirstItemId, get().queue);
   },
 
   reorderQueue: (itemId, newPosition) => {
     log.debug(`reorderQueue: ${itemId} -> position ${newPosition}`);
+    const previousFirstItemId = get().queue[0]?.id ?? null;
+
     set((state) => {
       const queue = [...state.queue];
       const currentIndex = queue.findIndex((item) => item.id === itemId);
@@ -325,10 +361,15 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
       return { queue };
     });
+
+    // Emit signals for queue order change (fire-and-forget)
+    emitSignal(APP_SIGNALS.QUEUE_ORDER_CHANGED, undefined);
+    emitNextSongChangedIfDifferent(previousFirstItemId, get().queue);
   },
 
   clearQueue: () => {
     log.info("clearQueue");
+    const previousFirstItemId = get().queue[0]?.id ?? null;
 
     // Persist to database (tracked for session transitions)
     trackOperation(
@@ -338,6 +379,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     );
 
     set({ queue: [] });
+
+    // Emit next song changed if queue had items (now empty)
+    if (previousFirstItemId !== null) {
+      const payload: NextSongPayload = { nextItemId: null, nextVideoId: null };
+      emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
+    }
   },
 
   fairShuffle: async () => {
@@ -347,6 +394,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       return;
     }
 
+    const previousFirstItemId = queue[0]?.id ?? null;
     log.info(`fairShuffle: shuffling ${queue.length} items`);
 
     try {
@@ -359,6 +407,10 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         const newQueue = state.queue.map(fromQueueItemData);
         set({ queue: newQueue });
         log.info(`fairShuffle: reloaded ${newQueue.length} items`);
+
+        // Emit signals for queue order change (fire-and-forget)
+        emitSignal(APP_SIGNALS.QUEUE_ORDER_CHANGED, undefined);
+        emitNextSongChangedIfDifferent(previousFirstItemId, newQueue);
       }
     } catch (error) {
       log.error("Failed to fair shuffle queue:", error);
@@ -386,6 +438,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       return;
     }
 
+    const previousFirstItemId = queue[0]?.id ?? null;
     log.info(`moveAllHistoryToQueue: moving ${history.length} items`);
 
     // Store previous state for rollback
@@ -393,12 +446,18 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const previousHistory = history;
     const previousHistoryIndex = get().historyIndex;
 
+    // New queue with history items appended
+    const newQueue = [...queue, ...history];
+
     // Optimistically update UI
     set({
-      queue: [...queue, ...history],
+      queue: newQueue,
       history: [],
       historyIndex: -1,
     });
+
+    // Emit next song changed if queue was empty and now has items
+    emitNextSongChangedIfDifferent(previousFirstItemId, newQueue);
 
     // Persist to database with rollback on failure (tracked for session transitions)
     trackOperation(
@@ -410,6 +469,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           history: previousHistory,
           historyIndex: previousHistoryIndex,
         });
+        // Note: We don't emit a rollback signal here as rollback is for DB failure,
+        // and the UI update was already sent. This is an edge case.
       })
     );
   },
@@ -457,6 +518,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       return null;
     }
 
+    const previousFirstItemId = queue[0]?.id ?? null;
     const item = queue[index];
     log.info(`playFromQueue: ${item.video.title} (index ${index})`);
     const newQueue = queue.filter((_, i) => i !== index);
@@ -481,6 +543,9 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       history: newHistory,
       historyIndex: -1,
     });
+
+    // Emit next song changed if the played item was first (or affected first position)
+    emitNextSongChangedIfDifferent(previousFirstItemId, newQueue);
 
     return item;
   },
@@ -560,6 +625,14 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       historyIndex: -1,
     });
 
+    // Emit next song changed (first item consumed from queue)
+    const nextItem = newQueue[0] ?? null;
+    const payload: NextSongPayload = {
+      nextItemId: nextItem?.id ?? null,
+      nextVideoId: nextItem?.video.id ?? null,
+    };
+    emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
+
     return item;
   },
 
@@ -597,6 +670,14 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       history: newHistory,
       historyIndex: -1,
     });
+
+    // Emit next song changed (first item consumed from queue)
+    const nextItem = newQueue[0] ?? null;
+    const payload: NextSongPayload = {
+      nextItemId: nextItem?.id ?? null,
+      nextVideoId: nextItem?.video.id ?? null,
+    };
+    emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
 
     return item;
   },

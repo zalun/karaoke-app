@@ -306,3 +306,32 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (527). Lint clean. TypeScript clean.
+
+## SIG-403: QUEUE_ORDER_CHANGED and NEXT_SONG_CHANGED signals (DONE)
+- Added QUEUE_ORDER_CHANGED and NEXT_SONG_CHANGED to APP_SIGNALS constant
+- Added NextSongPayload interface (nextItemId, nextVideoId)
+- Added payload types to SignalPayloads interface
+- Exported NextSongPayload from services/index.ts
+- Created emitNextSongChangedIfDifferent() helper function in queueStore.ts
+- Emit QUEUE_ORDER_CHANGED in reorderQueue() and fairShuffle()
+- Emit NEXT_SONG_CHANGED in multiple queueStore functions when first item changes:
+  - addToQueue (if queue was empty or fair position was 0)
+  - addToQueueNext (always, since new item is first)
+  - removeFromQueue (if removed item was first)
+  - reorderQueue (via helper)
+  - clearQueue (if queue had items)
+  - fairShuffle (via helper)
+  - playFromQueue (if played item was first)
+  - playNext (first item consumed from queue)
+  - playNextFromQueue (first item consumed from queue)
+  - moveAllHistoryToQueue (if queue was empty)
+- Added signal name tests to appSignals.test.ts
+
+Files changed:
+- src/services/appSignals.ts (signal defs + NextSongPayload interface + payload types)
+- src/services/appSignals.test.ts (signal name tests)
+- src/services/index.ts (export NextSongPayload)
+- src/stores/queueStore.ts (helper fn + emit calls in 10 functions)
+- ralph/app-signals.json
+
+All tests pass (527). Lint clean. TypeScript clean.

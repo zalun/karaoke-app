@@ -57,6 +57,8 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.PLAYBACK_PAUSED).toBe("app:playback-paused");
     expect(APP_SIGNALS.PLAYBACK_ENDED).toBe("app:playback-ended");
     expect(APP_SIGNALS.VIDEO_METADATA_CHANGED).toBe("app:video-metadata-changed");
+    expect(APP_SIGNALS.QUEUE_ORDER_CHANGED).toBe("app:queue-order-changed");
+    expect(APP_SIGNALS.NEXT_SONG_CHANGED).toBe("app:next-song-changed");
   });
 });
 
