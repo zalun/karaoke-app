@@ -3,6 +3,24 @@ import { createLogger } from "./logger";
 
 const log = createLogger("SessionService");
 
+/**
+ * Status values for hosted sessions.
+ * - active: Session is currently being hosted
+ * - paused: Session is temporarily paused (reserved for future use)
+ * - ended: Session hosting has ended
+ */
+export type HostedSessionStatus = "active" | "paused" | "ended";
+
+/**
+ * Constants for hosted session status values.
+ * Use these instead of string literals for type safety.
+ */
+export const HOSTED_SESSION_STATUS = {
+  ACTIVE: "active",
+  PAUSED: "paused",
+  ENDED: "ended",
+} as const satisfies Record<string, HostedSessionStatus>;
+
 export interface Singer {
   id: number;
   name: string;
@@ -37,7 +55,7 @@ export interface Session {
   is_active: boolean;
   hosted_session_id?: string;
   hosted_by_user_id?: string;
-  hosted_session_status?: string;
+  hosted_session_status?: HostedSessionStatus;
 }
 
 export const sessionService = {
@@ -188,7 +206,7 @@ export const sessionService = {
     sessionId: number,
     hostedSessionId: string,
     hostedByUserId: string,
-    status: "active" | "paused" | "ended"
+    status: HostedSessionStatus
   ): Promise<void> {
     log.debug(`Setting hosted session for session ${sessionId}: hosted_id=${hostedSessionId}, status=${status}`);
     await invoke("session_set_hosted", { sessionId, hostedSessionId, hostedByUserId, status });
@@ -196,7 +214,7 @@ export const sessionService = {
 
   async updateHostedSessionStatus(
     sessionId: number,
-    status: "active" | "paused" | "ended"
+    status: HostedSessionStatus
   ): Promise<void> {
     log.debug(`Updating hosted session status for session ${sessionId}: ${status}`);
     await invoke("session_update_hosted_status", { sessionId, status });

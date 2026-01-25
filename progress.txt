@@ -418,3 +418,14 @@
 - Added 4 unit tests for MIGRATE-002: clear legacy ID if found, skip clear if no legacy ID, continue on error, no migration when no session
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration.json, progress.txt
 - 441 unit tests pass, lint passes, cargo check passes, just check passes
+
+## REVIEW-001: Create TypeScript constants for hosted session status values
+- Added HostedSessionStatus type as 'active' | 'paused' | 'ended' to src/services/session.ts
+- Added HOSTED_SESSION_STATUS const object with ACTIVE, PAUSED, ENDED keys
+- Updated Session interface to use HostedSessionStatus type for hosted_session_status
+- Replaced all string literals in sessionStore.ts with constants (10 replacements)
+- Replaced string literal in SessionBar.tsx with constant (1 replacement)
+- Updated test mocks in sessionStore.test.ts and SessionBar.test.tsx to export HOSTED_SESSION_STATUS
+- Removed redundant status check in restoreHostedSession() that TypeScript identified as unreachable after type narrowing
+- Files changed: src/services/session.ts, src/services/index.ts, src/stores/sessionStore.ts, src/components/session/SessionBar.tsx, src/stores/sessionStore.test.ts, src/components/session/SessionBar.test.tsx, ralph/hosted-session-restoration.json
+- 441 unit tests pass, lint passes, typecheck passes

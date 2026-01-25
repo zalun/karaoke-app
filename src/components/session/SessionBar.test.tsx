@@ -123,6 +123,11 @@ vi.mock("../../services", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+  HOSTED_SESSION_STATUS: {
+    ACTIVE: "active",
+    PAUSED: "paused",
+    ENDED: "ended",
+  },
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({

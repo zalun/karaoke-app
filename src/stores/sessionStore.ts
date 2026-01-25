@@ -6,6 +6,7 @@ import {
   persistSessionId,
   getPersistedSessionId,
   clearPersistedSessionId,
+  HOSTED_SESSION_STATUS,
   type Singer,
   type Session,
   type HostedSession,
@@ -586,7 +587,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         session.hosted_session_id &&
         session.hosted_by_user_id &&
         session.hosted_by_user_id !== currentUser.id &&
-        session.hosted_session_status !== "ended"
+        session.hosted_session_status !== HOSTED_SESSION_STATUS.ENDED
       ) {
         log.error("Cannot host session: another user is hosting");
         throw new Error("Another user is hosting this session");
@@ -602,7 +603,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         session.id,
         hostedSession.id,
         currentUser.id,
-        "active"
+        HOSTED_SESSION_STATUS.ACTIVE
       );
 
       // Update local session state with hosted fields
@@ -610,7 +611,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         ...session,
         hosted_session_id: hostedSession.id,
         hosted_by_user_id: currentUser.id,
-        hosted_session_status: "active",
+        hosted_session_status: HOSTED_SESSION_STATUS.ACTIVE,
       };
 
       // Persist the session ID for app restart recovery (legacy, keep for backward compat)
@@ -659,7 +660,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // This preserves hosted_session_id and hosted_by_user_id for reference
     if (session) {
       try {
-        await sessionService.updateHostedSessionStatus(session.id, "ended");
+        await sessionService.updateHostedSessionStatus(session.id, HOSTED_SESSION_STATUS.ENDED);
         log.debug("Updated hosted session status to 'ended' in DB");
       } catch (dbError) {
         const dbMessage = dbError instanceof Error ? dbError.message : String(dbError);
@@ -694,7 +695,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // while preserving hosted_session_id and hosted_by_user_id
       if (session) {
         set({
-          session: { ...session, hosted_session_status: "ended" },
+          session: { ...session, hosted_session_status: HOSTED_SESSION_STATUS.ENDED },
           hostedSession: null,
           showHostModal: false,
           _hostedSessionPollInterval: null,
@@ -799,7 +800,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // RESTORE-002: Skip if session status is 'ended'
     // No need to verify with backend or attempt restoration - the user already stopped hosting
     // Keep the hosted fields for reference (they can be overridden by hosting again)
-    if (session.hosted_session_status === "ended") {
+    if (session.hosted_session_status === HOSTED_SESSION_STATUS.ENDED) {
       log.debug("Skipping restore: hosted_session_status is 'ended'");
       return;
     }
@@ -827,10 +828,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (session.hosted_by_user_id && session.hosted_by_user_id !== currentUser.id) {
       log.debug("Skipping restore: different user (session belongs to another user)");
       // Show dialog informing the user (anonymous - no email shown for privacy)
-      // Only show for active/paused status, not for ended
-      if (session.hosted_session_status !== "ended") {
-        set({ showHostedByOtherUserDialog: true });
-      }
+      // Note: We only reach here if status is not 'ended' (checked earlier at RESTORE-002)
+      set({ showHostedByOtherUserDialog: true });
       // Preserve fields for the original owner
       return;
     }
@@ -865,12 +864,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       );
 
       // RESTORE-005: If API returns non-active status, update local status to 'ended'
-      if (restoredSession.status !== "active") {
+      if (restoredSession.status !== HOSTED_SESSION_STATUS.ACTIVE) {
         log.info(`Persisted session is ${restoredSession.status}, updating status to 'ended'`);
         // Update hosted_session_status to 'ended' in DB
-        await sessionService.updateHostedSessionStatus(session.id, "ended");
+        await sessionService.updateHostedSessionStatus(session.id, HOSTED_SESSION_STATUS.ENDED);
         // Update local session state
-        set({ session: { ...session, hosted_session_status: "ended" } });
+        set({ session: { ...session, hosted_session_status: HOSTED_SESSION_STATUS.ENDED } });
         await clearPersistedSessionId();
         return;
       }
@@ -910,8 +909,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         // This prevents retry attempts for sessions that are no longer accessible
         if (message.includes("401") || message.includes("403") || message.includes("UNAUTHORIZED")) {
           log.debug("Updating hosted session status to 'ended' due to auth error");
-          await sessionService.updateHostedSessionStatus(session.id, "ended");
-          set({ session: { ...session, hosted_session_status: "ended" } });
+          await sessionService.updateHostedSessionStatus(session.id, HOSTED_SESSION_STATUS.ENDED);
+          set({ session: { ...session, hosted_session_status: HOSTED_SESSION_STATUS.ENDED } });
         }
       }
       // Don't show error to user - silent cleanup for expected scenarios

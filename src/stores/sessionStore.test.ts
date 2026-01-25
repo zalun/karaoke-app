@@ -40,6 +40,11 @@ vi.mock("../services", () => ({
   getPersistedSessionId: vi.fn(),
   clearPersistedSessionId: vi.fn(),
   persistSessionId: vi.fn(),
+  HOSTED_SESSION_STATUS: {
+    ACTIVE: "active",
+    PAUSED: "paused",
+    ENDED: "ended",
+  },
 }));
 
 // Mock auth service

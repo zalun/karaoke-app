@@ -3,7 +3,7 @@ import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen, St
 import { listen } from "@tauri-apps/api/event";
 import { useSessionStore, useFavoritesStore, useAuthStore, notify } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
-import { sessionService, createLogger } from "../../services";
+import { sessionService, createLogger, HOSTED_SESSION_STATUS } from "../../services";
 import { HostSessionModal } from "./HostSessionModal";
 
 const log = createLogger("SessionBar");
@@ -51,7 +51,7 @@ export function SessionBar() {
     session?.hosted_session_id &&
     session?.hosted_by_user_id &&
     session?.hosted_by_user_id !== user?.id &&
-    session?.hosted_session_status !== "ended"
+    session?.hosted_session_status !== HOSTED_SESSION_STATUS.ENDED
   );
 
   // Check if a singer is assigned to any queue item
