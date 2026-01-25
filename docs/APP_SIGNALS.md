@@ -10,11 +10,13 @@ This document describes the app-wide signal system used for cross-store coordina
 2. [Problem: Race Conditions](#problem-race-conditions)
 3. [Solution: Signal System](#solution-signal-system)
 4. [API Reference](#api-reference)
-5. [Available Signals](#available-signals)
-6. [Usage Patterns](#usage-patterns)
-7. [Hosted Session Restoration Flow](#hosted-session-restoration-flow)
-8. [Token Refresh Logic](#token-refresh-logic)
-9. [Testing](#testing)
+5. [Signal Emission Patterns](#signal-emission-patterns)
+6. [Signal Ordering Guarantees](#signal-ordering-guarantees)
+7. [Available Signals](#available-signals)
+8. [Usage Patterns](#usage-patterns)
+9. [Hosted Session Restoration Flow](#hosted-session-restoration-flow)
+10. [Token Refresh Logic](#token-refresh-logic)
+11. [Testing](#testing)
 
 ---
 
@@ -205,6 +207,70 @@ emitSignal(APP_SIGNALS.SONG_ENDED, undefined).catch(() => {});
 **When to use:**
 - Event handlers that aren't async
 - React component callbacks
+
+---
+
+## Signal Ordering Guarantees
+
+### Sequential Emission
+
+When multiple signals are emitted with `await`, they are guaranteed to be delivered in order:
+
+```typescript
+// In playerStore.playVideo()
+await emitSignal(APP_SIGNALS.SONG_STARTED, undefined);
+await emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined);
+// Listeners receive SONG_STARTED before PLAYBACK_STARTED
+```
+
+**Why sequential?**
+- Listeners may depend on signal order (e.g., analytics tracking)
+- Predictable behavior makes debugging easier
+- Race conditions between related signals are avoided
+
+### When Order Matters
+
+Some signal pairs have semantic ordering requirements:
+
+| First Signal | Second Signal | Reason |
+|--------------|---------------|--------|
+| `SONG_STARTED` | `PLAYBACK_STARTED` | High-level event before low-level |
+| `SESSION_STARTED` | `SINGERS_LOADED` | Session must exist before loading singers |
+| `AUTH_INITIALIZED` | `USER_LOGGED_IN` | Auth system ready before user available |
+
+### When Order Doesn't Matter
+
+Fire-and-forget signals (Pattern 2/3) don't guarantee ordering relative to each other:
+
+```typescript
+void emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
+void emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
+// Order is not guaranteed - both are independent notifications
+```
+
+This is acceptable because:
+- Each signal represents an independent fact
+- Listeners should not depend on relative timing
+- Performance is better without awaiting
+
+### Parallel Emission (Not Used)
+
+We deliberately avoid `Promise.all()` for signal emission:
+
+```typescript
+// NOT RECOMMENDED - unpredictable order
+await Promise.all([
+  emitSignal(APP_SIGNALS.SONG_STARTED, undefined),
+  emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined),
+]);
+```
+
+**Why avoid parallel?**
+- Signal order becomes non-deterministic
+- Listeners may receive signals in different orders on different runs
+- Debugging becomes harder when order varies
+
+**Exception:** If signals are truly independent and performance is critical, parallel emission could be used. Currently, no such case exists in the codebase.
 
 ---
 
