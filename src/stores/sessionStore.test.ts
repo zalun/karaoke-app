@@ -2056,17 +2056,38 @@ describe("sessionStore - Host Session", () => {
       expect(hostedSessionService.createHostedSession).not.toHaveBeenCalled();
     });
 
-    it("should throw error when token is expired", async () => {
+    it("should throw error when token is expired and refresh fails", async () => {
       useSessionStore.setState({ session: mockSession, hostedSession: null });
       vi.mocked(authService.getTokens).mockResolvedValue({
         access_token: "expired-token",
         refresh_token: "refresh",
         expires_at: Math.floor(Date.now() / 1000) - 3600, // Expired 1 hour ago
       });
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(null); // Refresh fails
 
       await expect(useSessionStore.getState().hostSession()).rejects.toThrow("Session expired. Please sign in again.");
 
+      expect(authService.refreshTokenIfNeeded).toHaveBeenCalled();
       expect(hostedSessionService.createHostedSession).not.toHaveBeenCalled();
+    });
+
+    it("should refresh token and proceed when token is expired but refresh succeeds", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue({
+        access_token: "expired-token",
+        refresh_token: "refresh",
+        expires_at: Math.floor(Date.now() / 1000) - 3600, // Expired 1 hour ago
+      });
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(mockTokens); // Refresh succeeds
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      expect(authService.refreshTokenIfNeeded).toHaveBeenCalled();
+      expect(hostedSessionService.createHostedSession).toHaveBeenCalledWith(
+        "valid-access-token", // Uses refreshed token
+        "Test Session"
+      );
     });
 
     it("should create hosted session and persist session ID", async () => {

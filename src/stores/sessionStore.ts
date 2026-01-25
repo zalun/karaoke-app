@@ -561,16 +561,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     log.info("Starting hosted session");
     try {
       // Get access token from auth service
-      const tokens = await authService.getTokens();
+      let tokens = await authService.getTokens();
       if (!tokens) {
         log.error("Cannot host session: not authenticated");
         throw new Error("Not authenticated");
       }
 
-      // Validate token is not expired
+      // If token is expired, try to refresh it first
       if (!isTokenValid(tokens.expires_at)) {
-        log.error("Cannot host session: token expired");
-        throw new Error("Session expired. Please sign in again.");
+        log.debug("Token expired, attempting refresh before hosting");
+        const refreshedTokens = await authService.refreshTokenIfNeeded();
+        if (!refreshedTokens || !isTokenValid(refreshedTokens.expires_at)) {
+          log.error("Cannot host session: token refresh failed");
+          throw new Error("Session expired. Please sign in again.");
+        }
+        tokens = refreshedTokens;
+        log.debug("Token refreshed successfully, proceeding with hosting");
       }
 
       // Get current user ID from auth store
