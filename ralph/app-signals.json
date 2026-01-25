@@ -348,7 +348,7 @@
         "npm test passes",
         "App startup emits signal after migration runs"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-601",

@@ -61,6 +61,7 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.NEXT_SONG_CHANGED).toBe("app:next-song-changed");
     expect(APP_SIGNALS.QUEUE_OPERATION_FAILED).toBe("app:queue-operation-failed");
     expect(APP_SIGNALS.HOSTING_ERROR).toBe("app:hosting-error");
+    expect(APP_SIGNALS.MIGRATION_COMPLETE).toBe("app:migration-complete");
   });
 });
 
@@ -132,6 +133,15 @@ describe("emitSignal", () => {
       "app:hosting-error",
       payload
     );
+  });
+
+  it("should emit MIGRATION_COMPLETE with undefined payload", async () => {
+    mockEmit.mockResolvedValue(undefined);
+
+    await emitSignal(APP_SIGNALS.MIGRATION_COMPLETE, undefined);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith("app:migration-complete", undefined);
   });
 });
 

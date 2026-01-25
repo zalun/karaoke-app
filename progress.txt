@@ -383,3 +383,22 @@ Files changed:
 - ralph/app-signals.json (marked SIG-502 passes: true)
 
 All tests pass (529). Lint clean. TypeScript clean.
+
+---
+
+## SIG-503: MIGRATION_COMPLETE signal after legacy migration
+
+Added MIGRATION_COMPLETE signal for legacy hosted session migration coordination.
+
+Key decisions:
+- Signal emitted via .finally() to ensure it fires in both success and error cases
+- Payload is undefined (just signals migration was attempted)
+- Signal allows future code to wait until migration runs before proceeding
+
+Files changed:
+- src/services/appSignals.ts (added MIGRATION_COMPLETE signal + payload type)
+- src/services/appSignals.test.ts (added signal name test + emission test)
+- src/App.tsx (emit signal in .finally() after runLegacyHostedSessionMigration)
+- ralph/app-signals.json (marked SIG-503 passes: true)
+
+All tests pass (530). Lint clean. TypeScript clean.

@@ -71,6 +71,8 @@ export const APP_SIGNALS = {
   QUEUE_OPERATION_FAILED: "app:queue-operation-failed",
   /** Emitted when a hosting operation fails */
   HOSTING_ERROR: "app:hosting-error",
+  /** Emitted after legacy hosted session migration completes (success or failure) */
+  MIGRATION_COMPLETE: "app:migration-complete",
 } as const;
 
 /** Type for signal names */
@@ -117,6 +119,8 @@ export interface SignalPayloads {
   [APP_SIGNALS.QUEUE_OPERATION_FAILED]: QueueOperationFailedPayload;
   /** Payload contains operation type and error message for failed hosting operations */
   [APP_SIGNALS.HOSTING_ERROR]: HostingErrorPayload;
+  /** No payload - signals that legacy migration has been attempted (success or failure) */
+  [APP_SIGNALS.MIGRATION_COMPLETE]: undefined;
 }
 
 /** Video metadata payload for VIDEO_METADATA_CHANGED signal */
