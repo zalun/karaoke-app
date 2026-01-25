@@ -194,3 +194,25 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (507). Lint clean. TypeScript clean.
+
+## SIG-302: TOKENS_REFRESHED signal (DONE)
+- Added TOKENS_REFRESHED to APP_SIGNALS constant in appSignals.ts
+- Added payload type to SignalPayloads interface (undefined)
+- Emit TOKENS_REFRESHED in authStore.refreshSession() after successful token refresh
+- Signal NOT emitted if refresh fails, offline, or error
+- Added TOKENS_REFRESHED to appSignals.test.ts signal name test
+- Added TOKENS_REFRESHED to authStore.test.ts mock
+- Added 4 unit tests in authStore.test.ts:
+  - Verifies signal emits after successful token refresh
+  - Verifies signal NOT emitted when token refresh fails
+  - Verifies signal NOT emitted when offline
+  - Verifies signal NOT emitted when refreshSession throws
+
+Files changed:
+- src/services/appSignals.ts (signal def + payload type)
+- src/services/appSignals.test.ts (signal name test)
+- src/stores/authStore.ts (1 emit call after fetchUserProfile in refreshSession)
+- src/stores/authStore.test.ts (mock update + 4 new tests)
+- ralph/app-signals.json
+
+All tests pass (511). Lint clean. TypeScript clean.

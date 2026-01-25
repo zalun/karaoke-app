@@ -299,6 +299,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Update user profile in case it changed
       await get().fetchUserProfile(tokens);
+
+      // Emit signal for cross-store coordination (e.g., retry failed API calls with fresh tokens)
+      await emitSignal(APP_SIGNALS.TOKENS_REFRESHED, undefined);
     } catch (error) {
       log.error(`Session refresh error: ${error}`);
     }

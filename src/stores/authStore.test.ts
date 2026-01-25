@@ -14,6 +14,7 @@ vi.mock("../services", () => ({
     USER_LOGGED_IN: "app:user-logged-in",
     USER_LOGGED_OUT: "app:user-logged-out",
     AUTH_INITIALIZED: "app:auth-initialized",
+    TOKENS_REFRESHED: "app:tokens-refreshed",
   },
   emitSignal: (...args: unknown[]) => mockEmitSignal(...args),
 }));
@@ -227,6 +228,76 @@ describe("authStore - signOut", () => {
       // And user is signed out
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
       expect(useAuthStore.getState().user).toBeNull();
+    });
+  });
+});
+
+describe("authStore - refreshSession", () => {
+  beforeEach(() => {
+    resetStoreState();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    useAuthStore.getState()._cleanup();
+  });
+
+  describe("TOKENS_REFRESHED signal", () => {
+    it("should emit TOKENS_REFRESHED after successful token refresh", async () => {
+      const mockTokens = {
+        access_token: "refreshed-token",
+        refresh_token: "refreshed-refresh",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      };
+      const mockUser = {
+        id: "user-1",
+        email: "test@example.com",
+        displayName: "Test User",
+        avatarUrl: null,
+      };
+
+      useAuthStore.setState({ isAuthenticated: true, isOffline: false });
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(mockTokens);
+
+      // Set up mock user for E2E testing path
+      (window as { __MOCK_USER__?: typeof mockUser }).__MOCK_USER__ = mockUser;
+
+      await useAuthStore.getState().refreshSession();
+
+      expect(mockEmitSignal).toHaveBeenCalledWith("app:tokens-refreshed", undefined);
+
+      // Clean up mock user
+      delete (window as { __MOCK_USER__?: typeof mockUser }).__MOCK_USER__;
+    });
+
+    it("should NOT emit TOKENS_REFRESHED when token refresh fails", async () => {
+      useAuthStore.setState({ isAuthenticated: true, isOffline: false });
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(null);
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+      vi.mocked(authService.clearTokens).mockResolvedValue(undefined);
+
+      await useAuthStore.getState().refreshSession();
+
+      // Should emit USER_LOGGED_OUT from signOut, but NOT TOKENS_REFRESHED
+      expect(mockEmitSignal).not.toHaveBeenCalledWith("app:tokens-refreshed", undefined);
+    });
+
+    it("should NOT emit TOKENS_REFRESHED when offline", async () => {
+      useAuthStore.setState({ isAuthenticated: true, isOffline: true });
+
+      await useAuthStore.getState().refreshSession();
+
+      expect(authService.refreshTokenIfNeeded).not.toHaveBeenCalled();
+      expect(mockEmitSignal).not.toHaveBeenCalledWith("app:tokens-refreshed", undefined);
+    });
+
+    it("should NOT emit TOKENS_REFRESHED when refreshSession throws", async () => {
+      useAuthStore.setState({ isAuthenticated: true, isOffline: false });
+      vi.mocked(authService.refreshTokenIfNeeded).mockRejectedValue(new Error("Network error"));
+
+      await useAuthStore.getState().refreshSession();
+
+      expect(mockEmitSignal).not.toHaveBeenCalledWith("app:tokens-refreshed", undefined);
     });
   });
 });

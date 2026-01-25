@@ -222,7 +222,7 @@
         "npm test passes",
         "Token refresh cycle emits signal"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-303",

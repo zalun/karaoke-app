@@ -50,6 +50,8 @@ export const APP_SIGNALS = {
   HOSTING_STOPPED: "app:hosting-stopped",
   /** Emitted after auth initialization completes (regardless of auth state) */
   AUTH_INITIALIZED: "app:auth-initialized",
+  /** Emitted after successful token refresh in refreshSession() */
+  TOKENS_REFRESHED: "app:tokens-refreshed",
 } as const;
 
 /** Type for signal names */
@@ -76,6 +78,8 @@ export interface SignalPayloads {
   [APP_SIGNALS.HOSTING_STOPPED]: undefined;
   /** Payload is boolean indicating whether user is authenticated */
   [APP_SIGNALS.AUTH_INITIALIZED]: boolean;
+  /** No payload - just signals that tokens were refreshed successfully */
+  [APP_SIGNALS.TOKENS_REFRESHED]: undefined;
 }
 
 /**
