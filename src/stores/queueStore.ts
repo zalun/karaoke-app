@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { createLogger, queueService, type QueueItemData } from "../services";
+import { createLogger, queueService, type QueueItemData, emitSignal, APP_SIGNALS } from "../services";
 import type { Video } from "./playerStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 import { useSessionStore } from "./sessionStore";
@@ -238,6 +238,9 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       });
     }
 
+    // Emit signal after item is added to queue (fire-and-forget)
+    emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
+
     return newItem;
   },
 
@@ -270,6 +273,10 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
       return { queue: newQueue };
     });
+
+    // Emit signal after item is added to queue (fire-and-forget)
+    emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
+
     return newItem;
   },
 

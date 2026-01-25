@@ -50,3 +50,19 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (483). Lint clean. TypeScript clean.
+
+## SIG-105: QUEUE_ITEM_ADDED signal (DONE)
+- Imported emitSignal and APP_SIGNALS in queueStore.ts
+- Emit QUEUE_ITEM_ADDED after both addToQueue() and addToQueueNext() complete
+- Signal fires after state update, before returning item
+- Also emit in addToQueueNext() since it adds items to queue
+- Created new test file queueStore.signals.test.ts with 3 tests
+- Updated queueStore.fairQueue.test.ts mock to include emitSignal/APP_SIGNALS
+
+Files changed:
+- src/stores/queueStore.ts (import + 2 emit calls)
+- src/stores/queueStore.signals.test.ts (new file - 3 tests)
+- src/stores/queueStore.fairQueue.test.ts (mock update)
+- ralph/app-signals.json
+
+All tests pass (486). Lint clean. TypeScript clean.
