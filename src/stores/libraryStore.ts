@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "../services/logger";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
+import { APP_SIGNALS, emitSignal } from "../services/appSignals";
 
 const log = createLogger("LibraryStore");
 
@@ -319,6 +320,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           cache.set(filePath, { available, timestamp: Date.now() });
           return { fileAvailabilityCache: cache };
         });
+
+        // Emit signal so library items can update their UI
+        await emitSignal(APP_SIGNALS.FILE_AVAILABILITY_CHECKED, { filePath, available });
 
         return available;
       } catch (error) {

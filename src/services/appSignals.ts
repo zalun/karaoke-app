@@ -77,6 +77,8 @@ export const APP_SIGNALS = {
   YTDLP_AVAILABLE: "app:ytdlp-available",
   /** Emitted when yt-dlp is confirmed unavailable on the system */
   YTDLP_UNAVAILABLE: "app:ytdlp-unavailable",
+  /** Emitted when file availability is checked for a local library file */
+  FILE_AVAILABILITY_CHECKED: "app:file-availability-checked",
 } as const;
 
 /** Type for signal names */
@@ -129,6 +131,8 @@ export interface SignalPayloads {
   [APP_SIGNALS.YTDLP_AVAILABLE]: undefined;
   /** No payload - signals that yt-dlp is unavailable on the system */
   [APP_SIGNALS.YTDLP_UNAVAILABLE]: undefined;
+  /** Payload contains file path and availability status */
+  [APP_SIGNALS.FILE_AVAILABILITY_CHECKED]: FileAvailabilityPayload;
 }
 
 /** Video metadata payload for VIDEO_METADATA_CHANGED signal */
@@ -165,6 +169,14 @@ export interface HostingErrorPayload {
   operation: "hostSession" | "stopHosting" | "refreshHostedSession" | "restoreHostedSession";
   /** Human-readable error message */
   message: string;
+}
+
+/** Payload for FILE_AVAILABILITY_CHECKED signal */
+export interface FileAvailabilityPayload {
+  /** The file path that was checked */
+  filePath: string;
+  /** Whether the file is available */
+  available: boolean;
 }
 
 /**

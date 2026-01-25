@@ -421,3 +421,23 @@ All tests pass (530). Lint clean. TypeScript clean.
 - No payload needed (boolean availability is stored in state already)
 
 All tests pass (532). Lint clean. TypeScript clean.
+
+---
+
+## SIG-602: Add FILE_AVAILABILITY_CHECKED signal
+
+**Completed**: Added file availability checked signal to app signal system.
+
+**Changes**:
+- src/services/appSignals.ts: Added FILE_AVAILABILITY_CHECKED to APP_SIGNALS, added FileAvailabilityPayload interface, added payload type to SignalPayloads
+- src/services/index.ts: Export FileAvailabilityPayload type
+- src/stores/libraryStore.ts: Import emitSignal/APP_SIGNALS, emit FILE_AVAILABILITY_CHECKED after checkFileAvailable() determines availability
+- src/services/appSignals.test.ts: Added signal name test, added 2 emission tests (available=true, available=false)
+- ralph/app-signals.json: Marked SIG-602 passes: true
+
+**Key decisions**:
+- Payload includes filePath and available boolean
+- Signal emitted after state cache update, before returning result
+- Library items can listen to update their UI reactively
+
+All tests pass (534). Lint clean. TypeScript clean.

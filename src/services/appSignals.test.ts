@@ -64,6 +64,7 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.MIGRATION_COMPLETE).toBe("app:migration-complete");
     expect(APP_SIGNALS.YTDLP_AVAILABLE).toBe("app:ytdlp-available");
     expect(APP_SIGNALS.YTDLP_UNAVAILABLE).toBe("app:ytdlp-unavailable");
+    expect(APP_SIGNALS.FILE_AVAILABILITY_CHECKED).toBe("app:file-availability-checked");
   });
 });
 
@@ -162,6 +163,38 @@ describe("emitSignal", () => {
 
     expect(mockEmit).toHaveBeenCalledTimes(1);
     expect(mockEmit).toHaveBeenCalledWith("app:ytdlp-unavailable", undefined);
+  });
+
+  it("should emit FILE_AVAILABILITY_CHECKED with file path and availability status", async () => {
+    mockEmit.mockResolvedValue(undefined);
+    const payload = {
+      filePath: "/path/to/song.mp4",
+      available: true,
+    };
+
+    await emitSignal(APP_SIGNALS.FILE_AVAILABILITY_CHECKED, payload);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith(
+      "app:file-availability-checked",
+      payload
+    );
+  });
+
+  it("should emit FILE_AVAILABILITY_CHECKED with unavailable status", async () => {
+    mockEmit.mockResolvedValue(undefined);
+    const payload = {
+      filePath: "/path/to/missing.mp4",
+      available: false,
+    };
+
+    await emitSignal(APP_SIGNALS.FILE_AVAILABILITY_CHECKED, payload);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith(
+      "app:file-availability-checked",
+      payload
+    );
   });
 });
 
