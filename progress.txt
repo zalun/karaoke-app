@@ -487,3 +487,10 @@
 - Added unit test: "should reset singers and show warning on error" in sessionStore.test.ts
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration-review.json
 - 455 unit tests pass, lint passes, typecheck passes
+
+## ERR-013: Clear queueSingerAssignments entry on loadQueueItemSingers error
+- Added queueSingerAssignments.delete(queueItemId) in loadQueueItemSingers catch block
+- Clears stale entry to avoid showing incorrect data after error
+- Added unit test: "should clear stale entry on error" in sessionStore.test.ts
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration-review.json
+- 456 unit tests pass, lint passes, typecheck passes

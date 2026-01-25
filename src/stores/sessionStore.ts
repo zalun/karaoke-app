@@ -457,6 +457,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       });
     } catch (error) {
       log.error("Failed to load queue item singers:", error);
+      // Clear any stale entry to avoid showing incorrect data
+      set((state) => {
+        const queueSingerAssignments = new Map(state.queueSingerAssignments);
+        queueSingerAssignments.delete(queueItemId);
+        return { queueSingerAssignments };
+      });
     }
   },
 

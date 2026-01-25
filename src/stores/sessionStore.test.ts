@@ -723,6 +723,20 @@ describe("sessionStore - Queue Singer Assignments", () => {
       expect(sessionService.getQueueItemSingers).toHaveBeenCalledWith("item1");
       expect(useSessionStore.getState().queueSingerAssignments.get("item1")).toEqual([1, 2]);
     });
+
+    it("should clear stale entry on error", async () => {
+      // Set up initial state with a stale entry
+      useSessionStore.setState({
+        session: mockSession,
+        queueSingerAssignments: new Map([["item1", [1, 2]]]),
+      });
+      vi.mocked(sessionService.getQueueItemSingers).mockRejectedValue(new Error("Network error"));
+
+      await useSessionStore.getState().loadQueueItemSingers("item1");
+
+      // Entry should be cleared to avoid showing incorrect data
+      expect(useSessionStore.getState().queueSingerAssignments.has("item1")).toBe(false);
+    });
   });
 
   describe("loadAllQueueItemSingers", () => {

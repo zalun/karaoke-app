@@ -160,7 +160,9 @@
         "Check src/stores/sessionStore.ts line ~454-456",
         "Verify queueSingerAssignments.delete(queueItemId) is called in catch block"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added delete call in catch block at line ~465 and unit test 'should clear stale entry on error'"
     },
     {
       "id": "ERR-014",
