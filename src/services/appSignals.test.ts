@@ -59,6 +59,7 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.VIDEO_METADATA_CHANGED).toBe("app:video-metadata-changed");
     expect(APP_SIGNALS.QUEUE_ORDER_CHANGED).toBe("app:queue-order-changed");
     expect(APP_SIGNALS.NEXT_SONG_CHANGED).toBe("app:next-song-changed");
+    expect(APP_SIGNALS.QUEUE_OPERATION_FAILED).toBe("app:queue-operation-failed");
   });
 });
 
@@ -98,6 +99,22 @@ describe("emitSignal", () => {
     ).resolves.toBeUndefined();
 
     expect(mockEmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("should emit QUEUE_OPERATION_FAILED with operation type and message", async () => {
+    mockEmit.mockResolvedValue(undefined);
+    const payload = {
+      operation: "moveAllHistoryToQueue" as const,
+      message: "Database error occurred",
+    };
+
+    await emitSignal(APP_SIGNALS.QUEUE_OPERATION_FAILED, payload);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith(
+      "app:queue-operation-failed",
+      payload
+    );
   });
 });
 

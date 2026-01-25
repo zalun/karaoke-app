@@ -335,3 +335,26 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (527). Lint clean. TypeScript clean.
+
+---
+
+## SIG-501: Add QUEUE_OPERATION_FAILED signal for error broadcasting
+
+Task: Add signal for critical queue operation failures.
+
+Changes:
+- Added QUEUE_OPERATION_FAILED to APP_SIGNALS constant
+- Added QueueOperationFailedPayload interface with `operation` and `message` fields
+- Operation type enum: moveAllHistoryToQueue, addToQueue, removeFromQueue, reorderQueue, clearQueue, fairShuffle
+- Emit signal in queueStore.moveAllHistoryToQueue() on rollback failure
+- Added unit test for QUEUE_OPERATION_FAILED emission
+- Exported QueueOperationFailedPayload from services/index.ts
+
+Files changed:
+- src/services/appSignals.ts (signal def + payload interface + payload type)
+- src/services/appSignals.test.ts (signal name test + emission test)
+- src/services/index.ts (export QueueOperationFailedPayload)
+- src/stores/queueStore.ts (emit signal on moveAllHistoryToQueue rollback)
+- ralph/app-signals.json (marked SIG-501 passes: true)
+
+All tests pass (528). Lint clean. TypeScript clean.

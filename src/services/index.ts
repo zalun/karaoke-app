@@ -44,7 +44,7 @@ export {
   waitForSignal,
   waitForSignalOrCondition,
 } from "./appSignals";
-export type { SignalPayloads, AppSignalName, VideoMetadata, NextSongPayload } from "./appSignals";
+export type { SignalPayloads, AppSignalName, VideoMetadata, NextSongPayload, QueueOperationFailedPayload } from "./appSignals";
 
 /**
  * Extract error message from unknown error type

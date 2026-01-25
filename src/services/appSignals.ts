@@ -67,6 +67,8 @@ export const APP_SIGNALS = {
   QUEUE_ORDER_CHANGED: "app:queue-order-changed",
   /** Emitted when the first pending item in queue changes */
   NEXT_SONG_CHANGED: "app:next-song-changed",
+  /** Emitted when a critical queue operation fails */
+  QUEUE_OPERATION_FAILED: "app:queue-operation-failed",
 } as const;
 
 /** Type for signal names */
@@ -109,6 +111,8 @@ export interface SignalPayloads {
   [APP_SIGNALS.QUEUE_ORDER_CHANGED]: undefined;
   /** Payload contains the new next song ID, or null if queue is empty */
   [APP_SIGNALS.NEXT_SONG_CHANGED]: NextSongPayload;
+  /** Payload contains operation type and error message for failed queue operations */
+  [APP_SIGNALS.QUEUE_OPERATION_FAILED]: QueueOperationFailedPayload;
 }
 
 /** Video metadata payload for VIDEO_METADATA_CHANGED signal */
@@ -129,6 +133,14 @@ export interface NextSongPayload {
   nextItemId: string | null;
   /** The video ID of the next song, or null if queue is empty */
   nextVideoId: string | null;
+}
+
+/** Payload for QUEUE_OPERATION_FAILED signal */
+export interface QueueOperationFailedPayload {
+  /** The type of operation that failed */
+  operation: "moveAllHistoryToQueue" | "addToQueue" | "removeFromQueue" | "reorderQueue" | "clearQueue" | "fairShuffle";
+  /** Human-readable error message */
+  message: string;
 }
 
 /**

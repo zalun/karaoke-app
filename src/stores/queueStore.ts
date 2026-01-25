@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { createLogger, queueService, type QueueItemData, emitSignal, APP_SIGNALS, type NextSongPayload } from "../services";
+import { createLogger, queueService, type QueueItemData, emitSignal, APP_SIGNALS, type NextSongPayload, type QueueOperationFailedPayload } from "../services";
 import type { Video } from "./playerStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 import { useSessionStore } from "./sessionStore";
@@ -469,8 +469,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           history: previousHistory,
           historyIndex: previousHistoryIndex,
         });
-        // Note: We don't emit a rollback signal here as rollback is for DB failure,
-        // and the UI update was already sent. This is an edge case.
+        // Emit error signal so UI components can react to the failure
+        const payload: QueueOperationFailedPayload = {
+          operation: "moveAllHistoryToQueue",
+          message: error instanceof Error ? error.message : "Failed to move history to queue",
+        };
+        emitSignal(APP_SIGNALS.QUEUE_OPERATION_FAILED, payload);
       })
     );
   },
