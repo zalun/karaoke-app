@@ -479,7 +479,9 @@
         "Check src-tauri/src/commands/session.rs line ~867-868",
         "Verify comment explains race condition: session could be deleted between check and update"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Expanded comment at lines 917-926 to explain TOCTOU vulnerability and three specific race conditions: session deletion between EXISTS check and UPDATE, ownership claim between SELECT and UPDATE, status change between read and write. Comment now explains how conditional UPDATE guarantees atomicity."
     },
     {
       "id": "DOC-005",

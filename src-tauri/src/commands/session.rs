@@ -916,7 +916,11 @@ pub fn session_set_hosted(
 
     // Use conditional UPDATE with WHERE clause for atomic ownership check (CONC-003).
     // This prevents race conditions by combining the ownership check and update in a single
-    // SQL statement. The update only succeeds if:
+    // SQL statement, avoiding the TOCTOU (time-of-check-time-of-use) vulnerability where:
+    // - The session could be deleted between the EXISTS check above and this UPDATE
+    // - Another user could claim ownership between a SELECT and separate UPDATE
+    // - Status could change between reading current state and writing new state
+    // By using a conditional UPDATE, the database guarantees atomicity. The update only succeeds if:
     // - No existing hosted_by_user_id (NULL) - session not currently hosted
     // - Same user is updating (hosted_by_user_id matches)
     // - Previous status is 'ended' (session was released, can be taken over)

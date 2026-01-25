@@ -630,3 +630,15 @@
 - Files changed: src/stores/sessionStore.ts, ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, lint passes, typecheck passes
 
+## DOC-004: Expand transaction comment to explain race condition prevention
+- Updated comment at session.rs lines 917-926 (session_set_hosted function)
+- Expanded conditional UPDATE comment to explain TOCTOU (time-of-check-time-of-use) vulnerability
+- Added three specific race conditions prevented:
+  1. Session deletion between EXISTS check and UPDATE
+  2. Ownership claim between SELECT and UPDATE
+  3. Status change between read and write
+- Explains how conditional UPDATE guarantees atomicity at database level
+- No unit tests needed - documentation change only
+- Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, 14 Rust session_set_hosted tests pass, just check passes
+
