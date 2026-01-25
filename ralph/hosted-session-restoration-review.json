@@ -184,7 +184,9 @@
         "Check src/services/hostedSession.ts line ~52",
         "Verify uses log.error instead of log.warn for MIGRATE-002 failure"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Changed log.warn to log.error at line 69 in runLegacyHostedSessionMigration catch block"
     },
     {
       "id": "CONC-001",

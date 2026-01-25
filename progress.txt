@@ -494,3 +494,9 @@
 - Added unit test: "should clear stale entry on error" in sessionStore.test.ts
 - Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration-review.json
 - 456 unit tests pass, lint passes, typecheck passes
+
+## ERR-015: Change log.warn to log.error for legacy migration failure
+- Changed log.warn to log.error at line 69 in runLegacyHostedSessionMigration catch block
+- Migration failure is significant issue, error level appropriate
+- Files changed: src/services/hostedSession.ts, ralph/hosted-session-restoration-review.json
+- 456 unit tests pass, lint passes, typecheck passes

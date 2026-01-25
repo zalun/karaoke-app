@@ -66,7 +66,7 @@ export async function runLegacyHostedSessionMigration(): Promise<void> {
   } catch (error) {
     // Log but don't throw - migration failure shouldn't block app startup
     const message = error instanceof Error ? error.message : String(error);
-    log.warn(`MIGRATE-002: Failed to run legacy migration: ${message}`);
+    log.error(`MIGRATE-002: Failed to run legacy migration: ${message}`);
   }
 }
 
