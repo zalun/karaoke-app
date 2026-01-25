@@ -402,9 +402,30 @@ export function SessionBar() {
                           className="flex-1 text-left px-3 py-2 disabled:cursor-not-allowed"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-medium">
-                              {s.name || "Unnamed Session"}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-medium">
+                                {s.name || "Unnamed Session"}
+                              </span>
+                              {s.hosted_session_id && (
+                                <span
+                                  title={
+                                    s.hosted_session_status === HOSTED_SESSION_STATUS.ACTIVE
+                                      ? "Currently hosting"
+                                      : "Was hosted"
+                                  }
+                                  data-testid={`hosted-icon-${s.id}`}
+                                >
+                                  <Radio
+                                    size={14}
+                                    className={
+                                      s.hosted_session_status === HOSTED_SESSION_STATUS.ACTIVE
+                                        ? "text-green-400"
+                                        : "text-gray-400"
+                                    }
+                                  />
+                                </span>
+                              )}
+                            </div>
                             {isCurrentSession && (
                               <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded">
                                 Current

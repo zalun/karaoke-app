@@ -714,6 +714,113 @@ describe("SessionBar", () => {
 
       expect(mockSessionStore.closeLoadDialog).toHaveBeenCalled();
     });
+
+    describe("Hosted session icon (REVIEW-006)", () => {
+      it("shows Radio icon for session with hosted_session_id", () => {
+        const hostedSession = createMockSession(1, "Hosted Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        });
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [hostedSession],
+        });
+        render(<SessionBar />);
+
+        expect(screen.getByTestId("hosted-icon-1")).toBeInTheDocument();
+        expect(screen.getByTestId("radio-icon")).toBeInTheDocument();
+      });
+
+      it("does not show Radio icon for session without hosted_session_id", () => {
+        const plainSession = createMockSession(1, "Plain Session");
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [plainSession],
+        });
+        render(<SessionBar />);
+
+        expect(screen.queryByTestId("hosted-icon-1")).not.toBeInTheDocument();
+      });
+
+      it("shows 'Currently hosting' tooltip for active hosted session", () => {
+        const activeSession = createMockSession(1, "Active Hosted", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        });
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [activeSession],
+        });
+        render(<SessionBar />);
+
+        const iconWrapper = screen.getByTestId("hosted-icon-1");
+        expect(iconWrapper).toHaveAttribute("title", "Currently hosting");
+      });
+
+      it("shows 'Was hosted' tooltip for ended hosted session", () => {
+        const endedSession = createMockSession(1, "Ended Hosted", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "ended",
+        });
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [endedSession],
+        });
+        render(<SessionBar />);
+
+        const iconWrapper = screen.getByTestId("hosted-icon-1");
+        expect(iconWrapper).toHaveAttribute("title", "Was hosted");
+      });
+
+      it("shows 'Was hosted' tooltip for paused hosted session", () => {
+        const pausedSession = createMockSession(1, "Paused Hosted", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "paused",
+        });
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [pausedSession],
+        });
+        render(<SessionBar />);
+
+        // Paused is not active, so it shows "Was hosted"
+        const iconWrapper = screen.getByTestId("hosted-icon-1");
+        expect(iconWrapper).toHaveAttribute("title", "Was hosted");
+      });
+
+      it("shows multiple hosted icons for multiple hosted sessions", () => {
+        const hostedSession1 = createMockSession(1, "Hosted 1", {
+          hosted_session_id: "hosted-1",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        });
+        const hostedSession2 = createMockSession(2, "Hosted 2", {
+          hosted_session_id: "hosted-2",
+          hosted_by_user_id: "user-b",
+          hosted_session_status: "ended",
+        });
+        const plainSession = createMockSession(3, "Plain Session");
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [hostedSession1, hostedSession2, plainSession],
+        });
+        render(<SessionBar />);
+
+        expect(screen.getByTestId("hosted-icon-1")).toBeInTheDocument();
+        expect(screen.getByTestId("hosted-icon-2")).toBeInTheDocument();
+        expect(screen.queryByTestId("hosted-icon-3")).not.toBeInTheDocument();
+      });
+    });
   });
 
   describe("Rename stored session", () => {

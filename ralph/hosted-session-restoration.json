@@ -580,7 +580,8 @@
         "Add unit tests for icon visibility based on hosted fields",
         "Verify icon displays correctly in the modal"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added Radio icon to Stored Sessions modal in SessionBar.tsx (line 404-422). Icon shows green (text-green-400) for status='active', gray (text-gray-400) for all other statuses. Tooltip shows 'Currently hosting' for active, 'Was hosted' for non-active. Used data-testid for stable test selectors. Added 6 unit tests verifying: icon shows when hosted_session_id present, no icon when no hosted_session_id, correct tooltip for active status, correct tooltip for ended status, correct tooltip for paused status, multiple hosted icons for multiple sessions. All 448 tests pass."
     }
   ]
 }
