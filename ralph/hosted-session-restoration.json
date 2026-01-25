@@ -491,6 +491,91 @@
       ],
       "passes": true,
       "notes": "Added migration code to loadSession() that checks for legacy hosted_session_id in settings table and clears it. The old system didn't track user ownership, so migration to new sessions table fields not possible - just clear and let user re-host. Also removed legacy fallback in restoreHostedSession() that used getPersistedSessionId(). 4 unit tests added: clear legacy ID if found, skip clear if no legacy ID, continue loading if migration fails, no migration when no session."
+    },
+    {
+      "id": "REVIEW-001",
+      "category": "Type Safety",
+      "priority": "medium",
+      "description": "Create TypeScript constants for hosted session status values instead of string literals",
+      "steps_to_verify": [
+        "Create HostedSessionStatus type as 'active' | 'paused' | 'ended'",
+        "Create HOSTED_SESSION_STATUS const object with ACTIVE, PAUSED, ENDED keys",
+        "Update Session interface to use HostedSessionStatus type",
+        "Replace all string literals with constants",
+        "Verify TypeScript compilation passes",
+        "Run unit tests to confirm no regressions"
+      ],
+      "passes": false
+    },
+    {
+      "id": "REVIEW-002",
+      "category": "Database Integrity",
+      "priority": "medium",
+      "description": "Add CHECK constraint to migration for hosted_session_status validation",
+      "steps_to_verify": [
+        "Add new migration (Migration 12) with CHECK constraint",
+        "Constraint should allow NULL or values in ('active', 'paused', 'ended')",
+        "Test that invalid status values are rejected by database",
+        "Test that valid status values are accepted",
+        "Verify existing data is not affected"
+      ],
+      "passes": false
+    },
+    {
+      "id": "REVIEW-003",
+      "category": "User Experience",
+      "priority": "low",
+      "description": "Improve error message when hosting is blocked by another user",
+      "steps_to_verify": [
+        "Update error message at line ~592 to be more actionable",
+        "New message should explain: 'Another user is currently hosting this session. They must stop hosting before you can host.'",
+        "Verify error is displayed correctly in UI",
+        "Update any tests that check for the old error message"
+      ],
+      "passes": false
+    },
+    {
+      "id": "REVIEW-004",
+      "category": "Database Safety",
+      "priority": "low",
+      "description": "Wrap session_set_hosted command in database transaction",
+      "steps_to_verify": [
+        "Wrap session_set_hosted logic in transaction",
+        "Ensure rollback on any failure",
+        "Add test for transaction rollback scenario",
+        "Verify command still works correctly"
+      ],
+      "passes": false
+    },
+    {
+      "id": "REVIEW-005",
+      "category": "Performance",
+      "priority": "low",
+      "description": "Move legacy migration cleanup to one-time app startup",
+      "steps_to_verify": [
+        "Create one-time migration function for legacy hosted_session_id cleanup",
+        "Call migration during app initialization (before loadSession)",
+        "Track migration completion in settings/database",
+        "Remove cleanup code from loadSession()",
+        "Verify legacy data is still migrated correctly on first run",
+        "Consider removing after 1-2 releases when users have upgraded"
+      ],
+      "passes": false
+    },
+    {
+      "id": "REVIEW-006",
+      "category": "User Interface",
+      "priority": "medium",
+      "description": "Show hosted session icon in Stored Sessions modal",
+      "steps_to_verify": [
+        "Add Radio icon next to session name in recentSessions.map() (around line 405)",
+        "Only show icon if session has hosted_session_id",
+        "Consider different styling if hosted_session_status is 'active' vs 'ended' (e.g., green vs gray)",
+        "Add tooltip explaining 'This session was hosted' or 'Currently hosting'",
+        "Add unit tests for icon visibility based on hosted fields",
+        "Verify icon displays correctly in the modal"
+      ],
+      "passes": false
     }
   ]
 }
