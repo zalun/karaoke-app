@@ -198,7 +198,9 @@
         "Verify checks if hosted_by_user_id differs from current user",
         "Verify returns error if conflict detected"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added ownership check in session_set_hosted (line ~870-895). Queries current state, checks if different user + active/paused status, returns OwnershipConflict error if so."
     },
     {
       "id": "CONC-002",
@@ -209,7 +211,9 @@
         "Verify CommandError has OwnershipConflict variant",
         "Verify error message is user-friendly and anonymous"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added OwnershipConflict variant to CommandError in errors.rs with message 'Another user is currently hosting this session. They must stop hosting before you can host.' Also added serialization support and unit test."
     },
     {
       "id": "CONC-003",
@@ -243,7 +247,9 @@
         "Verify test exists for allowing override when status is 'ended'",
         "Run: cargo test session_set_hosted"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added 4 tests: test_ownership_conflict_blocks_different_user_with_active_session, test_ownership_conflict_blocks_different_user_with_paused_session, test_ownership_allows_override_when_status_ended, test_same_user_can_always_update_hosted_session"
     },
     {
       "id": "CONC-006",

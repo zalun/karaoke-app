@@ -43,6 +43,10 @@ pub enum CommandError {
     /// External service error
     #[error("{0}")]
     External(String),
+
+    /// Ownership conflict - another user has an active resource
+    #[error("Another user is currently hosting this session. They must stop hosting before you can host.")]
+    OwnershipConflict,
 }
 
 /// Serialize CommandError for Tauri's IPC.
@@ -68,6 +72,7 @@ impl Serialize for CommandError {
             CommandError::PlatformNotSupported(_) => "platform_not_supported",
             CommandError::MutexPoisoned(_) => "mutex_poisoned",
             CommandError::External(_) => "external",
+            CommandError::OwnershipConflict => "ownership_conflict",
         };
 
         state.serialize_field("type", error_type)?;
@@ -140,6 +145,19 @@ mod tests {
     }
 
     #[test]
+    fn test_ownership_conflict_error_serialization() {
+        let error = CommandError::OwnershipConflict;
+        let json = serde_json::to_string(&error).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed["type"], "ownership_conflict");
+        assert!(parsed["message"]
+            .as_str()
+            .unwrap()
+            .contains("Another user is currently hosting"));
+    }
+
+    #[test]
     fn test_all_error_types_serialize() {
         // Ensure all variants serialize without panicking
         let errors: Vec<CommandError> = vec![
@@ -154,6 +172,7 @@ mod tests {
             CommandError::PlatformNotSupported("Feature"),
             CommandError::MutexPoisoned("Resource"),
             CommandError::External("external error".to_string()),
+            CommandError::OwnershipConflict,
         ];
 
         for error in errors {

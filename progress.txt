@@ -500,3 +500,19 @@
 - Migration failure is significant issue, error level appropriate
 - Files changed: src/services/hostedSession.ts, ralph/hosted-session-restoration-review.json
 - 456 unit tests pass, lint passes, typecheck passes
+
+## CONC-001/CONC-002/CONC-005: Backend ownership conflict check
+- Added OwnershipConflict error variant to CommandError enum (CONC-002)
+- Updated session_set_hosted to check ownership before updating (CONC-001)
+  - Queries current hosted_by_user_id and hosted_session_status
+  - If different user AND status is 'active' or 'paused', returns OwnershipConflict error
+  - Allows override when status='ended' or same user
+- Added serialization support (error_type = "ownership_conflict")
+- Added 4 Rust unit tests (CONC-005):
+  - test_ownership_conflict_blocks_different_user_with_active_session
+  - test_ownership_conflict_blocks_different_user_with_paused_session
+  - test_ownership_allows_override_when_status_ended
+  - test_same_user_can_always_update_hosted_session
+- Added test_ownership_conflict_error_serialization in errors.rs
+- Files changed: src-tauri/src/commands/errors.rs, src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json
+- 456 JS tests pass, 143 Rust tests pass (18 errors tests, 10 session_set_hosted tests), lint passes, cargo check passes
