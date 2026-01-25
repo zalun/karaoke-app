@@ -147,6 +147,67 @@ const user = await waitForSignalOrCondition(
 
 ---
 
+## Signal Emission Patterns
+
+`emitSignal()` is inherently fire-and-forget (errors are caught internally). However, there are different patterns for calling it depending on context:
+
+### Pattern 1: Await in Async Functions (Critical Path)
+
+Use `await` when the signal is part of a critical initialization sequence:
+
+```typescript
+// In sessionStore.loadSession()
+await emitSignal(APP_SIGNALS.SESSION_LOADED, undefined);
+// Subsequent code can assume listeners have been notified
+```
+
+**When to use:**
+- Auth initialization (`AUTH_INITIALIZED`, `USER_LOGGED_IN`)
+- Session lifecycle (`SESSION_LOADED`, `SESSION_STARTED`)
+- When signal timing affects correctness
+
+### Pattern 2: Fire-and-Forget (Notifications)
+
+Use without `await` for pure notifications where timing doesn't matter:
+
+```typescript
+// In queueStore.addToQueue()
+emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);  // fire-and-forget
+```
+
+**When to use:**
+- Queue operations (`QUEUE_ITEM_ADDED`, `QUEUE_ORDER_CHANGED`)
+- UI notifications (`NOTIFICATION_SHOWING`)
+- Analytics/logging signals
+
+### Pattern 3: Void Prefix (Explicit Discard)
+
+Use `void` to explicitly discard the promise (satisfies ESLint):
+
+```typescript
+// In settingsStore
+void emitSignal(APP_SIGNALS.YTDLP_AVAILABLE, undefined);
+```
+
+**When to use:**
+- When ESLint warns about floating promises
+- When you want to be explicit about fire-and-forget intent
+
+### Pattern 4: Catch in Callbacks (Non-Async Context)
+
+Use `.catch()` in non-async callbacks:
+
+```typescript
+// In VideoPlayer onEnded callback
+emitSignal(APP_SIGNALS.SONG_ENDED, undefined).catch(() => {});
+```
+
+**When to use:**
+- Event handlers that aren't async
+- React component callbacks
+
+---
+
 ## Available Signals
 
 ### Authentication Signals
