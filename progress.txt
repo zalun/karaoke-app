@@ -429,3 +429,22 @@
 - Removed redundant status check in restoreHostedSession() that TypeScript identified as unreachable after type narrowing
 - Files changed: src/services/session.ts, src/services/index.ts, src/stores/sessionStore.ts, src/components/session/SessionBar.tsx, src/stores/sessionStore.test.ts, src/components/session/SessionBar.test.tsx, ralph/hosted-session-restoration.json
 - 441 unit tests pass, lint passes, typecheck passes
+
+## REVIEW-002: Add CHECK constraint for hosted_session_status validation
+- Added Migration 12 to src-tauri/src/db/schema.rs
+- SQLite doesn't support ALTER TABLE ADD CONSTRAINT, so implemented using triggers
+- Created BEFORE INSERT trigger check_hosted_session_status_insert
+- Created BEFORE UPDATE trigger check_hosted_session_status_update
+- Both triggers validate hosted_session_status: allow NULL or ('active', 'paused', 'ended'), reject all else
+- Trigger raises ABORT with clear error message for invalid values
+- Added 8 unit tests in schema.rs:
+  - test_schema_version_is_12_after_all_migrations
+  - test_migration_12_rejects_invalid_hosted_session_status (insert)
+  - test_migration_12_accepts_valid_hosted_session_status_active
+  - test_migration_12_accepts_valid_hosted_session_status_paused
+  - test_migration_12_accepts_valid_hosted_session_status_ended
+  - test_migration_12_accepts_null_hosted_session_status
+  - test_migration_12_rejects_invalid_status_on_update
+  - test_migration_12_allows_valid_status_update
+- Files changed: src-tauri/src/db/schema.rs, ralph/hosted-session-restoration.json
+- 441 JS tests pass, 138 Rust tests pass (10 schema tests), lint passes, cargo check passes

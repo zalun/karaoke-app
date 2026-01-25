@@ -520,7 +520,8 @@
         "Test that valid status values are accepted",
         "Verify existing data is not affected"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added Migration 12 with BEFORE INSERT and BEFORE UPDATE triggers on sessions table to validate hosted_session_status. SQLite doesn't support ALTER TABLE ADD CONSTRAINT, so triggers are used instead. Triggers allow NULL or ('active', 'paused', 'ended'), rejecting all other values. Added 8 unit tests verifying: schema version is 12, rejects invalid status on insert, accepts 'active', 'paused', 'ended', accepts NULL, rejects invalid on update, allows valid status updates."
     },
     {
       "id": "REVIEW-003",
