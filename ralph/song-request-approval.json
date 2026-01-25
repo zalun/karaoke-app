@@ -23,7 +23,7 @@
         "src/types/index.ts exports SongRequest and GroupedRequests types",
         "Types can be imported from 'src/types' in other files"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-003",
@@ -34,7 +34,7 @@
         "onClick property is typed as () => void",
         "Existing url property remains optional for external links"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-004",
@@ -46,7 +46,7 @@
         "When action has url, clicking the button opens the URL (existing behavior)",
         "onClick and url behaviors work independently"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-005",

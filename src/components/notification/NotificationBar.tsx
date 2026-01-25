@@ -103,10 +103,16 @@ export function NotificationBar() {
             </p>
             {current.action && (
               <button
-                onClick={() => handleActionClick(current.action!.url)}
+                onClick={() => {
+                  if (current.action?.onClick) {
+                    current.action.onClick();
+                  } else if (current.action?.url) {
+                    handleActionClick(current.action.url);
+                  }
+                }}
                 className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-white/20 hover:bg-white/30 text-white rounded transition-colors flex-shrink-0"
               >
-                <ExternalLink className="w-3 h-3" />
+                {current.action.url && <ExternalLink className="w-3 h-3" />}
                 {current.action.label}
               </button>
             )}
@@ -145,10 +151,16 @@ export function NotificationBar() {
             </div>
             {lastNotification.action && (
               <button
-                onClick={() => handleActionClick(lastNotification.action!.url)}
+                onClick={() => {
+                  if (lastNotification.action?.onClick) {
+                    lastNotification.action.onClick();
+                  } else if (lastNotification.action?.url) {
+                    handleActionClick(lastNotification.action.url);
+                  }
+                }}
                 className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-white/20 hover:bg-white/30 text-white rounded transition-colors flex-shrink-0"
               >
-                <ExternalLink className="w-3 h-3" />
+                {lastNotification.action.url && <ExternalLink className="w-3 h-3" />}
                 {lastNotification.action.label}
               </button>
             )}
