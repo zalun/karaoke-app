@@ -329,6 +329,52 @@ export const hostedSessionService = {
   },
 
   /**
+   * Approve a song request.
+   * The approved song will be added to the queue.
+   */
+  async approveRequest(
+    accessToken: string,
+    sessionId: string,
+    requestId: string
+  ): Promise<void> {
+    if (!accessToken || accessToken.trim() === "") {
+      throw new Error("Access token is required");
+    }
+    if (!sessionId || sessionId.trim() === "") {
+      throw new Error("Session ID is required");
+    }
+    if (!requestId || requestId.trim() === "") {
+      throw new Error("Request ID is required");
+    }
+
+    log.debug(`Approving request ${requestId} for session ${sessionId}`);
+
+    let response: Response;
+    try {
+      response = await fetch(`${HOMEKARAOKE_API_URL}/api/session/${sessionId}/requests`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "approve", requestId }),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error(`Network error approving request: ${message}`);
+      throw new Error(`Network error: ${message}`);
+    }
+
+    if (!response.ok) {
+      const error = await response.text();
+      log.error(`Failed to approve request (${response.status}): ${error}`);
+      throw new ApiError(response.status, `Failed to approve request: ${error}`);
+    }
+
+    log.debug(`Request ${requestId} approved`);
+  },
+
+  /**
    * End a hosted session.
    * Guests will no longer be able to join or submit songs.
    */

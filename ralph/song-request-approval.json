@@ -70,7 +70,7 @@
         "Function signature: approveRequest(accessToken: string, sessionId: string, requestId: string): Promise<void>",
         "Function calls PATCH /api/session/{id}/requests with body { action: 'approve', requestId }"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-007",
