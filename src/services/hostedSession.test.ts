@@ -18,11 +18,44 @@ vi.mock("./logger", () => ({
 
 // Import after mocking
 import {
+  ApiError,
   persistSessionId,
   getPersistedSessionId,
   clearPersistedSessionId,
   runLegacyHostedSessionMigration,
 } from "./hostedSession";
+
+describe("ApiError", () => {
+  it("should capture statusCode correctly", () => {
+    const error = new ApiError(404, "Not found");
+    expect(error.statusCode).toBe(404);
+  });
+
+  it("should capture message correctly", () => {
+    const error = new ApiError(401, "Unauthorized");
+    expect(error.message).toBe("Unauthorized");
+  });
+
+  it("should set name property to ApiError", () => {
+    const error = new ApiError(500, "Server error");
+    expect(error.name).toBe("ApiError");
+  });
+
+  it("should work with instanceof check", () => {
+    const error = new ApiError(403, "Forbidden");
+    expect(error instanceof ApiError).toBe(true);
+    expect(error instanceof Error).toBe(true);
+  });
+
+  it("should capture various status codes correctly", () => {
+    const codes = [200, 201, 400, 401, 403, 404, 500, 502, 503];
+    for (const code of codes) {
+      const error = new ApiError(code, `Status ${code}`);
+      expect(error.statusCode).toBe(code);
+      expect(error.message).toBe(`Status ${code}`);
+    }
+  });
+});
 
 describe("hostedSession persistence functions", () => {
   beforeEach(() => {

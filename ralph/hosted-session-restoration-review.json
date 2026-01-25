@@ -104,7 +104,7 @@
         "Verify tests check message is captured correctly",
         "Run: npm test -- hostedSession.test.ts"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ERR-009",
