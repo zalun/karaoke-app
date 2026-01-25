@@ -652,3 +652,12 @@
 - Files changed: src-tauri/src/db/schema.rs, ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, lint passes, cargo check passes
 
+## DOC-006: Expand backward compat comment with version info
+- Updated comment at sessionStore.ts line 646-649 (persistSessionId call in hostSession)
+- Old: "Persist the session ID for app restart recovery (legacy, keep for backward compat)"
+- New: Explains v0.7.7 or earlier uses settings table, v0.8.0+ uses sessions table as primary
+- Added note: "Can be removed after 2-3 releases when all users have upgraded past v0.8.0"
+- Documentation change only, no tests needed
+- Files changed: src/stores/sessionStore.ts, ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, lint passes
+

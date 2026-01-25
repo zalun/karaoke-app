@@ -643,7 +643,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         hosted_session_status: HOSTED_SESSION_STATUS.ACTIVE,
       };
 
-      // Persist the session ID for app restart recovery (legacy, keep for backward compat)
+      // LEGACY: Persist session ID to settings table for users upgrading from v0.7.7 or earlier.
+      // The sessions table is now the primary storage (v0.8.0+). This duplication ensures users
+      // who downgrade or have incomplete migrations can still recover their hosted session.
+      // Can be removed after 2-3 releases when all users have upgraded past v0.8.0.
       await persistSessionId(hostedSession.id);
 
       // Clear any existing polling interval
