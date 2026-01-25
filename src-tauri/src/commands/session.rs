@@ -888,14 +888,13 @@ pub fn session_set_hosted(
         session_id, hosted_session_id, hosted_by_user_id, status
     );
 
-    // Validate status
-    let valid_statuses = ["active", "paused", "ended"];
-    if !valid_statuses.contains(&status.as_str()) {
-        return Err(CommandError::Validation(format!(
-            "Invalid hosted session status: '{}'. Must be one of: {:?}",
-            status, valid_statuses
-        )));
-    }
+    // Parse status string into HostedSessionStatus enum (TYPE-003)
+    let status_enum = HostedSessionStatus::from_str(&status).ok_or_else(|| {
+        CommandError::Validation(format!(
+            "Invalid hosted session status: '{}'. Must be one of: active, paused, ended",
+            status
+        ))
+    })?;
 
     let db = state.db.lock().map_lock_err()?;
 
@@ -931,7 +930,7 @@ pub fn session_set_hosted(
              OR hosted_session_status = 'ended'
              OR hosted_session_status IS NULL
          )",
-        rusqlite::params![hosted_session_id, hosted_by_user_id, status, session_id],
+        rusqlite::params![hosted_session_id, hosted_by_user_id, status_enum.as_str(), session_id],
     )?;
 
     // If no rows affected, it means ownership conflict (session exists but conditions not met)

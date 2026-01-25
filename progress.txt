@@ -567,3 +567,12 @@
 - Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, 78 Rust session tests pass, just check passes
 
+## TYPE-003: Update session_set_hosted to parse status String into HostedSessionStatus enum
+- Updated session_set_hosted function in src-tauri/src/commands/session.rs
+- Changed from manual valid_statuses array check to HostedSessionStatus::from_str()
+- Returns CommandError::Validation with helpful message if status is invalid
+- Uses status_enum.as_str() for DB storage in rusqlite::params!
+- All 14 session_set_hosted Rust tests pass
+- Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, 157 Rust tests pass, lint passes
+
