@@ -3646,4 +3646,131 @@ describe("sessionStore - Song Request Actions", () => {
       expect(pendingRequests).toHaveLength(0);
     });
   });
+
+  describe("approveAllRequests", () => {
+    it("should approve all pending requests when no guestName filter", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveAllRequests).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 0, approvedRequests: 2, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveAllRequests();
+
+      // Verify approveAllRequests was called with all request IDs
+      expect(hostedSessionService.approveAllRequests).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        ["request-1", "request-2"]
+      );
+
+      // Verify all requests were removed from pendingRequests
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(0);
+
+      // Verify refreshHostedSession was called
+      expect(hostedSessionService.getSession).toHaveBeenCalled();
+    });
+
+    it("should only approve requests from specified guest when guestName provided", async () => {
+      // Add another request from Alice to have multiple requests from same guest
+      const aliceRequest2 = {
+        id: "request-3",
+        title: "We Are The Champions",
+        status: "pending" as const,
+        guest_name: "Alice",
+        requested_at: "2025-01-01T12:10:00Z",
+        youtube_id: "04854XqcfCY",
+        artist: "Queen",
+        duration: 180,
+        thumbnail_url: "https://i.ytimg.com/vi/04854XqcfCY/default.jpg",
+      };
+      useSessionStore.setState({
+        pendingRequests: [...mockPendingRequests, aliceRequest2],
+      });
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveAllRequests).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 2, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveAllRequests("Alice");
+
+      // Verify approveAllRequests was called with only Alice's request IDs
+      expect(hostedSessionService.approveAllRequests).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        ["request-1", "request-3"]
+      );
+
+      // Verify only Alice's requests were removed; Bob's remains
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-2");
+      expect(pendingRequests[0].guest_name).toBe("Bob");
+    });
+
+    it("should do nothing when no requests match the guestName filter", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().approveAllRequests("Charlie");
+
+      // Verify approveAllRequests was NOT called
+      expect(hostedSessionService.approveAllRequests).not.toHaveBeenCalled();
+
+      // Verify pendingRequests was not modified
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+    });
+
+    it("should do nothing when there are no pending requests", async () => {
+      useSessionStore.setState({ pendingRequests: [] });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().approveAllRequests();
+
+      // Verify approveAllRequests was NOT called
+      expect(hostedSessionService.approveAllRequests).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when no hosted session", async () => {
+      useSessionStore.setState({ hostedSession: null });
+
+      await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow(
+        "No hosted session"
+      );
+
+      expect(hostedSessionService.approveAllRequests).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when not authenticated", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow(
+        "Not authenticated"
+      );
+
+      expect(hostedSessionService.approveAllRequests).not.toHaveBeenCalled();
+    });
+
+    it("should notify and re-throw on API error", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveAllRequests).mockRejectedValue(
+        new Error("Network error")
+      );
+
+      await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow(
+        "Network error"
+      );
+
+      expect(notify).toHaveBeenCalledWith("error", "Failed to approve requests");
+
+      // Verify pendingRequests was not modified on error
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+    });
+  });
 });

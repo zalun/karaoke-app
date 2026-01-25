@@ -101,6 +101,7 @@ interface SessionState {
   loadPendingRequests: () => Promise<void>;
   approveRequest: (requestId: string) => Promise<void>;
   rejectRequest: (requestId: string) => Promise<void>;
+  approveAllRequests: (guestName?: string) => Promise<void>;
 
   // Singer actions
   loadSingers: () => Promise<void>;
@@ -1137,6 +1138,57 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to reject request: ${message}`);
       notify("error", "Failed to reject request");
+      throw error;
+    }
+  },
+
+  approveAllRequests: async (guestName?: string) => {
+    const { hostedSession, pendingRequests } = get();
+    if (!hostedSession) {
+      log.error("Cannot approve all requests: no hosted session");
+      throw new Error("No hosted session");
+    }
+
+    // Filter requests by guest name if provided
+    const requestsToApprove = guestName
+      ? pendingRequests.filter((r) => r.guest_name === guestName)
+      : pendingRequests;
+
+    if (requestsToApprove.length === 0) {
+      log.debug("No requests to approve");
+      return;
+    }
+
+    const requestIds = requestsToApprove.map((r) => r.id);
+    log.debug(`Approving ${requestIds.length} requests${guestName ? ` from ${guestName}` : ""}`);
+
+    try {
+      const tokens = await authService.getTokens();
+      if (!tokens) {
+        log.error("Cannot approve all requests: not authenticated");
+        throw new Error("Not authenticated");
+      }
+
+      await hostedSessionService.approveAllRequests(
+        tokens.access_token,
+        hostedSession.id,
+        requestIds
+      );
+
+      // Remove approved requests from pending requests
+      const approvedIds = new Set(requestIds);
+      set({
+        pendingRequests: pendingRequests.filter((r) => !approvedIds.has(r.id)),
+      });
+
+      // Refresh hosted session to update stats
+      await get().refreshHostedSession();
+
+      log.debug(`${requestIds.length} requests approved`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to approve all requests: ${message}`);
+      notify("error", "Failed to approve requests");
       throw error;
     }
   },
