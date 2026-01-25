@@ -6,6 +6,7 @@ import {
   persistSessionId,
   clearPersistedSessionId,
   HOSTED_SESSION_STATUS,
+  ApiError,
   type Singer,
   type Session,
   type HostedSession,
@@ -739,12 +740,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to refresh hosted session: ${message}`);
       // If session is ended, invalid, or auth failed, clear it
+      // Use ApiError instanceof check for reliable status code detection
       const shouldClear =
-        message.includes("404") ||
-        message.includes("NOT_FOUND") ||
-        message.includes("401") ||
-        message.includes("403") ||
-        message.includes("UNAUTHORIZED");
+        error instanceof ApiError && [401, 403, 404].includes(error.statusCode);
       if (shouldClear) {
         log.warn("Hosted session no longer valid, clearing");
         // Clear persisted session ID to prevent restore attempts on next startup
@@ -880,12 +878,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       log.warn(`Failed to restore hosted session: ${message}`);
 
       // Clear persisted ID on auth errors or session not found
+      // Use ApiError instanceof check for reliable status code detection
       const shouldClear =
-        message.includes("404") ||
-        message.includes("NOT_FOUND") ||
-        message.includes("401") ||
-        message.includes("403") ||
-        message.includes("UNAUTHORIZED");
+        error instanceof ApiError && [401, 403, 404].includes(error.statusCode);
 
       if (shouldClear) {
         log.debug("Clearing invalid persisted session ID");
@@ -893,7 +888,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
         // RESTORE-009: Update hosted_session_status to 'ended' on 401/403 errors
         // This prevents retry attempts for sessions that are no longer accessible
-        if (message.includes("401") || message.includes("403") || message.includes("UNAUTHORIZED")) {
+        const isAuthError =
+          error instanceof ApiError && [401, 403].includes(error.statusCode);
+        if (isAuthError) {
           log.debug("Updating hosted session status to 'ended' due to auth error");
           await sessionService.updateHostedSessionStatus(session.id, HOSTED_SESSION_STATUS.ENDED);
           set({ session: { ...session, hosted_session_status: HOSTED_SESSION_STATUS.ENDED } });

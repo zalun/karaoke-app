@@ -1,51 +1,58 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useSessionStore } from "./sessionStore";
 import type { Singer, Session } from "../services";
+import { ApiError } from "../services";
 
-// Mock the services
-vi.mock("../services", () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-  sessionService: {
-    getActiveSession: vi.fn(),
-    startSession: vi.fn(),
-    endSession: vi.fn(),
-    renameSession: vi.fn(),
-    loadSession: vi.fn(),
-    getRecentSessions: vi.fn(),
-    deleteSession: vi.fn(),
-    getSessionSingers: vi.fn(),
-    createSinger: vi.fn(),
-    deleteSinger: vi.fn(),
-    removeSingerFromSession: vi.fn(),
-    addSingerToSession: vi.fn(),
-    assignSingerToQueueItem: vi.fn(),
-    removeSingerFromQueueItem: vi.fn(),
-    clearQueueItemSingers: vi.fn(),
-    getQueueItemSingers: vi.fn(),
-    setActiveSinger: vi.fn(),
-    getActiveSinger: vi.fn(),
-    setHostedSession: vi.fn(),
-    updateHostedSessionStatus: vi.fn(),
-  },
-  hostedSessionService: {
-    getSession: vi.fn(),
-    createHostedSession: vi.fn(),
-    endHostedSession: vi.fn(),
-  },
-  getPersistedSessionId: vi.fn(),
-  clearPersistedSessionId: vi.fn(),
-  persistSessionId: vi.fn(),
-  HOSTED_SESSION_STATUS: {
-    ACTIVE: "active",
-    PAUSED: "paused",
-    ENDED: "ended",
-  },
-}));
+// Mock the services - use importOriginal to preserve the real ApiError class
+vi.mock("../services", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services")>();
+
+  return {
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+    sessionService: {
+      getActiveSession: vi.fn(),
+      startSession: vi.fn(),
+      endSession: vi.fn(),
+      renameSession: vi.fn(),
+      loadSession: vi.fn(),
+      getRecentSessions: vi.fn(),
+      deleteSession: vi.fn(),
+      getSessionSingers: vi.fn(),
+      createSinger: vi.fn(),
+      deleteSinger: vi.fn(),
+      removeSingerFromSession: vi.fn(),
+      addSingerToSession: vi.fn(),
+      assignSingerToQueueItem: vi.fn(),
+      removeSingerFromQueueItem: vi.fn(),
+      clearQueueItemSingers: vi.fn(),
+      getQueueItemSingers: vi.fn(),
+      setActiveSinger: vi.fn(),
+      getActiveSinger: vi.fn(),
+      setHostedSession: vi.fn(),
+      updateHostedSessionStatus: vi.fn(),
+    },
+    hostedSessionService: {
+      getSession: vi.fn(),
+      createHostedSession: vi.fn(),
+      endHostedSession: vi.fn(),
+    },
+    getPersistedSessionId: vi.fn(),
+    clearPersistedSessionId: vi.fn(),
+    persistSessionId: vi.fn(),
+    HOSTED_SESSION_STATUS: {
+      ACTIVE: "active",
+      PAUSED: "paused",
+      ENDED: "ended",
+    },
+    // Use the real ApiError class so instanceof checks work
+    ApiError: actual.ApiError,
+  };
+});
 
 // Mock auth service
 vi.mock("../services/auth", () => ({
@@ -1730,7 +1737,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("Failed to get session: 404 NOT_FOUND"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -1742,7 +1749,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("Failed to get session: 404 NOT_FOUND"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -1754,7 +1761,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("401 UNAUTHORIZED"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(401, "UNAUTHORIZED"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -1766,7 +1773,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("401 UNAUTHORIZED"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(401, "UNAUTHORIZED"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -1778,7 +1785,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("403 Forbidden"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(403, "Forbidden"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -1790,7 +1797,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("403 Forbidden"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(403, "Forbidden"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -1854,7 +1861,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("401 UNAUTHORIZED"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(401, "UNAUTHORIZED"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -1866,7 +1873,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("401 UNAUTHORIZED"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(401, "UNAUTHORIZED"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -1882,7 +1889,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("403 Forbidden"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(403, "Forbidden"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -1894,7 +1901,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("403 Forbidden"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(403, "Forbidden"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -1912,7 +1919,7 @@ describe("sessionStore - Hosted Session Restoration", () => {
       useSessionStore.setState({ session: mockSessionWithHostedFields, hostedSession: null });
       vi.mocked(getPersistedSessionId).mockResolvedValue("session-123");
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("404 NOT_FOUND"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND"));
 
       await useSessionStore.getState().restoreHostedSession();
 
@@ -2565,7 +2572,7 @@ describe("sessionStore - Host Session", () => {
         _isRefreshingHostedSession: false,
       } as Parameters<typeof useSessionStore.setState>[0]);
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("404 NOT_FOUND"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND"));
 
       await useSessionStore.getState().refreshHostedSession();
 
@@ -2579,7 +2586,7 @@ describe("sessionStore - Host Session", () => {
         _isRefreshingHostedSession: false,
       } as Parameters<typeof useSessionStore.setState>[0]);
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("401 UNAUTHORIZED"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(401, "UNAUTHORIZED"));
 
       await useSessionStore.getState().refreshHostedSession();
 
@@ -2593,7 +2600,7 @@ describe("sessionStore - Host Session", () => {
         _isRefreshingHostedSession: false,
       } as Parameters<typeof useSessionStore.setState>[0]);
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("403 Forbidden"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(403, "Forbidden"));
 
       await useSessionStore.getState().refreshHostedSession();
 
@@ -2607,7 +2614,7 @@ describe("sessionStore - Host Session", () => {
         _isRefreshingHostedSession: false,
       } as Parameters<typeof useSessionStore.setState>[0]);
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("404 NOT_FOUND"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND"));
 
       await useSessionStore.getState().refreshHostedSession();
 
@@ -2622,7 +2629,7 @@ describe("sessionStore - Host Session", () => {
         _isRefreshingHostedSession: false,
       } as Parameters<typeof useSessionStore.setState>[0]);
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("404 NOT_FOUND"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND"));
 
       const clearIntervalSpy = vi.spyOn(global, "clearInterval");
 
@@ -2638,7 +2645,7 @@ describe("sessionStore - Host Session", () => {
         _isRefreshingHostedSession: false,
       } as Parameters<typeof useSessionStore.setState>[0]);
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("404 NOT_FOUND"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND"));
 
       await useSessionStore.getState().refreshHostedSession();
 
@@ -2666,7 +2673,7 @@ describe("sessionStore - Host Session", () => {
         _isRefreshingHostedSession: false,
       } as Parameters<typeof useSessionStore.setState>[0]);
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new Error("404 NOT_FOUND"));
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND"));
 
       await useSessionStore.getState().refreshHostedSession();
 

@@ -81,7 +81,7 @@
         "Verify no message.includes('404') or similar string checks",
         "Verify uses error instanceof ApiError && [401, 403, 404].includes(error.statusCode)"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ERR-007",
@@ -92,7 +92,7 @@
         "Verify no message.includes('404') or similar string checks",
         "Verify uses error instanceof ApiError && [401, 403, 404].includes(error.statusCode)"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ERR-008",
@@ -116,7 +116,7 @@
         "Verify tests for restoreHostedSession use ApiError mocks",
         "Run: npm test -- sessionStore.test.ts"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ERR-010",
