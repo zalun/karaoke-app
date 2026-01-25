@@ -568,6 +568,19 @@ describe("sessionStore - Session Lifecycle", () => {
 
       expect(mockResetState).toHaveBeenCalled();
     });
+
+    it("should emit SESSION_ENDED signal after session ends", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      useSessionStore.setState({ session: mockSession });
+      vi.mocked(sessionService.endSession).mockResolvedValue();
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+
+      await useSessionStore.getState().endSession();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SESSION_ENDED, undefined);
+    });
   });
 
   describe("switchToSession", () => {

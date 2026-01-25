@@ -13,3 +13,15 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass. Lint clean.
+
+## SIG-102: SESSION_ENDED signal (DONE)
+- Emit SESSION_ENDED at end of endSession() after state cleared and queue reset
+- Signal emitted in success path only (errors throw)
+- Added unit test following SESSION_STARTED test pattern
+
+Files changed:
+- src/stores/sessionStore.ts (line 198)
+- src/stores/sessionStore.test.ts (new test)
+- ralph/app-signals.json
+
+All tests pass. Lint clean.

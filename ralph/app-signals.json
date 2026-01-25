@@ -30,7 +30,7 @@
         "npm test -- sessionStore passes",
         "Add console.log listener for 'app:session-ended' and end a session"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-103",

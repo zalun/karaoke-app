@@ -193,6 +193,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Reset queue store (data already archived in DB)
       useQueueStore.getState().resetState();
       log.info("Session ended");
+      // Emit signal for other stores/components that depend on session end
+      await emitSignal(APP_SIGNALS.SESSION_ENDED, undefined);
     } catch (error) {
       log.error("Failed to end session:", error);
       set({ isLoading: false });
