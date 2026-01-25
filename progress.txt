@@ -706,3 +706,12 @@
 - Payload is User object for downstream consumers
 - Files changed: src/stores/authStore.ts, ralph/app-signals-hosted-session.json, progress.txt
 - 459 JS tests pass, lint passes, typecheck passes
+
+## SIG-004: Emit USER_LOGGED_OUT signal from authStore.signOut()
+- Added emitSignal(APP_SIGNALS.USER_LOGGED_OUT, undefined) in success path (line 186)
+- Added same emission in error/catch path (line 198) - emits in both branches per acceptance criteria
+- Signal emitted after set({ user: null, isAuthenticated: false }) in both paths
+- Payload is undefined per SignalPayloads interface
+- Updated authStore.test.ts mock to include APP_SIGNALS and emitSignal (tests were failing without it)
+- Files changed: src/stores/authStore.ts, src/stores/authStore.test.ts, ralph/app-signals-hosted-session.json, progress.txt
+- 459 JS tests pass, lint passes, typecheck passes

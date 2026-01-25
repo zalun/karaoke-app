@@ -77,7 +77,8 @@
         "In browser devtools, listen for 'app:user-logged-out' Tauri event",
         "Verify signal fires when clicking Sign Out button"
       ],
-      "passes": false
+      "passes": true,
+      "completed_notes": "Added emitSignal(APP_SIGNALS.USER_LOGGED_OUT, undefined) after set() in both success path (line 186) and error/catch path (line 198). Updated authStore.test.ts mock to include APP_SIGNALS and emitSignal. All 459 tests pass."
     },
     {
       "id": "SIG-005",

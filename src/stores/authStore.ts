@@ -181,6 +181,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
       });
 
+      // Emit signal for cross-store coordination
+      await emitSignal(APP_SIGNALS.USER_LOGGED_OUT, undefined);
+
       log.info("Sign out complete");
     } catch (error) {
       log.error(`Sign out error: ${error}`);
@@ -191,6 +194,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: false,
         isLoading: false,
       });
+
+      // Emit signal for cross-store coordination (even on error path)
+      await emitSignal(APP_SIGNALS.USER_LOGGED_OUT, undefined);
     }
   },
 
