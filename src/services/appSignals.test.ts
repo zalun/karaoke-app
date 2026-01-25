@@ -62,6 +62,8 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.QUEUE_OPERATION_FAILED).toBe("app:queue-operation-failed");
     expect(APP_SIGNALS.HOSTING_ERROR).toBe("app:hosting-error");
     expect(APP_SIGNALS.MIGRATION_COMPLETE).toBe("app:migration-complete");
+    expect(APP_SIGNALS.YTDLP_AVAILABLE).toBe("app:ytdlp-available");
+    expect(APP_SIGNALS.YTDLP_UNAVAILABLE).toBe("app:ytdlp-unavailable");
   });
 });
 
@@ -142,6 +144,24 @@ describe("emitSignal", () => {
 
     expect(mockEmit).toHaveBeenCalledTimes(1);
     expect(mockEmit).toHaveBeenCalledWith("app:migration-complete", undefined);
+  });
+
+  it("should emit YTDLP_AVAILABLE with undefined payload", async () => {
+    mockEmit.mockResolvedValue(undefined);
+
+    await emitSignal(APP_SIGNALS.YTDLP_AVAILABLE, undefined);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith("app:ytdlp-available", undefined);
+  });
+
+  it("should emit YTDLP_UNAVAILABLE with undefined payload", async () => {
+    mockEmit.mockResolvedValue(undefined);
+
+    await emitSignal(APP_SIGNALS.YTDLP_UNAVAILABLE, undefined);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith("app:ytdlp-unavailable", undefined);
   });
 });
 

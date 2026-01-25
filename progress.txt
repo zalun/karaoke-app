@@ -402,3 +402,22 @@ Files changed:
 - ralph/app-signals.json (marked SIG-503 passes: true)
 
 All tests pass (530). Lint clean. TypeScript clean.
+
+---
+
+## SIG-601: Add YTDLP_AVAILABLE/UNAVAILABLE signals
+
+**Completed**: Added yt-dlp availability signals to app signal system.
+
+**Changes**:
+- src/services/appSignals.ts: Added YTDLP_AVAILABLE and YTDLP_UNAVAILABLE to APP_SIGNALS constant, added undefined payload types to SignalPayloads interface
+- src/stores/settingsStore.ts: Import emitSignal/APP_SIGNALS, emit YTDLP_AVAILABLE on success or YTDLP_UNAVAILABLE on failure/error in checkYtDlpAvailability()
+- src/services/appSignals.test.ts: Added tests for new signal names and emission tests
+- ralph/app-signals.json: Marked SIG-601 passes: true
+
+**Key decisions**:
+- Signal emitted in 3 places: cached result from DB, fresh check success, fresh check error
+- Used void emitSignal() pattern (fire-and-forget) consistent with other signal emissions
+- No payload needed (boolean availability is stored in state already)
+
+All tests pass (532). Lint clean. TypeScript clean.

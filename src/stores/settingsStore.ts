@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "../services/logger";
 import { youtubeService } from "../services";
+import { APP_SIGNALS, emitSignal } from "../services/appSignals";
 
 const log = createLogger("SettingsStore");
 
@@ -214,6 +215,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         const available = cached === "true";
         log.info(`Using cached yt-dlp availability: ${available}`);
         set({ ytDlpAvailable: available, ytDlpChecked: true });
+        // Emit the appropriate signal for cached result
+        void emitSignal(
+          available ? APP_SIGNALS.YTDLP_AVAILABLE : APP_SIGNALS.YTDLP_UNAVAILABLE,
+          undefined
+        );
         return available;
       }
     }
@@ -231,10 +237,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         await get().setSetting(SETTINGS_KEYS.YTDLP_AVAILABLE, available ? "true" : "false");
 
         set({ ytDlpAvailable: available, ytDlpChecked: true, ytDlpChecking: false });
+        // Emit the appropriate signal
+        void emitSignal(
+          available ? APP_SIGNALS.YTDLP_AVAILABLE : APP_SIGNALS.YTDLP_UNAVAILABLE,
+          undefined
+        );
         return available;
       } catch (err) {
         log.warn("Failed to check yt-dlp availability", err);
         set({ ytDlpAvailable: false, ytDlpChecked: true, ytDlpChecking: false });
+        // Emit unavailable signal on error
+        void emitSignal(APP_SIGNALS.YTDLP_UNAVAILABLE, undefined);
         return false;
       } finally {
         ytDlpCheckPromise = null;

@@ -73,6 +73,10 @@ export const APP_SIGNALS = {
   HOSTING_ERROR: "app:hosting-error",
   /** Emitted after legacy hosted session migration completes (success or failure) */
   MIGRATION_COMPLETE: "app:migration-complete",
+  /** Emitted when yt-dlp is confirmed available on the system */
+  YTDLP_AVAILABLE: "app:ytdlp-available",
+  /** Emitted when yt-dlp is confirmed unavailable on the system */
+  YTDLP_UNAVAILABLE: "app:ytdlp-unavailable",
 } as const;
 
 /** Type for signal names */
@@ -121,6 +125,10 @@ export interface SignalPayloads {
   [APP_SIGNALS.HOSTING_ERROR]: HostingErrorPayload;
   /** No payload - signals that legacy migration has been attempted (success or failure) */
   [APP_SIGNALS.MIGRATION_COMPLETE]: undefined;
+  /** No payload - signals that yt-dlp is available on the system */
+  [APP_SIGNALS.YTDLP_AVAILABLE]: undefined;
+  /** No payload - signals that yt-dlp is unavailable on the system */
+  [APP_SIGNALS.YTDLP_UNAVAILABLE]: undefined;
 }
 
 /** Video metadata payload for VIDEO_METADATA_CHANGED signal */
