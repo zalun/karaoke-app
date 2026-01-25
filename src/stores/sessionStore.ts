@@ -340,6 +340,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const singers = await sessionService.getSessionSingers(session.id);
       set({ singers });
       log.debug(`Loaded ${singers.length} singers for session ${session.id}`);
+      // Emit signal after singers are loaded
+      await emitSignal(APP_SIGNALS.SINGERS_LOADED, undefined);
     } catch (error) {
       log.error("Failed to load singers:", error);
       set({ singers: [] });

@@ -57,6 +57,8 @@ vi.mock("../services", async (importOriginal) => {
       USER_LOGGED_OUT: "app:user-logged-out",
       SESSION_STARTED: "app:session-started",
       SESSION_ENDED: "app:session-ended",
+      SESSION_LOADED: "app:session-loaded",
+      SINGERS_LOADED: "app:singers-loaded",
       HOSTING_STARTED: "app:hosting-started",
       HOSTING_STOPPED: "app:hosting-stopped",
     },
@@ -418,6 +420,41 @@ describe("sessionStore - Singer CRUD", () => {
         "warning",
         "Could not load singers. They may appear after a refresh."
       );
+    });
+
+    it("should emit SINGERS_LOADED signal after singers are loaded", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      useSessionStore.setState({ session: mockSession, singers: [] });
+      vi.mocked(sessionService.getSessionSingers).mockResolvedValue([mockSinger1, mockSinger2]);
+
+      await useSessionStore.getState().loadSingers();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SINGERS_LOADED, undefined);
+    });
+
+    it("should NOT emit SINGERS_LOADED signal when no active session", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      useSessionStore.setState({ session: null, singers: [] });
+
+      await useSessionStore.getState().loadSingers();
+
+      expect(emitSignal).not.toHaveBeenCalledWith(APP_SIGNALS.SINGERS_LOADED, undefined);
+    });
+
+    it("should NOT emit SINGERS_LOADED signal when loading fails", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      useSessionStore.setState({ session: mockSession, singers: [] });
+      vi.mocked(sessionService.getSessionSingers).mockRejectedValue(new Error("Database error"));
+
+      await useSessionStore.getState().loadSingers();
+
+      expect(emitSignal).not.toHaveBeenCalledWith(APP_SIGNALS.SINGERS_LOADED, undefined);
     });
   });
 });

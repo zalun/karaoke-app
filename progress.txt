@@ -130,3 +130,21 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (497). Lint clean. TypeScript clean.
+
+## SIG-202: SINGERS_LOADED signal (DONE)
+- Added SINGERS_LOADED to APP_SIGNALS constant in appSignals.ts
+- Added payload type to SignalPayloads interface (undefined)
+- Emit SINGERS_LOADED in sessionStore.loadSingers() after singers are loaded
+- Added SESSION_LOADED and SINGERS_LOADED to test mock APP_SIGNALS
+- Added 3 unit tests in sessionStore.test.ts:
+  - Verifies signal emits after loadSingers with active session
+  - Verifies signal NOT emitted when no active session
+  - Verifies signal NOT emitted when loading fails
+
+Files changed:
+- src/services/appSignals.ts (signal def + payload type)
+- src/stores/sessionStore.ts (emit call line 343)
+- src/stores/sessionStore.test.ts (mock update + 3 new tests)
+- ralph/app-signals.json
+
+All tests pass (500). Lint clean. TypeScript clean.
