@@ -678,3 +678,16 @@
 - Files changed: CHANGELOG.md, ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, lint passes, cargo check passes
 
+## SIG-001: Create src/services/appSignals.ts with signal system utilities
+- Created new file src/services/appSignals.ts
+- APP_SIGNALS constant with 11 signal names (USER_LOGGED_IN, USER_LOGGED_OUT, SONG_*, QUEUE_*, SESSION_*, HOSTING_*)
+- emitSignal<T>() fire-and-forget with try/catch error handling
+- listenForSignal<T>() returns UnlistenFn for cleanup
+- waitForSignal<T>() with configurable timeout (default 5000ms), rejects on timeout
+- waitForSignalOrCondition<T>() checks condition first, then waits for signal
+- SignalPayloads interface maps signal names to payload types (User for login, undefined for others)
+- All functions typed with generics constrained to APP_SIGNALS keys (AppSignalName type)
+- Follows PLAYER_EVENTS pattern from windowManager.ts
+- Files changed: src/services/appSignals.ts, ralph/app-signals-hosted-session.json, progress.txt
+- 459 JS tests pass, lint passes, just check passes
+
