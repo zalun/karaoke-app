@@ -91,3 +91,24 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (490). Lint clean. TypeScript clean.
+
+## SIG-108: SONG_STOPPED signal (DONE)
+- Created stopVideo() function in playerStore.ts that:
+  - Checks if video is currently playing (currentVideo && isPlaying)
+  - Sets isPlaying to false
+  - Emits SONG_STOPPED signal
+- Call stopVideo() at start of playVideo() to stop current video when switching to a new one
+- Exported stopVideo from stores/index.ts
+- Added 4 unit tests in playerStore.signals.test.ts:
+  - Manual stop emits signal
+  - No signal when no video playing
+  - No signal when already paused
+  - Signal emitted when switching videos (SONG_STOPPED then SONG_STARTED)
+
+Files changed:
+- src/stores/playerStore.ts (new stopVideo function, call in playVideo)
+- src/stores/index.ts (export stopVideo)
+- src/stores/playerStore.signals.test.ts (4 new tests)
+- ralph/app-signals.json
+
+All tests pass (494). Lint clean. TypeScript clean.

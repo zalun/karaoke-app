@@ -121,7 +121,7 @@
         "npm test -- playerStore passes",
         "Stop a playing video manually and verify signal fires"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-109",

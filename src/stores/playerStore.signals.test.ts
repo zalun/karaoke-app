@@ -25,7 +25,7 @@ vi.mock("@tauri-apps/plugin-os", () => ({
 }));
 
 // Import after mocking
-import { usePlayerStore, playVideo, type Video } from "./playerStore";
+import { usePlayerStore, playVideo, stopVideo, type Video } from "./playerStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 import { emitSignal, APP_SIGNALS } from "../services";
 
@@ -102,6 +102,69 @@ describe("playerStore signal emissions", () => {
       await playVideo(videoWithoutId);
 
       expect(emitSignal).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("SONG_STOPPED signal", () => {
+    it("should emit SONG_STOPPED signal when video is manually stopped", async () => {
+      // First, set up a playing video
+      usePlayerStore.setState({
+        currentVideo: mockVideo,
+        isPlaying: true,
+      });
+
+      await stopVideo();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SONG_STOPPED, undefined);
+      expect(usePlayerStore.getState().isPlaying).toBe(false);
+    });
+
+    it("should not emit SONG_STOPPED signal when no video is playing", async () => {
+      // No video loaded
+      usePlayerStore.setState({
+        currentVideo: null,
+        isPlaying: false,
+      });
+
+      await stopVideo();
+
+      expect(emitSignal).not.toHaveBeenCalled();
+    });
+
+    it("should not emit SONG_STOPPED signal when video is already paused", async () => {
+      // Video loaded but not playing
+      usePlayerStore.setState({
+        currentVideo: mockVideo,
+        isPlaying: false,
+      });
+
+      await stopVideo();
+
+      expect(emitSignal).not.toHaveBeenCalled();
+    });
+
+    it("should emit SONG_STOPPED signal when switching to a new video", async () => {
+      // Set up initial playing video
+      usePlayerStore.setState({
+        currentVideo: mockVideo,
+        isPlaying: true,
+      });
+
+      // Play a new video (should stop the current one first)
+      const newVideo: Video = {
+        id: "video-2",
+        title: "New Song",
+        artist: "New Artist",
+        source: "youtube",
+        youtubeId: "xyz789",
+      };
+
+      await playVideo(newVideo);
+
+      // Should emit SONG_STOPPED (for old video) and then SONG_STARTED (for new video)
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SONG_STOPPED, undefined);
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SONG_STARTED, undefined);
+      expect(emitSignal).toHaveBeenCalledTimes(2);
     });
   });
 });

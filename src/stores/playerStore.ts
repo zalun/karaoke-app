@@ -253,6 +253,26 @@ export function invalidatePrefetchIfStale(expectedVideoId: string | undefined): 
 }
 
 /**
+ * Stop the currently playing video and emit SONG_STOPPED signal.
+ * This should be called when the user manually stops playback (e.g., skip, clear).
+ * Does nothing if no video is currently playing.
+ *
+ * @returns Promise that resolves when the signal is emitted
+ */
+export async function stopVideo(): Promise<void> {
+  const { currentVideo, isPlaying, setIsPlaying } = usePlayerStore.getState();
+
+  if (!currentVideo || !isPlaying) {
+    log.debug("stopVideo: no video playing, skipping signal");
+    return;
+  }
+
+  log.info(`stopVideo: stopping "${currentVideo.title}"`);
+  setIsPlaying(false);
+  await emitSignal(APP_SIGNALS.SONG_STOPPED, undefined);
+}
+
+/**
  * Play a video by fetching its stream URL (for yt-dlp mode) or directly (for YouTube mode).
  * Shared helper for playback logic used by both PlayerControls and useMediaControls.
  *
@@ -267,6 +287,9 @@ export async function playVideo(video: Video): Promise<void> {
     log.warn("playVideo: video has no youtubeId, cannot play");
     return;
   }
+
+  // Stop any currently playing video first (emits SONG_STOPPED if applicable)
+  await stopVideo();
 
   const { setIsLoading, setCurrentVideo, setIsPlaying } =
     usePlayerStore.getState();
