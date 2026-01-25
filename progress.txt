@@ -481,3 +481,22 @@ All tests pass (539). Lint clean. TypeScript clean.
 - handleReattach modified to capture reattachPlayer() return value and only emit signal on success
 
 All tests pass (543). Lint clean. TypeScript clean.
+
+---
+
+## SIG-801: Add ACTIVE_SINGER_CHANGED signal
+
+**Completed**: Added active singer changed signal for queue auto-assignment coordination.
+
+**Changes**:
+- src/services/appSignals.ts: Added ACTIVE_SINGER_CHANGED to APP_SIGNALS, added payload type (number | null) to SignalPayloads
+- src/stores/sessionStore.ts: Emit ACTIVE_SINGER_CHANGED after set({ activeSingerId }) in setActiveSinger()
+- src/stores/sessionStore.activeSinger.test.ts: Added ACTIVE_SINGER_CHANGED to mock, imported emitSignal/APP_SIGNALS, added 3 signal emission tests
+
+**Key decisions**:
+- Payload is singer ID (number) or null when clearing active singer
+- Signal emitted after state update (set call) completes
+- Queue add operations can listen to auto-assign singer
+- Signal NOT emitted if backend call fails (error thrown before emission)
+
+All tests pass (546). Lint clean. TypeScript clean.

@@ -533,6 +533,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       await sessionService.setActiveSinger(session.id, singerId);
       set({ activeSingerId: singerId });
+      await emitSignal(APP_SIGNALS.ACTIVE_SINGER_CHANGED, singerId);
     } catch (error) {
       log.error("Failed to set active singer:", error);
       throw error;

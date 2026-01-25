@@ -87,6 +87,8 @@ export const APP_SIGNALS = {
   PLAYER_DETACHED: "app:player-detached",
   /** Emitted after player window is reattached successfully */
   PLAYER_REATTACHED: "app:player-reattached",
+  /** Emitted when the active singer changes in sessionStore.setActiveSinger() */
+  ACTIVE_SINGER_CHANGED: "app:active-singer-changed",
 } as const;
 
 /** Type for signal names */
@@ -149,6 +151,8 @@ export interface SignalPayloads {
   [APP_SIGNALS.PLAYER_DETACHED]: undefined;
   /** No payload - signals that player window was reattached */
   [APP_SIGNALS.PLAYER_REATTACHED]: undefined;
+  /** Payload is the singer ID (number) or null when active singer is cleared */
+  [APP_SIGNALS.ACTIVE_SINGER_CHANGED]: number | null;
 }
 
 /** Video metadata payload for VIDEO_METADATA_CHANGED signal */
