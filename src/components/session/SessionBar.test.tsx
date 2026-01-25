@@ -821,7 +821,7 @@ describe("SessionBar", () => {
       });
       render(<SessionBar />);
 
-      const hostButton = screen.getByTitle("Another user is hosting this session");
+      const hostButton = screen.getByTitle("Another user is currently hosting this session. They must stop hosting before you can host.");
       expect(hostButton).toBeDisabled();
     });
 
@@ -837,7 +837,7 @@ describe("SessionBar", () => {
       });
       render(<SessionBar />);
 
-      const hostButton = screen.getByTitle("Another user is hosting this session");
+      const hostButton = screen.getByTitle("Another user is currently hosting this session. They must stop hosting before you can host.");
       expect(hostButton).toBeDisabled();
     });
 
@@ -899,7 +899,7 @@ describe("SessionBar", () => {
       });
       render(<SessionBar />);
 
-      const hostButton = screen.getByTitle("Another user is hosting this session");
+      const hostButton = screen.getByTitle("Another user is currently hosting this session. They must stop hosting before you can host.");
       await userEvent.click(hostButton);
 
       expect(mockSessionStore.hostSession).not.toHaveBeenCalled();

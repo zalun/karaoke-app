@@ -448,3 +448,11 @@
   - test_migration_12_allows_valid_status_update
 - Files changed: src-tauri/src/db/schema.rs, ralph/hosted-session-restoration.json
 - 441 JS tests pass, 138 Rust tests pass (10 schema tests), lint passes, cargo check passes
+
+## REVIEW-003: Improve error message when hosting is blocked by another user
+- Updated error message in sessionStore.ts line 593 from "Another user is hosting this session" to "Another user is currently hosting this session. They must stop hosting before you can host."
+- Updated tooltip in SessionBar.tsx line 584 with same improved message
+- Updated 2 tests in sessionStore.test.ts (HOST-003, HOST-004) to expect new message
+- Updated 3 tests in SessionBar.test.tsx (disabled button tests) to use new tooltip text
+- Files changed: src/stores/sessionStore.ts, src/components/session/SessionBar.tsx, src/stores/sessionStore.test.ts, src/components/session/SessionBar.test.tsx, ralph/hosted-session-restoration.json
+- 441 unit tests pass, lint passes, typecheck passes

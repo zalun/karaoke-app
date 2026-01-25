@@ -581,7 +581,7 @@ export function SessionBar() {
               } disabled:opacity-50 disabled:cursor-not-allowed`}
               title={
                 isHostingBlockedByOtherUser
-                  ? "Another user is hosting this session"
+                  ? "Another user is currently hosting this session. They must stop hosting before you can host."
                   : hostedSession
                     ? "View hosted session details"
                     : "Host session for guests"

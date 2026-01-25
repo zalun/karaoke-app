@@ -590,7 +590,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         session.hosted_session_status !== HOSTED_SESSION_STATUS.ENDED
       ) {
         log.error("Cannot host session: another user is hosting");
-        throw new Error("Another user is hosting this session");
+        throw new Error(
+          "Another user is currently hosting this session. They must stop hosting before you can host."
+        );
       }
 
       const hostedSession = await hostedSessionService.createHostedSession(

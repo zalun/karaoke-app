@@ -2134,7 +2134,7 @@ describe("sessionStore - Host Session", () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
 
       await expect(useSessionStore.getState().hostSession()).rejects.toThrow(
-        "Another user is hosting this session"
+        "Another user is currently hosting this session. They must stop hosting before you can host."
       );
       expect(hostedSessionService.createHostedSession).not.toHaveBeenCalled();
       // Verify original fields are preserved
@@ -2153,7 +2153,7 @@ describe("sessionStore - Host Session", () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
 
       await expect(useSessionStore.getState().hostSession()).rejects.toThrow(
-        "Another user is hosting this session"
+        "Another user is currently hosting this session. They must stop hosting before you can host."
       );
       expect(hostedSessionService.createHostedSession).not.toHaveBeenCalled();
     });
