@@ -740,3 +740,12 @@
 - Used sync advanceTimersByTime to catch rejections in same tick (avoids unhandled rejection warnings)
 - Files changed: src/services/appSignals.test.ts, ralph/app-signals-hosted-session.json, progress.txt
 - 476 JS tests pass, lint passes, typecheck passes
+
+## SIG-007: Add authDelay option to E2E Tauri mocks
+- Added authDelay?: number field to TauriMockConfig interface
+- Modified auth_get_tokens case handler to delay response when authDelay > 0
+- Uses async await with setTimeout Promise for delay
+- Logs delay info: "[Tauri Mock] auth_get_tokens: found (delayed 2000ms)"
+- Default behavior unchanged (no delay when authDelay not set)
+- Files changed: tests/e2e/fixtures/tauri-mocks.ts, ralph/app-signals-hosted-session.json
+- All 476 tests pass, typecheck passes, lint passes

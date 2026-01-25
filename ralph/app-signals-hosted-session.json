@@ -141,7 +141,8 @@
         "Setting authDelay: 2000 causes 2 second delay before tokens returned",
         "Existing E2E tests still pass without authDelay set"
       ],
-      "passes": false
+      "passes": true,
+      "completed_notes": "Added authDelay?: number field to TauriMockConfig interface. Modified auth_get_tokens case to await delay when authDelay > 0. All 476 unit tests pass. Default behavior unchanged (no delay when authDelay not set)."
     },
     {
       "id": "SIG-008",

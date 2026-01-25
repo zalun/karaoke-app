@@ -106,6 +106,8 @@ export interface TauriMockConfig {
   } | null;
   /** Whether session_set_hosted should return ownership conflict error */
   shouldFailWithOwnershipConflict?: boolean;
+  /** Delay in ms before auth_get_tokens returns (simulates slow keychain/network) */
+  authDelay?: number;
 }
 
 /**
@@ -595,9 +597,14 @@ export async function injectTauriMocks(
             console.log(`[Tauri Mock] auth_store_tokens: tokens stored`, authTokens);
             return null;
 
-          case "auth_get_tokens":
-            console.log(`[Tauri Mock] auth_get_tokens: ${authTokens ? "found" : "not found"}`);
+          case "auth_get_tokens": {
+            console.log(`[Tauri Mock] auth_get_tokens: ${authTokens ? "found" : "not found"}${config.authDelay ? ` (delayed ${config.authDelay}ms)` : ""}`);
+            // Support authDelay option to simulate slow keychain/network access
+            if (config.authDelay && config.authDelay > 0) {
+              await new Promise((resolve) => setTimeout(resolve, config.authDelay));
+            }
             return authTokens;
+          }
 
           case "auth_clear_tokens":
             authTokens = null;
