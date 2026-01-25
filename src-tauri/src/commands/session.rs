@@ -921,9 +921,12 @@ pub fn session_set_hosted(
     // - Another user could claim ownership between a SELECT and separate UPDATE
     // - Status could change between reading current state and writing new state
     // By using a conditional UPDATE, the database guarantees atomicity. The update only succeeds if:
-    // - No existing hosted_by_user_id (NULL) - session not currently hosted
+    // - No existing hosted_by_user_id (NULL) - session never hosted before
     // - Same user is updating (hosted_by_user_id matches)
     // - Previous status is 'ended' (session was released, can be taken over)
+    // Note: We intentionally don't allow override when hosted_session_status IS NULL but
+    // hosted_by_user_id is set to a different user - that would be a data integrity issue
+    // that should be investigated, not silently overwritten.
     let affected_rows = db.connection().execute(
         "UPDATE sessions
          SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
@@ -932,7 +935,6 @@ pub fn session_set_hosted(
              hosted_by_user_id IS NULL
              OR hosted_by_user_id = ?2
              OR hosted_session_status = 'ended'
-             OR hosted_session_status IS NULL
          )",
         rusqlite::params![hosted_session_id, hosted_by_user_id, status_enum.as_str(), session_id],
     )?;
@@ -2520,7 +2522,6 @@ mod tests {
                      hosted_by_user_id IS NULL
                      OR hosted_by_user_id = ?2
                      OR hosted_session_status = 'ended'
-                     OR hosted_session_status IS NULL
                  )",
                 rusqlite::params!["new-hs", "user-B", "active", session_id],
             )
@@ -2565,7 +2566,6 @@ mod tests {
                      hosted_by_user_id IS NULL
                      OR hosted_by_user_id = ?2
                      OR hosted_session_status = 'ended'
-                     OR hosted_session_status IS NULL
                  )",
                 rusqlite::params!["new-hs", "user-A", "paused", session_id],
             )
@@ -2609,7 +2609,6 @@ mod tests {
                      hosted_by_user_id IS NULL
                      OR hosted_by_user_id = ?2
                      OR hosted_session_status = 'ended'
-                     OR hosted_session_status IS NULL
                  )",
                 rusqlite::params!["new-hs", "user-B", "active", session_id],
             )
@@ -2654,7 +2653,6 @@ mod tests {
                      hosted_by_user_id IS NULL
                      OR hosted_by_user_id = ?2
                      OR hosted_session_status = 'ended'
-                     OR hosted_session_status IS NULL
                  )",
                 rusqlite::params!["new-hs", "user-A", "active", session_id],
             )
