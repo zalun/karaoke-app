@@ -172,7 +172,9 @@
         "Check src/stores/sessionStore.ts line ~532-535",
         "Verify comment explains why no notification is shown"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added comment at line ~542 explaining active singer is non-critical UI state, errors are logged, no notification needed"
     },
     {
       "id": "ERR-015",

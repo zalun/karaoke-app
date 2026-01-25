@@ -540,6 +540,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       set({ activeSingerId: singer?.id ?? null });
       log.debug(`Active singer loaded: ${singer?.id ?? "none"}`);
     } catch (error) {
+      // Silent failure: active singer is non-critical UI state. If loading fails,
+      // we default to null (no singer selected). The user can still select a singer
+      // manually, and the error is logged for debugging. No notification needed.
       log.error("Failed to load active singer:", error);
       set({ activeSingerId: null });
     }
