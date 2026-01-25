@@ -491,7 +491,9 @@
         "Check src-tauri/src/db/schema.rs line ~293-298",
         "Verify comment explains triggers catch invalid values early"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added explanation of why validation matters: (1) catch typos/bugs early at INSERT/UPDATE, (2) data integrity against API changes/manual edits/code bypassing enum, (3) defense in depth as DB is last line of defense."
     },
     {
       "id": "DOC-006",

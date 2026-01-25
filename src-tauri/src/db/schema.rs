@@ -297,7 +297,14 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE sessions ADD COLUMN hosted_session_status TEXT;
     "#,
     // Migration 12: Add CHECK constraint for hosted_session_status (Issue #207 follow-up)
-    // SQLite doesn't support ALTER TABLE ADD CONSTRAINT, so we use triggers for validation
+    // SQLite doesn't support ALTER TABLE ADD CONSTRAINT, so we use triggers for validation.
+    //
+    // Why validation matters:
+    // 1. Catch typos/bugs early: Invalid status values fail at INSERT/UPDATE rather than
+    //    causing subtle bugs when the app later checks status === 'active'.
+    // 2. Data integrity: Prevents corrupted state from API changes, manual DB edits, or
+    //    future code paths that might not use the Rust HostedSessionStatus enum.
+    // 3. Defense in depth: Complements Rust enum validation - DB is last line of defense.
     r#"
     -- Trigger to validate hosted_session_status on INSERT
     CREATE TRIGGER IF NOT EXISTS check_hosted_session_status_insert

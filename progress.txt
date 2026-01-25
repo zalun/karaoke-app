@@ -642,3 +642,13 @@
 - Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, 14 Rust session_set_hosted tests pass, just check passes
 
+## DOC-005: Expand Migration 12 comment to explain why validation matters
+- Updated comment at schema.rs lines 299-306 (Migration 12)
+- Added 3 reasons why DB-level validation matters:
+  1. Catch typos/bugs early at INSERT/UPDATE vs subtle runtime bugs
+  2. Data integrity against API changes, manual DB edits, code bypassing Rust enum
+  3. Defense in depth - DB is last line of defense
+- Documentation change only, no tests needed
+- Files changed: src-tauri/src/db/schema.rs, ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, lint passes, cargo check passes
+
