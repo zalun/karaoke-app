@@ -290,6 +290,40 @@ const MIGRATIONS: &[&str] = &[
     -- Index for global queries (filter by search_type only)
     CREATE INDEX IF NOT EXISTS idx_search_history_search_type ON search_history(search_type);
     "#,
+    // Migration 11: Hosted session ownership tracking (Issue #207)
+    r#"
+    ALTER TABLE sessions ADD COLUMN hosted_session_id TEXT;
+    ALTER TABLE sessions ADD COLUMN hosted_by_user_id TEXT;
+    ALTER TABLE sessions ADD COLUMN hosted_session_status TEXT;
+    "#,
+    // Migration 12: Add CHECK constraint for hosted_session_status (Issue #207 follow-up)
+    // SQLite doesn't support ALTER TABLE ADD CONSTRAINT, so we use triggers for validation.
+    //
+    // Why validation matters:
+    // 1. Catch typos/bugs early: Invalid status values fail at INSERT/UPDATE rather than
+    //    causing subtle bugs when the app later checks status === 'active'.
+    // 2. Data integrity: Prevents corrupted state from API changes, manual DB edits, or
+    //    future code paths that might not use the Rust HostedSessionStatus enum.
+    // 3. Defense in depth: Complements Rust enum validation - DB is last line of defense.
+    r#"
+    -- Trigger to validate hosted_session_status on INSERT
+    CREATE TRIGGER IF NOT EXISTS check_hosted_session_status_insert
+    BEFORE INSERT ON sessions
+    WHEN NEW.hosted_session_status IS NOT NULL
+        AND NEW.hosted_session_status NOT IN ('active', 'paused', 'ended')
+    BEGIN
+        SELECT RAISE(ABORT, 'Invalid hosted_session_status. Must be NULL, active, paused, or ended.');
+    END;
+
+    -- Trigger to validate hosted_session_status on UPDATE
+    CREATE TRIGGER IF NOT EXISTS check_hosted_session_status_update
+    BEFORE UPDATE OF hosted_session_status ON sessions
+    WHEN NEW.hosted_session_status IS NOT NULL
+        AND NEW.hosted_session_status NOT IN ('active', 'paused', 'ended')
+    BEGIN
+        SELECT RAISE(ABORT, 'Invalid hosted_session_status. Must be NULL, active, paused, or ended.');
+    END;
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
@@ -322,4 +356,206 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_migration_11_adds_hosted_session_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Verify we can query the new columns
+        conn.execute(
+            "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-test', 'user-test', 'active')",
+            [],
+        )
+        .unwrap();
+
+        let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE name = 'Test'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+
+        assert_eq!(hosted_id, Some("hs-test".to_string()));
+        assert_eq!(user_id, Some("user-test".to_string()));
+        assert_eq!(status, Some("active".to_string()));
+    }
+
+    #[test]
+    fn test_migration_11_columns_nullable() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Insert session without hosted fields
+        conn.execute("INSERT INTO sessions (name, is_active) VALUES ('NoHost', 1)", [])
+            .unwrap();
+
+        let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE name = 'NoHost'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+
+        assert_eq!(hosted_id, None);
+        assert_eq!(user_id, None);
+        assert_eq!(status, None);
+    }
+
+    #[test]
+    fn test_schema_version_is_12_after_all_migrations() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let version: i32 = conn
+            .query_row(
+                "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(version, 12);
+    }
+
+    #[test]
+    fn test_migration_12_rejects_invalid_hosted_session_status() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Attempt to insert with invalid status should fail
+        let result = conn.execute(
+            "INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, 'invalid')",
+            [],
+        );
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Invalid hosted_session_status"));
+    }
+
+    #[test]
+    fn test_migration_12_accepts_valid_hosted_session_status_active() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, 'active')",
+            [],
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_migration_12_accepts_valid_hosted_session_status_paused() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, 'paused')",
+            [],
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_migration_12_accepts_valid_hosted_session_status_ended() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, 'ended')",
+            [],
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_migration_12_accepts_null_hosted_session_status() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, NULL)",
+            [],
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_migration_12_rejects_invalid_status_on_update() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // First insert a valid session
+        conn.execute(
+            "INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, 'active')",
+            [],
+        )
+        .unwrap();
+
+        // Attempt to update with invalid status should fail
+        let result = conn.execute(
+            "UPDATE sessions SET hosted_session_status = 'invalid_status' WHERE name = 'Test'",
+            [],
+        );
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Invalid hosted_session_status"));
+    }
+
+    #[test]
+    fn test_migration_12_allows_valid_status_update() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // First insert a valid session
+        conn.execute(
+            "INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, 'active')",
+            [],
+        )
+        .unwrap();
+
+        // Update to valid statuses should succeed
+        conn.execute(
+            "UPDATE sessions SET hosted_session_status = 'paused' WHERE name = 'Test'",
+            [],
+        )
+        .unwrap();
+
+        conn.execute(
+            "UPDATE sessions SET hosted_session_status = 'ended' WHERE name = 'Test'",
+            [],
+        )
+        .unwrap();
+
+        conn.execute(
+            "UPDATE sessions SET hosted_session_status = NULL WHERE name = 'Test'",
+            [],
+        )
+        .unwrap();
+
+        // Verify final value
+        let status: Option<String> = conn
+            .query_row(
+                "SELECT hosted_session_status FROM sessions WHERE name = 'Test'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(status, None);
+    }
 }

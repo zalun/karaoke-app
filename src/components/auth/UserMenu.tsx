@@ -5,6 +5,7 @@ import { useAuthStore } from "../../stores";
 export function UserMenu() {
   const { user, signOut, isLoading } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -35,6 +36,11 @@ export function UserMenu() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [isOpen]);
 
+  // Reset avatar error state when user changes (e.g., different account)
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatarUrl]);
+
   if (!user) return null;
 
   const handleSignOut = async () => {
@@ -63,11 +69,12 @@ export function UserMenu() {
         title={user.displayName}
       >
         {/* Avatar */}
-        {user.avatarUrl ? (
+        {user.avatarUrl && !avatarError ? (
           <img
             src={user.avatarUrl}
             alt={user.displayName}
             className="w-8 h-8 rounded-full object-cover"
+            onError={() => setAvatarError(true)}
           />
         ) : (
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-medium text-white">

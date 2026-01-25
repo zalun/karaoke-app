@@ -1,0 +1,538 @@
+{
+  "metadata": {
+    "pr_number": 208,
+    "branch": "feature/207-hosted-session-ownership",
+    "issue_number": 207,
+    "created_at": "2026-01-25",
+    "review_sources": [
+      "pr-review-toolkit agents (code-reviewer, pr-test-analyzer, silent-failure-hunter, type-design-analyzer, comment-analyzer)",
+      "GitHub PR comments from previous Claude reviews"
+    ]
+  },
+  "summary": {
+    "total_items": 42,
+    "categories": {
+      "error-handling": 15,
+      "concurrency": 6,
+      "type-safety": 10,
+      "testing": 3,
+      "documentation": 8
+    }
+  },
+  "items": [
+    {
+      "id": "ERR-001",
+      "category": "error-handling",
+      "description": "Create ApiError class in hostedSession.ts with statusCode property",
+      "steps_to_verify": [
+        "Check src/services/hostedSession.ts contains ApiError class",
+        "Verify class extends Error",
+        "Verify class has statusCode: number property",
+        "Verify class has constructor(statusCode: number, message: string)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-002",
+      "category": "error-handling",
+      "description": "Update createHostedSession to throw ApiError with response.status",
+      "steps_to_verify": [
+        "Check src/services/hostedSession.ts line ~143-146",
+        "Verify throws new ApiError(response.status, ...) instead of new Error(...)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-003",
+      "category": "error-handling",
+      "description": "Update getSession to throw ApiError with response.status",
+      "steps_to_verify": [
+        "Check src/services/hostedSession.ts line ~198-201",
+        "Verify throws new ApiError(response.status, ...) instead of new Error(...)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-004",
+      "category": "error-handling",
+      "description": "Update endHostedSession to throw ApiError with response.status",
+      "steps_to_verify": [
+        "Check src/services/hostedSession.ts line ~252-255",
+        "Verify throws new ApiError(response.status, ...) instead of new Error(...)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-005",
+      "category": "error-handling",
+      "description": "Export ApiError from services/index.ts",
+      "steps_to_verify": [
+        "Check src/services/index.ts exports ApiError",
+        "Verify can import { ApiError } from './services'"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-006",
+      "category": "error-handling",
+      "description": "Update refreshHostedSession to use ApiError instanceof check instead of string matching",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.ts line ~738-760",
+        "Verify no message.includes('404') or similar string checks",
+        "Verify uses error instanceof ApiError && [401, 403, 404].includes(error.statusCode)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-007",
+      "category": "error-handling",
+      "description": "Update restoreHostedSession to use ApiError instanceof check instead of string matching",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.ts line ~878-901",
+        "Verify no message.includes('404') or similar string checks",
+        "Verify uses error instanceof ApiError && [401, 403, 404].includes(error.statusCode)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-008",
+      "category": "error-handling",
+      "description": "Add unit tests for ApiError class",
+      "steps_to_verify": [
+        "Check src/services/hostedSession.test.ts has ApiError tests",
+        "Verify tests check statusCode is captured correctly",
+        "Verify tests check message is captured correctly",
+        "Run: npm test -- hostedSession.test.ts"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-009",
+      "category": "error-handling",
+      "description": "Update sessionStore error handling tests to use ApiError",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.test.ts",
+        "Verify tests for refreshHostedSession use ApiError mocks",
+        "Verify tests for restoreHostedSession use ApiError mocks",
+        "Run: npm test -- sessionStore.test.ts"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-010",
+      "category": "error-handling",
+      "description": "Add notify call in loadSession catch block for user feedback",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.ts line ~145-147",
+        "Verify notify('error', ...) is called in catch block",
+        "Verify error message is user-friendly"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-011",
+      "category": "error-handling",
+      "description": "Add test for loadSession error notification",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.test.ts",
+        "Verify test exists that mocks getActiveSession to throw",
+        "Verify test checks notify was called with 'error'",
+        "Run: npm test -- sessionStore.test.ts"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-012",
+      "category": "error-handling",
+      "description": "Add notify and explicit state reset in loadSingers catch block",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.ts line ~331-333",
+        "Verify set({ singers: [] }) is called in catch block",
+        "Verify notify('warning', ...) is called in catch block"
+      ],
+      "passes": true
+    },
+    {
+      "id": "ERR-013",
+      "category": "error-handling",
+      "description": "Clear queueSingerAssignments entry on loadQueueItemSingers error",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.ts line ~454-456",
+        "Verify queueSingerAssignments.delete(queueItemId) is called in catch block"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added delete call in catch block at line ~465 and unit test 'should clear stale entry on error'"
+    },
+    {
+      "id": "ERR-014",
+      "category": "error-handling",
+      "description": "Add comment explaining loadActiveSinger silent failure rationale",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.ts line ~532-535",
+        "Verify comment explains why no notification is shown"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added comment at line ~542 explaining active singer is non-critical UI state, errors are logged, no notification needed"
+    },
+    {
+      "id": "ERR-015",
+      "category": "error-handling",
+      "description": "Change log.warn to log.error for legacy migration failure",
+      "steps_to_verify": [
+        "Check src/services/hostedSession.ts line ~52",
+        "Verify uses log.error instead of log.warn for MIGRATE-002 failure"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Changed log.warn to log.error at line 69 in runLegacyHostedSessionMigration catch block"
+    },
+    {
+      "id": "CONC-001",
+      "category": "concurrency",
+      "description": "Add ownership conflict check to session_set_hosted Rust command",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs session_set_hosted function",
+        "Verify checks if hosted_session_status is 'active' or 'paused' before setting",
+        "Verify checks if hosted_by_user_id differs from current user",
+        "Verify returns error if conflict detected"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added ownership check in session_set_hosted (line ~870-895). Queries current state, checks if different user + active/paused status, returns OwnershipConflict error if so."
+    },
+    {
+      "id": "CONC-002",
+      "category": "concurrency",
+      "description": "Create OwnershipConflict error variant in CommandError",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs or error module",
+        "Verify CommandError has OwnershipConflict variant",
+        "Verify error message is user-friendly and anonymous"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added OwnershipConflict variant to CommandError in errors.rs with message 'Another user is currently hosting this session. They must stop hosting before you can host.' Also added serialization support and unit test."
+    },
+    {
+      "id": "CONC-003",
+      "category": "concurrency",
+      "description": "Use conditional UPDATE with WHERE clause in session_set_hosted",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs session_set_hosted",
+        "Verify UPDATE uses WHERE clause checking status and user_id",
+        "Verify checks affected_rows to detect conflict"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Replaced SELECT+check+UPDATE pattern with conditional UPDATE that checks (hosted_by_user_id IS NULL OR hosted_by_user_id = ?2 OR hosted_session_status = 'ended' OR hosted_session_status IS NULL). Checks affected_rows == 0 to detect ownership conflict. Added 4 unit tests for the conditional UPDATE logic."
+    },
+    {
+      "id": "CONC-004",
+      "category": "concurrency",
+      "description": "Update hostSession in sessionStore to handle backend conflict error",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.ts hostSession function",
+        "Verify catches ownership conflict error from setHostedSession",
+        "Verify shows HostedByOtherUserDialog on conflict"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added inner try/catch around setHostedSession call (line ~601). Detects ownership_conflict via error.type. On conflict: logs warning, cleans up orphaned API session, shows HostedByOtherUserDialog. Added 3 unit tests: CONC-004 dialog + cleanup, cleanup failure resilience, non-ownership error re-throw."
+    },
+    {
+      "id": "CONC-005",
+      "category": "concurrency",
+      "description": "Add Rust unit tests for ownership conflict in session_set_hosted",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs tests module",
+        "Verify test exists for conflict when different user has active session",
+        "Verify test exists for allowing override when status is 'ended'",
+        "Run: cargo test session_set_hosted"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added 4 tests: test_ownership_conflict_blocks_different_user_with_active_session, test_ownership_conflict_blocks_different_user_with_paused_session, test_ownership_allows_override_when_status_ended, test_same_user_can_always_update_hosted_session"
+    },
+    {
+      "id": "CONC-006",
+      "category": "concurrency",
+      "description": "Update E2E mocks to support ownership conflict scenario",
+      "steps_to_verify": [
+        "Check tests/e2e/fixtures/tauri-mocks.ts",
+        "Verify session_set_hosted mock can return ownership conflict error",
+        "Verify mock config has option to simulate conflict"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added shouldFailWithOwnershipConflict config option to TauriMockConfig. Updated session_set_hosted mock case to throw { type: 'ownership_conflict', message: '...' } error matching CommandError::OwnershipConflict serialization when config is set."
+    },
+    {
+      "id": "TYPE-001",
+      "category": "type-safety",
+      "description": "Create HostedSessionStatus enum in Rust with serde serialization",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs",
+        "Verify enum HostedSessionStatus exists with Active, Paused, Ended variants",
+        "Verify has #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]",
+        "Verify has #[serde(rename_all = \"lowercase\")]"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added HostedSessionStatus enum with Active/Paused/Ended variants. Includes serde lowercase serialization, from_str/as_str helpers for DB conversion, and 10 unit tests for serialization, deserialization, roundtrip, equality, clone, and debug."
+    },
+    {
+      "id": "TYPE-002",
+      "category": "type-safety",
+      "description": "Update Session struct to use HostedSessionStatus enum",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs Session struct",
+        "Verify hosted_session_status is Option<HostedSessionStatus> not Option<String>"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Changed Session struct field from Option<String> to Option<HostedSessionStatus>. Updated all 5 query mappings to convert DB string to enum using row.get::<_, Option<String>>()?.and_then(|s| HostedSessionStatus::from_str(&s)). All 78 Rust tests and 459 JS tests pass."
+    },
+    {
+      "id": "TYPE-003",
+      "category": "type-safety",
+      "description": "Update session_set_hosted to accept HostedSessionStatus or parse String",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs session_set_hosted",
+        "Verify status parameter is typed or parsed correctly"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Updated session_set_hosted to parse status String into HostedSessionStatus enum using from_str(). Uses as_str() for DB storage. Removed manual valid_statuses array validation. All 14 session_set_hosted tests pass."
+    },
+    {
+      "id": "TYPE-004",
+      "category": "type-safety",
+      "description": "Update session_update_hosted_status to accept HostedSessionStatus or parse String",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs session_update_hosted_status",
+        "Verify status parameter is typed or parsed correctly"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Replaced valid_statuses array check with HostedSessionStatus::from_str() parsing. Uses as_str() for DB storage. Same pattern as session_set_hosted (TYPE-003). All 6 existing tests pass."
+    },
+    {
+      "id": "TYPE-005",
+      "category": "type-safety",
+      "description": "Remove redundant runtime validation now that enum handles it",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs lines ~857-863 and ~910-916",
+        "Verify manual valid_statuses check is removed or converted to enum parsing"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Already completed as part of TYPE-003 and TYPE-004. Both session_set_hosted (line 891-897) and session_update_hosted_status (line 963-969) now use HostedSessionStatus::from_str() instead of manual valid_statuses array. All 20 related tests pass."
+    },
+    {
+      "id": "TYPE-006",
+      "category": "type-safety",
+      "description": "Update get_active_session query to parse status into enum",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs get_active_session",
+        "Verify query result mapping converts status string to HostedSessionStatus"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Already completed as part of TYPE-002. Line 453-454 uses row.get::<_, Option<String>>(7)?.and_then(|s| HostedSessionStatus::from_str(&s)) to parse DB string to enum. All 5 query mappings in session.rs use this pattern."
+    },
+    {
+      "id": "TYPE-007",
+      "category": "type-safety",
+      "description": "Update Rust tests to use HostedSessionStatus enum",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs test modules",
+        "Verify tests use enum variants instead of string literals",
+        "Run: cargo test"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Enum tests exist in hosted_session_status_enum module (10 tests for serialization, deserialization, from_str, as_str, equality, clone, debug). DB-level tests correctly use string literals for raw SQL - that's appropriate since DB stores strings. All 78 session tests pass."
+    },
+    {
+      "id": "TYPE-008",
+      "category": "type-safety",
+      "description": "Import HostedSessionStatus in hostedSession.ts from session.ts",
+      "steps_to_verify": [
+        "Check src/services/hostedSession.ts imports",
+        "Verify imports HostedSessionStatus from './session'"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added import { HostedSessionStatus } from './session' at line 5 of hostedSession.ts. TypeScript compilation passes."
+    },
+    {
+      "id": "TYPE-009",
+      "category": "type-safety",
+      "description": "Update HostedSession interface to use imported HostedSessionStatus type",
+      "steps_to_verify": [
+        "Check src/services/hostedSession.ts HostedSession interface line ~89",
+        "Verify status field uses HostedSessionStatus instead of inline union"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Changed status field in HostedSession interface from inline union \"active\" | \"paused\" | \"ended\" to HostedSessionStatus type (line 107). TypeScript compilation passes."
+    },
+    {
+      "id": "TYPE-010",
+      "category": "type-safety",
+      "description": "Update GetSessionResponse interface to use HostedSessionStatus",
+      "steps_to_verify": [
+        "Check src/services/hostedSession.ts GetSessionResponse interface line ~104",
+        "Verify status field uses HostedSessionStatus instead of inline union"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Changed status field in GetSessionResponse interface from inline union \"active\" | \"paused\" | \"ended\" to HostedSessionStatus type (line 122). TypeScript compilation passes. All 459 JS tests pass."
+    },
+    {
+      "id": "TEST-001",
+      "category": "testing",
+      "description": "Add test verifying stopHosting calls updateHostedSessionStatus",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.test.ts stopHosting tests",
+        "Verify test exists that mocks sessionService.updateHostedSessionStatus",
+        "Verify test asserts it was called with session.id and 'ended'",
+        "Run: npm test -- sessionStore.test.ts"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Test already exists at line 2474: 'should update hosted_session_status to 'ended' in DB (STOP-001)'. Mocks sessionService.updateHostedSessionStatus, calls stopHosting(), asserts called with mockSession.id and 'ended'. All 11 stopHosting tests pass."
+    },
+    {
+      "id": "TEST-002",
+      "category": "testing",
+      "description": "Add test for loadSingers error handling with notification",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.test.ts loadSingers tests",
+        "Verify test exists for error scenario",
+        "Verify test checks singers are reset to empty array",
+        "Verify test checks notify was called",
+        "Run: npm test -- sessionStore.test.ts"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Test already exists at line 382: 'should reset singers and show warning on error'. Mocks sessionService.getSessionSingers to reject, asserts singers reset to [], asserts notify called with 'warning' and appropriate message. All 3 loadSingers tests pass."
+    },
+    {
+      "id": "TEST-003",
+      "category": "testing",
+      "description": "Verify all unit tests pass after changes",
+      "steps_to_verify": [
+        "Run: npm test",
+        "Verify all 441+ tests pass",
+        "Verify no new test failures"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "All 459 tests pass (19 test files). Verified with npm test -- --run."
+    },
+    {
+      "id": "DOC-001",
+      "category": "documentation",
+      "description": "Update isTokenValid JSDoc to clarify return value",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.ts line ~27-30",
+        "Verify title says 'Check if authentication token is still valid'",
+        "Verify description clarifies returns true when token IS valid"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Updated JSDoc at line 28-31. Title now says 'Check if authentication token is still valid'. Added @param and @returns tags explaining return value is true when token is valid."
+    },
+    {
+      "id": "DOC-002",
+      "category": "documentation",
+      "description": "Update persistSessionId JSDoc to reflect legacy status",
+      "steps_to_verify": [
+        "Check src/services/hostedSession.ts line ~11-13",
+        "Verify JSDoc mentions this is now legacy/redundant",
+        "Verify JSDoc mentions sessions table is primary storage"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added @deprecated tags to persistSessionId, getPersistedSessionId, clearPersistedSessionId. JSDoc explains sessions table is primary storage and these functions remain only for legacy migration/backward compatibility."
+    },
+    {
+      "id": "DOC-003",
+      "category": "documentation",
+      "description": "Clarify defensive check comment about TypeScript narrowing",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.ts line ~825-831",
+        "Verify comment explains TypeScript narrowing doesn't persist through async calls"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Updated comment at line 866-871 to explain TypeScript type narrowing doesn't persist through async operations and the check satisfies type system plus provides defense against concurrent modifications."
+    },
+    {
+      "id": "DOC-004",
+      "category": "documentation",
+      "description": "Expand transaction comment to explain race condition prevention",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs line ~867-868",
+        "Verify comment explains race condition: session could be deleted between check and update"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Expanded comment at lines 917-926 to explain TOCTOU vulnerability and three specific race conditions: session deletion between EXISTS check and UPDATE, ownership claim between SELECT and UPDATE, status change between read and write. Comment now explains how conditional UPDATE guarantees atomicity."
+    },
+    {
+      "id": "DOC-005",
+      "category": "documentation",
+      "description": "Expand Migration 12 comment to explain why validation matters",
+      "steps_to_verify": [
+        "Check src-tauri/src/db/schema.rs line ~293-298",
+        "Verify comment explains triggers catch invalid values early"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added explanation of why validation matters: (1) catch typos/bugs early at INSERT/UPDATE, (2) data integrity against API changes/manual edits/code bypassing enum, (3) defense in depth as DB is last line of defense."
+    },
+    {
+      "id": "DOC-006",
+      "category": "documentation",
+      "description": "Expand backward compat comment with version info",
+      "steps_to_verify": [
+        "Check src/stores/sessionStore.ts line ~603-604",
+        "Verify comment mentions which versions this supports",
+        "Verify comment mentions when it can be removed"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Expanded comment at line 646-649 to mention v0.7.7 as the last version using settings table, v0.8.0+ uses sessions table as primary. Added note that it can be removed after 2-3 releases when users have upgraded."
+    },
+    {
+      "id": "DOC-007",
+      "category": "documentation",
+      "description": "Add JSDoc comment to Session interface explaining hosted field relationship",
+      "steps_to_verify": [
+        "Check src/services/session.ts Session interface",
+        "Verify JSDoc explains the three hosted fields form a unit",
+        "Verify JSDoc explains they should be set/unset together"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added comprehensive JSDoc to Session interface explaining: (1) the three hosted fields form a logical unit, (2) they are set together via setHostedSession(), (3) only status changes—fields are never cleared, (4) why fields are preserved (different user scenarios, debugging). Also added inline JSDoc comments to each hosted field."
+    },
+    {
+      "id": "DOC-008",
+      "category": "documentation",
+      "description": "Update CHANGELOG.md with hosted session ownership changes",
+      "steps_to_verify": [
+        "Check CHANGELOG.md",
+        "Verify entry for hosted session ownership tracking",
+        "Verify mentions migration note about re-hosting after upgrade"
+      ],
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added changelog entry under Unreleased section for #207. Covers: session table storage, ownership tracking, auto-restoration, different-user dialog, status tracking, conflict prevention, migration note about re-hosting."
+    }
+  ]
+}

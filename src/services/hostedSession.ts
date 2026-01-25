@@ -2,14 +2,44 @@ import { fetch } from "@tauri-apps/plugin-http";
 import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "./logger";
 import { HOMEKARAOKE_API_URL, buildJoinUrl, buildQrCodeUrl } from "../constants";
+import { HostedSessionStatus } from "./session";
 
 const log = createLogger("HostedSessionService");
 
+/**
+ * Custom error class for API errors with HTTP status codes.
+ * Allows callers to distinguish between different error types (401, 403, 404, etc.)
+ * using instanceof checks instead of error message string matching.
+ */
+export class ApiError extends Error {
+  public readonly statusCode: number;
+
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+    this.name = "ApiError";
+    // Restore prototype chain (needed for instanceof to work with ES5 targets)
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+}
+
 const HOSTED_SESSION_KEY = "hosted_session_id";
+const LEGACY_MIGRATION_DONE_KEY = "hosted_session_legacy_migration_done";
 
 /**
+ * @deprecated Legacy function - sessions table is now the primary storage.
+ *
  * Persist the hosted session ID to SQLite settings.
- * Used to restore the session after app restart.
+ * This was the original approach before Migration 8 added hosted_session_id,
+ * hosted_by_user_id, and hosted_session_status columns to the sessions table.
+ *
+ * The sessions table approach is preferred because it:
+ * - Tracks which user started hosting (ownership)
+ * - Stores session status for proper restoration logic
+ * - Keeps hosted info with the session it belongs to
+ *
+ * This function remains for backward compatibility but should not be used
+ * for new code. Use sessionService.setHostedSession() instead.
  */
 export async function persistSessionId(sessionId: string): Promise<void> {
   log.debug(`Persisting session ID: ${sessionId}`);
@@ -17,8 +47,49 @@ export async function persistSessionId(sessionId: string): Promise<void> {
 }
 
 /**
+ * Run one-time migration to clear legacy hosted_session_id from settings table.
+ *
+ * The new system stores hosted info in the sessions table (hosted_session_id,
+ * hosted_by_user_id, hosted_session_status). The old settings-based approach
+ * didn't track ownership, so we can't migrate - just clear and let user re-host.
+ *
+ * This should be called during app initialization (before loadSession).
+ * The migration is tracked via a settings flag to ensure it only runs once.
+ */
+export async function runLegacyHostedSessionMigration(): Promise<void> {
+  try {
+    // Check if migration was already done
+    const migrationDone = await invoke<string | null>("settings_get", { key: LEGACY_MIGRATION_DONE_KEY });
+    if (migrationDone === "true") {
+      log.debug("Legacy hosted_session_id migration already completed");
+      return;
+    }
+
+    // Check if there's a legacy hosted_session_id to clear
+    const legacyId = await getPersistedSessionId();
+    if (legacyId) {
+      log.info("MIGRATE-002: Clearing legacy hosted_session_id from settings table");
+      await clearPersistedSessionId();
+    }
+
+    // Mark migration as done
+    await invoke("settings_set", { key: LEGACY_MIGRATION_DONE_KEY, value: "true" });
+    log.debug("Legacy hosted_session_id migration completed");
+  } catch (error) {
+    // Log but don't throw - migration failure shouldn't block app startup
+    const message = error instanceof Error ? error.message : String(error);
+    log.error(`MIGRATE-002: Failed to run legacy migration: ${message}`);
+  }
+}
+
+/**
+ * @deprecated Legacy function - sessions table is now the primary storage.
+ *
  * Get the persisted hosted session ID from SQLite settings.
  * Returns null if no session ID is stored.
+ *
+ * Used only by runLegacyHostedSessionMigration() to check for old data.
+ * New code should read hosted_session_id from the Session object instead.
  */
 export async function getPersistedSessionId(): Promise<string | null> {
   const sessionId = await invoke<string | null>("settings_get", { key: HOSTED_SESSION_KEY });
@@ -29,8 +100,12 @@ export async function getPersistedSessionId(): Promise<string | null> {
 }
 
 /**
+ * @deprecated Legacy function - sessions table is now the primary storage.
+ *
  * Clear the persisted hosted session ID from SQLite settings.
- * Called when stopping hosting or signing out.
+ *
+ * Used only by runLegacyHostedSessionMigration() to clear old data.
+ * New code should call sessionService.updateHostedSessionStatus() with 'ended'.
  */
 export async function clearPersistedSessionId(): Promise<void> {
   log.debug("Clearing persisted session ID");
@@ -49,7 +124,7 @@ export interface HostedSession {
   joinUrl: string;
   qrCodeUrl: string;
   expiresAt?: string;
-  status: "active" | "paused" | "ended";
+  status: HostedSessionStatus;
   stats: SessionStats;
 }
 
@@ -64,7 +139,7 @@ interface CreateSessionResponse {
 interface GetSessionResponse {
   id: string;
   session_code: string;
-  status: "active" | "paused" | "ended";
+  status: HostedSessionStatus;
   stats: {
     pending_requests: number;
     approved_requests: number;
@@ -106,7 +181,7 @@ export const hostedSessionService = {
     if (!response.ok) {
       const error = await response.text();
       log.error(`Failed to create hosted session (${response.status}): ${error}`);
-      throw new Error(`Failed to create hosted session: ${error}`);
+      throw new ApiError(response.status, `Failed to create hosted session: ${error}`);
     }
 
     const data: CreateSessionResponse = await response.json();
@@ -161,7 +236,7 @@ export const hostedSessionService = {
     if (!response.ok) {
       const error = await response.text();
       log.error(`Failed to get session (${response.status}): ${error}`);
-      throw new Error(`Failed to get session: ${error}`);
+      throw new ApiError(response.status, `Failed to get session: ${error}`);
     }
 
     const data: GetSessionResponse = await response.json();
@@ -215,7 +290,7 @@ export const hostedSessionService = {
     if (!response.ok) {
       const error = await response.text();
       log.error(`Failed to end hosted session (${response.status}): ${error}`);
-      throw new Error(`Failed to end hosted session: ${error}`);
+      throw new ApiError(response.status, `Failed to end hosted session: ${error}`);
     }
 
     log.info("Hosted session ended");

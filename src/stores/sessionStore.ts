@@ -4,16 +4,20 @@ import {
   sessionService,
   hostedSessionService,
   persistSessionId,
-  getPersistedSessionId,
   clearPersistedSessionId,
+  HOSTED_SESSION_STATUS,
+  ApiError,
+  APP_SIGNALS,
+  waitForSignalOrCondition,
   type Singer,
   type Session,
   type HostedSession,
 } from "../services";
-import { authService } from "../services/auth";
+import { authService, type User } from "../services/auth";
 import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
 import { notify } from "./notificationStore";
+import { useAuthStore } from "./authStore";
 
 const log = createLogger("SessionStore");
 
@@ -24,9 +28,9 @@ const HOSTED_SESSION_POLL_INTERVAL_MS = 30 * 1000;
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 
 /**
- * Check if token is expired or about to expire.
- * Returns true if token is valid and has enough time remaining.
- * Note: expiresAt is in Unix seconds, Date.now() is in milliseconds.
+ * Check if authentication token is still valid.
+ * @param expiresAt - Token expiration time in Unix seconds
+ * @returns true if token is valid (not expired and has at least TOKEN_EXPIRY_BUFFER_MS remaining)
  */
 function isTokenValid(expiresAt: number): boolean {
   const expiresAtMs = expiresAt * 1000;
@@ -49,6 +53,8 @@ interface SessionState {
   // Hosted session state (for remote guest access)
   hostedSession: HostedSession | null;
   showHostModal: boolean;
+  // Dialog shown when another user was hosting this session (RESTORE-006)
+  showHostedByOtherUserDialog: boolean;
 
   // Singers state
   singers: Singer[];
@@ -81,6 +87,7 @@ interface SessionState {
   restoreHostedSession: () => Promise<void>;
   openHostModal: () => void;
   closeHostModal: () => void;
+  closeHostedByOtherUserDialog: () => void;
 
   // Singer actions
   loadSingers: () => Promise<void>;
@@ -113,6 +120,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   recentSessionSingers: new Map(),
   hostedSession: null,
   showHostModal: false,
+  showHostedByOtherUserDialog: false,
   singers: [],
   activeSingerId: null,
   queueSingerAssignments: new Map(),
@@ -132,11 +140,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         await useQueueStore.getState().loadPersistedState();
         // Load singer assignments for all queue and history items
         await get().loadAllQueueItemSingers();
+
         // Attempt to restore hosted session from previous app run
+        // Note: MIGRATE-002 legacy cleanup now runs once at app startup (App.tsx)
         await get().restoreHostedSession();
       }
     } catch (error) {
       log.error("Failed to load session:", error);
+      notify("error", "Failed to load session. Please try restarting the app.");
     }
   },
 
@@ -323,6 +334,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       log.debug(`Loaded ${singers.length} singers for session ${session.id}`);
     } catch (error) {
       log.error("Failed to load singers:", error);
+      set({ singers: [] });
+      notify("warning", "Could not load singers. They may appear after a refresh.");
     }
   },
 
@@ -446,6 +459,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       });
     } catch (error) {
       log.error("Failed to load queue item singers:", error);
+      // Clear any stale entry to avoid showing incorrect data
+      set((state) => {
+        const queueSingerAssignments = new Map(state.queueSingerAssignments);
+        queueSingerAssignments.delete(queueItemId);
+        return { queueSingerAssignments };
+      });
     }
   },
 
@@ -523,6 +542,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       set({ activeSingerId: singer?.id ?? null });
       log.debug(`Active singer loaded: ${singer?.id ?? "none"}`);
     } catch (error) {
+      // Silent failure: active singer is non-critical UI state. If loading fails,
+      // we default to null (no singer selected). The user can still select a singer
+      // manually, and the error is logged for debugging. No notification needed.
       log.error("Failed to load active singer:", error);
       set({ activeSingerId: null });
     }
@@ -539,16 +561,43 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     log.info("Starting hosted session");
     try {
       // Get access token from auth service
-      const tokens = await authService.getTokens();
+      let tokens = await authService.getTokens();
       if (!tokens) {
         log.error("Cannot host session: not authenticated");
         throw new Error("Not authenticated");
       }
 
-      // Validate token is not expired
+      // If token is expired, try to refresh it first
       if (!isTokenValid(tokens.expires_at)) {
-        log.error("Cannot host session: token expired");
-        throw new Error("Session expired. Please sign in again.");
+        log.debug("Token expired, attempting refresh before hosting");
+        const refreshedTokens = await authService.refreshTokenIfNeeded();
+        if (!refreshedTokens || !isTokenValid(refreshedTokens.expires_at)) {
+          log.error("Cannot host session: token refresh failed");
+          throw new Error("Session expired. Please sign in again.");
+        }
+        tokens = refreshedTokens;
+        log.debug("Token refreshed successfully, proceeding with hosting");
+      }
+
+      // Get current user ID from auth store
+      const currentUser = useAuthStore.getState().user;
+      if (!currentUser) {
+        log.error("Cannot host session: user not loaded");
+        throw new Error("User not loaded. Please sign in again.");
+      }
+
+      // Check for existing hosted session conflicts
+      // Block if a different user has an active or paused session
+      if (
+        session.hosted_session_id &&
+        session.hosted_by_user_id &&
+        session.hosted_by_user_id !== currentUser.id &&
+        session.hosted_session_status !== HOSTED_SESSION_STATUS.ENDED
+      ) {
+        log.error("Cannot host session: another user is hosting");
+        throw new Error(
+          "Another user is currently hosting this session. They must stop hosting before you can host."
+        );
       }
 
       const hostedSession = await hostedSessionService.createHostedSession(
@@ -556,7 +605,56 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         session.name ?? undefined
       );
 
-      // Persist the session ID for app restart recovery
+      // Store hosted session info in the database
+      // CONC-004: Backend performs atomic ownership check - may fail if another user
+      // started hosting between our frontend check and this call (race condition)
+      try {
+        await sessionService.setHostedSession(
+          session.id,
+          hostedSession.id,
+          currentUser.id,
+          HOSTED_SESSION_STATUS.ACTIVE
+        );
+      } catch (dbError) {
+        // Check if this is an ownership conflict from the backend
+        const isOwnershipConflict =
+          typeof dbError === "object" &&
+          dbError !== null &&
+          "type" in dbError &&
+          (dbError as { type: string }).type === "ownership_conflict";
+
+        if (isOwnershipConflict) {
+          // Clean up the orphaned API session we just created
+          log.warn("Backend detected ownership conflict - cleaning up orphaned API session");
+          try {
+            await hostedSessionService.endHostedSession(
+              tokens.access_token,
+              hostedSession.id
+            );
+          } catch (cleanupError) {
+            // Log but don't fail - the session will expire eventually
+            log.error("Failed to clean up orphaned API session:", cleanupError);
+          }
+          set({ showHostedByOtherUserDialog: true });
+          // Don't throw - we've shown the dialog to inform the user
+          return;
+        }
+        // Re-throw non-ownership errors
+        throw dbError;
+      }
+
+      // Update local session state with hosted fields
+      const updatedSession: Session = {
+        ...session,
+        hosted_session_id: hostedSession.id,
+        hosted_by_user_id: currentUser.id,
+        hosted_session_status: HOSTED_SESSION_STATUS.ACTIVE,
+      };
+
+      // LEGACY: Persist session ID to settings table for users upgrading from v0.7.7 or earlier.
+      // The sessions table is now the primary storage (v0.8.0+). This duplication ensures users
+      // who downgrade or have incomplete migrations can still recover their hosted session.
+      // Can be removed after 2-3 releases when all users have upgraded past v0.8.0.
       await persistSessionId(hostedSession.id);
 
       // Clear any existing polling interval
@@ -570,7 +668,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         get().refreshHostedSession();
       }, HOSTED_SESSION_POLL_INTERVAL_MS);
 
-      set({ hostedSession, showHostModal: true, _hostedSessionPollInterval: pollInterval });
+      set({
+        session: updatedSession,
+        hostedSession,
+        showHostModal: true,
+        _hostedSessionPollInterval: pollInterval,
+      });
 
       log.info(`Hosted session started: ${hostedSession.sessionCode}`);
     } catch (error) {
@@ -581,7 +684,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   stopHosting: async () => {
-    const { hostedSession, _hostedSessionPollInterval } = get();
+    const { session, hostedSession, _hostedSessionPollInterval } = get();
     if (!hostedSession) {
       log.debug("No hosted session to stop");
       return;
@@ -592,6 +695,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // Clear persisted session ID first (before API call) to ensure
     // no orphaned reference remains even if API call fails
     await clearPersistedSessionId();
+
+    // Update the hosted session status to 'ended' in the database
+    // This preserves hosted_session_id and hosted_by_user_id for reference
+    if (session) {
+      try {
+        await sessionService.updateHostedSessionStatus(session.id, HOSTED_SESSION_STATUS.ENDED);
+        log.debug("Updated hosted session status to 'ended' in DB");
+      } catch (dbError) {
+        const dbMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        log.error(`Failed to update hosted session status in DB: ${dbMessage}`);
+        // Continue anyway - this is not critical for stopping
+      }
+    }
 
     let apiCallFailed = false;
     try {
@@ -614,7 +730,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (_hostedSessionPollInterval) {
         clearInterval(_hostedSessionPollInterval);
       }
-      set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
+
+      // Update local session state to reflect ended status
+      // while preserving hosted_session_id and hosted_by_user_id
+      if (session) {
+        set({
+          session: { ...session, hosted_session_status: HOSTED_SESSION_STATUS.ENDED },
+          hostedSession: null,
+          showHostModal: false,
+          _hostedSessionPollInterval: null,
+        });
+      } else {
+        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
+      }
 
       // Notify user if API call failed (backend may still think session is hosted)
       if (apiCallFailed) {
@@ -665,12 +793,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to refresh hosted session: ${message}`);
       // If session is ended, invalid, or auth failed, clear it
+      // Use ApiError instanceof check for reliable status code detection
       const shouldClear =
-        message.includes("404") ||
-        message.includes("NOT_FOUND") ||
-        message.includes("401") ||
-        message.includes("403") ||
-        message.includes("UNAUTHORIZED");
+        error instanceof ApiError && [401, 403, 404].includes(error.statusCode);
       if (shouldClear) {
         log.warn("Hosted session no longer valid, clearing");
         // Clear persisted session ID to prevent restore attempts on next startup
@@ -702,23 +827,67 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return;
     }
 
-    // Note: We don't check isAuthenticated here because of a race condition -
-    // this function may be called before auth store finishes initializing.
-    // Instead, we check for valid tokens below which is the actual requirement.
-
-    log.debug("Attempting to restore hosted session");
-
-    // Get persisted session ID
-    const persistedId = await getPersistedSessionId();
-    if (!persistedId) {
-      log.debug("No persisted session ID found");
+    // RESTORE-001: Skip if session has no hosted_session_id
+    // This is the primary check - the session must have been hosted at some point
+    if (!session.hosted_session_id) {
+      log.debug("Skipping restore: no hosted_session_id on session");
       return;
     }
 
-    // Get access token to verify session
+    // RESTORE-002: Skip if session status is 'ended'
+    // No need to verify with backend or attempt restoration - the user already stopped hosting
+    // Keep the hosted fields for reference (they can be overridden by hosting again)
+    if (session.hosted_session_status === HOSTED_SESSION_STATUS.ENDED) {
+      log.debug("Skipping restore: hosted_session_status is 'ended'");
+      return;
+    }
+
+    log.debug("Attempting to restore hosted session");
+
+    // RESTORE-003: Check if user is authenticated before attempting restoration
+    // If not authenticated, we preserve hosted fields for when the owner returns
     let tokens = await authService.getTokens();
     if (!tokens) {
-      log.debug("No auth tokens available for session restore");
+      log.debug("Skipping restore: user not authenticated (preserving hosted fields for owner)");
+      return;
+    }
+
+    // RESTORE-004/RESTORE-006: Check if current user is the owner
+    // Wait for user profile to load, or use immediately if already available
+    // This fixes RACE-001 where restoreHostedSession() was called before fetchUserProfile() completed
+    let currentUser: User | null = null;
+    try {
+      currentUser = await waitForSignalOrCondition(
+        APP_SIGNALS.USER_LOGGED_IN,
+        () => useAuthStore.getState().user,
+        5000
+      );
+    } catch {
+      log.debug("Skipping restore: user profile not available within timeout");
+      return;
+    }
+
+    // RESTORE-006: Different user scenario - show dialog (skip restoration)
+    // RESTORE-004: Same user scenario - proceed with restoration
+    if (session.hosted_by_user_id && session.hosted_by_user_id !== currentUser.id) {
+      log.debug("Skipping restore: different user (session belongs to another user)");
+      // Show dialog informing the user (anonymous - no email shown for privacy)
+      // Note: We only reach here if status is not 'ended' (checked earlier at RESTORE-002)
+      set({ showHostedByOtherUserDialog: true });
+      // Preserve fields for the original owner
+      return;
+    }
+
+    // MIGRATE-002: Legacy fallback removed - old settings value cleared during app startup
+    // Use hosted_session_id from session DB field (the only source of truth now)
+    const sessionIdToRestore = session.hosted_session_id;
+    // Note: This check is technically redundant since RESTORE-001 already verified
+    // hosted_session_id exists. However, TypeScript's type narrowing doesn't persist
+    // through async operations (tokens/user fetches above), so TS can't prove
+    // session.hosted_session_id is still non-null here. This explicit check satisfies
+    // the type system and provides defense against theoretical concurrent modifications.
+    if (!sessionIdToRestore) {
+      log.debug("No session ID available for restoration");
       return;
     }
 
@@ -738,12 +907,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Verify session is still active on backend
       const restoredSession = await hostedSessionService.getSession(
         tokens.access_token,
-        persistedId
+        sessionIdToRestore
       );
 
-      // Only restore if session is still active
-      if (restoredSession.status !== "active") {
-        log.info(`Persisted session is ${restoredSession.status}, clearing`);
+      // RESTORE-005: If API returns non-active status, update local status to 'ended'
+      if (restoredSession.status !== HOSTED_SESSION_STATUS.ACTIVE) {
+        log.info(`Persisted session is ${restoredSession.status}, updating status to 'ended'`);
+        // Update hosted_session_status to 'ended' in DB
+        await sessionService.updateHostedSessionStatus(session.id, HOSTED_SESSION_STATUS.ENDED);
+        // Update local session state
+        set({ session: { ...session, hosted_session_status: HOSTED_SESSION_STATUS.ENDED } });
         await clearPersistedSessionId();
         return;
       }
@@ -768,16 +941,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       log.warn(`Failed to restore hosted session: ${message}`);
 
       // Clear persisted ID on auth errors or session not found
+      // Use ApiError instanceof check for reliable status code detection
       const shouldClear =
-        message.includes("404") ||
-        message.includes("NOT_FOUND") ||
-        message.includes("401") ||
-        message.includes("403") ||
-        message.includes("UNAUTHORIZED");
+        error instanceof ApiError && [401, 403, 404].includes(error.statusCode);
 
       if (shouldClear) {
         log.debug("Clearing invalid persisted session ID");
         await clearPersistedSessionId();
+
+        // RESTORE-009: Update hosted_session_status to 'ended' on 401/403 errors
+        // This prevents retry attempts for sessions that are no longer accessible
+        const isAuthError =
+          error instanceof ApiError && [401, 403].includes(error.statusCode);
+        if (isAuthError) {
+          log.debug("Updating hosted session status to 'ended' due to auth error");
+          await sessionService.updateHostedSessionStatus(session.id, HOSTED_SESSION_STATUS.ENDED);
+          set({ session: { ...session, hosted_session_status: HOSTED_SESSION_STATUS.ENDED } });
+        }
       }
       // Don't show error to user - silent cleanup for expected scenarios
     }
@@ -789,5 +969,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   closeHostModal: () => {
     set({ showHostModal: false });
+  },
+
+  closeHostedByOtherUserDialog: () => {
+    set({ showHostedByOtherUserDialog: false });
   },
 }));

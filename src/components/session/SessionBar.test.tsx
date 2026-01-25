@@ -44,6 +44,7 @@ interface MockFavoritesState {
 
 interface MockAuthState {
   isAuthenticated: boolean;
+  user: { id: string; email: string } | null;
 }
 
 // =============================================================================
@@ -63,12 +64,23 @@ const createMockSinger = (
   unique_name: null,
 });
 
-const createMockSession = (id: number = 1, name: string | null = "Test Session"): Session => ({
+const createMockSession = (
+  id: number = 1,
+  name: string | null = "Test Session",
+  options?: {
+    hosted_session_id?: string;
+    hosted_by_user_id?: string;
+    hosted_session_status?: string;
+  }
+): Session => ({
   id,
   name,
   started_at: "2025-01-01T12:00:00Z",
   ended_at: null,
   is_active: true,
+  hosted_session_id: options?.hosted_session_id,
+  hosted_by_user_id: options?.hosted_by_user_id,
+  hosted_session_status: options?.hosted_session_status,
 });
 
 let mockSessionStore: MockSessionState;
@@ -111,6 +123,11 @@ vi.mock("../../services", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+  HOSTED_SESSION_STATUS: {
+    ACTIVE: "active",
+    PAUSED: "paused",
+    ENDED: "ended",
+  },
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
@@ -132,6 +149,7 @@ vi.mock("lucide-react", () => ({
   FolderOpen: () => <span data-testid="folder-icon">📁</span>,
   Star: () => <span data-testid="star-icon">★</span>,
   Globe: () => <span data-testid="globe-icon">🌐</span>,
+  Radio: () => <span data-testid="radio-icon">📻</span>,
   Loader2: () => <span data-testid="loader-icon">⏳</span>,
 }));
 
@@ -180,6 +198,8 @@ function setupMocks(options: {
   recentSessionSingers?: Map<number, Singer[]>;
   queueSingerAssignments?: Map<string, number[]>;
   persistentSingers?: Singer[];
+  isAuthenticated?: boolean;
+  user?: { id: string; email: string } | null;
 } = {}) {
   mockSessionStore = {
     session: options.session ?? null,
@@ -216,7 +236,8 @@ function setupMocks(options: {
   };
 
   mockAuthStore = {
-    isAuthenticated: false,
+    isAuthenticated: options.isAuthenticated ?? false,
+    user: options.user ?? null,
   };
 }
 
@@ -693,6 +714,113 @@ describe("SessionBar", () => {
 
       expect(mockSessionStore.closeLoadDialog).toHaveBeenCalled();
     });
+
+    describe("Hosted session icon (REVIEW-006)", () => {
+      it("shows Radio icon for session with hosted_session_id", () => {
+        const hostedSession = createMockSession(1, "Hosted Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        });
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [hostedSession],
+        });
+        render(<SessionBar />);
+
+        expect(screen.getByTestId("hosted-icon-1")).toBeInTheDocument();
+        expect(screen.getByTestId("radio-icon")).toBeInTheDocument();
+      });
+
+      it("does not show Radio icon for session without hosted_session_id", () => {
+        const plainSession = createMockSession(1, "Plain Session");
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [plainSession],
+        });
+        render(<SessionBar />);
+
+        expect(screen.queryByTestId("hosted-icon-1")).not.toBeInTheDocument();
+      });
+
+      it("shows 'Currently hosting' tooltip for active hosted session", () => {
+        const activeSession = createMockSession(1, "Active Hosted", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        });
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [activeSession],
+        });
+        render(<SessionBar />);
+
+        const iconWrapper = screen.getByTestId("hosted-icon-1");
+        expect(iconWrapper).toHaveAttribute("title", "Currently hosting");
+      });
+
+      it("shows 'Was hosted' tooltip for ended hosted session", () => {
+        const endedSession = createMockSession(1, "Ended Hosted", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "ended",
+        });
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [endedSession],
+        });
+        render(<SessionBar />);
+
+        const iconWrapper = screen.getByTestId("hosted-icon-1");
+        expect(iconWrapper).toHaveAttribute("title", "Was hosted");
+      });
+
+      it("shows 'Was hosted' tooltip for paused hosted session", () => {
+        const pausedSession = createMockSession(1, "Paused Hosted", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "paused",
+        });
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [pausedSession],
+        });
+        render(<SessionBar />);
+
+        // Paused is not active, so it shows "Was hosted"
+        const iconWrapper = screen.getByTestId("hosted-icon-1");
+        expect(iconWrapper).toHaveAttribute("title", "Was hosted");
+      });
+
+      it("shows multiple hosted icons for multiple hosted sessions", () => {
+        const hostedSession1 = createMockSession(1, "Hosted 1", {
+          hosted_session_id: "hosted-1",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        });
+        const hostedSession2 = createMockSession(2, "Hosted 2", {
+          hosted_session_id: "hosted-2",
+          hosted_by_user_id: "user-b",
+          hosted_session_status: "ended",
+        });
+        const plainSession = createMockSession(3, "Plain Session");
+        setupMocks({
+          session: null,
+          showLoadDialog: true,
+          recentSessions: [hostedSession1, hostedSession2, plainSession],
+        });
+        render(<SessionBar />);
+
+        expect(screen.getByTestId("hosted-icon-1")).toBeInTheDocument();
+        expect(screen.getByTestId("hosted-icon-2")).toBeInTheDocument();
+        expect(screen.queryByTestId("hosted-icon-3")).not.toBeInTheDocument();
+      });
+    });
   });
 
   describe("Rename stored session", () => {
@@ -771,6 +899,117 @@ describe("SessionBar", () => {
       render(<SessionBar />);
 
       expect(mockSessionStore.loadSession).toHaveBeenCalled();
+    });
+  });
+
+  describe("Host button blocking (UI-002)", () => {
+    it("shows Host button when authenticated", () => {
+      setupMocks({
+        session: createMockSession(),
+        isAuthenticated: true,
+        user: { id: "user-a", email: "a@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Host session for guests");
+      expect(hostButton).toBeInTheDocument();
+      expect(hostButton).not.toBeDisabled();
+    });
+
+    it("disables Host button when different user has active session", () => {
+      setupMocks({
+        session: createMockSession(1, "Test Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        }),
+        isAuthenticated: true,
+        user: { id: "user-b", email: "b@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Another user is currently hosting this session. They must stop hosting before you can host.");
+      expect(hostButton).toBeDisabled();
+    });
+
+    it("disables Host button when different user has paused session", () => {
+      setupMocks({
+        session: createMockSession(1, "Test Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "paused",
+        }),
+        isAuthenticated: true,
+        user: { id: "user-b", email: "b@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Another user is currently hosting this session. They must stop hosting before you can host.");
+      expect(hostButton).toBeDisabled();
+    });
+
+    it("enables Host button when different user's session is ended", () => {
+      setupMocks({
+        session: createMockSession(1, "Test Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "ended",
+        }),
+        isAuthenticated: true,
+        user: { id: "user-b", email: "b@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Host session for guests");
+      expect(hostButton).not.toBeDisabled();
+    });
+
+    it("enables Host button when same user has active session", () => {
+      setupMocks({
+        session: createMockSession(1, "Test Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        }),
+        isAuthenticated: true,
+        user: { id: "user-a", email: "a@test.com" },
+      });
+      render(<SessionBar />);
+
+      // Same user should see "View hosted session details" since they're hosting
+      // But mock doesn't have hostedSession set, so it shows normal host button
+      const hostButton = screen.getByTitle("Host session for guests");
+      expect(hostButton).not.toBeDisabled();
+    });
+
+    it("enables Host button when session has no hosted fields", () => {
+      setupMocks({
+        session: createMockSession(),
+        isAuthenticated: true,
+        user: { id: "user-a", email: "a@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Host session for guests");
+      expect(hostButton).not.toBeDisabled();
+    });
+
+    it("does not call hostSession when clicking disabled button", async () => {
+      setupMocks({
+        session: createMockSession(1, "Test Session", {
+          hosted_session_id: "hosted-123",
+          hosted_by_user_id: "user-a",
+          hosted_session_status: "active",
+        }),
+        isAuthenticated: true,
+        user: { id: "user-b", email: "b@test.com" },
+      });
+      render(<SessionBar />);
+
+      const hostButton = screen.getByTitle("Another user is currently hosting this session. They must stop hosting before you can host.");
+      await userEvent.click(hostButton);
+
+      expect(mockSessionStore.hostSession).not.toHaveBeenCalled();
     });
   });
 });

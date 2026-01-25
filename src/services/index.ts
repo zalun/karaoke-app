@@ -14,8 +14,8 @@ export { logger, createLogger } from "./logger";
 export { authService } from "./auth";
 export type { AuthTokens, User } from "./auth";
 export { createAnonClient, createAuthenticatedClient, isSupabaseConfigured } from "./supabase";
-export { sessionService } from "./session";
-export type { Singer, Session, FavoriteVideo, SingerFavorite } from "./session";
+export { sessionService, HOSTED_SESSION_STATUS } from "./session";
+export type { Singer, Session, FavoriteVideo, SingerFavorite, HostedSessionStatus } from "./session";
 export { queueService } from "./queue";
 export type { QueueItemData, QueueState } from "./queue";
 export { favoritesService } from "./favorites";
@@ -26,6 +26,8 @@ export {
   getPersistedSessionId,
   persistSessionId,
   clearPersistedSessionId,
+  runLegacyHostedSessionMigration,
+  ApiError,
 } from "./hostedSession";
 export type { HostedSession, SessionStats } from "./hostedSession";
 export {
@@ -35,6 +37,14 @@ export {
   YouTubeErrorCodes,
   getYouTubeErrorMessage,
 } from "./youtubeIframe";
+export {
+  APP_SIGNALS,
+  emitSignal,
+  listenForSignal,
+  waitForSignal,
+  waitForSignalOrCondition,
+} from "./appSignals";
+export type { SignalPayloads, AppSignalName } from "./appSignals";
 
 /**
  * Extract error message from unknown error type

@@ -9,6 +9,11 @@ vi.mock("../services", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+  APP_SIGNALS: {
+    USER_LOGGED_IN: "app:user-logged-in",
+    USER_LOGGED_OUT: "app:user-logged-out",
+  },
+  emitSignal: vi.fn(),
 }));
 
 // Mock hostedSession service

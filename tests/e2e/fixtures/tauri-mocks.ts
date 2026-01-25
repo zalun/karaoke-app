@@ -89,6 +89,25 @@ export interface TauriMockConfig {
   shouldFailHostSession?: boolean;
   /** Whether fair queue mode is enabled (default: false) */
   fairQueueEnabled?: boolean;
+  /** Mock user for auth store (used when testing features requiring authenticated user) */
+  mockUser?: {
+    id: string;
+    email: string;
+    displayName: string;
+    avatarUrl?: string;
+  } | null;
+  /** Initial session state for restoration tests (simulates app restart with persisted session) */
+  initialSession?: {
+    id: number;
+    name: string | null;
+    hosted_session_id?: string;
+    hosted_by_user_id?: string;
+    hosted_session_status?: string;
+  } | null;
+  /** Whether session_set_hosted should return ownership conflict error */
+  shouldFailWithOwnershipConflict?: boolean;
+  /** Delay in ms before auth_get_tokens returns (simulates slow keychain/network) */
+  authDelay?: number;
 }
 
 /**
@@ -114,6 +133,7 @@ interface _HttpMockGlobals {
   __HOSTED_SESSION_CODE__?: string;
   __HOSTED_SESSION_ID__?: string;
   __HOSTED_SESSION_STOPPED__?: boolean;
+  __HOSTED_SESSION_STATUS__?: string;
 }
 
 /**
@@ -143,6 +163,7 @@ export async function injectTauriMocks(
       __HOSTED_SESSION_CODE__?: string;
       __HOSTED_SESSION_ID__?: string;
       __HOSTED_SESSION_STOPPED__?: boolean;
+      __HOSTED_SESSION_STATUS__?: string;
     }
 
     /** Helper to get typed access to HTTP mock globals */
@@ -200,7 +221,34 @@ export async function injectTauriMocks(
 
     // In-memory session state
     let sessionIdCounter = 1;
-    let activeSession: { id: number; name: string | null; is_active: boolean; created_at: string } | null = null;
+    let activeSession: {
+      id: number;
+      name: string | null;
+      is_active: boolean;
+      created_at: string;
+      hosted_session_id?: string;
+      hosted_by_user_id?: string;
+      hosted_session_status?: string;
+    } | null = mockConfig.initialSession ? {
+      id: mockConfig.initialSession.id,
+      name: mockConfig.initialSession.name,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      hosted_session_id: mockConfig.initialSession.hosted_session_id,
+      hosted_by_user_id: mockConfig.initialSession.hosted_by_user_id,
+      hosted_session_status: mockConfig.initialSession.hosted_session_status,
+    } : null;
+
+    // Track hosted session ID for restoration tests
+    if (mockConfig.initialSession?.hosted_session_id) {
+      const globals = getHttpMockGlobals();
+      globals.__HOSTED_SESSION_ID__ = mockConfig.initialSession.hosted_session_id;
+      globals.__HOSTED_SESSION_CODE__ = "HK-" + mockConfig.initialSession.hosted_session_id.slice(-8).toUpperCase().replace(/-/g, "").slice(0, 4) + "-" + mockConfig.initialSession.hosted_session_id.slice(-4).toUpperCase();
+      globals.__HOSTED_SESSION_STATUS__ = mockConfig.initialSession.hosted_session_status || null;
+      if (mockConfig.initialSession.hosted_session_status === "active") {
+        globals.__HOSTED_SESSION_CREATED__ = true;
+      }
+    }
 
     // In-memory search history state
     const searchHistoryStore: { youtube: string[]; local: string[] } = {
@@ -427,10 +475,58 @@ export async function injectTauriMocks(
           case "session_remove_singer":
           case "session_set_active_singer":
           case "session_assign_singer":
+          case "add_singer_to_session":
+          case "remove_singer_from_session":
             return null;
 
           case "session_get_singers":
+          case "get_session_singers":
             return [];
+
+          case "session_get_active_singer":
+            return null;
+
+          // Hosted session commands
+          case "session_set_hosted": {
+            const sessionId = args?.sessionId as number;
+            const hostedSessionId = args?.hostedSessionId as string;
+            const hostedByUserId = args?.hostedByUserId as string;
+            const status = args?.status as string;
+            console.log(`[Tauri Mock] session_set_hosted: session=${sessionId}, hostedId=${hostedSessionId}, userId=${hostedByUserId}, status=${status}`);
+
+            // CONC-006: Support simulating ownership conflict for E2E tests
+            if (config.shouldFailWithOwnershipConflict) {
+              console.log("[Tauri Mock] session_set_hosted: simulating ownership conflict");
+              // Return error object matching CommandError::OwnershipConflict serialization
+              throw {
+                type: "ownership_conflict",
+                message: "Another user is currently hosting this session. They must stop hosting before you can host.",
+              };
+            }
+
+            if (activeSession && activeSession.id === sessionId) {
+              activeSession.hosted_session_id = hostedSessionId;
+              activeSession.hosted_by_user_id = hostedByUserId;
+              activeSession.hosted_session_status = status;
+              // Track for test assertions
+              const sessionGlobals = getHttpMockGlobals();
+              sessionGlobals.__HOSTED_SESSION_STATUS__ = status;
+            }
+            return null;
+          }
+
+          case "session_update_hosted_status": {
+            const sessionId = args?.sessionId as number;
+            const status = args?.status as string;
+            console.log(`[Tauri Mock] session_update_hosted_status: session=${sessionId}, status=${status}`);
+            if (activeSession && activeSession.id === sessionId) {
+              activeSession.hosted_session_status = status;
+              // Track for test assertions
+              const sessionGlobals = getHttpMockGlobals();
+              sessionGlobals.__HOSTED_SESSION_STATUS__ = status;
+            }
+            return null;
+          }
 
           // Persistent singers
           case "get_persistent_singers":
@@ -501,9 +597,14 @@ export async function injectTauriMocks(
             console.log(`[Tauri Mock] auth_store_tokens: tokens stored`, authTokens);
             return null;
 
-          case "auth_get_tokens":
-            console.log(`[Tauri Mock] auth_get_tokens: ${authTokens ? "found" : "not found"}`);
+          case "auth_get_tokens": {
+            console.log(`[Tauri Mock] auth_get_tokens: ${authTokens ? "found" : "not found"}${config.authDelay ? ` (delayed ${config.authDelay}ms)` : ""}`);
+            // Support authDelay option to simulate slow keychain/network access
+            if (config.authDelay && config.authDelay > 0) {
+              await new Promise((resolve) => setTimeout(resolve, config.authDelay));
+            }
             return authTokens;
+          }
 
           case "auth_clear_tokens":
             authTokens = null;
@@ -574,9 +675,28 @@ export async function injectTauriMocks(
             return null;
           }
 
-          case "plugin:event|emit":
-            console.log(`[Tauri Mock] plugin:event|emit`, args);
+          case "plugin:event|emit": {
+            const eventName = args?.event as string;
+            const payload = args?.payload;
+            console.log(`[Tauri Mock] plugin:event|emit: ${eventName}`, payload);
+            // Call handlers registered via plugin:event|listen
+            const pluginListeners = pluginEventListeners.get(eventName);
+            if (pluginListeners) {
+              pluginListeners.forEach((handlerId) => {
+                const cb = callbacks[handlerId];
+                if (cb) {
+                  console.log(`[Tauri Mock] emit calling callback ${handlerId} for event ${eventName}`);
+                  cb({ event: eventName, payload });
+                }
+              });
+            }
+            // Also call handlers registered via __TAURI_PLUGIN_EVENT__.listen
+            const listeners = eventListeners.get(eventName);
+            if (listeners) {
+              listeners.forEach((cb) => cb({ payload }));
+            }
             return null;
+          }
 
           // Window commands
           case "plugin:window|available_monitors":
@@ -969,6 +1089,12 @@ export async function injectTauriMocks(
       (navigator as unknown as { clipboard: typeof mockClipboard }).clipboard = mockClipboard;
     }
 
+    // Store mock user for authStore to pick up
+    if (mockConfig.mockUser) {
+      (window as unknown as { __MOCK_USER__: typeof mockConfig.mockUser }).__MOCK_USER__ = mockConfig.mockUser;
+      console.log("[Tauri Mock] Mock user set:", mockConfig.mockUser.email);
+    }
+
     console.log("[Tauri Mock] Tauri APIs mocked successfully");
   }, config);
 }
@@ -1066,6 +1192,7 @@ interface HostedSessionTestState {
   created: boolean;
   sessionCode: string | null;
   stopped: boolean;
+  status: string | null;
 }
 
 /**
@@ -1077,6 +1204,7 @@ export async function getHostedSessionState(page: Page): Promise<HostedSessionTe
       created: !!(window as unknown as { __HOSTED_SESSION_CREATED__?: boolean }).__HOSTED_SESSION_CREATED__,
       sessionCode: (window as unknown as { __HOSTED_SESSION_CODE__?: string }).__HOSTED_SESSION_CODE__ ?? null,
       stopped: !!(window as unknown as { __HOSTED_SESSION_STOPPED__?: boolean }).__HOSTED_SESSION_STOPPED__,
+      status: (window as unknown as { __HOSTED_SESSION_STATUS__?: string }).__HOSTED_SESSION_STATUS__ ?? null,
     };
   });
 }

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { createLogger } from "../services";
+import { APP_SIGNALS, createLogger, emitSignal } from "../services";
 import { authService, type AuthTokens, type User } from "../services/auth";
 import { clearPersistedSessionId } from "../services/hostedSession";
 import { createAuthenticatedClient, isSupabaseConfigured } from "../services/supabase";
@@ -181,6 +181,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
       });
 
+      // Emit signal for cross-store coordination
+      await emitSignal(APP_SIGNALS.USER_LOGGED_OUT, undefined);
+
       log.info("Sign out complete");
     } catch (error) {
       log.error(`Sign out error: ${error}`);
@@ -191,6 +194,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: false,
         isLoading: false,
       });
+
+      // Emit signal for cross-store coordination (even on error path)
+      await emitSignal(APP_SIGNALS.USER_LOGGED_OUT, undefined);
     }
   },
 
@@ -317,6 +323,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // Internal helper to fetch user profile
   fetchUserProfile: async (tokens: AuthTokens) => {
+    // Check for mock user (E2E testing)
+    const mockUser = (window as { __MOCK_USER__?: User }).__MOCK_USER__;
+    if (mockUser) {
+      log.info(`Using mock user: ${mockUser.email}`);
+      set({ isAuthenticated: true, user: mockUser });
+      // Emit signal for cross-store coordination (same as real user path)
+      await emitSignal(APP_SIGNALS.USER_LOGGED_IN, mockUser);
+      return;
+    }
+
     if (!isSupabaseConfigured()) {
       log.warn("Supabase not configured, skipping profile fetch");
       set({ isAuthenticated: true, user: null });
@@ -349,6 +365,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ isAuthenticated: true, user: authUser });
       log.info(`User profile loaded: ${authUser.email}`);
+
+      // Emit signal for cross-store coordination (e.g., restoreHostedSession waits for this)
+      await emitSignal(APP_SIGNALS.USER_LOGGED_IN, authUser);
     } catch (error) {
       log.error(`Profile fetch error: ${error}`);
       // Still mark as authenticated if tokens are valid

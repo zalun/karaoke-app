@@ -1,0 +1,587 @@
+{
+  "feature": "Hosted Session Restoration Improvement",
+  "description": "Move hosted session persistence from the generic settings table to the sessions table, storing hosted_session_id, hosted_by_user_id, and hosted_session_status for proper ownership tracking and cleaner restoration logic.",
+  "items": [
+    {
+      "id": "DB-001",
+      "category": "Database",
+      "description": "Migration adds hosted_session_id column to sessions table",
+      "steps_to_verify": [
+        "Run the app to trigger migration",
+        "Check SQLite schema: SELECT sql FROM sqlite_master WHERE name='sessions'",
+        "Verify hosted_session_id TEXT column exists"
+      ],
+      "passes": true,
+      "notes": "Migration 11 added to schema.rs. Unit tests verify column exists and is nullable."
+    },
+    {
+      "id": "DB-002",
+      "category": "Database",
+      "description": "Migration adds hosted_by_user_id column to sessions table",
+      "steps_to_verify": [
+        "Run the app to trigger migration",
+        "Check SQLite schema: SELECT sql FROM sqlite_master WHERE name='sessions'",
+        "Verify hosted_by_user_id TEXT column exists"
+      ],
+      "passes": true,
+      "notes": "Migration 11 added to schema.rs. Unit tests verify column exists and is nullable."
+    },
+    {
+      "id": "DB-003",
+      "category": "Database",
+      "description": "Migration adds hosted_session_status column to sessions table",
+      "steps_to_verify": [
+        "Run the app to trigger migration",
+        "Check SQLite schema: SELECT sql FROM sqlite_master WHERE name='sessions'",
+        "Verify hosted_session_status TEXT column exists"
+      ],
+      "passes": true,
+      "notes": "Migration 11 added to schema.rs. Unit tests verify column exists and is nullable."
+    },
+    {
+      "id": "CMD-001",
+      "category": "Tauri Commands",
+      "description": "session_set_hosted command stores all three hosted fields on a session",
+      "steps_to_verify": [
+        "Call session_set_hosted(session_id, hosted_session_id, hosted_by_user_id, 'active')",
+        "Query database: SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?",
+        "Verify all three values are correctly stored"
+      ],
+      "passes": true,
+      "notes": "Added session_set_hosted Tauri command to session.rs. Validates status (active/paused/ended), verifies session exists, and updates all three fields atomically. 5 unit tests added covering: store all fields, update existing, paused/ended status, nonexistent session."
+    },
+    {
+      "id": "CMD-002",
+      "category": "Tauri Commands",
+      "description": "session_update_hosted_status command updates only the status field",
+      "steps_to_verify": [
+        "Set up a session with hosted fields via session_set_hosted",
+        "Call session_update_hosted_status(session_id, 'ended')",
+        "Verify hosted_session_status changed to 'ended'",
+        "Verify hosted_session_id and hosted_by_user_id remain unchanged"
+      ],
+      "passes": true,
+      "notes": "Added session_update_hosted_status command to session.rs. Validates status (active/paused/ended), verifies session exists, updates only hosted_session_status. 6 unit tests: updates_status_only, active_to_paused, paused_to_ended, ended_to_active, nonexistent_session, preserves_null_fields."
+    },
+    {
+      "id": "CMD-003",
+      "category": "Tauri Commands",
+      "description": "get_active_session returns all hosted fields",
+      "steps_to_verify": [
+        "Create a session and set hosted fields",
+        "Call get_active_session()",
+        "Verify response includes hosted_session_id, hosted_by_user_id, hosted_session_status"
+      ],
+      "passes": true,
+      "notes": "Updated get_active_session, start_session, load_session, get_recent_sessions, and rename_session to query and return hosted_session_id, hosted_by_user_id, hosted_session_status. 5 unit tests added: returns_hosted_fields_when_set, returns_null_hosted_fields_when_not_set, returns_partial_hosted_fields, returns_none_when_no_active_session, only_returns_active_session_hosted_fields."
+    },
+    {
+      "id": "TYPE-001",
+      "category": "Types",
+      "description": "Rust Session struct includes hosted fields",
+      "steps_to_verify": [
+        "Check src-tauri/src/commands/session.rs",
+        "Verify Session struct has hosted_session_id: Option<String>",
+        "Verify Session struct has hosted_by_user_id: Option<String>",
+        "Verify Session struct has hosted_session_status: Option<String>"
+      ],
+      "passes": true,
+      "notes": "Added hosted_session_id: Option<String>, hosted_by_user_id: Option<String>, hosted_session_status: Option<String> to Rust Session struct at session.rs:17-26."
+    },
+    {
+      "id": "TYPE-002",
+      "category": "Types",
+      "description": "TypeScript Session interface includes hosted fields",
+      "steps_to_verify": [
+        "Check src/services/session.ts",
+        "Verify Session interface has hosted_session_id?: string",
+        "Verify Session interface has hosted_by_user_id?: string",
+        "Verify Session interface has hosted_session_status?: string"
+      ],
+      "passes": true,
+      "notes": "Added hosted_session_id?: string, hosted_by_user_id?: string, hosted_session_status?: string to Session interface in src/services/session.ts:32-41."
+    },
+    {
+      "id": "HOST-001",
+      "category": "Host Session",
+      "description": "hostSession() stores all three fields after API success",
+      "steps_to_verify": [
+        "Sign in as a user",
+        "Create or load a session",
+        "Call hostSession()",
+        "Verify hosted_session_id is set to API response id",
+        "Verify hosted_by_user_id is set to current user's id",
+        "Verify hosted_session_status is set to 'active'"
+      ],
+      "passes": true,
+      "notes": "Updated hostSession() to: 1) Get current user ID from authStore, 2) Check for existing hosted session conflicts (blocks if different user has active/paused), 3) Call sessionService.setHostedSession after API success to persist hosted_session_id, hosted_by_user_id, hosted_session_status='active' to DB, 4) Update local session state with hosted fields. Added setHostedSession and updateHostedSessionStatus to sessionService. 8 unit tests: stores fields, updates local state, blocks different user active/paused, allows override when ended, allows same user reconnect, throws when user not loaded."
+    },
+    {
+      "id": "HOST-002",
+      "category": "Host Session",
+      "description": "hostSession() allows override when status is 'ended'",
+      "steps_to_verify": [
+        "Set up a session with status='ended'",
+        "Call hostSession()",
+        "Verify new hosted_session_id is stored",
+        "Verify new hosted_by_user_id matches current user",
+        "Verify status is updated to 'active'"
+      ],
+      "passes": true,
+      "notes": "Implemented in HOST-001. hostSession() only blocks when hosted_session_status !== 'ended'. Unit test verifies override works when status='ended'."
+    },
+    {
+      "id": "HOST-003",
+      "category": "Host Session",
+      "description": "hostSession() blocks when different user has status 'active'",
+      "steps_to_verify": [
+        "Set up a session with hosted_by_user_id='user-A' and status='active'",
+        "Sign in as user-B",
+        "Attempt to call hostSession()",
+        "Verify error is returned indicating another user is hosting",
+        "Verify original hosted fields are preserved"
+      ],
+      "passes": true,
+      "notes": "Implemented in HOST-001. Throws 'Another user is hosting this session' when different user has active/paused status. Unit test verifies blocking and field preservation."
+    },
+    {
+      "id": "HOST-004",
+      "category": "Host Session",
+      "description": "hostSession() blocks when different user has status 'paused'",
+      "steps_to_verify": [
+        "Set up a session with hosted_by_user_id='user-A' and status='paused'",
+        "Sign in as user-B",
+        "Attempt to call hostSession()",
+        "Verify error is returned indicating another user is hosting",
+        "Verify original hosted fields are preserved"
+      ],
+      "passes": true,
+      "notes": "Implemented in HOST-001. Same logic as HOST-003 - blocks when status is 'paused'. Unit test verifies this case."
+    },
+    {
+      "id": "HOST-005",
+      "category": "Host Session",
+      "description": "hostSession() fails gracefully if user not authenticated",
+      "steps_to_verify": [
+        "Ensure no user is signed in",
+        "Attempt to call hostSession()",
+        "Verify appropriate error is returned",
+        "Verify no hosted fields are set"
+      ],
+      "passes": true,
+      "notes": "Throws 'Not authenticated' if no tokens, 'Session expired' if token expired, 'User not loaded' if user object is null. Existing tests for auth check, added new test for user not loaded case."
+    },
+    {
+      "id": "STOP-001",
+      "category": "Stop Hosting",
+      "description": "stopHosting() updates status to 'ended'",
+      "steps_to_verify": [
+        "Start hosting a session",
+        "Call stopHosting()",
+        "Verify hosted_session_status is now 'ended'"
+      ],
+      "passes": true,
+      "notes": "Updated stopHosting() to call sessionService.updateHostedSessionStatus(session.id, 'ended') before API call. Updates both DB and local session state. 5 unit tests added."
+    },
+    {
+      "id": "STOP-002",
+      "category": "Stop Hosting",
+      "description": "stopHosting() preserves hosted_session_id and hosted_by_user_id",
+      "steps_to_verify": [
+        "Start hosting a session, note the hosted_session_id and hosted_by_user_id",
+        "Call stopHosting()",
+        "Verify hosted_session_id is unchanged",
+        "Verify hosted_by_user_id is unchanged"
+      ],
+      "passes": true,
+      "notes": "stopHosting() now uses spread operator to update session state, only changing hosted_session_status to 'ended' while preserving hosted_session_id and hosted_by_user_id. Unit test verifies preservation."
+    },
+    {
+      "id": "STOP-003",
+      "category": "Stop Hosting",
+      "description": "stopHosting() updates status even if API call fails",
+      "steps_to_verify": [
+        "Start hosting a session",
+        "Simulate API failure (network offline)",
+        "Call stopHosting()",
+        "Verify hosted_session_status is updated to 'ended' locally"
+      ],
+      "passes": true,
+      "notes": "DB status update happens before API call, and local state update happens in finally block. Both continue regardless of API failure. Unit test verifies status='ended' even when endHostedSession throws."
+    },
+    {
+      "id": "RESTORE-001",
+      "category": "Restoration",
+      "description": "No restoration attempted when hosted_session_id is null",
+      "steps_to_verify": [
+        "Load a session with no hosted_session_id",
+        "Verify no API calls to verify hosted session",
+        "Verify no restoration dialog or process"
+      ],
+      "passes": true,
+      "notes": "Updated restoreHostedSession() to check session.hosted_session_id first. Returns early if null/undefined, skipping all restoration logic. Falls back to using hosted_session_id from session DB when persisted ID is null. 3 new unit tests: returns early if no hosted_session_id (RESTORE-001), uses hosted_session_id from DB when persisted ID null, no notification when no hosted_session_id."
+    },
+    {
+      "id": "RESTORE-002",
+      "category": "Restoration",
+      "description": "No restoration when status is 'ended'",
+      "steps_to_verify": [
+        "Load a session with hosted_session_status='ended'",
+        "Verify no API calls to verify hosted session",
+        "Verify hosted fields are preserved"
+      ],
+      "passes": true,
+      "notes": "Added check in restoreHostedSession() for hosted_session_status === 'ended'. Returns early with debug log, skipping persisted ID lookup, auth token check, and API verification. Hosted fields remain preserved for reference. 3 unit tests: returns early if status is 'ended', preserves hosted fields when ended, no notification when ended."
+    },
+    {
+      "id": "RESTORE-003",
+      "category": "Restoration",
+      "description": "No restoration when user not authenticated",
+      "steps_to_verify": [
+        "Set up session with hosted fields and status='active'",
+        "Ensure no user is signed in",
+        "Load the session",
+        "Verify no restoration attempted",
+        "Verify hosted fields are preserved for when owner returns"
+      ],
+      "passes": true,
+      "notes": "Auth token check moved earlier in restoreHostedSession() flow. When no tokens exist, returns early with debug log 'user not authenticated (preserving hosted fields for owner)'. 3 unit tests: returns early if not authenticated, preserves hosted fields when not authenticated, no notification when not authenticated."
+    },
+    {
+      "id": "RESTORE-004",
+      "category": "Restoration",
+      "description": "Same user with active session restores successfully",
+      "steps_to_verify": [
+        "Set up session with hosted_by_user_id matching current user and status='active'",
+        "Mock API to return session as active",
+        "Load the session",
+        "Verify polling starts",
+        "Verify 'Reconnected to hosted session' shown"
+      ],
+      "passes": true,
+      "notes": "Added ownership check to restoreHostedSession(). When hosted_by_user_id matches current user and API returns active session, restoration proceeds: hostedSession state set, polling interval started, success notification shown. 3 unit tests added: restore for same user, polling starts, notification shown. Also added prep for RESTORE-006: different user skips restoration (2 tests) and user profile not loaded case (1 test)."
+    },
+    {
+      "id": "RESTORE-005",
+      "category": "Restoration",
+      "description": "Same user with ended session (per API) updates status",
+      "steps_to_verify": [
+        "Set up session with hosted_by_user_id matching current user and status='active'",
+        "Mock API to return session as ended",
+        "Load the session",
+        "Verify hosted_session_status updated to 'ended' in DB",
+        "Verify no restoration"
+      ],
+      "passes": true,
+      "notes": "Updated restoreHostedSession() to call sessionService.updateHostedSessionStatus(session.id, 'ended') and update local session state when API returns non-active status. 3 unit tests: updates DB status to 'ended', updates local session state, does not start polling."
+    },
+    {
+      "id": "RESTORE-006",
+      "category": "Restoration",
+      "description": "Different user with active status shows dialog",
+      "steps_to_verify": [
+        "Set up session with hosted_by_user_id='user-A' and status='active'",
+        "Sign in as user-B",
+        "Load the session",
+        "Verify dialog shown: 'Session hosted by another user'",
+        "Verify hosted fields are preserved",
+        "Verify no restoration"
+      ],
+      "passes": true,
+      "notes": "Added showHostedByOtherUserDialog state and closeHostedByOtherUserDialog action to sessionStore. Created HostedByOtherUserDialog component with anonymous messaging (says 'another user' not email). restoreHostedSession() now shows dialog when different user detected with active/paused status. Also shows dialog for paused status. Does NOT show dialog when status='ended' (per RESTORE-007 behavior). 6 unit tests added: show dialog for active, preserve fields, no notification, show dialog for paused, no dialog for ended, closeHostedByOtherUserDialog action."
+    },
+    {
+      "id": "RESTORE-007",
+      "category": "Restoration",
+      "description": "Different user with ended status shows no dialog",
+      "steps_to_verify": [
+        "Set up session with hosted_by_user_id='user-A' and status='ended'",
+        "Sign in as user-B",
+        "Load the session",
+        "Verify no dialog shown",
+        "Verify no restoration",
+        "Verify hosted fields preserved"
+      ],
+      "passes": true,
+      "notes": "The early return for status='ended' in restoreHostedSession() (line 785-788) ensures no dialog is shown, no API calls are made, and hosted fields are preserved. This check happens before the user ownership check, so different users with ended status get the correct behavior. 4 unit tests: no dialog shown (existing), no API calls made, hosted fields preserved, no notification shown."
+    },
+    {
+      "id": "RESTORE-008",
+      "category": "Restoration",
+      "description": "API network error preserves fields for retry",
+      "steps_to_verify": [
+        "Set up session with hosted fields and status='active'",
+        "Sign in as matching user",
+        "Simulate network error on API call",
+        "Load the session",
+        "Verify hosted fields are preserved unchanged"
+      ],
+      "passes": true,
+      "notes": "Verified existing behavior: network errors don't trigger clearPersistedSessionId or updateHostedSessionStatus. Hosted fields (hosted_session_id, hosted_by_user_id, hosted_session_status) remain unchanged for retry. 3 unit tests added: preserve hosted fields on network error, don't update DB status, no notification shown."
+    },
+    {
+      "id": "RESTORE-009",
+      "category": "Restoration",
+      "description": "API 401/403 error updates status to ended",
+      "steps_to_verify": [
+        "Set up session with hosted fields and status='active'",
+        "Sign in as matching user",
+        "Mock API to return 401 or 403",
+        "Load the session",
+        "Verify hosted_session_status updated to 'ended'"
+      ],
+      "passes": true,
+      "notes": "Updated restoreHostedSession() error handling to call sessionService.updateHostedSessionStatus(session.id, 'ended') and update local session state when 401 or 403 errors occur. 404 errors only clear persisted ID without updating status (session may have never existed on this backend). 5 unit tests added: update DB status on 401, update local state on 401, update DB status on 403, update local state on 403, NOT update status on 404."
+    },
+    {
+      "id": "UI-001",
+      "category": "UI",
+      "description": "Different user dialog is anonymous (no email shown)",
+      "steps_to_verify": [
+        "Trigger the different-user scenario",
+        "Verify dialog text says 'another user' not the email",
+        "Verify dialog has OK button to dismiss"
+      ],
+      "passes": true,
+      "notes": "Created HostedByOtherUserDialog.test.tsx with 8 unit tests verifying: dialog renders when showHostedByOtherUserDialog is true, displays anonymous text 'another user' (not email), shows OK button, closes dialog on OK/X click, shows warning icon. The existing HostedByOtherUserDialog component already implemented this correctly."
+    },
+    {
+      "id": "UI-002",
+      "category": "UI",
+      "description": "Different user with active session cannot start hosting",
+      "steps_to_verify": [
+        "Set up session with hosted_by_user_id='user-A' and status='active'",
+        "Sign in as user-B",
+        "Attempt to click Host button",
+        "Verify hosting is blocked with appropriate message"
+      ],
+      "passes": true,
+      "notes": "SessionBar now checks if session.hosted_by_user_id differs from current user.id and status is active/paused. Host button disabled with tooltip 'Another user is hosting this session'. Also blocked for paused status. Enabled when status='ended' or when same user. 7 unit tests added: show Host when authenticated, disable for different user active, disable for different user paused, enable for ended status, enable for same user, enable when no hosted fields, verify click does nothing when disabled."
+    },
+    {
+      "id": "EDGE-001",
+      "category": "Edge Cases",
+      "description": "User signs out while hosting preserves fields",
+      "steps_to_verify": [
+        "Start hosting a session",
+        "Sign out",
+        "Verify hosted_session_id, hosted_by_user_id, hosted_session_status are preserved",
+        "Sign back in as same user",
+        "Verify restoration can occur"
+      ],
+      "passes": true,
+      "notes": "Verified behavior: signOut (authStore) only clears legacy persisted ID in settings table via clearPersistedSessionId(). The session table fields (hosted_session_id, hosted_by_user_id, hosted_session_status) are NOT modified by signOut and remain preserved. When user signs back in, restoreHostedSession() uses session.hosted_session_id for restoration. 5 unit tests added: preserve hosted fields in session state, DB not updated on signOut, restoration works when same user signs back in, uses session.hosted_session_id when legacy persisted ID is null, fields preserved even when hostedSession state cleared."
+    },
+    {
+      "id": "EDGE-002",
+      "category": "Edge Cases",
+      "description": "Each session has independent hosted state",
+      "steps_to_verify": [
+        "Create Session A and host it",
+        "Create Session B (don't host)",
+        "Switch to Session B",
+        "Verify Session B has no hosted fields",
+        "Switch back to Session A",
+        "Verify Session A still has hosted fields"
+      ],
+      "passes": true,
+      "notes": "Verified via 5 unit tests: 1) Session B loads without hosted fields when switching from Session A, 2) Session A's hosted fields restored when switching back, 3) Multiple sessions maintain independent hosted fields (A=active, C=ended), 4) hostedSession state is separate from session.hosted_* DB fields, 5) sessionService.loadSession returns hosted fields from DB. The database schema stores hosted_session_id/hosted_by_user_id/hosted_session_status per session row, ensuring independence."
+    },
+    {
+      "id": "EDGE-003",
+      "category": "Edge Cases",
+      "description": "Token refresh during restoration continues restoration",
+      "steps_to_verify": [
+        "Set up session with hosted fields",
+        "Simulate expired token that successfully refreshes",
+        "Load the session",
+        "Verify restoration completes after token refresh"
+      ],
+      "passes": true,
+      "notes": "Added 3 unit tests to verify token refresh during restoration: 1) starts polling after restore with refreshed token, 2) shows 'Reconnected' notification after refresh+restore, 3) preserves hosted fields after refresh+restore. Existing test verifies basic restoration flow with refreshed token. Implementation already supports token refresh at sessionStore.ts:835-844."
+    },
+    {
+      "id": "EDGE-004",
+      "category": "Edge Cases",
+      "description": "Token refresh failure preserves fields",
+      "steps_to_verify": [
+        "Set up session with hosted fields",
+        "Simulate expired token with failed refresh",
+        "Load the session",
+        "Verify hosted fields are preserved"
+      ],
+      "passes": true,
+      "notes": "Added 4 unit tests verifying preservation on token refresh failure: 1) preserves hosted_session_id/hosted_by_user_id/hosted_session_status when refreshTokenIfNeeded returns null, 2) preserves fields when refresh returns still-expired token, 3) does not update DB status on failure, 4) shows no notification (silent failure). Implementation at sessionStore.ts:835-844 already returns early without modifying hosted fields when refresh fails."
+    },
+    {
+      "id": "E2E-001",
+      "category": "E2E",
+      "description": "Full hosting flow: host, verify, stop",
+      "steps_to_verify": [
+        "Sign in",
+        "Create or load session",
+        "Click Host button",
+        "Verify QR code and join code displayed",
+        "Click Stop Hosting",
+        "Verify hosted_session_status is 'ended'"
+      ],
+      "passes": true,
+      "notes": "Added E2E test 'E2E-001: full hosting flow sets hosted_session_status to active then ended' in hosted-session.spec.ts. Fixed broken E2E tests by: 1) Adding mockUser support to TauriMockConfig, 2) Storing mockUser in window.__MOCK_USER__ for authStore to use, 3) Updating authStore.fetchUserProfile to check for mock user first, 4) Adding session_set_hosted and session_update_hosted_status mock commands to track hosted status, 5) Extending HostedSessionTestState to include status field. All 24 hosted-session E2E tests pass (2 intentionally skipped)."
+    },
+    {
+      "id": "E2E-002",
+      "category": "E2E",
+      "description": "Restart restoration: host, quit, reopen, verify restored",
+      "steps_to_verify": [
+        "Sign in and host a session",
+        "Quit the app",
+        "Reopen the app",
+        "Verify hosted session is restored automatically"
+      ],
+      "passes": true,
+      "notes": "Added E2E test 'E2E-002: restart restoration restores hosted session on app reopen' in hosted-session.spec.ts. Test uses initialSession mock config to pre-populate session with hosted fields, simulating app restart. Fixed tauri-mocks.ts: added initialSession config, fixed command names (get_session_singers, session_get_active_singer), ensured hosted session globals are initialized for restoration tests."
+    },
+    {
+      "id": "E2E-003",
+      "category": "E2E",
+      "description": "Ended session not restored on restart",
+      "steps_to_verify": [
+        "Sign in and host a session",
+        "Stop hosting",
+        "Quit the app",
+        "Reopen the app",
+        "Verify not hosting (status='ended' prevents restoration)"
+      ],
+      "passes": true,
+      "notes": "Added E2E test 'E2E-003: ended session not restored on app reopen' in hosted-session.spec.ts. Test uses initialSession mock config with hosted_session_status='ended' to simulate app restart after stopping hosting. Verifies Host button visible (not Hosting), status remains 'ended', no session created."
+    },
+    {
+      "id": "E2E-004",
+      "category": "E2E",
+      "description": "Override ended session with new hosting",
+      "steps_to_verify": [
+        "Sign in and host a session",
+        "Stop hosting (status='ended')",
+        "Click Host again",
+        "Verify new hosted_session_id is generated",
+        "Verify status is 'active'"
+      ],
+      "passes": true,
+      "notes": "Added E2E test 'E2E-004: override ended session with new hosting' in hosted-session.spec.ts. Test starts with initialSession containing status='ended', verifies Host button is clickable, clicks Host, verifies new session is created with different session code, status='active', and created=true."
+    },
+    {
+      "id": "MIGRATE-001",
+      "category": "Migration",
+      "description": "Remove hosted_session_id from settings ALLOWED_SETTING_KEYS",
+      "steps_to_verify": [
+        "Check settings implementation",
+        "Verify hosted_session_id is no longer in ALLOWED_SETTING_KEYS"
+      ],
+      "passes": true,
+      "notes": "Removed 'hosted_session_id' from ALLOWED_SETTING_KEYS in src-tauri/src/commands/settings.rs. This deprecates the key for settings_reset_all validation. Note: settings_get/settings_set don't validate against this list, so legacy persistSessionId/getPersistedSessionId/clearPersistedSessionId continue to work for backward compatibility until MIGRATE-002 completes full migration."
+    },
+    {
+      "id": "MIGRATE-002",
+      "category": "Migration",
+      "description": "Old hosted_session_id in settings is cleared or migrated",
+      "steps_to_verify": [
+        "Set up app with hosted_session_id in settings table (old format)",
+        "Run the updated app",
+        "Verify either: value is migrated to sessions table, or value is cleared"
+      ],
+      "passes": true,
+      "notes": "Added migration code to loadSession() that checks for legacy hosted_session_id in settings table and clears it. The old system didn't track user ownership, so migration to new sessions table fields not possible - just clear and let user re-host. Also removed legacy fallback in restoreHostedSession() that used getPersistedSessionId(). 4 unit tests added: clear legacy ID if found, skip clear if no legacy ID, continue loading if migration fails, no migration when no session."
+    },
+    {
+      "id": "REVIEW-001",
+      "category": "Type Safety",
+      "priority": "medium",
+      "description": "Create TypeScript constants for hosted session status values instead of string literals",
+      "steps_to_verify": [
+        "Create HostedSessionStatus type as 'active' | 'paused' | 'ended'",
+        "Create HOSTED_SESSION_STATUS const object with ACTIVE, PAUSED, ENDED keys",
+        "Update Session interface to use HostedSessionStatus type",
+        "Replace all string literals with constants",
+        "Verify TypeScript compilation passes",
+        "Run unit tests to confirm no regressions"
+      ],
+      "passes": true,
+      "notes": "Added HostedSessionStatus type and HOSTED_SESSION_STATUS const object to src/services/session.ts. Updated Session interface to use the type. Replaced all string literals in sessionStore.ts and SessionBar.tsx with constants. Updated test mocks in sessionStore.test.ts and SessionBar.test.tsx to export HOSTED_SESSION_STATUS. Also removed redundant status check in restoreHostedSession() (TypeScript correctly identified it as unreachable after narrowing). All 441 tests pass."
+    },
+    {
+      "id": "REVIEW-002",
+      "category": "Database Integrity",
+      "priority": "medium",
+      "description": "Add CHECK constraint to migration for hosted_session_status validation",
+      "steps_to_verify": [
+        "Add new migration (Migration 12) with CHECK constraint",
+        "Constraint should allow NULL or values in ('active', 'paused', 'ended')",
+        "Test that invalid status values are rejected by database",
+        "Test that valid status values are accepted",
+        "Verify existing data is not affected"
+      ],
+      "passes": true,
+      "notes": "Added Migration 12 with BEFORE INSERT and BEFORE UPDATE triggers on sessions table to validate hosted_session_status. SQLite doesn't support ALTER TABLE ADD CONSTRAINT, so triggers are used instead. Triggers allow NULL or ('active', 'paused', 'ended'), rejecting all other values. Added 8 unit tests verifying: schema version is 12, rejects invalid status on insert, accepts 'active', 'paused', 'ended', accepts NULL, rejects invalid on update, allows valid status updates."
+    },
+    {
+      "id": "REVIEW-003",
+      "category": "User Experience",
+      "priority": "low",
+      "description": "Improve error message when hosting is blocked by another user",
+      "steps_to_verify": [
+        "Update error message at line ~592 to be more actionable",
+        "New message should explain: 'Another user is currently hosting this session. They must stop hosting before you can host.'",
+        "Verify error is displayed correctly in UI",
+        "Update any tests that check for the old error message"
+      ],
+      "passes": true,
+      "notes": "Updated error message in sessionStore.ts (line 593) and tooltip in SessionBar.tsx (line 584) from 'Another user is hosting this session' to 'Another user is currently hosting this session. They must stop hosting before you can host.' Updated 5 tests: 2 in sessionStore.test.ts (HOST-003, HOST-004), 3 in SessionBar.test.tsx (disabled button tests). All 441 unit tests pass."
+    },
+    {
+      "id": "REVIEW-004",
+      "category": "Database Safety",
+      "priority": "low",
+      "description": "Wrap session_set_hosted command in database transaction",
+      "steps_to_verify": [
+        "Wrap session_set_hosted logic in transaction",
+        "Ensure rollback on any failure",
+        "Add test for transaction rollback scenario",
+        "Verify command still works correctly"
+      ],
+      "passes": true,
+      "notes": "Updated session_set_hosted in session.rs to use rusqlite transaction: 1) Changed lock() to get mutable db reference, 2) Used connection_mut().transaction() to start transaction, 3) Moved EXISTS check and UPDATE inside transaction, 4) Added tx.commit() after successful UPDATE. Transaction automatically rolls back on early return (session not found) or UPDATE failure. Added unit test test_session_set_hosted_transaction_rollback_on_invalid_status that verifies rollback when CHECK trigger rejects invalid status value. All 6 session_set_hosted tests pass plus 441 frontend tests."
+    },
+    {
+      "id": "REVIEW-005",
+      "category": "Performance",
+      "priority": "low",
+      "description": "Move legacy migration cleanup to one-time app startup",
+      "steps_to_verify": [
+        "Create one-time migration function for legacy hosted_session_id cleanup",
+        "Call migration during app initialization (before loadSession)",
+        "Track migration completion in settings/database",
+        "Remove cleanup code from loadSession()",
+        "Verify legacy data is still migrated correctly on first run",
+        "Consider removing after 1-2 releases when users have upgraded"
+      ],
+      "passes": true,
+      "notes": "Added runLegacyHostedSessionMigration() function in hostedSession.ts that: 1) Checks hosted_session_legacy_migration_done flag in settings, 2) If not done, checks for legacy hosted_session_id, 3) Clears legacy ID if found, 4) Marks migration done. Called from App.tsx useEffect before SessionBar mounts. Removed MIGRATE-002 cleanup from loadSession() in sessionStore.ts. Updated sessionStore.test.ts to remove old MIGRATE-002 tests. Added 5 unit tests in hostedSession.test.ts for the migration function. All 442 tests pass."
+    },
+    {
+      "id": "REVIEW-006",
+      "category": "User Interface",
+      "priority": "medium",
+      "description": "Show hosted session icon in Stored Sessions modal",
+      "steps_to_verify": [
+        "Add Radio icon next to session name in recentSessions.map() (around line 405)",
+        "Only show icon if session has hosted_session_id",
+        "Consider different styling if hosted_session_status is 'active' vs 'ended' (e.g., green vs gray)",
+        "Add tooltip explaining 'This session was hosted' or 'Currently hosting'",
+        "Add unit tests for icon visibility based on hosted fields",
+        "Verify icon displays correctly in the modal"
+      ],
+      "passes": true,
+      "notes": "Added Radio icon to Stored Sessions modal in SessionBar.tsx (line 404-422). Icon shows green (text-green-400) for status='active', gray (text-gray-400) for all other statuses. Tooltip shows 'Currently hosting' for active, 'Was hosted' for non-active. Used data-testid for stable test selectors. Added 6 unit tests verifying: icon shows when hosted_session_id present, no icon when no hosted_session_id, correct tooltip for active status, correct tooltip for ended status, correct tooltip for paused status, multiple hosted icons for multiple sessions. All 448 tests pass."
+    }
+  ]
+}

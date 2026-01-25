@@ -326,6 +326,9 @@ pub fn run() {
             // Active singer commands
             commands::session_set_active_singer,
             commands::session_get_active_singer,
+            // Hosted session commands
+            commands::session_set_hosted,
+            commands::session_update_hosted_status,
             // Media controls commands
             commands::media_controls_update_metadata,
             commands::media_controls_update_playback,

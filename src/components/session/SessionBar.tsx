@@ -3,7 +3,7 @@ import { Play, Square, Users, UserPlus, X, Trash2, Pencil, Check, FolderOpen, St
 import { listen } from "@tauri-apps/api/event";
 import { useSessionStore, useFavoritesStore, useAuthStore, notify } from "../../stores";
 import { SingerAvatar, SingerChip } from "../singers";
-import { sessionService, createLogger } from "../../services";
+import { sessionService, createLogger, HOSTED_SESSION_STATUS } from "../../services";
 import { HostSessionModal } from "./HostSessionModal";
 
 const log = createLogger("SessionBar");
@@ -44,7 +44,15 @@ export function SessionBar() {
     openHostModal,
   } = useSessionStore();
 
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
+
+  // Check if hosting is blocked due to another user's active session
+  const isHostingBlockedByOtherUser = Boolean(
+    session?.hosted_session_id &&
+    session?.hosted_by_user_id &&
+    session?.hosted_by_user_id !== user?.id &&
+    session?.hosted_session_status !== HOSTED_SESSION_STATUS.ENDED
+  );
 
   // Check if a singer is assigned to any queue item
   const isSingerAssigned = (singerId: number): boolean => {
@@ -394,9 +402,30 @@ export function SessionBar() {
                           className="flex-1 text-left px-3 py-2 disabled:cursor-not-allowed"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-medium">
-                              {s.name || "Unnamed Session"}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-medium">
+                                {s.name || "Unnamed Session"}
+                              </span>
+                              {s.hosted_session_id && (
+                                <span
+                                  title={
+                                    s.hosted_session_status === HOSTED_SESSION_STATUS.ACTIVE
+                                      ? "Currently hosting"
+                                      : "Was hosted"
+                                  }
+                                  data-testid={`hosted-icon-${s.id}`}
+                                >
+                                  <Radio
+                                    size={14}
+                                    className={
+                                      s.hosted_session_status === HOSTED_SESSION_STATUS.ACTIVE
+                                        ? "text-green-400"
+                                        : "text-gray-400"
+                                    }
+                                  />
+                                </span>
+                              )}
+                            </div>
                             {isCurrentSession && (
                               <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded">
                                 Current
@@ -565,13 +594,19 @@ export function SessionBar() {
           {isAuthenticated && (
             <button
               onClick={hostedSession ? openHostModal : handleHostSession}
-              disabled={isHostingLoading}
+              disabled={isHostingLoading || isHostingBlockedByOtherUser}
               className={`p-1.5 rounded transition-colors ${
                 hostedSession
                   ? "text-green-400 hover:bg-gray-700"
                   : "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
-              } disabled:opacity-50`}
-              title={hostedSession ? "View hosted session details" : "Host session for guests"}
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+              title={
+                isHostingBlockedByOtherUser
+                  ? "Another user is currently hosting this session. They must stop hosting before you can host."
+                  : hostedSession
+                    ? "View hosted session details"
+                    : "Host session for guests"
+              }
               aria-label={hostedSession ? "Hosting" : "Host"}
             >
               {isHostingLoading ? (

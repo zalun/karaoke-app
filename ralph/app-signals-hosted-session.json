@@ -1,0 +1,206 @@
+{
+  "title": "App Signals for Hosted Session Restoration",
+  "issue": 207,
+  "description": "Fix race condition (RACE-001) where restoreHostedSession() reads user before fetchUserProfile() completes",
+  "items": [
+    {
+      "id": "SIG-001",
+      "category": "Infrastructure",
+      "description": "Create src/services/appSignals.ts with signal system utilities",
+      "acceptance_criteria": [
+        "APP_SIGNALS constant with USER_LOGGED_IN and USER_LOGGED_OUT defined",
+        "emitSignal<T>() function that uses Tauri emit() with error handling",
+        "listenForSignal<T>() function that returns UnlistenFn for cleanup",
+        "waitForSignal<T>() function with configurable timeout (default 5000ms)",
+        "waitForSignalOrCondition<T>() function that checks condition first, then waits for signal",
+        "SignalPayloads interface mapping signal names to payload types",
+        "All functions are typed with generics constrained to APP_SIGNALS keys"
+      ],
+      "steps_to_verify": [
+        "File exists at src/services/appSignals.ts",
+        "TypeScript compiles without errors: npm run typecheck",
+        "APP_SIGNALS.USER_LOGGED_IN equals 'app:user-logged-in'",
+        "APP_SIGNALS.USER_LOGGED_OUT equals 'app:user-logged-out'"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-002",
+      "category": "Infrastructure",
+      "description": "Export signal utilities from src/services/index.ts",
+      "acceptance_criteria": [
+        "APP_SIGNALS constant is exported",
+        "emitSignal function is exported",
+        "listenForSignal function is exported",
+        "waitForSignal function is exported",
+        "waitForSignalOrCondition function is exported",
+        "SignalPayloads type is exported"
+      ],
+      "steps_to_verify": [
+        "Can import { APP_SIGNALS, emitSignal, waitForSignalOrCondition } from '../services'",
+        "No circular dependency warnings during build"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SIG-003",
+      "category": "Auth Integration",
+      "description": "Emit USER_LOGGED_IN signal from authStore.fetchUserProfile()",
+      "acceptance_criteria": [
+        "emitSignal called with APP_SIGNALS.USER_LOGGED_IN after set({ isAuthenticated: true, user: authUser })",
+        "Signal payload is the User object (authUser)",
+        "Signal emitted in success path only (not on error)",
+        "Signal emitted after state is set (not before)",
+        "Also emits when using mock user in E2E tests"
+      ],
+      "steps_to_verify": [
+        "Add console.log before emit - see 'Emitting USER_LOGGED_IN' in console after login",
+        "In browser devtools, listen for 'app:user-logged-in' Tauri event",
+        "Verify signal fires after successful OAuth callback",
+        "Verify signal fires on app startup when tokens exist"
+      ],
+      "passes": true,
+      "completed_notes": "Added emitSignal import from services, added emitSignal(APP_SIGNALS.USER_LOGGED_IN, authUser) after set() in success path (line 361), and added same emission for mock user path (line 327). 459 tests pass."
+    },
+    {
+      "id": "SIG-004",
+      "category": "Auth Integration",
+      "description": "Emit USER_LOGGED_OUT signal from authStore.signOut()",
+      "acceptance_criteria": [
+        "emitSignal called with APP_SIGNALS.USER_LOGGED_OUT after clearing state",
+        "Signal payload is undefined",
+        "Signal emitted after set({ user: null, isAuthenticated: false })",
+        "Signal emitted in both success and error paths (finally block or both branches)"
+      ],
+      "steps_to_verify": [
+        "Add console.log before emit - see 'Emitting USER_LOGGED_OUT' in console after logout",
+        "In browser devtools, listen for 'app:user-logged-out' Tauri event",
+        "Verify signal fires when clicking Sign Out button"
+      ],
+      "passes": true,
+      "completed_notes": "Added emitSignal(APP_SIGNALS.USER_LOGGED_OUT, undefined) after set() in both success path (line 186) and error/catch path (line 198). Updated authStore.test.ts mock to include APP_SIGNALS and emitSignal. All 459 tests pass."
+    },
+    {
+      "id": "SIG-005",
+      "category": "Session Integration",
+      "description": "Use waitForSignalOrCondition in restoreHostedSession()",
+      "acceptance_criteria": [
+        "Replace direct useAuthStore.getState().user call with waitForSignalOrCondition",
+        "Condition function checks useAuthStore.getState().user",
+        "Signal to wait for is APP_SIGNALS.USER_LOGGED_IN",
+        "Timeout is 5000ms (5 seconds)",
+        "On timeout, log debug message and return early (skip restoration)",
+        "Returned user value is used for subsequent ownership check",
+        "Import User type from services/auth for type annotation"
+      ],
+      "steps_to_verify": [
+        "If user already loaded: restoreHostedSession proceeds immediately (no wait)",
+        "If user loading: restoreHostedSession waits for signal, then proceeds",
+        "If timeout (no auth): restoreHostedSession logs and returns early",
+        "Hosted session restores successfully after fresh login"
+      ],
+      "passes": true,
+      "completed_notes": "Replaced direct useAuthStore.getState().user call with waitForSignalOrCondition(APP_SIGNALS.USER_LOGGED_IN, () => useAuthStore.getState().user, 5000). Added imports for APP_SIGNALS, waitForSignalOrCondition from ../services and User type from ../services/auth. Updated sessionStore.test.ts mock to include APP_SIGNALS and waitForSignalOrCondition. On timeout, logs 'Skipping restore: user profile not available within timeout' and returns early. All 459 tests pass."
+    },
+    {
+      "id": "SIG-006",
+      "category": "Unit Tests",
+      "description": "Create unit tests for appSignals.ts",
+      "acceptance_criteria": [
+        "Test file at src/services/appSignals.test.ts",
+        "Test: emitSignal emits event with correct name and payload",
+        "Test: emitSignal handles errors gracefully (no throw)",
+        "Test: listenForSignal registers listener and calls callback with payload",
+        "Test: listenForSignal returns unlisten function that works",
+        "Test: waitForSignal resolves when signal received",
+        "Test: waitForSignal rejects with timeout error after timeout",
+        "Test: waitForSignalOrCondition resolves immediately if condition true",
+        "Test: waitForSignalOrCondition waits for signal if condition false",
+        "Test: waitForSignalOrCondition rejects on timeout if condition stays false",
+        "All tests mock Tauri event APIs appropriately"
+      ],
+      "steps_to_verify": [
+        "npm test -- appSignals.test.ts passes",
+        "All 9+ test cases pass",
+        "No console errors during test run"
+      ],
+      "passes": true,
+      "completed_notes": "Created src/services/appSignals.test.ts with 17 tests: APP_SIGNALS constant tests (3), emitSignal tests (3), listenForSignal tests (2), waitForSignal tests (4), waitForSignalOrCondition tests (5). All tests mock @tauri-apps/api/event emit and listen functions. Used vi.useFakeTimers for timeout testing. All 476 unit tests pass."
+    },
+    {
+      "id": "SIG-007",
+      "category": "E2E Mocks",
+      "description": "Add authDelay option to E2E Tauri mocks",
+      "acceptance_criteria": [
+        "MockOptions interface in tauri-mocks.ts has optional authDelay: number field",
+        "When authDelay is set, auth_get_tokens response is delayed by that many ms",
+        "Default behavior (no authDelay) is unchanged",
+        "Delay simulates slow network/keychain access"
+      ],
+      "steps_to_verify": [
+        "Setting authDelay: 2000 causes 2 second delay before tokens returned",
+        "Existing E2E tests still pass without authDelay set"
+      ],
+      "passes": true,
+      "completed_notes": "Added authDelay?: number field to TauriMockConfig interface. Modified auth_get_tokens case to await delay when authDelay > 0. All 476 unit tests pass. Default behavior unchanged (no delay when authDelay not set)."
+    },
+    {
+      "id": "SIG-008",
+      "category": "E2E Tests",
+      "description": "Add E2E test for race condition fix",
+      "acceptance_criteria": [
+        "Test in tests/e2e/specs/hosted-session.spec.ts",
+        "Test name: 'E2E-005: restores hosted session even with delayed auth'",
+        "Test sets authDelay to simulate slow auth initialization",
+        "Test sets up mock hosted session data",
+        "Test verifies hosted session is restored after auth completes",
+        "Test uses toPass() retry pattern for timing-sensitive assertions"
+      ],
+      "steps_to_verify": [
+        "just e2e-grep 'E2E-005' passes",
+        "Test passes consistently (run 3 times)",
+        "Test fails if waitForSignalOrCondition is removed (regression check)"
+      ],
+      "passes": true,
+      "completed_notes": "Added E2E-005 test in hosted-session.spec.ts that uses authDelay: 2000 to simulate slow auth. Test verifies hosted session is restored despite delay. Fixed tauri-mocks.ts plugin:event|emit to actually emit events to listeners (was only logging before). Test passes consistently in chromium and webkit. All 476 unit tests pass."
+    },
+    {
+      "id": "SIG-009",
+      "category": "Integration",
+      "description": "All existing tests pass with signal changes",
+      "acceptance_criteria": [
+        "npm test passes (all unit tests)",
+        "npm run typecheck passes (no type errors)",
+        "npm run lint passes (no lint errors)",
+        "cargo test passes (Rust tests)",
+        "just e2e passes (all E2E tests)"
+      ],
+      "steps_to_verify": [
+        "Run: just ci",
+        "All checks pass",
+        "No new warnings introduced"
+      ],
+      "passes": true,
+      "completed_notes": "All checks pass: npm test (476 passed), tsc -b (no errors), npm run lint (no errors), cargo test (156 passed), playwright test (204 passed, 8 skipped). No new warnings introduced."
+    },
+    {
+      "id": "SIG-010",
+      "category": "Manual Testing",
+      "description": "Manual verification of race condition fix",
+      "acceptance_criteria": [
+        "Sign out completely",
+        "Start hosting a session, note the join code",
+        "Quit the app",
+        "Relaunch the app",
+        "Hosted session is automatically restored with same join code",
+        "No 'Skipping restore: user profile not loaded' in logs"
+      ],
+      "steps_to_verify": [
+        "Perform manual test sequence above",
+        "Check ~/Library/Logs/app.homekaraoke/homekaraoke.log for signal timing",
+        "Verify 'Emitting USER_LOGGED_IN' appears before 'Restored hosted session'"
+      ],
+      "passes": false
+    }
+  ]
+}

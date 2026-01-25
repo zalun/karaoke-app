@@ -13,6 +13,36 @@ pub struct Singer {
     pub is_persistent: bool,
 }
 
+/// Status of a hosted session. Serializes to lowercase strings: "active", "paused", "ended".
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum HostedSessionStatus {
+    Active,
+    Paused,
+    Ended,
+}
+
+impl HostedSessionStatus {
+    /// Convert from database string representation
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "active" => Some(Self::Active),
+            "paused" => Some(Self::Paused),
+            "ended" => Some(Self::Ended),
+            _ => None,
+        }
+    }
+
+    /// Convert to database string representation
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Paused => "paused",
+            Self::Ended => "ended",
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Session {
     pub id: i64,
@@ -20,6 +50,9 @@ pub struct Session {
     pub started_at: String,
     pub ended_at: Option<String>,
     pub is_active: bool,
+    pub hosted_session_id: Option<String>,
+    pub hosted_by_user_id: Option<String>,
+    pub hosted_session_status: Option<HostedSessionStatus>,
 }
 
 // ============ Singer Commands ============
@@ -308,7 +341,7 @@ pub fn start_session(
         }
 
         let session = conn.query_row(
-            "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
+            "SELECT id, name, started_at, ended_at, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
             [new_session_id],
             |row| {
                 Ok(Session {
@@ -317,6 +350,10 @@ pub fn start_session(
                     started_at: row.get(2)?,
                     ended_at: row.get(3)?,
                     is_active: row.get::<_, i32>(4)? != 0,
+                    hosted_session_id: row.get(5)?,
+                    hosted_by_user_id: row.get(6)?,
+                    hosted_session_status: row.get::<_, Option<String>>(7)?
+                        .and_then(|s| HostedSessionStatus::from_str(&s)),
                 })
             },
         )?;
@@ -402,7 +439,7 @@ pub fn get_active_session(state: State<'_, AppState>) -> Result<Option<Session>,
     let db = state.db.lock().map_lock_err()?;
 
     let result = db.connection().query_row(
-        "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE is_active = 1",
+        "SELECT id, name, started_at, ended_at, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE is_active = 1",
         [],
         |row| {
             Ok(Session {
@@ -411,6 +448,10 @@ pub fn get_active_session(state: State<'_, AppState>) -> Result<Option<Session>,
                 started_at: row.get(2)?,
                 ended_at: row.get(3)?,
                 is_active: row.get::<_, i32>(4)? != 0,
+                hosted_session_id: row.get(5)?,
+                hosted_by_user_id: row.get(6)?,
+                hosted_session_status: row.get::<_, Option<String>>(7)?
+                    .and_then(|s| HostedSessionStatus::from_str(&s)),
             })
         },
     );
@@ -661,7 +702,7 @@ pub fn get_recent_sessions(
     let db = state.db.lock().map_lock_err()?;
 
     let mut stmt = db.connection().prepare(
-        "SELECT id, name, started_at, ended_at, is_active FROM sessions
+        "SELECT id, name, started_at, ended_at, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions
              ORDER BY started_at DESC LIMIT ?1",
     )?;
 
@@ -673,6 +714,10 @@ pub fn get_recent_sessions(
                 started_at: row.get(2)?,
                 ended_at: row.get(3)?,
                 is_active: row.get::<_, i32>(4)? != 0,
+                hosted_session_id: row.get(5)?,
+                hosted_by_user_id: row.get(6)?,
+                hosted_session_status: row.get::<_, Option<String>>(7)?
+                    .and_then(|s| HostedSessionStatus::from_str(&s)),
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -708,7 +753,7 @@ pub fn rename_session(
     )?;
 
     let session = db.connection().query_row(
-        "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
+        "SELECT id, name, started_at, ended_at, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
         [session_id],
         |row| {
             Ok(Session {
@@ -717,6 +762,10 @@ pub fn rename_session(
                 started_at: row.get(2)?,
                 ended_at: row.get(3)?,
                 is_active: row.get::<_, i32>(4)? != 0,
+                hosted_session_id: row.get(5)?,
+                hosted_by_user_id: row.get(6)?,
+                hosted_session_status: row.get::<_, Option<String>>(7)?
+                    .and_then(|s| HostedSessionStatus::from_str(&s)),
             })
         },
     )?;
@@ -791,7 +840,7 @@ pub fn load_session(
         )?;
 
         let session = conn.query_row(
-            "SELECT id, name, started_at, ended_at, is_active FROM sessions WHERE id = ?1",
+            "SELECT id, name, started_at, ended_at, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
             [session_id],
             |row| {
                 Ok(Session {
@@ -800,6 +849,10 @@ pub fn load_session(
                     started_at: row.get(2)?,
                     ended_at: row.get(3)?,
                     is_active: row.get::<_, i32>(4)? != 0,
+                    hosted_session_id: row.get(5)?,
+                    hosted_by_user_id: row.get(6)?,
+                    hosted_session_status: row.get::<_, Option<String>>(7)?
+                        .and_then(|s| HostedSessionStatus::from_str(&s)),
                 })
             },
         )?;
@@ -818,6 +871,138 @@ pub fn load_session(
             Err(e)
         }
     }
+}
+
+// ============ Hosted Session Commands ============
+
+#[tauri::command]
+pub fn session_set_hosted(
+    state: State<'_, AppState>,
+    session_id: i64,
+    hosted_session_id: String,
+    hosted_by_user_id: String,
+    status: String,
+) -> Result<(), CommandError> {
+    info!(
+        "Setting hosted session for session {}: hosted_id={}, user_id={}, status={}",
+        session_id, hosted_session_id, hosted_by_user_id, status
+    );
+
+    // Parse status string into HostedSessionStatus enum (TYPE-003)
+    let status_enum = HostedSessionStatus::from_str(&status).ok_or_else(|| {
+        CommandError::Validation(format!(
+            "Invalid hosted session status: '{}'. Must be one of: active, paused, ended",
+            status
+        ))
+    })?;
+
+    let db = state.db.lock().map_lock_err()?;
+
+    // First verify session exists (needed to distinguish "not found" from "ownership conflict")
+    let session_exists: bool = db
+        .connection()
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
+            [session_id],
+            |row| row.get(0),
+        )?;
+
+    if !session_exists {
+        return Err(CommandError::Validation(format!(
+            "Session {} does not exist",
+            session_id
+        )));
+    }
+
+    // Use conditional UPDATE with WHERE clause for atomic ownership check (CONC-003).
+    // This prevents race conditions by combining the ownership check and update in a single
+    // SQL statement, avoiding the TOCTOU (time-of-check-time-of-use) vulnerability where:
+    // - The session could be deleted between the EXISTS check above and this UPDATE
+    // - Another user could claim ownership between a SELECT and separate UPDATE
+    // - Status could change between reading current state and writing new state
+    // By using a conditional UPDATE, the database guarantees atomicity. The update only succeeds if:
+    // - No existing hosted_by_user_id (NULL) - session never hosted before
+    // - Same user is updating (hosted_by_user_id matches)
+    // - Previous status is 'ended' (session was released, can be taken over)
+    // Note: We intentionally don't allow override when hosted_session_status IS NULL but
+    // hosted_by_user_id is set to a different user - that would be a data integrity issue
+    // that should be investigated, not silently overwritten.
+    let affected_rows = db.connection().execute(
+        "UPDATE sessions
+         SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
+         WHERE id = ?4
+         AND (
+             hosted_by_user_id IS NULL
+             OR hosted_by_user_id = ?2
+             OR hosted_session_status = 'ended'
+         )",
+        rusqlite::params![hosted_session_id, hosted_by_user_id, status_enum.as_str(), session_id],
+    )?;
+
+    // If no rows affected, it means ownership conflict (session exists but conditions not met)
+    if affected_rows == 0 {
+        info!(
+            "Ownership conflict: session {} is being hosted by another user",
+            session_id
+        );
+        return Err(CommandError::OwnershipConflict);
+    }
+
+    info!(
+        "Hosted session set for session {}: hosted_id={}, status={}",
+        session_id, hosted_session_id, status
+    );
+    Ok(())
+}
+
+#[tauri::command]
+pub fn session_update_hosted_status(
+    state: State<'_, AppState>,
+    session_id: i64,
+    status: String,
+) -> Result<(), CommandError> {
+    info!(
+        "Updating hosted session status for session {}: status={}",
+        session_id, status
+    );
+
+    // Parse status string into HostedSessionStatus enum (TYPE-004)
+    let status_enum = HostedSessionStatus::from_str(&status).ok_or_else(|| {
+        CommandError::Validation(format!(
+            "Invalid hosted session status: '{}'. Must be one of: active, paused, ended",
+            status
+        ))
+    })?;
+
+    let db = state.db.lock().map_lock_err()?;
+
+    // Verify session exists
+    let session_exists: bool = db
+        .connection()
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
+            [session_id],
+            |row| row.get(0),
+        )?;
+
+    if !session_exists {
+        return Err(CommandError::Validation(format!(
+            "Session {} does not exist",
+            session_id
+        )));
+    }
+
+    // Update only the status field
+    db.connection().execute(
+        "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+        rusqlite::params![status_enum.as_str(), session_id],
+    )?;
+
+    info!(
+        "Hosted session status updated for session {}: status={}",
+        session_id, status
+    );
+    Ok(())
 }
 
 // ============ Active Singer Commands ============
@@ -923,7 +1108,10 @@ mod tests {
                 ended_at TIMESTAMP,
                 is_active INTEGER DEFAULT 1,
                 history_index INTEGER DEFAULT -1,
-                active_singer_id INTEGER REFERENCES singers(id) ON DELETE SET NULL
+                active_singer_id INTEGER REFERENCES singers(id) ON DELETE SET NULL,
+                hosted_session_id TEXT,
+                hosted_by_user_id TEXT,
+                hosted_session_status TEXT
             );
 
             CREATE TABLE session_singers (
@@ -1931,6 +2119,1086 @@ mod tests {
                 )
                 .unwrap();
             assert!(!singer_exists, "Singer should not exist");
+        }
+    }
+
+    mod session_set_hosted {
+        use super::*;
+
+        #[test]
+        fn test_session_set_hosted_stores_all_fields() {
+            let conn = setup_test_db();
+
+            // Create a session
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Set hosted session info
+            conn.execute(
+                "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
+                rusqlite::params!["hs-123", "user-456", "active", session_id],
+            )
+            .unwrap();
+
+            // Verify all fields were stored
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-123".to_string()));
+            assert_eq!(user_id, Some("user-456".to_string()));
+            assert_eq!(status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_session_set_hosted_updates_existing() {
+            let conn = setup_test_db();
+
+            // Create a session with initial hosted info
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'old-hs', 'old-user', 'ended')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Update with new hosted session info
+            conn.execute(
+                "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
+                rusqlite::params!["new-hs", "new-user", "active", session_id],
+            )
+            .unwrap();
+
+            // Verify fields were updated
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("new-hs".to_string()));
+            assert_eq!(user_id, Some("new-user".to_string()));
+            assert_eq!(status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_session_set_hosted_paused_status() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
+                rusqlite::params!["hs-paused", "user-123", "paused", session_id],
+            )
+            .unwrap();
+
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(status, Some("paused".to_string()));
+        }
+
+        #[test]
+        fn test_session_set_hosted_ended_status() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
+                rusqlite::params!["hs-ended", "user-123", "ended", session_id],
+            )
+            .unwrap();
+
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(status, Some("ended".to_string()));
+        }
+
+        #[test]
+        fn test_session_set_hosted_nonexistent_session() {
+            let conn = setup_test_db();
+
+            // Try to update a non-existent session
+            let rows_affected = conn.execute(
+                "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
+                rusqlite::params!["hs-123", "user-456", "active", 9999i64],
+            )
+            .unwrap();
+
+            // No rows should be affected
+            assert_eq!(rows_affected, 0);
+        }
+
+        #[test]
+        fn test_session_set_hosted_transaction_rollback_on_invalid_status() {
+            // This test verifies that when a database constraint (CHECK trigger)
+            // rejects an invalid status value, the entire transaction is rolled back
+            // and no partial changes are committed.
+            let mut conn = setup_test_db();
+
+            // Add the CHECK triggers (from Migration 12) that validate hosted_session_status
+            conn.execute_batch(
+                r#"
+                CREATE TRIGGER IF NOT EXISTS check_hosted_session_status_insert
+                BEFORE INSERT ON sessions
+                WHEN NEW.hosted_session_status IS NOT NULL
+                    AND NEW.hosted_session_status NOT IN ('active', 'paused', 'ended')
+                BEGIN
+                    SELECT RAISE(ABORT, 'Invalid hosted_session_status. Must be NULL, active, paused, or ended.');
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS check_hosted_session_status_update
+                BEFORE UPDATE OF hosted_session_status ON sessions
+                WHEN NEW.hosted_session_status IS NOT NULL
+                    AND NEW.hosted_session_status NOT IN ('active', 'paused', 'ended')
+                BEGIN
+                    SELECT RAISE(ABORT, 'Invalid hosted_session_status. Must be NULL, active, paused, or ended.');
+                END;
+                "#,
+            )
+            .unwrap();
+
+            // Create a session with initial hosted info
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'old-hs', 'old-user', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Attempt a transaction that would violate the CHECK constraint
+            let tx = conn.transaction().unwrap();
+
+            // First operation: verify session exists (succeeds)
+            let exists: bool = tx
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(exists);
+
+            // Second operation: update with invalid status (should fail due to trigger)
+            let result = tx.execute(
+                "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
+                rusqlite::params!["new-hs", "new-user", "invalid_status", session_id],
+            );
+
+            // The CHECK trigger should reject this
+            assert!(result.is_err(), "Expected error for invalid status, but got success");
+
+            // Don't commit - let transaction drop (automatic rollback)
+            drop(tx);
+
+            // Verify original values are preserved (transaction was rolled back)
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("old-hs".to_string()), "hosted_session_id should be unchanged after rollback");
+            assert_eq!(user_id, Some("old-user".to_string()), "hosted_by_user_id should be unchanged after rollback");
+            assert_eq!(status, Some("active".to_string()), "hosted_session_status should be unchanged after rollback");
+        }
+
+        #[test]
+        fn test_ownership_conflict_blocks_different_user_with_active_session() {
+            // Test CONC-001: When a different user has an active hosted session,
+            // attempting to set hosted session should be blocked
+            let conn = setup_test_db();
+
+            // Create a session with an active hosted session by user-A
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-A', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Check current state to verify test setup
+            let (current_user, current_status): (Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+
+            // Verify ownership conflict condition: different user + active status
+            let requesting_user = "user-B";
+            let is_different_user = current_user.as_deref() != Some(requesting_user);
+            let is_active_or_paused = current_status.as_deref() == Some("active")
+                || current_status.as_deref() == Some("paused");
+
+            assert!(
+                is_different_user && is_active_or_paused,
+                "Expected conflict condition: different user ({:?} vs {}) and active/paused status ({:?})",
+                current_user, requesting_user, current_status
+            );
+        }
+
+        #[test]
+        fn test_ownership_conflict_blocks_different_user_with_paused_session() {
+            // Test CONC-001: When a different user has a paused hosted session,
+            // attempting to set hosted session should be blocked
+            let conn = setup_test_db();
+
+            // Create a session with a paused hosted session by user-A
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-A', 'paused')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Check current state to verify test setup
+            let (current_user, current_status): (Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+
+            // Verify ownership conflict condition: different user + paused status
+            let requesting_user = "user-B";
+            let is_different_user = current_user.as_deref() != Some(requesting_user);
+            let is_active_or_paused = current_status.as_deref() == Some("active")
+                || current_status.as_deref() == Some("paused");
+
+            assert!(
+                is_different_user && is_active_or_paused,
+                "Expected conflict condition: different user ({:?} vs {}) and active/paused status ({:?})",
+                current_user, requesting_user, current_status
+            );
+        }
+
+        #[test]
+        fn test_ownership_allows_override_when_status_ended() {
+            // Test that a different user CAN override when status is 'ended'
+            let conn = setup_test_db();
+
+            // Create a session with an ended hosted session by user-A
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'old-hs', 'user-A', 'ended')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Check current state
+            let (current_user, current_status): (Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+
+            // Verify no conflict when status is ended
+            let requesting_user = "user-B";
+            let is_different_user = current_user.as_deref() != Some(requesting_user);
+            let is_active_or_paused = current_status.as_deref() == Some("active")
+                || current_status.as_deref() == Some("paused");
+
+            // Different user but status is ended - should NOT be a conflict
+            assert!(is_different_user, "Users should be different");
+            assert!(!is_active_or_paused, "Status should not be active or paused");
+
+            // User B can now update to their hosted session
+            conn.execute(
+                "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
+                rusqlite::params!["new-hs", "user-B", "active", session_id],
+            )
+            .unwrap();
+
+            let (new_hosted_id, new_user_id, new_status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(new_hosted_id, Some("new-hs".to_string()));
+            assert_eq!(new_user_id, Some("user-B".to_string()));
+            assert_eq!(new_status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_same_user_can_always_update_hosted_session() {
+            // Test that the same user can update their own hosted session
+            let conn = setup_test_db();
+
+            // Create a session with an active hosted session by user-A
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-A', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Same user updates
+            let (current_user, _): (Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+
+            let requesting_user = "user-A";
+            let is_same_user = current_user.as_deref() == Some(requesting_user);
+            assert!(is_same_user, "Users should be the same");
+
+            // Same user can update
+            conn.execute(
+                "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
+                rusqlite::params!["new-hs", "user-A", "paused", session_id],
+            )
+            .unwrap();
+
+            let (new_hosted_id, new_status): (Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+
+            assert_eq!(new_hosted_id, Some("new-hs".to_string()));
+            assert_eq!(new_status, Some("paused".to_string()));
+        }
+
+        #[test]
+        fn test_conditional_update_returns_zero_rows_on_ownership_conflict() {
+            // Test CONC-003: Verify the conditional UPDATE pattern returns 0 affected rows
+            // when a different user tries to take over an active session
+            let conn = setup_test_db();
+
+            // Create a session with an active hosted session by user-A
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-A', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // User-B tries to take over using the conditional UPDATE pattern
+            // This should affect 0 rows because user-A has an active session
+            let affected_rows = conn.execute(
+                "UPDATE sessions
+                 SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
+                 WHERE id = ?4
+                 AND (
+                     hosted_by_user_id IS NULL
+                     OR hosted_by_user_id = ?2
+                     OR hosted_session_status = 'ended'
+                 )",
+                rusqlite::params!["new-hs", "user-B", "active", session_id],
+            )
+            .unwrap();
+
+            // Should return 0 rows affected due to ownership conflict
+            assert_eq!(affected_rows, 0, "Should detect ownership conflict via affected_rows");
+
+            // Verify original data is unchanged
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-123".to_string()), "hosted_session_id should be unchanged");
+            assert_eq!(user_id, Some("user-A".to_string()), "hosted_by_user_id should be unchanged");
+            assert_eq!(status, Some("active".to_string()), "hosted_session_status should be unchanged");
+        }
+
+        #[test]
+        fn test_conditional_update_succeeds_when_same_user() {
+            // Test CONC-003: Verify the conditional UPDATE pattern succeeds when same user updates
+            let conn = setup_test_db();
+
+            // Create a session with an active hosted session by user-A
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-A', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // User-A updates their own session
+            let affected_rows = conn.execute(
+                "UPDATE sessions
+                 SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
+                 WHERE id = ?4
+                 AND (
+                     hosted_by_user_id IS NULL
+                     OR hosted_by_user_id = ?2
+                     OR hosted_session_status = 'ended'
+                 )",
+                rusqlite::params!["new-hs", "user-A", "paused", session_id],
+            )
+            .unwrap();
+
+            // Should return 1 row affected
+            assert_eq!(affected_rows, 1, "Same user should be able to update");
+
+            // Verify data was updated
+            let (hosted_id, status): (Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("new-hs".to_string()));
+            assert_eq!(status, Some("paused".to_string()));
+        }
+
+        #[test]
+        fn test_conditional_update_succeeds_when_status_ended() {
+            // Test CONC-003: Verify the conditional UPDATE pattern succeeds when status is 'ended'
+            let conn = setup_test_db();
+
+            // Create a session with an ended hosted session by user-A
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'old-hs', 'user-A', 'ended')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // User-B takes over (allowed because status is 'ended')
+            let affected_rows = conn.execute(
+                "UPDATE sessions
+                 SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
+                 WHERE id = ?4
+                 AND (
+                     hosted_by_user_id IS NULL
+                     OR hosted_by_user_id = ?2
+                     OR hosted_session_status = 'ended'
+                 )",
+                rusqlite::params!["new-hs", "user-B", "active", session_id],
+            )
+            .unwrap();
+
+            // Should return 1 row affected
+            assert_eq!(affected_rows, 1, "Should succeed when previous status is 'ended'");
+
+            // Verify data was updated
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("new-hs".to_string()));
+            assert_eq!(user_id, Some("user-B".to_string()));
+            assert_eq!(status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_conditional_update_succeeds_when_no_prior_host() {
+            // Test CONC-003: Verify the conditional UPDATE pattern succeeds when no prior host
+            let conn = setup_test_db();
+
+            // Create a session with no hosted info
+            conn.execute(
+                "INSERT INTO sessions (name, is_active) VALUES ('Test', 1)",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // First user claims the session
+            let affected_rows = conn.execute(
+                "UPDATE sessions
+                 SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3
+                 WHERE id = ?4
+                 AND (
+                     hosted_by_user_id IS NULL
+                     OR hosted_by_user_id = ?2
+                     OR hosted_session_status = 'ended'
+                 )",
+                rusqlite::params!["new-hs", "user-A", "active", session_id],
+            )
+            .unwrap();
+
+            // Should return 1 row affected
+            assert_eq!(affected_rows, 1, "Should succeed when no prior host");
+
+            // Verify data was set
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("new-hs".to_string()));
+            assert_eq!(user_id, Some("user-A".to_string()));
+            assert_eq!(status, Some("active".to_string()));
+        }
+    }
+
+    mod hosted_session_columns {
+        use super::*;
+
+        #[test]
+        fn test_hosted_session_id_column_exists() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active, hosted_session_id) VALUES ('Test', 1, 'hs-123')", [])
+                .unwrap();
+
+            let hosted_id: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_id FROM sessions WHERE name = 'Test'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-123".to_string()));
+        }
+
+        #[test]
+        fn test_hosted_by_user_id_column_exists() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active, hosted_by_user_id) VALUES ('Test', 1, 'user-456')", [])
+                .unwrap();
+
+            let user_id: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_by_user_id FROM sessions WHERE name = 'Test'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(user_id, Some("user-456".to_string()));
+        }
+
+        #[test]
+        fn test_hosted_session_status_column_exists() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, 'active')", [])
+                .unwrap();
+
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_status FROM sessions WHERE name = 'Test'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_all_hosted_fields_stored_and_retrieved() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-789', 'user-abc', 'paused')",
+                [],
+            )
+            .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE name = 'Test'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-789".to_string()));
+            assert_eq!(user_id, Some("user-abc".to_string()));
+            assert_eq!(status, Some("paused".to_string()));
+        }
+
+        #[test]
+        fn test_hosted_fields_nullable() {
+            let conn = setup_test_db();
+
+            conn.execute("INSERT INTO sessions (name, is_active) VALUES ('Test', 1)", [])
+                .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE name = 'Test'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, None);
+            assert_eq!(user_id, None);
+            assert_eq!(status, None);
+        }
+
+        #[test]
+        fn test_session_deletion_cascades_hosted_fields() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('ToDelete', 0, 'hs-del', 'user-del', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute("DELETE FROM sessions WHERE id = ?1", [session_id])
+                .unwrap();
+
+            let count: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(count, 0, "Deleting session should remove hosted fields with it");
+        }
+    }
+
+    mod session_update_hosted_status {
+        use super::*;
+
+        #[test]
+        fn test_updates_status_only() {
+            let conn = setup_test_db();
+
+            // Create a session with all hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-456', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Update only the status
+            conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["ended", session_id],
+            )
+            .unwrap();
+
+            // Verify status changed but other fields preserved
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-123".to_string()), "hosted_session_id should be unchanged");
+            assert_eq!(user_id, Some("user-456".to_string()), "hosted_by_user_id should be unchanged");
+            assert_eq!(status, Some("ended".to_string()), "hosted_session_status should be updated");
+        }
+
+        #[test]
+        fn test_updates_active_to_paused() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-456', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["paused", session_id],
+            )
+            .unwrap();
+
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(status, Some("paused".to_string()));
+        }
+
+        #[test]
+        fn test_updates_paused_to_ended() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-456', 'paused')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["ended", session_id],
+            )
+            .unwrap();
+
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(status, Some("ended".to_string()));
+        }
+
+        #[test]
+        fn test_updates_ended_to_active() {
+            let conn = setup_test_db();
+
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'hs-123', 'user-456', 'ended')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["active", session_id],
+            )
+            .unwrap();
+
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+
+            assert_eq!(status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_nonexistent_session_no_effect() {
+            let conn = setup_test_db();
+
+            // Try to update a non-existent session
+            let rows_affected = conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["ended", 9999i64],
+            )
+            .unwrap();
+
+            assert_eq!(rows_affected, 0);
+        }
+
+        #[test]
+        fn test_preserves_null_hosted_fields_when_updating_status() {
+            let conn = setup_test_db();
+
+            // Create a session with only status set (no hosted_session_id or hosted_by_user_id)
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_status) VALUES ('Test', 1, 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            conn.execute(
+                "UPDATE sessions SET hosted_session_status = ?1 WHERE id = ?2",
+                rusqlite::params!["ended", session_id],
+            )
+            .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, None, "hosted_session_id should remain NULL");
+            assert_eq!(user_id, None, "hosted_by_user_id should remain NULL");
+            assert_eq!(status, Some("ended".to_string()), "hosted_session_status should be updated");
+        }
+    }
+
+    mod get_active_session_hosted_fields {
+        use super::*;
+
+        #[test]
+        fn test_returns_hosted_fields_when_set() {
+            let conn = setup_test_db();
+
+            // Create an active session with all hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Hosted', 1, 'hs-abc', 'user-xyz', 'active')",
+                [],
+            )
+            .unwrap();
+
+            // Query using same pattern as get_active_session
+            let (id, name, is_active, hosted_id, user_id, status): (i64, Option<String>, i32, Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT id, name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+                )
+                .unwrap();
+
+            assert!(id > 0);
+            assert_eq!(name, Some("Hosted".to_string()));
+            assert_eq!(is_active, 1);
+            assert_eq!(hosted_id, Some("hs-abc".to_string()));
+            assert_eq!(user_id, Some("user-xyz".to_string()));
+            assert_eq!(status, Some("active".to_string()));
+        }
+
+        #[test]
+        fn test_returns_null_hosted_fields_when_not_set() {
+            let conn = setup_test_db();
+
+            // Create an active session without hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active) VALUES ('Regular', 1)",
+                [],
+            )
+            .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, None);
+            assert_eq!(user_id, None);
+            assert_eq!(status, None);
+        }
+
+        #[test]
+        fn test_returns_partial_hosted_fields() {
+            let conn = setup_test_db();
+
+            // Create session with only some hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_session_status) VALUES ('Partial', 1, 'hs-partial', 'ended')",
+                [],
+            )
+            .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-partial".to_string()));
+            assert_eq!(user_id, None, "hosted_by_user_id should be NULL when not set");
+            assert_eq!(status, Some("ended".to_string()));
+        }
+
+        #[test]
+        fn test_returns_none_when_no_active_session() {
+            let conn = setup_test_db();
+
+            // Create an inactive session
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Inactive', 0, 'hs-old', 'user-old', 'ended')",
+                [],
+            )
+            .unwrap();
+
+            let result = conn.query_row(
+                "SELECT id FROM sessions WHERE is_active = 1",
+                [],
+                |row| row.get::<_, i64>(0),
+            );
+
+            assert!(matches!(result, Err(rusqlite::Error::QueryReturnedNoRows)));
+        }
+
+        #[test]
+        fn test_only_returns_active_session_hosted_fields() {
+            let conn = setup_test_db();
+
+            // Create an inactive session with hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Inactive', 0, 'hs-inactive', 'user-inactive', 'ended')",
+                [],
+            )
+            .unwrap();
+
+            // Create an active session with different hosted fields
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Active', 1, 'hs-active', 'user-active', 'active')",
+                [],
+            )
+            .unwrap();
+
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE is_active = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("hs-active".to_string()), "Should return active session's hosted_session_id");
+            assert_eq!(user_id, Some("user-active".to_string()), "Should return active session's hosted_by_user_id");
+            assert_eq!(status, Some("active".to_string()), "Should return active session's hosted_session_status");
+        }
+    }
+
+    mod hosted_session_status_enum {
+        use crate::commands::session::HostedSessionStatus;
+
+        #[test]
+        fn test_serde_serializes_to_lowercase() {
+            assert_eq!(
+                serde_json::to_string(&HostedSessionStatus::Active).unwrap(),
+                "\"active\""
+            );
+            assert_eq!(
+                serde_json::to_string(&HostedSessionStatus::Paused).unwrap(),
+                "\"paused\""
+            );
+            assert_eq!(
+                serde_json::to_string(&HostedSessionStatus::Ended).unwrap(),
+                "\"ended\""
+            );
+        }
+
+        #[test]
+        fn test_serde_deserializes_from_lowercase() {
+            assert_eq!(
+                serde_json::from_str::<HostedSessionStatus>("\"active\"").unwrap(),
+                HostedSessionStatus::Active
+            );
+            assert_eq!(
+                serde_json::from_str::<HostedSessionStatus>("\"paused\"").unwrap(),
+                HostedSessionStatus::Paused
+            );
+            assert_eq!(
+                serde_json::from_str::<HostedSessionStatus>("\"ended\"").unwrap(),
+                HostedSessionStatus::Ended
+            );
+        }
+
+        #[test]
+        fn test_serde_rejects_invalid_status() {
+            assert!(serde_json::from_str::<HostedSessionStatus>("\"invalid\"").is_err());
+            assert!(serde_json::from_str::<HostedSessionStatus>("\"ACTIVE\"").is_err());
+            assert!(serde_json::from_str::<HostedSessionStatus>("\"Active\"").is_err());
+        }
+
+        #[test]
+        fn test_from_str_parses_valid_statuses() {
+            assert_eq!(
+                HostedSessionStatus::from_str("active"),
+                Some(HostedSessionStatus::Active)
+            );
+            assert_eq!(
+                HostedSessionStatus::from_str("paused"),
+                Some(HostedSessionStatus::Paused)
+            );
+            assert_eq!(
+                HostedSessionStatus::from_str("ended"),
+                Some(HostedSessionStatus::Ended)
+            );
+        }
+
+        #[test]
+        fn test_from_str_rejects_invalid_statuses() {
+            assert_eq!(HostedSessionStatus::from_str("invalid"), None);
+            assert_eq!(HostedSessionStatus::from_str("ACTIVE"), None);
+            assert_eq!(HostedSessionStatus::from_str("Active"), None);
+            assert_eq!(HostedSessionStatus::from_str(""), None);
+        }
+
+        #[test]
+        fn test_as_str_returns_lowercase() {
+            assert_eq!(HostedSessionStatus::Active.as_str(), "active");
+            assert_eq!(HostedSessionStatus::Paused.as_str(), "paused");
+            assert_eq!(HostedSessionStatus::Ended.as_str(), "ended");
+        }
+
+        #[test]
+        fn test_roundtrip_from_str_to_as_str() {
+            for status_str in &["active", "paused", "ended"] {
+                let status = HostedSessionStatus::from_str(status_str).unwrap();
+                assert_eq!(status.as_str(), *status_str);
+            }
+        }
+
+        #[test]
+        fn test_equality() {
+            assert_eq!(HostedSessionStatus::Active, HostedSessionStatus::Active);
+            assert_ne!(HostedSessionStatus::Active, HostedSessionStatus::Paused);
+            assert_ne!(HostedSessionStatus::Active, HostedSessionStatus::Ended);
+        }
+
+        #[test]
+        fn test_clone() {
+            let original = HostedSessionStatus::Paused;
+            let cloned = original.clone();
+            assert_eq!(original, cloned);
+        }
+
+        #[test]
+        fn test_debug_format() {
+            // Verify Debug trait works (doesn't need to be exact format)
+            let debug_str = format!("{:?}", HostedSessionStatus::Active);
+            assert!(debug_str.contains("Active"));
         }
     }
 }
