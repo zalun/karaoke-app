@@ -314,7 +314,9 @@
         "Check src-tauri/src/commands/session.rs session_update_hosted_status",
         "Verify status parameter is typed or parsed correctly"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Replaced valid_statuses array check with HostedSessionStatus::from_str() parsing. Uses as_str() for DB storage. Same pattern as session_set_hosted (TYPE-003). All 6 existing tests pass."
     },
     {
       "id": "TYPE-005",
