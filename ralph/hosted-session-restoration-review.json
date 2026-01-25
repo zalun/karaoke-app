@@ -278,7 +278,9 @@
         "Verify has #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]",
         "Verify has #[serde(rename_all = \"lowercase\")]"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added HostedSessionStatus enum with Active/Paused/Ended variants. Includes serde lowercase serialization, from_str/as_str helpers for DB conversion, and 10 unit tests for serialization, deserialization, roundtrip, equality, clone, and debug."
     },
     {
       "id": "TYPE-002",

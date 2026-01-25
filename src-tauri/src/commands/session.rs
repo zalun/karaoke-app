@@ -13,6 +13,36 @@ pub struct Singer {
     pub is_persistent: bool,
 }
 
+/// Status of a hosted session. Serializes to lowercase strings: "active", "paused", "ended".
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum HostedSessionStatus {
+    Active,
+    Paused,
+    Ended,
+}
+
+impl HostedSessionStatus {
+    /// Convert from database string representation
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "active" => Some(Self::Active),
+            "paused" => Some(Self::Paused),
+            "ended" => Some(Self::Ended),
+            _ => None,
+        }
+    }
+
+    /// Convert to database string representation
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Paused => "paused",
+            Self::Ended => "ended",
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Session {
     pub id: i64,
@@ -3061,6 +3091,109 @@ mod tests {
             assert_eq!(hosted_id, Some("hs-active".to_string()), "Should return active session's hosted_session_id");
             assert_eq!(user_id, Some("user-active".to_string()), "Should return active session's hosted_by_user_id");
             assert_eq!(status, Some("active".to_string()), "Should return active session's hosted_session_status");
+        }
+    }
+
+    mod hosted_session_status_enum {
+        use crate::commands::session::HostedSessionStatus;
+
+        #[test]
+        fn test_serde_serializes_to_lowercase() {
+            assert_eq!(
+                serde_json::to_string(&HostedSessionStatus::Active).unwrap(),
+                "\"active\""
+            );
+            assert_eq!(
+                serde_json::to_string(&HostedSessionStatus::Paused).unwrap(),
+                "\"paused\""
+            );
+            assert_eq!(
+                serde_json::to_string(&HostedSessionStatus::Ended).unwrap(),
+                "\"ended\""
+            );
+        }
+
+        #[test]
+        fn test_serde_deserializes_from_lowercase() {
+            assert_eq!(
+                serde_json::from_str::<HostedSessionStatus>("\"active\"").unwrap(),
+                HostedSessionStatus::Active
+            );
+            assert_eq!(
+                serde_json::from_str::<HostedSessionStatus>("\"paused\"").unwrap(),
+                HostedSessionStatus::Paused
+            );
+            assert_eq!(
+                serde_json::from_str::<HostedSessionStatus>("\"ended\"").unwrap(),
+                HostedSessionStatus::Ended
+            );
+        }
+
+        #[test]
+        fn test_serde_rejects_invalid_status() {
+            assert!(serde_json::from_str::<HostedSessionStatus>("\"invalid\"").is_err());
+            assert!(serde_json::from_str::<HostedSessionStatus>("\"ACTIVE\"").is_err());
+            assert!(serde_json::from_str::<HostedSessionStatus>("\"Active\"").is_err());
+        }
+
+        #[test]
+        fn test_from_str_parses_valid_statuses() {
+            assert_eq!(
+                HostedSessionStatus::from_str("active"),
+                Some(HostedSessionStatus::Active)
+            );
+            assert_eq!(
+                HostedSessionStatus::from_str("paused"),
+                Some(HostedSessionStatus::Paused)
+            );
+            assert_eq!(
+                HostedSessionStatus::from_str("ended"),
+                Some(HostedSessionStatus::Ended)
+            );
+        }
+
+        #[test]
+        fn test_from_str_rejects_invalid_statuses() {
+            assert_eq!(HostedSessionStatus::from_str("invalid"), None);
+            assert_eq!(HostedSessionStatus::from_str("ACTIVE"), None);
+            assert_eq!(HostedSessionStatus::from_str("Active"), None);
+            assert_eq!(HostedSessionStatus::from_str(""), None);
+        }
+
+        #[test]
+        fn test_as_str_returns_lowercase() {
+            assert_eq!(HostedSessionStatus::Active.as_str(), "active");
+            assert_eq!(HostedSessionStatus::Paused.as_str(), "paused");
+            assert_eq!(HostedSessionStatus::Ended.as_str(), "ended");
+        }
+
+        #[test]
+        fn test_roundtrip_from_str_to_as_str() {
+            for status_str in &["active", "paused", "ended"] {
+                let status = HostedSessionStatus::from_str(status_str).unwrap();
+                assert_eq!(status.as_str(), *status_str);
+            }
+        }
+
+        #[test]
+        fn test_equality() {
+            assert_eq!(HostedSessionStatus::Active, HostedSessionStatus::Active);
+            assert_ne!(HostedSessionStatus::Active, HostedSessionStatus::Paused);
+            assert_ne!(HostedSessionStatus::Active, HostedSessionStatus::Ended);
+        }
+
+        #[test]
+        fn test_clone() {
+            let original = HostedSessionStatus::Paused;
+            let cloned = original.clone();
+            assert_eq!(original, cloned);
+        }
+
+        #[test]
+        fn test_debug_format() {
+            // Verify Debug trait works (doesn't need to be exact format)
+            let debug_str = format!("{:?}", HostedSessionStatus::Active);
+            assert!(debug_str.contains("Active"));
         }
     }
 }

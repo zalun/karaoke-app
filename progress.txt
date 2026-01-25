@@ -538,3 +538,24 @@
 - Enables E2E testing of hostSession() conflict handling (dialog display, orphan cleanup)
 - Files changed: tests/e2e/fixtures/tauri-mocks.ts, ralph/hosted-session-restoration-review.json
 - 459 JS tests pass, lint passes, cargo check passes
+## TYPE-001: Create HostedSessionStatus enum in Rust with serde serialization
+- Added HostedSessionStatus enum to src-tauri/src/commands/session.rs:19-43
+- Variants: Active, Paused, Ended
+- Derives: Debug, Serialize, Deserialize, Clone, PartialEq
+- Serde: #[serde(rename_all = "lowercase")] for lowercase JSON serialization
+- Helper methods: from_str(s: &str) -> Option<Self>, as_str(&self) -> &str for DB conversion
+- Added 10 unit tests in hosted_session_status_enum module:
+  - test_serde_serializes_to_lowercase (Active->"active", Paused->"paused", Ended->"ended")
+  - test_serde_deserializes_from_lowercase
+  - test_serde_rejects_invalid_status (invalid, ACTIVE, Active all rejected)
+  - test_from_str_parses_valid_statuses
+  - test_from_str_rejects_invalid_statuses
+  - test_as_str_returns_lowercase
+  - test_roundtrip_from_str_to_as_str
+  - test_equality
+  - test_clone
+  - test_debug_format
+- Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json
+- Note: Enum not yet used in Session struct or commands (TYPE-002 through TYPE-007)
+- 459 unit tests pass, 157 Rust tests pass, lint passes, cargo check passes
+
