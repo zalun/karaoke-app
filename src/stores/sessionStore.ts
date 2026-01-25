@@ -598,12 +598,42 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       );
 
       // Store hosted session info in the database
-      await sessionService.setHostedSession(
-        session.id,
-        hostedSession.id,
-        currentUser.id,
-        HOSTED_SESSION_STATUS.ACTIVE
-      );
+      // CONC-004: Backend performs atomic ownership check - may fail if another user
+      // started hosting between our frontend check and this call (race condition)
+      try {
+        await sessionService.setHostedSession(
+          session.id,
+          hostedSession.id,
+          currentUser.id,
+          HOSTED_SESSION_STATUS.ACTIVE
+        );
+      } catch (dbError) {
+        // Check if this is an ownership conflict from the backend
+        const isOwnershipConflict =
+          typeof dbError === "object" &&
+          dbError !== null &&
+          "type" in dbError &&
+          (dbError as { type: string }).type === "ownership_conflict";
+
+        if (isOwnershipConflict) {
+          // Clean up the orphaned API session we just created
+          log.warn("Backend detected ownership conflict - cleaning up orphaned API session");
+          try {
+            await hostedSessionService.endHostedSession(
+              tokens.access_token,
+              hostedSession.id
+            );
+          } catch (cleanupError) {
+            // Log but don't fail - the session will expire eventually
+            log.error("Failed to clean up orphaned API session:", cleanupError);
+          }
+          set({ showHostedByOtherUserDialog: true });
+          // Don't throw - we've shown the dialog to inform the user
+          return;
+        }
+        // Re-throw non-ownership errors
+        throw dbError;
+      }
 
       // Update local session state with hosted fields
       const updatedSession: Session = {

@@ -237,7 +237,9 @@
         "Verify catches ownership conflict error from setHostedSession",
         "Verify shows HostedByOtherUserDialog on conflict"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added inner try/catch around setHostedSession call (line ~601). Detects ownership_conflict via error.type. On conflict: logs warning, cleans up orphaned API session, shows HostedByOtherUserDialog. Added 3 unit tests: CONC-004 dialog + cleanup, cleanup failure resilience, non-ownership error re-throw."
     },
     {
       "id": "CONC-005",

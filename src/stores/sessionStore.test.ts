@@ -2300,6 +2300,70 @@ describe("sessionStore - Host Session", () => {
         undefined
       );
     });
+
+    it("should handle backend ownership conflict by showing dialog and cleaning up API session (CONC-004)", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+      // Backend returns ownership conflict error when trying to store
+      vi.mocked(sessionService.setHostedSession).mockRejectedValue({
+        type: "ownership_conflict",
+        message: "Another user is currently hosting this session.",
+      });
+      vi.mocked(hostedSessionService.endHostedSession).mockResolvedValue();
+
+      // Should NOT throw - handles gracefully
+      await useSessionStore.getState().hostSession();
+
+      // Should show the dialog
+      expect(useSessionStore.getState().showHostedByOtherUserDialog).toBe(true);
+      // Should clean up the orphaned API session
+      expect(hostedSessionService.endHostedSession).toHaveBeenCalledWith(
+        mockTokens.access_token,
+        mockCreatedSession.id
+      );
+      // Should NOT have stored the hosted session locally
+      expect(useSessionStore.getState().hostedSession).toBeNull();
+      // Local session should NOT be updated (remains as original mockSession without hosted fields)
+      expect(useSessionStore.getState().session?.hosted_session_id).toBeUndefined();
+    });
+
+    it("should still show dialog even if cleanup of orphaned API session fails (CONC-004)", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+      vi.mocked(sessionService.setHostedSession).mockRejectedValue({
+        type: "ownership_conflict",
+        message: "Another user is currently hosting this session.",
+      });
+      vi.mocked(hostedSessionService.endHostedSession).mockRejectedValue(
+        new Error("Network error during cleanup")
+      );
+
+      // Should NOT throw even when cleanup fails
+      await useSessionStore.getState().hostSession();
+
+      // Should still show the dialog
+      expect(useSessionStore.getState().showHostedByOtherUserDialog).toBe(true);
+      // Cleanup was attempted
+      expect(hostedSessionService.endHostedSession).toHaveBeenCalled();
+    });
+
+    it("should re-throw non-ownership errors from setHostedSession", async () => {
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+      vi.mocked(sessionService.setHostedSession).mockRejectedValue(
+        new Error("Database connection failed")
+      );
+
+      await expect(useSessionStore.getState().hostSession()).rejects.toThrow(
+        "Database connection failed"
+      );
+
+      // Should NOT show the dialog for non-ownership errors
+      expect(useSessionStore.getState().showHostedByOtherUserDialog).toBe(false);
+    });
   });
 
   describe("stopHosting", () => {
