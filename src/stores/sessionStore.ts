@@ -681,6 +681,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       });
 
       log.info(`Hosted session started: ${hostedSession.sessionCode}`);
+      // Emit signal for other stores/components that depend on hosting start
+      await emitSignal(APP_SIGNALS.HOSTING_STARTED, undefined);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to start hosted session: ${message}`);

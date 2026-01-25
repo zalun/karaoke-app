@@ -25,3 +25,15 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass. Lint clean.
+
+## SIG-103: HOSTING_STARTED signal (DONE)
+- Emit HOSTING_STARTED after hostSession() set() call and log statement (line 684)
+- Signal emitted only in success path (errors thrown before set())
+- Added unit test verifying signal emission - needed to reset setHostedSession mock
+
+Files changed:
+- src/stores/sessionStore.ts
+- src/stores/sessionStore.test.ts (new test)
+- ralph/app-signals.json
+
+All tests pass. Lint clean.

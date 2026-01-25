@@ -2434,6 +2434,20 @@ describe("sessionStore - Host Session", () => {
       // Should NOT show the dialog for non-ownership errors
       expect(useSessionStore.getState().showHostedByOtherUserDialog).toBe(false);
     });
+
+    it("should emit HOSTING_STARTED signal after successful hosting", async () => {
+      const { emitSignal, APP_SIGNALS, sessionService } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+      vi.mocked(sessionService.setHostedSession).mockResolvedValue(undefined);
+
+      useSessionStore.setState({ session: mockSession, hostedSession: null });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.createHostedSession).mockResolvedValue(mockCreatedSession);
+
+      await useSessionStore.getState().hostSession();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.HOSTING_STARTED, undefined);
+    });
   });
 
   describe("stopHosting", () => {
