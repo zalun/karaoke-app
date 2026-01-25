@@ -196,7 +196,7 @@
         "Component is a React functional component",
         "Component is exported as default or named export"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-017",
