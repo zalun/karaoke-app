@@ -462,3 +462,22 @@ All tests pass (534). Lint clean. TypeScript clean.
 - Player window can listen to pause state sync during restoration
 
 All tests pass (539). Lint clean. TypeScript clean.
+
+---
+
+## SIG-702: Add PLAYER_DETACHED/REATTACHED signals
+
+**Completed**: Added player detach/reattach signals for UI coordination.
+
+**Changes**:
+- src/services/appSignals.ts: Added PLAYER_DETACHED and PLAYER_REATTACHED to APP_SIGNALS, added undefined payload types to SignalPayloads
+- src/components/player/PlayerControls.tsx: Import emitSignal/APP_SIGNALS, emit PLAYER_DETACHED after successful detachPlayer(), emit PLAYER_REATTACHED after successful reattachPlayer()
+- src/components/player/PlayerControls.test.tsx: Added mockEmitSignal, added APP_SIGNALS mock, added 4 signal emission tests
+
+**Key decisions**:
+- Signals emitted only on success (handleDetach checks success before emitting, handleReattach checks return value)
+- No payload needed (detach state tracked in playerStore.isDetached)
+- Main window and queue can listen to update UI when player window state changes
+- handleReattach modified to capture reattachPlayer() return value and only emit signal on success
+
+All tests pass (543). Lint clean. TypeScript clean.

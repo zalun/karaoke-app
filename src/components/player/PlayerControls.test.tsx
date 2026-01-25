@@ -122,6 +122,8 @@ const createMockYoutubeService = () => ({
   getStreamUrl: vi.fn((_videoId: unknown) => Promise.resolve({ url: "https://stream.example.com/video" })),
 });
 
+const mockEmitSignal = vi.fn(() => Promise.resolve());
+
 // =============================================================================
 // Mock Instances
 // =============================================================================
@@ -231,6 +233,11 @@ vi.mock("../../services", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+  emitSignal: (...args: unknown[]) => mockEmitSignal(...args),
+  APP_SIGNALS: {
+    PLAYER_DETACHED: "app:player-detached",
+    PLAYER_REATTACHED: "app:player-reattached",
+  },
 }));
 
 // =============================================================================
@@ -245,6 +252,7 @@ function resetMocks() {
   mockYoutubeService = createMockYoutubeService();
   mockPlayVideo.mockClear();
   mockNotify.mockClear();
+  mockEmitSignal.mockClear();
   // Reset settings store to defaults
   mockSettingsStore.getSetting.mockImplementation((key: string) => {
     if (key === "playback_mode") return "youtube";
@@ -813,6 +821,62 @@ describe("PlayerControls", () => {
         const calledState = mockWindowManager.detachPlayer.mock.calls[0][0] as { nextSongOverlaySeconds?: number };
         expect(calledState.nextSongOverlaySeconds).toBe(0); // Disabled overlay
       });
+    });
+
+    it("emits PLAYER_DETACHED signal after successful detach", async () => {
+      setupVideoPlaying({ isDetached: false, isPlaying: false });
+      render(<PlayerControls />);
+
+      const detachButton = screen.getByTitle("Detach player");
+      await userEvent.click(detachButton);
+
+      await waitFor(() => {
+        expect(mockEmitSignal).toHaveBeenCalledWith("app:player-detached", undefined);
+      });
+    });
+
+    it("emits PLAYER_REATTACHED signal after successful reattach", async () => {
+      setupVideoPlaying({ isDetached: true });
+      render(<PlayerControls />);
+
+      const reattachButton = screen.getByTitle("Reattach player");
+      await userEvent.click(reattachButton);
+
+      await waitFor(() => {
+        expect(mockEmitSignal).toHaveBeenCalledWith("app:player-reattached", undefined);
+      });
+    });
+
+    it("does not emit PLAYER_DETACHED signal when detach fails", async () => {
+      setupVideoPlaying({ isDetached: false, isPlaying: false });
+      mockWindowManager.detachPlayer.mockResolvedValue(false);
+      render(<PlayerControls />);
+
+      const detachButton = screen.getByTitle("Detach player");
+      await userEvent.click(detachButton);
+
+      await waitFor(() => {
+        expect(mockWindowManager.detachPlayer).toHaveBeenCalled();
+      });
+
+      // Signal should NOT be emitted when detach fails
+      expect(mockEmitSignal).not.toHaveBeenCalledWith("app:player-detached", undefined);
+    });
+
+    it("does not emit PLAYER_REATTACHED signal when reattach fails", async () => {
+      setupVideoPlaying({ isDetached: true });
+      mockWindowManager.reattachPlayer.mockResolvedValue(false);
+      render(<PlayerControls />);
+
+      const reattachButton = screen.getByTitle("Reattach player");
+      await userEvent.click(reattachButton);
+
+      await waitFor(() => {
+        expect(mockWindowManager.reattachPlayer).toHaveBeenCalled();
+      });
+
+      // Signal should NOT be emitted when reattach fails
+      expect(mockEmitSignal).not.toHaveBeenCalledWith("app:player-reattached", undefined);
     });
   });
 

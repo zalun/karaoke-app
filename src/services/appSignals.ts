@@ -83,6 +83,10 @@ export const APP_SIGNALS = {
   LAYOUT_RESTORE_STARTED: "app:layout-restore-started",
   /** Emitted after layout restoration completes in displayStore */
   LAYOUT_RESTORE_COMPLETE: "app:layout-restore-complete",
+  /** Emitted after player window is detached successfully */
+  PLAYER_DETACHED: "app:player-detached",
+  /** Emitted after player window is reattached successfully */
+  PLAYER_REATTACHED: "app:player-reattached",
 } as const;
 
 /** Type for signal names */
@@ -141,6 +145,10 @@ export interface SignalPayloads {
   [APP_SIGNALS.LAYOUT_RESTORE_STARTED]: undefined;
   /** No payload - signals that layout restoration has completed */
   [APP_SIGNALS.LAYOUT_RESTORE_COMPLETE]: undefined;
+  /** No payload - signals that player window was detached */
+  [APP_SIGNALS.PLAYER_DETACHED]: undefined;
+  /** No payload - signals that player window was reattached */
+  [APP_SIGNALS.PLAYER_REATTACHED]: undefined;
 }
 
 /** Video metadata payload for VIDEO_METADATA_CHANGED signal */
