@@ -299,3 +299,102 @@ When `current_user.id !== hosted_by_user_id`:
 
 1. Should we add `hosted_at` timestamp for tracking when hosting started?
    - Nice to have, not essential for MVP
+
+## Follow-up Tasks (from code review)
+
+```json
+[
+  {
+    "id": "REVIEW-001",
+    "category": "Type Safety",
+    "priority": "medium",
+    "description": "Create TypeScript constants for hosted session status values instead of string literals",
+    "details": "Status values ('active', 'paused', 'ended') are scattered as string literals. Create a const object and union type for type safety and refactoring ease.",
+    "files": [
+      "src/services/session.ts",
+      "src/stores/sessionStore.ts"
+    ],
+    "steps_to_verify": [
+      "Create HostedSessionStatus type as 'active' | 'paused' | 'ended'",
+      "Create HOSTED_SESSION_STATUS const object with ACTIVE, PAUSED, ENDED keys",
+      "Update Session interface to use HostedSessionStatus type",
+      "Replace all string literals with constants",
+      "Verify TypeScript compilation passes",
+      "Run unit tests to confirm no regressions"
+    ],
+    "passes": false
+  },
+  {
+    "id": "REVIEW-002",
+    "category": "Database Integrity",
+    "priority": "medium",
+    "description": "Add CHECK constraint to migration for hosted_session_status validation",
+    "details": "The migration adds columns without constraints. Add CHECK constraint to ensure only valid status values ('active', 'paused', 'ended', NULL) at the database level.",
+    "files": [
+      "src-tauri/src/db/schema.rs"
+    ],
+    "steps_to_verify": [
+      "Add new migration (Migration 12) with CHECK constraint",
+      "Constraint should allow NULL or values in ('active', 'paused', 'ended')",
+      "Test that invalid status values are rejected by database",
+      "Test that valid status values are accepted",
+      "Verify existing data is not affected"
+    ],
+    "passes": false
+  },
+  {
+    "id": "REVIEW-003",
+    "category": "User Experience",
+    "priority": "low",
+    "description": "Improve error message when hosting is blocked by another user",
+    "details": "Current message just says 'Another user is hosting this session'. Make it more actionable by explaining they must stop hosting first.",
+    "files": [
+      "src/stores/sessionStore.ts"
+    ],
+    "steps_to_verify": [
+      "Update error message at line ~592 to be more actionable",
+      "New message should explain: 'Another user is currently hosting this session. They must stop hosting before you can host.'",
+      "Verify error is displayed correctly in UI",
+      "Update any tests that check for the old error message"
+    ],
+    "passes": false
+  },
+  {
+    "id": "REVIEW-004",
+    "category": "Database Safety",
+    "priority": "low",
+    "description": "Wrap session_set_hosted command in database transaction",
+    "details": "The session_set_hosted command performs validation and update but doesn't use a transaction. Add transaction wrapper for consistency.",
+    "files": [
+      "src-tauri/src/commands/session.rs"
+    ],
+    "steps_to_verify": [
+      "Wrap session_set_hosted logic in transaction",
+      "Ensure rollback on any failure",
+      "Add test for transaction rollback scenario",
+      "Verify command still works correctly"
+    ],
+    "passes": false
+  },
+  {
+    "id": "REVIEW-005",
+    "category": "Performance",
+    "priority": "low",
+    "description": "Move legacy migration cleanup to one-time app startup",
+    "details": "MIGRATE-002 cleanup runs on every loadSession() call. Move to one-time migration during app startup to reduce unnecessary I/O.",
+    "files": [
+      "src/stores/sessionStore.ts",
+      "src/App.tsx"
+    ],
+    "steps_to_verify": [
+      "Create one-time migration function for legacy hosted_session_id cleanup",
+      "Call migration during app initialization (before loadSession)",
+      "Track migration completion in settings/database",
+      "Remove cleanup code from loadSession()",
+      "Verify legacy data is still migrated correctly on first run",
+      "Consider removing after 1-2 releases when users have upgraded"
+    ],
+    "passes": false
+  }
+]
+```
