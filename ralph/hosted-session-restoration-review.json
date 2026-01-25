@@ -150,7 +150,7 @@
         "Verify set({ singers: [] }) is called in catch block",
         "Verify notify('warning', ...) is called in catch block"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ERR-013",

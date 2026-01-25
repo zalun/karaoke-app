@@ -332,6 +332,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       log.debug(`Loaded ${singers.length} singers for session ${session.id}`);
     } catch (error) {
       log.error("Failed to load singers:", error);
+      set({ singers: [] });
+      notify("warning", "Could not load singers. They may appear after a refresh.");
     }
   },
 

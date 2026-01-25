@@ -378,6 +378,24 @@ describe("sessionStore - Singer CRUD", () => {
       expect(sessionService.getSessionSingers).not.toHaveBeenCalled();
       expect(useSessionStore.getState().singers).toEqual([]);
     });
+
+    it("should reset singers and show warning on error", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        singers: [mockSinger1, mockSinger2],
+      });
+      vi.mocked(sessionService.getSessionSingers).mockRejectedValue(
+        new Error("Database error")
+      );
+
+      await useSessionStore.getState().loadSingers();
+
+      expect(useSessionStore.getState().singers).toEqual([]);
+      expect(notify).toHaveBeenCalledWith(
+        "warning",
+        "Could not load singers. They may appear after a refresh."
+      );
+    });
   });
 });
 

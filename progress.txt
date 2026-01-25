@@ -480,3 +480,10 @@
 - Enables callers to use instanceof checks instead of string matching for status codes
 - Files changed: src/services/hostedSession.ts, ralph/hosted-session-restoration-review.json
 - 448 unit tests pass, lint passes
+
+## ERR-012: Add notify and state reset in loadSingers catch block
+- Added set({ singers: [] }) in loadSingers catch block to reset state on error
+- Added notify("warning", "Could not load singers. They may appear after a refresh.") for user feedback
+- Added unit test: "should reset singers and show warning on error" in sessionStore.test.ts
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/hosted-session-restoration-review.json
+- 455 unit tests pass, lint passes, typecheck passes
