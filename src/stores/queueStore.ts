@@ -149,13 +149,22 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         log.info(
           `Loaded ${queue.length} queue items, ${history.length} history items (index: ${historyIndex})`
         );
+
+        // Emit signal after queue and history are loaded (fire-and-forget)
+        emitSignal(APP_SIGNALS.QUEUE_LOADED, undefined);
       } else {
         set({ isInitialized: true });
         log.debug("No persisted state found (no active session)");
+
+        // Emit signal even when no persisted state - queue is still "loaded" (empty)
+        emitSignal(APP_SIGNALS.QUEUE_LOADED, undefined);
       }
     } catch (error) {
       log.error("Failed to load persisted state:", error);
       set({ isInitialized: true });
+
+      // Emit signal even on error - queue initialization is complete (in error state)
+      emitSignal(APP_SIGNALS.QUEUE_LOADED, undefined);
     }
   },
 

@@ -148,3 +148,24 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (500). Lint clean. TypeScript clean.
+
+## SIG-203: QUEUE_LOADED signal (DONE)
+- Added QUEUE_LOADED to APP_SIGNALS constant in appSignals.ts
+- Added payload type to SignalPayloads interface (undefined)
+- Emit QUEUE_LOADED in queueStore.loadPersistedState() after queue/history loaded
+- Signal emitted in all 3 cases: state loaded, no persisted state, error
+- Added QUEUE_LOADED to queueStore.signals.test.ts mock
+- Added 3 unit tests in queueStore.signals.test.ts:
+  - Verifies signal emits after loadPersistedState loads state
+  - Verifies signal emits when no persisted state exists
+  - Verifies signal emits even when loadPersistedState fails
+- Added SINGERS_LOADED and QUEUE_LOADED to appSignals.test.ts
+
+Files changed:
+- src/services/appSignals.ts (signal def + payload type)
+- src/services/appSignals.test.ts (signal name tests)
+- src/stores/queueStore.ts (3 emit calls in loadPersistedState)
+- src/stores/queueStore.signals.test.ts (mock update + 3 new tests)
+- ralph/app-signals.json
+
+All tests pass (503). Lint clean. TypeScript clean.

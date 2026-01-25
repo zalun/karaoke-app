@@ -42,6 +42,8 @@ export const APP_SIGNALS = {
   SESSION_LOADED: "app:session-loaded",
   /** Emitted after loadSingers() completes */
   SINGERS_LOADED: "app:singers-loaded",
+  /** Emitted after loadPersistedState() completes in queueStore */
+  QUEUE_LOADED: "app:queue-loaded",
   /** Emitted when hosting a session starts */
   HOSTING_STARTED: "app:hosting-started",
   /** Emitted when hosting a session stops */
@@ -67,6 +69,7 @@ export interface SignalPayloads {
   [APP_SIGNALS.SESSION_ENDED]: undefined;
   [APP_SIGNALS.SESSION_LOADED]: undefined;
   [APP_SIGNALS.SINGERS_LOADED]: undefined;
+  [APP_SIGNALS.QUEUE_LOADED]: undefined;
   [APP_SIGNALS.HOSTING_STARTED]: undefined;
   [APP_SIGNALS.HOSTING_STOPPED]: undefined;
 }

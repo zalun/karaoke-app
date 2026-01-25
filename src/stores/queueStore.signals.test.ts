@@ -27,6 +27,7 @@ vi.mock("../services", () => ({
   APP_SIGNALS: {
     QUEUE_ITEM_ADDED: "app:queue-item-added",
     QUEUE_ITEM_REMOVED: "app:queue-item-removed",
+    QUEUE_LOADED: "app:queue-loaded",
   },
 }));
 
@@ -114,6 +115,60 @@ describe("queueStore signal emissions", () => {
       removeFromQueue(item.id);
 
       expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.QUEUE_ITEM_REMOVED, undefined);
+    });
+  });
+
+  describe("QUEUE_LOADED signal", () => {
+    it("should emit QUEUE_LOADED signal after loadPersistedState() loads state", async () => {
+      // Import the mock to configure it for this test
+      const { queueService } = await import("../services");
+      vi.mocked(queueService.getState).mockResolvedValueOnce({
+        queue: [
+          {
+            id: "item-1",
+            video_id: "video-1",
+            title: "Test Song",
+            artist: "Test Artist",
+            duration: 180,
+            thumbnail_url: null,
+            source: "youtube",
+            youtube_id: "abc123",
+            file_path: null,
+            position: 0,
+            added_at: new Date().toISOString(),
+          },
+        ],
+        history: [],
+        history_index: -1,
+      });
+
+      const { loadPersistedState } = useQueueStore.getState();
+      await loadPersistedState();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.QUEUE_LOADED, undefined);
+    });
+
+    it("should emit QUEUE_LOADED signal when no persisted state exists", async () => {
+      // Import the mock to configure it for this test
+      const { queueService } = await import("../services");
+      vi.mocked(queueService.getState).mockResolvedValueOnce(null);
+
+      const { loadPersistedState } = useQueueStore.getState();
+      await loadPersistedState();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.QUEUE_LOADED, undefined);
+    });
+
+    it("should emit QUEUE_LOADED signal even when loadPersistedState() fails", async () => {
+      // Import the mock to configure it for this test
+      const { queueService } = await import("../services");
+      vi.mocked(queueService.getState).mockRejectedValueOnce(new Error("Database error"));
+
+      const { loadPersistedState } = useQueueStore.getState();
+      await loadPersistedState();
+
+      // Signal should still be emitted on error
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.QUEUE_LOADED, undefined);
     });
   });
 });

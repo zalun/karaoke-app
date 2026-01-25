@@ -46,6 +46,8 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.SESSION_STARTED).toBe("app:session-started");
     expect(APP_SIGNALS.SESSION_ENDED).toBe("app:session-ended");
     expect(APP_SIGNALS.SESSION_LOADED).toBe("app:session-loaded");
+    expect(APP_SIGNALS.SINGERS_LOADED).toBe("app:singers-loaded");
+    expect(APP_SIGNALS.QUEUE_LOADED).toBe("app:queue-loaded");
     expect(APP_SIGNALS.HOSTING_STARTED).toBe("app:hosting-started");
     expect(APP_SIGNALS.HOSTING_STOPPED).toBe("app:hosting-stopped");
   });
