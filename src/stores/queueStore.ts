@@ -292,6 +292,9 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
       return { queue: state.queue.filter((item) => item.id !== itemId) };
     });
+
+    // Emit signal after item is removed from queue (fire-and-forget)
+    emitSignal(APP_SIGNALS.QUEUE_ITEM_REMOVED, undefined);
   },
 
   reorderQueue: (itemId, newPosition) => {

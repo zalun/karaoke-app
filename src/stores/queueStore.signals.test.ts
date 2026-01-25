@@ -100,4 +100,20 @@ describe("queueStore signal emissions", () => {
       expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
     });
   });
+
+  describe("QUEUE_ITEM_REMOVED signal", () => {
+    it("should emit QUEUE_ITEM_REMOVED signal when item is removed from queue", async () => {
+      // First add an item to the queue
+      const { addToQueue, removeFromQueue } = useQueueStore.getState();
+      const item = await addToQueue(mockVideo);
+
+      // Clear mocks to only track the removeFromQueue call
+      vi.clearAllMocks();
+
+      // Remove the item
+      removeFromQueue(item.id);
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.QUEUE_ITEM_REMOVED, undefined);
+    });
+  });
 });

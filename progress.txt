@@ -66,3 +66,15 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (486). Lint clean. TypeScript clean.
+
+## SIG-106: QUEUE_ITEM_REMOVED signal (DONE)
+- Emit QUEUE_ITEM_REMOVED after removeFromQueue() state update completes
+- Signal fires after set() call filters item out
+- Added unit test in queueStore.signals.test.ts
+
+Files changed:
+- src/stores/queueStore.ts (1 emit call after removeFromQueue)
+- src/stores/queueStore.signals.test.ts (1 new test)
+- ralph/app-signals.json
+
+All tests pass (487). Lint clean. TypeScript clean.

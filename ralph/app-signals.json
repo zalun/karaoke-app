@@ -91,7 +91,7 @@
         "npm test -- queueStore passes",
         "Remove a song from queue and verify signal fires"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-107",
