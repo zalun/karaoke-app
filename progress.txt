@@ -763,3 +763,13 @@
 - Test passes consistently on chromium and webkit (ran 3 times)
 - Files changed: tests/e2e/specs/hosted-session.spec.ts, tests/e2e/fixtures/tauri-mocks.ts, ralph/app-signals-hosted-session.json
 - 476 JS tests pass, lint passes
+
+## SIG-009: All existing tests pass with signal changes
+- Ran full CI verification for all signal system changes
+- npm test: 476 tests passed
+- tsc -b (typecheck): No errors
+- npm run lint: No errors
+- cargo test: 156 tests passed
+- playwright test (E2E): 204 passed, 8 skipped
+- No new warnings introduced
+- Files changed: ralph/app-signals-hosted-session.json
