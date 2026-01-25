@@ -401,7 +401,9 @@
         "Verify test asserts it was called with session.id and 'ended'",
         "Run: npm test -- sessionStore.test.ts"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Test already exists at line 2474: 'should update hosted_session_status to 'ended' in DB (STOP-001)'. Mocks sessionService.updateHostedSessionStatus, calls stopHosting(), asserts called with mockSession.id and 'ended'. All 11 stopHosting tests pass."
     },
     {
       "id": "TEST-002",

@@ -594,3 +594,12 @@
 - Files changed: src/services/hostedSession.ts, ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, 78 Rust tests pass, typecheck passes, lint passes
 
+## TEST-001: Test verifying stopHosting calls updateHostedSessionStatus
+- Test already exists at sessionStore.test.ts:2474-2497
+- Test name: "should update hosted_session_status to 'ended' in DB (STOP-001)"
+- Test mocks sessionService.updateHostedSessionStatus, calls stopHosting(), verifies called with session.id and 'ended'
+- All 11 stopHosting tests pass
+- Marked TEST-001 passes=true in JSON with completion notes
+- Files changed: ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, lint passes
+
