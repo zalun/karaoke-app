@@ -697,3 +697,12 @@
 - Exported types: SignalPayloads, AppSignalName
 - Files changed: src/services/index.ts, ralph/app-signals-hosted-session.json, progress.txt
 - 459 JS tests pass, lint passes, typecheck passes
+
+## SIG-003: Emit USER_LOGGED_IN signal from authStore.fetchUserProfile()
+- Added import { APP_SIGNALS, emitSignal } from ../services to authStore.ts
+- Added emitSignal(APP_SIGNALS.USER_LOGGED_IN, authUser) after set() at line 361 (success path)
+- Added same emission for mock user path at line 327 (E2E testing)
+- Signal emitted after state set, only in success path (not on error)
+- Payload is User object for downstream consumers
+- Files changed: src/stores/authStore.ts, ralph/app-signals-hosted-session.json, progress.txt
+- 459 JS tests pass, lint passes, typecheck passes

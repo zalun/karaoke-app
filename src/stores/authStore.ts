@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { createLogger } from "../services";
+import { APP_SIGNALS, createLogger, emitSignal } from "../services";
 import { authService, type AuthTokens, type User } from "../services/auth";
 import { clearPersistedSessionId } from "../services/hostedSession";
 import { createAuthenticatedClient, isSupabaseConfigured } from "../services/supabase";
@@ -322,6 +322,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (mockUser) {
       log.info(`Using mock user: ${mockUser.email}`);
       set({ isAuthenticated: true, user: mockUser });
+      // Emit signal for cross-store coordination (same as real user path)
+      await emitSignal(APP_SIGNALS.USER_LOGGED_IN, mockUser);
       return;
     }
 
@@ -357,6 +359,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ isAuthenticated: true, user: authUser });
       log.info(`User profile loaded: ${authUser.email}`);
+
+      // Emit signal for cross-store coordination (e.g., restoreHostedSession waits for this)
+      await emitSignal(APP_SIGNALS.USER_LOGGED_IN, authUser);
     } catch (error) {
       log.error(`Profile fetch error: ${error}`);
       // Still mark as authenticated if tokens are valid

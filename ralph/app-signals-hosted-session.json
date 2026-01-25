@@ -59,7 +59,8 @@
         "Verify signal fires after successful OAuth callback",
         "Verify signal fires on app startup when tokens exist"
       ],
-      "passes": false
+      "passes": true,
+      "completed_notes": "Added emitSignal import from services, added emitSignal(APP_SIGNALS.USER_LOGGED_IN, authUser) after set() in success path (line 361), and added same emission for mock user path (line 327). 459 tests pass."
     },
     {
       "id": "SIG-004",
