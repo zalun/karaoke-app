@@ -338,7 +338,9 @@
         "Check src-tauri/src/commands/session.rs get_active_session",
         "Verify query result mapping converts status string to HostedSessionStatus"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Already completed as part of TYPE-002. Line 453-454 uses row.get::<_, Option<String>>(7)?.and_then(|s| HostedSessionStatus::from_str(&s)) to parse DB string to enum. All 5 query mappings in session.rs use this pattern."
     },
     {
       "id": "TYPE-007",
@@ -349,7 +351,9 @@
         "Verify tests use enum variants instead of string literals",
         "Run: cargo test"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Enum tests exist in hosted_session_status_enum module (10 tests for serialization, deserialization, from_str, as_str, equality, clone, debug). DB-level tests correctly use string literals for raw SQL - that's appropriate since DB stores strings. All 78 session tests pass."
     },
     {
       "id": "TYPE-008",
@@ -359,7 +363,9 @@
         "Check src/services/hostedSession.ts imports",
         "Verify imports HostedSessionStatus from './session'"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added import { HostedSessionStatus } from './session' at line 5 of hostedSession.ts. TypeScript compilation passes."
     },
     {
       "id": "TYPE-009",
@@ -369,7 +375,9 @@
         "Check src/services/hostedSession.ts HostedSession interface line ~89",
         "Verify status field uses HostedSessionStatus instead of inline union"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Changed status field in HostedSession interface from inline union \"active\" | \"paused\" | \"ended\" to HostedSessionStatus type (line 107). TypeScript compilation passes."
     },
     {
       "id": "TYPE-010",
@@ -379,7 +387,9 @@
         "Check src/services/hostedSession.ts GetSessionResponse interface line ~104",
         "Verify status field uses HostedSessionStatus instead of inline union"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Changed status field in GetSessionResponse interface from inline union \"active\" | \"paused\" | \"ended\" to HostedSessionStatus type (line 122). TypeScript compilation passes. All 459 JS tests pass."
     },
     {
       "id": "TEST-001",

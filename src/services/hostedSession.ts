@@ -2,6 +2,7 @@ import { fetch } from "@tauri-apps/plugin-http";
 import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "./logger";
 import { HOMEKARAOKE_API_URL, buildJoinUrl, buildQrCodeUrl } from "../constants";
+import { HostedSessionStatus } from "./session";
 
 const log = createLogger("HostedSessionService");
 
@@ -103,7 +104,7 @@ export interface HostedSession {
   joinUrl: string;
   qrCodeUrl: string;
   expiresAt?: string;
-  status: "active" | "paused" | "ended";
+  status: HostedSessionStatus;
   stats: SessionStats;
 }
 
@@ -118,7 +119,7 @@ interface CreateSessionResponse {
 interface GetSessionResponse {
   id: string;
   session_code: string;
-  status: "active" | "paused" | "ended";
+  status: HostedSessionStatus;
   stats: {
     pending_requests: number;
     approved_requests: number;

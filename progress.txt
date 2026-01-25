@@ -585,3 +585,12 @@
 - Files changed: ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, typecheck passes, lint passes
 
+## TYPE-006/TYPE-007/TYPE-008/TYPE-009/TYPE-010: Complete TypeScript type safety for HostedSessionStatus
+- TYPE-006: Already complete - get_active_session (line 453-454) uses HostedSessionStatus::from_str() to parse DB string to enum
+- TYPE-007: Already complete - Rust tests exist in hosted_session_status_enum module (10 tests). DB-level tests correctly use strings for raw SQL
+- TYPE-008: Added import { HostedSessionStatus } from './session' to hostedSession.ts line 5
+- TYPE-009: Changed HostedSession interface status field from inline union to imported HostedSessionStatus type
+- TYPE-010: Changed GetSessionResponse interface status field from inline union to imported HostedSessionStatus type
+- Files changed: src/services/hostedSession.ts, ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, 78 Rust tests pass, typecheck passes, lint passes
+
