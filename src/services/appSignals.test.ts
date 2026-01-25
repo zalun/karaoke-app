@@ -45,6 +45,7 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.QUEUE_ITEM_REMOVED).toBe("app:queue-item-removed");
     expect(APP_SIGNALS.SESSION_STARTED).toBe("app:session-started");
     expect(APP_SIGNALS.SESSION_ENDED).toBe("app:session-ended");
+    expect(APP_SIGNALS.SESSION_LOADED).toBe("app:session-loaded");
     expect(APP_SIGNALS.HOSTING_STARTED).toBe("app:hosting-started");
     expect(APP_SIGNALS.HOSTING_STOPPED).toBe("app:hosting-stopped");
   });

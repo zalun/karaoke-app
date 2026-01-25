@@ -154,7 +154,7 @@
         "npm test passes",
         "Reload app and verify signal fires after session loads"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-202",

@@ -145,6 +145,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         // Attempt to restore hosted session from previous app run
         // Note: MIGRATE-002 legacy cleanup now runs once at app startup (App.tsx)
         await get().restoreHostedSession();
+
+        // Emit signal after all session initialization is complete
+        await emitSignal(APP_SIGNALS.SESSION_LOADED, undefined);
       }
     } catch (error) {
       log.error("Failed to load session:", error);

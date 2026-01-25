@@ -465,6 +465,31 @@ describe("sessionStore - Session Lifecycle", () => {
       );
       expect(useSessionStore.getState().session).toBeNull();
     });
+
+    it("should emit SESSION_LOADED signal after all initialization completes", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      vi.mocked(sessionService.getActiveSession).mockResolvedValue(mockSession);
+      vi.mocked(sessionService.getSessionSingers).mockResolvedValue([mockSinger1]);
+      vi.mocked(sessionService.getActiveSinger).mockResolvedValue(mockSinger1);
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+
+      await useSessionStore.getState().loadSession();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SESSION_LOADED, undefined);
+    });
+
+    it("should NOT emit SESSION_LOADED signal when no active session", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      vi.mocked(sessionService.getActiveSession).mockResolvedValue(null);
+
+      await useSessionStore.getState().loadSession();
+
+      expect(emitSignal).not.toHaveBeenCalledWith(APP_SIGNALS.SESSION_LOADED, undefined);
+    });
   });
 
   // MIGRATE-002 tests removed - migration now runs at app startup via runLegacyHostedSessionMigration()

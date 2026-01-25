@@ -112,3 +112,21 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (494). Lint clean. TypeScript clean.
+
+## SIG-201: SESSION_LOADED signal (DONE)
+- Added SESSION_LOADED to APP_SIGNALS constant in appSignals.ts
+- Added payload type to SignalPayloads interface (undefined)
+- Emit SESSION_LOADED in sessionStore.loadSession() after all init (singers, active singer, queue, assignments, hosted session restore)
+- Added test in appSignals.test.ts verifying signal name
+- Added 2 unit tests in sessionStore.test.ts:
+  - Verifies signal emits after loadSession with active session
+  - Verifies signal NOT emitted when no active session
+
+Files changed:
+- src/services/appSignals.ts (signal def + payload type)
+- src/services/appSignals.test.ts (signal name test)
+- src/stores/sessionStore.ts (emit call line 150)
+- src/stores/sessionStore.test.ts (2 new tests)
+- ralph/app-signals.json
+
+All tests pass (497). Lint clean. TypeScript clean.
