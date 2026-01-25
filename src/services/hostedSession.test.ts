@@ -6,6 +6,12 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => mockInvoke(...args),
 }));
 
+// Mock fetch from plugin-http
+const mockFetch = vi.fn();
+vi.mock("@tauri-apps/plugin-http", () => ({
+  fetch: (...args: unknown[]) => mockFetch(...args),
+}));
+
 // Mock logger
 vi.mock("./logger", () => ({
   createLogger: () => ({
@@ -23,6 +29,7 @@ import {
   getPersistedSessionId,
   clearPersistedSessionId,
   runLegacyHostedSessionMigration,
+  hostedSessionService,
 } from "./hostedSession";
 
 describe("ApiError", () => {
@@ -261,5 +268,145 @@ describe("hostedSession persistence functions", () => {
       // Should not throw
       await expect(runLegacyHostedSessionMigration()).resolves.toBeUndefined();
     });
+  });
+});
+
+describe("hostedSessionService.getRequests", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should throw error when access token is empty", async () => {
+    await expect(
+      hostedSessionService.getRequests("", "session-123")
+    ).rejects.toThrow("Access token is required");
+
+    await expect(
+      hostedSessionService.getRequests("   ", "session-123")
+    ).rejects.toThrow("Access token is required");
+  });
+
+  it("should throw error when session ID is empty", async () => {
+    await expect(
+      hostedSessionService.getRequests("token-123", "")
+    ).rejects.toThrow("Session ID is required");
+
+    await expect(
+      hostedSessionService.getRequests("token-123", "   ")
+    ).rejects.toThrow("Session ID is required");
+  });
+
+  it("should call fetch with correct URL and headers", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([]),
+    });
+
+    await hostedSessionService.getRequests("token-123", "session-456");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/session/session-456/requests"),
+      expect.objectContaining({
+        method: "GET",
+        headers: {
+          Authorization: "Bearer token-123",
+        },
+      })
+    );
+  });
+
+  it("should include status query parameter when provided", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([]),
+    });
+
+    await hostedSessionService.getRequests("token-123", "session-456", "pending");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/session\/session-456\/requests\?status=pending$/),
+      expect.any(Object)
+    );
+  });
+
+  it("should return array of SongRequest objects", async () => {
+    const mockResponse = [
+      {
+        id: "req-1",
+        title: "Song Title",
+        status: "pending",
+        guest_name: "John",
+        requested_at: "2024-01-15T10:30:00Z",
+        youtube_id: "abc123",
+        artist: "Artist Name",
+        duration: 180,
+        thumbnail_url: "https://example.com/thumb.jpg",
+      },
+      {
+        id: "req-2",
+        title: "Another Song",
+        status: "pending",
+        guest_name: "Jane",
+        requested_at: "2024-01-15T10:31:00Z",
+      },
+    ];
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    });
+
+    const result = await hostedSessionService.getRequests("token", "session");
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({
+      id: "req-1",
+      title: "Song Title",
+      status: "pending",
+      guest_name: "John",
+      requested_at: "2024-01-15T10:30:00Z",
+      youtube_id: "abc123",
+      artist: "Artist Name",
+      duration: 180,
+      thumbnail_url: "https://example.com/thumb.jpg",
+    });
+    expect(result[1]).toEqual({
+      id: "req-2",
+      title: "Another Song",
+      status: "pending",
+      guest_name: "Jane",
+      requested_at: "2024-01-15T10:31:00Z",
+      youtube_id: undefined,
+      artist: undefined,
+      duration: undefined,
+      thumbnail_url: undefined,
+    });
+  });
+
+  it("should throw ApiError on non-ok response", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: () => Promise.resolve("Forbidden"),
+    });
+
+    await expect(
+      hostedSessionService.getRequests("token", "session")
+    ).rejects.toThrow(ApiError);
+
+    try {
+      await hostedSessionService.getRequests("token", "session");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).statusCode).toBe(403);
+    }
+  });
+
+  it("should throw network error on fetch failure", async () => {
+    mockFetch.mockRejectedValue(new Error("Network unavailable"));
+
+    await expect(
+      hostedSessionService.getRequests("token", "session")
+    ).rejects.toThrow("Network error: Network unavailable");
   });
 });

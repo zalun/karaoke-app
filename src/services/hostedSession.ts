@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "./logger";
 import { HOMEKARAOKE_API_URL, buildJoinUrl, buildQrCodeUrl } from "../constants";
 import { HostedSessionStatus } from "./session";
+import { SongRequest } from "../types/songRequest";
 
 const log = createLogger("HostedSessionService");
 
@@ -147,6 +148,18 @@ interface GetSessionResponse {
   };
 }
 
+interface SongRequestResponse {
+  id: string;
+  title: string;
+  status: "pending" | "approved" | "rejected" | "played";
+  guest_name: string;
+  requested_at: string;
+  youtube_id?: string;
+  artist?: string;
+  duration?: number;
+  thumbnail_url?: string;
+}
+
 export const hostedSessionService = {
   /**
    * Create a new hosted session.
@@ -254,6 +267,65 @@ export const hostedSessionService = {
         totalGuests: data.stats.total_guests,
       },
     };
+  },
+
+  /**
+   * Get song requests for a hosted session.
+   * Can filter by status (pending, approved, rejected, played).
+   */
+  async getRequests(
+    accessToken: string,
+    sessionId: string,
+    status?: string
+  ): Promise<SongRequest[]> {
+    if (!accessToken || accessToken.trim() === "") {
+      throw new Error("Access token is required");
+    }
+    if (!sessionId || sessionId.trim() === "") {
+      throw new Error("Session ID is required");
+    }
+
+    const url = new URL(`${HOMEKARAOKE_API_URL}/api/session/${sessionId}/requests`);
+    if (status) {
+      url.searchParams.set("status", status);
+    }
+
+    log.debug(`Getting requests for session: ${sessionId}${status ? ` (status=${status})` : ""}`);
+
+    let response: Response;
+    try {
+      response = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error(`Network error getting requests: ${message}`);
+      throw new Error(`Network error: ${message}`);
+    }
+
+    if (!response.ok) {
+      const error = await response.text();
+      log.error(`Failed to get requests (${response.status}): ${error}`);
+      throw new ApiError(response.status, `Failed to get requests: ${error}`);
+    }
+
+    const data: SongRequestResponse[] = await response.json();
+    log.debug(`Retrieved ${data.length} requests`);
+
+    return data.map((item) => ({
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      guest_name: item.guest_name,
+      requested_at: item.requested_at,
+      youtube_id: item.youtube_id,
+      artist: item.artist,
+      duration: item.duration,
+      thumbnail_url: item.thumbnail_url,
+    }));
   },
 
   /**

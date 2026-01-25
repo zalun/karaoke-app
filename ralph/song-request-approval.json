@@ -59,7 +59,7 @@
         "Function passes status as query parameter when provided",
         "Function returns array of SongRequest objects"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-006",
