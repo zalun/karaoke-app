@@ -208,7 +208,7 @@
         "Modal has max-height constraint (~80vh) with overflow scroll for content",
         "Modal renders only when showRequestsModal is true from session store"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-018",
@@ -219,7 +219,7 @@
         "Header has close button (X icon)",
         "Clicking close button calls closeRequestsModal from session store"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-019",
@@ -231,7 +231,7 @@
         "Each group header has 'Approve All' button for that guest",
         "Clicking group 'Approve All' calls approveAllRequests with guestName filter"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-020",
@@ -247,7 +247,7 @@
         "Clicking approve calls approveRequest with request ID",
         "Clicking reject calls rejectRequest with request ID"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-021",
@@ -259,7 +259,7 @@
         "Clicking button calls approveAllRequests without guestName filter",
         "Button is disabled or hidden when no pending requests"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-022",
@@ -270,7 +270,7 @@
         "Empty state message indicates no pending requests",
         "Approve All buttons are not shown in empty state"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-023",
@@ -281,7 +281,7 @@
         "Loading indicator is centered in modal content area",
         "Action buttons are disabled during loading"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-024",
@@ -291,7 +291,7 @@
         "src/components/session/index.ts exports SongRequestsModal",
         "Component can be imported from 'src/components/session'"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-025",
@@ -304,7 +304,7 @@
         "Button has appropriate hover styles (text-gray-400 to text-blue-400)",
         "Button has title attribute showing pending count"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-026",
@@ -317,7 +317,7 @@
         "Badge is styled as small circle (bg-blue-500, text-white, rounded-full)",
         "Badge is positioned at top-right corner of button (-top-1 -right-1)"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-027",
@@ -327,7 +327,7 @@
         "Clicking the requests button calls openRequestsModal from session store",
         "Modal becomes visible after clicking button"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-028",
@@ -338,7 +338,7 @@
         "SongRequestsModal is rendered in the component tree",
         "Modal receives necessary props or accesses store directly"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-029",
@@ -349,7 +349,7 @@
         "Song is added with correct metadata (title, artist, youtube_id, etc.)",
         "Queue updates in real-time after approval"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-030",
@@ -361,7 +361,7 @@
         "Notification has 'info' type styling",
         "Notification 'View' action opens the requests modal"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }

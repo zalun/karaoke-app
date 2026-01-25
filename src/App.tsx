@@ -20,7 +20,7 @@ import { VideoPlayer, PlayerControls } from "./components/player";
 import { SearchBar, SearchResults, LocalSearchResults, ActiveSingerSelector, type SearchBarRef, type SearchResultsRef, type LocalSearchResultsRef } from "./components/search";
 import { LibraryBrowser, type LibraryBrowserRef } from "./components/library";
 import { DraggableQueueItem } from "./components/queue";
-import { SessionBar, HostedByOtherUserDialog } from "./components/session";
+import { SessionBar, HostedByOtherUserDialog, SongRequestsModal } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
@@ -28,7 +28,7 @@ import { SettingsDialog } from "./components/settings";
 import { AuthStatus } from "./components/auth";
 import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, useAuthStore, getStreamUrlWithCache, showWindowsAudioNoticeOnce, notify, SETTINGS_KEYS, type QueueItem, type LibraryVideo, type Video } from "./stores";
 import { SingerAvatar } from "./components/singers";
-import { Shuffle, Trash2, ListRestart, Star, ListOrdered } from "lucide-react";
+import { Shuffle, Trash2, ListRestart, Star, ListOrdered, Inbox } from "lucide-react";
 import { youtubeService, createLogger, getErrorMessage, runLegacyHostedSessionMigration, emitSignal, APP_SIGNALS } from "./services";
 import { useMediaControls, useDisplayWatcher, useUpdateCheck, useKeyboardShortcuts } from "./hooks";
 import { NotificationBar } from "./components/notification";
@@ -572,6 +572,9 @@ function App() {
       {/* Hosted session ownership dialog */}
       <HostedByOtherUserDialog />
 
+      {/* Song requests approval modal */}
+      <SongRequestsModal />
+
       {/* Favorites dialogs */}
       <LoadFavoritesDialog />
       <ManageFavoritesDialog />
@@ -794,6 +797,7 @@ function QueuePanel() {
   const { queue, playFromQueue, removeFromQueue, reorderQueue, clearQueue, fairShuffle } = useQueueStore();
   const { setCurrentVideo, setIsPlaying, setIsLoading } = usePlayerStore();
   const { getSetting, setSetting } = useSettingsStore();
+  const { hostedSession, openRequestsModal } = useSessionStore();
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1005,11 +1009,26 @@ function QueuePanel() {
       </DndContext>
       <div className="mt-3 flex items-center gap-2">
         <QueueSummary queue={queue} />
+        {hostedSession && (
+          <button
+            onClick={openRequestsModal}
+            title={`${hostedSession.stats.pendingRequests} pending requests`}
+            aria-label={`View ${hostedSession.stats.pendingRequests} pending song requests`}
+            className="relative ml-auto p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded transition-colors"
+          >
+            <Inbox size={18} />
+            {hostedSession.stats.pendingRequests > 0 && (
+              <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center">
+                {hostedSession.stats.pendingRequests > 99 ? "99+" : hostedSession.stats.pendingRequests}
+              </span>
+            )}
+          </button>
+        )}
         <button
           onClick={toggleFairQueue}
           title={fairQueueEnabled ? "Fair Queue: ON" : "Fair Queue: OFF"}
           aria-label={fairQueueEnabled ? "Fair Queue enabled - new songs inserted at fair position" : "Fair Queue disabled - new songs appended to end"}
-          className={`ml-auto p-2 rounded transition-colors ${
+          className={`${!hostedSession ? "ml-auto " : ""}p-2 rounded transition-colors ${
             fairQueueEnabled
               ? "text-blue-400 bg-blue-400/20"
               : "text-gray-400 hover:text-blue-400 hover:bg-gray-700"
