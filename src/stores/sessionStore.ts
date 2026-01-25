@@ -145,6 +145,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
     } catch (error) {
       log.error("Failed to load session:", error);
+      notify("error", "Failed to load session. Please try restarting the app.");
     }
   },
 

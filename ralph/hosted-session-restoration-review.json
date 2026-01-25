@@ -127,7 +127,7 @@
         "Verify notify('error', ...) is called in catch block",
         "Verify error message is user-friendly"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ERR-011",
@@ -139,7 +139,7 @@
         "Verify test checks notify was called with 'error'",
         "Run: npm test -- sessionStore.test.ts"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ERR-012",

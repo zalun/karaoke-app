@@ -410,6 +410,20 @@ describe("sessionStore - Session Lifecycle", () => {
       expect(useSessionStore.getState().session).toBeNull();
       expect(sessionService.getSessionSingers).not.toHaveBeenCalled();
     });
+
+    it("should show error notification when getActiveSession fails", async () => {
+      vi.mocked(sessionService.getActiveSession).mockRejectedValue(
+        new Error("Database connection failed")
+      );
+
+      await useSessionStore.getState().loadSession();
+
+      expect(notify).toHaveBeenCalledWith(
+        "error",
+        "Failed to load session. Please try restarting the app."
+      );
+      expect(useSessionStore.getState().session).toBeNull();
+    });
   });
 
   // MIGRATE-002 tests removed - migration now runs at app startup via runLegacyHostedSessionMigration()
