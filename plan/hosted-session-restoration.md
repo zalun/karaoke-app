@@ -395,6 +395,26 @@ When `current_user.id !== hosted_by_user_id`:
       "Consider removing after 1-2 releases when users have upgraded"
     ],
     "passes": false
+  },
+  {
+    "id": "REVIEW-006",
+    "category": "User Interface",
+    "priority": "medium",
+    "description": "Show hosted session icon in Stored Sessions modal",
+    "details": "In the Load Session modal (stored sessions list), display the Radio icon next to sessions that have hosted_session_id. This helps users identify which sessions were previously hosted.",
+    "files": [
+      "src/components/session/SessionBar.tsx",
+      "src/components/session/SessionBar.test.tsx"
+    ],
+    "steps_to_verify": [
+      "Add Radio icon next to session name in recentSessions.map() (around line 405)",
+      "Only show icon if session has hosted_session_id",
+      "Consider different styling if hosted_session_status is 'active' vs 'ended' (e.g., green vs gray)",
+      "Add tooltip explaining 'This session was hosted' or 'Currently hosting'",
+      "Add unit tests for icon visibility based on hosted fields",
+      "Verify icon displays correctly in the modal"
+    ],
+    "passes": false
   }
 ]
 ```
