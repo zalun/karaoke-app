@@ -97,6 +97,9 @@ interface SessionState {
   closeHostModal: () => void;
   closeHostedByOtherUserDialog: () => void;
 
+  // Song request actions
+  loadPendingRequests: () => Promise<void>;
+
   // Singer actions
   loadSingers: () => Promise<void>;
   createSinger: (name: string, color?: string, isPersistent?: boolean) => Promise<Singer>;
@@ -1024,5 +1027,39 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   closeHostedByOtherUserDialog: () => {
     set({ showHostedByOtherUserDialog: false });
+  },
+
+  // Song request actions
+  loadPendingRequests: async () => {
+    const { hostedSession } = get();
+    if (!hostedSession) {
+      log.debug("Cannot load pending requests: no hosted session");
+      return;
+    }
+
+    log.debug("Loading pending requests");
+    set({ isLoadingRequests: true });
+    try {
+      const tokens = await authService.getTokens();
+      if (!tokens) {
+        log.warn("Cannot load pending requests: not authenticated");
+        set({ isLoadingRequests: false });
+        return;
+      }
+
+      const requests = await hostedSessionService.getRequests(
+        tokens.access_token,
+        hostedSession.id,
+        "pending"
+      );
+
+      set({ pendingRequests: requests, isLoadingRequests: false });
+      log.debug(`Loaded ${requests.length} pending requests`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to load pending requests: ${message}`);
+      set({ isLoadingRequests: false });
+      notify("error", "Failed to load song requests");
+    }
   },
 }));

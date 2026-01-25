@@ -119,7 +119,7 @@
         "Action sets isLoadingRequests to false after completion",
         "Action handles errors gracefully"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-011",
