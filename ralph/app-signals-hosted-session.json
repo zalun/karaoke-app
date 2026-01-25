@@ -40,7 +40,7 @@
         "Can import { APP_SIGNALS, emitSignal, waitForSignalOrCondition } from '../services'",
         "No circular dependency warnings during build"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-003",

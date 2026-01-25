@@ -691,3 +691,9 @@
 - Files changed: src/services/appSignals.ts, ralph/app-signals-hosted-session.json, progress.txt
 - 459 JS tests pass, lint passes, just check passes
 
+## SIG-002: Export signal utilities from src/services/index.ts
+- Added exports to src/services/index.ts for appSignals module
+- Exported: APP_SIGNALS, emitSignal, listenForSignal, waitForSignal, waitForSignalOrCondition
+- Exported types: SignalPayloads, AppSignalName
+- Files changed: src/services/index.ts, ralph/app-signals-hosted-session.json, progress.txt
+- 459 JS tests pass, lint passes, typecheck passes

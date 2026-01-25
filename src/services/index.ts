@@ -37,6 +37,14 @@ export {
   YouTubeErrorCodes,
   getYouTubeErrorMessage,
 } from "./youtubeIframe";
+export {
+  APP_SIGNALS,
+  emitSignal,
+  listenForSignal,
+  waitForSignal,
+  waitForSignalOrCondition,
+} from "./appSignals";
+export type { SignalPayloads, AppSignalName } from "./appSignals";
 
 /**
  * Extract error message from unknown error type
