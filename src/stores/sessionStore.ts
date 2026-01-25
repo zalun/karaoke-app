@@ -691,6 +691,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to start hosted session: ${message}`);
+      // Emit error signal for UI components to handle
+      await emitSignal(APP_SIGNALS.HOSTING_ERROR, {
+        operation: "hostSession",
+        message,
+      });
       throw error;
     }
   },
@@ -759,6 +764,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Notify user if API call failed (backend may still think session is hosted)
       if (apiCallFailed) {
         notify("warning", "Could not end session on server. It may expire automatically.");
+        // Emit error signal for UI components to handle
+        await emitSignal(APP_SIGNALS.HOSTING_ERROR, {
+          operation: "stopHosting",
+          message: "Could not end session on server. It may expire automatically.",
+        });
       }
 
       // Emit signal for other stores/components that depend on hosting stop
@@ -811,6 +821,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to refresh hosted session: ${message}`);
+      // Emit error signal for UI components to handle
+      await emitSignal(APP_SIGNALS.HOSTING_ERROR, {
+        operation: "refreshHostedSession",
+        message,
+      });
       // If session is ended, invalid, or auth failed, clear it
       // Use ApiError instanceof check for reliable status code detection
       const shouldClear =
@@ -958,6 +973,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.warn(`Failed to restore hosted session: ${message}`);
+      // Emit error signal for UI components to handle (silent cleanup scenario)
+      await emitSignal(APP_SIGNALS.HOSTING_ERROR, {
+        operation: "restoreHostedSession",
+        message,
+      });
 
       // Clear persisted ID on auth errors or session not found
       // Use ApiError instanceof check for reliable status code detection

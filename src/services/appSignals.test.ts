@@ -60,6 +60,7 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.QUEUE_ORDER_CHANGED).toBe("app:queue-order-changed");
     expect(APP_SIGNALS.NEXT_SONG_CHANGED).toBe("app:next-song-changed");
     expect(APP_SIGNALS.QUEUE_OPERATION_FAILED).toBe("app:queue-operation-failed");
+    expect(APP_SIGNALS.HOSTING_ERROR).toBe("app:hosting-error");
   });
 });
 
@@ -113,6 +114,22 @@ describe("emitSignal", () => {
     expect(mockEmit).toHaveBeenCalledTimes(1);
     expect(mockEmit).toHaveBeenCalledWith(
       "app:queue-operation-failed",
+      payload
+    );
+  });
+
+  it("should emit HOSTING_ERROR with operation type and message", async () => {
+    mockEmit.mockResolvedValue(undefined);
+    const payload = {
+      operation: "hostSession" as const,
+      message: "Not authenticated",
+    };
+
+    await emitSignal(APP_SIGNALS.HOSTING_ERROR, payload);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith(
+      "app:hosting-error",
       payload
     );
   });

@@ -69,6 +69,8 @@ export const APP_SIGNALS = {
   NEXT_SONG_CHANGED: "app:next-song-changed",
   /** Emitted when a critical queue operation fails */
   QUEUE_OPERATION_FAILED: "app:queue-operation-failed",
+  /** Emitted when a hosting operation fails */
+  HOSTING_ERROR: "app:hosting-error",
 } as const;
 
 /** Type for signal names */
@@ -113,6 +115,8 @@ export interface SignalPayloads {
   [APP_SIGNALS.NEXT_SONG_CHANGED]: NextSongPayload;
   /** Payload contains operation type and error message for failed queue operations */
   [APP_SIGNALS.QUEUE_OPERATION_FAILED]: QueueOperationFailedPayload;
+  /** Payload contains operation type and error message for failed hosting operations */
+  [APP_SIGNALS.HOSTING_ERROR]: HostingErrorPayload;
 }
 
 /** Video metadata payload for VIDEO_METADATA_CHANGED signal */
@@ -139,6 +143,14 @@ export interface NextSongPayload {
 export interface QueueOperationFailedPayload {
   /** The type of operation that failed */
   operation: "moveAllHistoryToQueue" | "addToQueue" | "removeFromQueue" | "reorderQueue" | "clearQueue" | "fairShuffle";
+  /** Human-readable error message */
+  message: string;
+}
+
+/** Payload for HOSTING_ERROR signal */
+export interface HostingErrorPayload {
+  /** The type of hosting operation that failed */
+  operation: "hostSession" | "stopHosting" | "refreshHostedSession" | "restoreHostedSession";
   /** Human-readable error message */
   message: string;
 }

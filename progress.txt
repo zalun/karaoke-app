@@ -358,3 +358,28 @@ Files changed:
 - ralph/app-signals.json (marked SIG-501 passes: true)
 
 All tests pass (528). Lint clean. TypeScript clean.
+
+## SIG-502: Add HOSTING_ERROR signal for error broadcasting
+
+Task: Add signal for hosting operation failures.
+
+Changes:
+- Added HOSTING_ERROR to APP_SIGNALS constant
+- Added HostingErrorPayload interface with `operation` and `message` fields
+- Operation type enum: hostSession, stopHosting, refreshHostedSession, restoreHostedSession
+- Emit signal in sessionStore in 4 locations:
+  - hostSession() catch block before rethrowing error
+  - stopHosting() when apiCallFailed is true (after notify)
+  - refreshHostedSession() catch block
+  - restoreHostedSession() catch block (silent cleanup scenario)
+- Added unit test for HOSTING_ERROR emission
+- Exported HostingErrorPayload from services/index.ts
+
+Files changed:
+- src/services/appSignals.ts (signal def + payload interface + payload type)
+- src/services/appSignals.test.ts (signal name test + emission test)
+- src/services/index.ts (export HostingErrorPayload)
+- src/stores/sessionStore.ts (4 emit calls on hosting failures)
+- ralph/app-signals.json (marked SIG-502 passes: true)
+
+All tests pass (529). Lint clean. TypeScript clean.
