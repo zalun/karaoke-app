@@ -79,6 +79,10 @@ export const APP_SIGNALS = {
   YTDLP_UNAVAILABLE: "app:ytdlp-unavailable",
   /** Emitted when file availability is checked for a local library file */
   FILE_AVAILABILITY_CHECKED: "app:file-availability-checked",
+  /** Emitted before layout restoration begins in displayStore */
+  LAYOUT_RESTORE_STARTED: "app:layout-restore-started",
+  /** Emitted after layout restoration completes in displayStore */
+  LAYOUT_RESTORE_COMPLETE: "app:layout-restore-complete",
 } as const;
 
 /** Type for signal names */
@@ -133,6 +137,10 @@ export interface SignalPayloads {
   [APP_SIGNALS.YTDLP_UNAVAILABLE]: undefined;
   /** Payload contains file path and availability status */
   [APP_SIGNALS.FILE_AVAILABILITY_CHECKED]: FileAvailabilityPayload;
+  /** No payload - signals that layout restoration is starting */
+  [APP_SIGNALS.LAYOUT_RESTORE_STARTED]: undefined;
+  /** No payload - signals that layout restoration has completed */
+  [APP_SIGNALS.LAYOUT_RESTORE_COMPLETE]: undefined;
 }
 
 /** Video metadata payload for VIDEO_METADATA_CHANGED signal */

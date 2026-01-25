@@ -65,6 +65,8 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.YTDLP_AVAILABLE).toBe("app:ytdlp-available");
     expect(APP_SIGNALS.YTDLP_UNAVAILABLE).toBe("app:ytdlp-unavailable");
     expect(APP_SIGNALS.FILE_AVAILABILITY_CHECKED).toBe("app:file-availability-checked");
+    expect(APP_SIGNALS.LAYOUT_RESTORE_STARTED).toBe("app:layout-restore-started");
+    expect(APP_SIGNALS.LAYOUT_RESTORE_COMPLETE).toBe("app:layout-restore-complete");
   });
 });
 
@@ -195,6 +197,24 @@ describe("emitSignal", () => {
       "app:file-availability-checked",
       payload
     );
+  });
+
+  it("should emit LAYOUT_RESTORE_STARTED with undefined payload", async () => {
+    mockEmit.mockResolvedValue(undefined);
+
+    await emitSignal(APP_SIGNALS.LAYOUT_RESTORE_STARTED, undefined);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith("app:layout-restore-started", undefined);
+  });
+
+  it("should emit LAYOUT_RESTORE_COMPLETE with undefined payload", async () => {
+    mockEmit.mockResolvedValue(undefined);
+
+    await emitSignal(APP_SIGNALS.LAYOUT_RESTORE_COMPLETE, undefined);
+
+    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockEmit).toHaveBeenCalledWith("app:layout-restore-complete", undefined);
   });
 });
 

@@ -441,3 +441,24 @@ All tests pass (532). Lint clean. TypeScript clean.
 - Library items can listen to update their UI reactively
 
 All tests pass (534). Lint clean. TypeScript clean.
+
+---
+
+## SIG-701: Add LAYOUT_RESTORE_STARTED/COMPLETE signals
+
+**Completed**: Added layout restoration signals for display store coordination.
+
+**Changes**:
+- src/services/appSignals.ts: Added LAYOUT_RESTORE_STARTED and LAYOUT_RESTORE_COMPLETE to APP_SIGNALS, added undefined payload types to SignalPayloads
+- src/stores/displayStore.ts: Import emitSignal/APP_SIGNALS, emit LAYOUT_RESTORE_STARTED at start of restoreLayout(), emit LAYOUT_RESTORE_COMPLETE in finally block
+- src/services/appSignals.test.ts: Added signal name tests, added 2 emission tests
+- src/stores/displayStore.test.ts: Added mock for appSignals, added 3 signal emission tests (normal flow, error flow, no-op when no pending restore)
+- ralph/app-signals.json: Marked SIG-701 passes: true
+
+**Key decisions**:
+- LAYOUT_RESTORE_STARTED emitted after isLoading=true but before any window operations
+- LAYOUT_RESTORE_COMPLETE emitted in finally block to ensure it fires even on errors
+- No payload (just lifecycle coordination signals)
+- Player window can listen to pause state sync during restoration
+
+All tests pass (539). Lint clean. TypeScript clean.
