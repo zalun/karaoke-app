@@ -185,7 +185,7 @@
         "Clicking 'View' action calls openRequestsModal",
         "previousPendingCount is updated after comparison"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-016",

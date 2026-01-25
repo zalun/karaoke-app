@@ -217,6 +217,10 @@ function resetStoreState() {
     hostedSession: null,
     showHostModal: false,
     showHostedByOtherUserDialog: false,
+    pendingRequests: [],
+    previousPendingCount: 0,
+    showRequestsModal: false,
+    isLoadingRequests: false,
   });
 }
 
@@ -3040,6 +3044,143 @@ describe("sessionStore - Host Session", () => {
         APP_SIGNALS.HOSTED_SESSION_UPDATED,
         expect.anything()
       );
+    });
+
+    it("should show notification when pending requests increase", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 2,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 5, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(notify).toHaveBeenCalledWith(
+        "info",
+        "3 new song requests",
+        expect.objectContaining({
+          label: "View",
+          onClick: expect.any(Function),
+        })
+      );
+    });
+
+    it("should show singular notification for one new request", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 2,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 3, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(notify).toHaveBeenCalledWith(
+        "info",
+        "1 new song request",
+        expect.objectContaining({
+          label: "View",
+          onClick: expect.any(Function),
+        })
+      );
+    });
+
+    it("should NOT show notification when pending requests decrease", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 5,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 2, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(notify).not.toHaveBeenCalledWith(
+        "info",
+        expect.stringContaining("new song request"),
+        expect.anything()
+      );
+    });
+
+    it("should NOT show notification when pending requests stay the same", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 3,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 3, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(notify).not.toHaveBeenCalledWith(
+        "info",
+        expect.stringContaining("new song request"),
+        expect.anything()
+      );
+    });
+
+    it("should update previousPendingCount after refresh", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 2,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 7, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(useSessionStore.getState().previousPendingCount).toBe(7);
+    });
+
+    it("should call openRequestsModal when clicking View in notification", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 0,
+        _isRefreshingHostedSession: false,
+        showRequestsModal: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 3, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      // Get the onClick callback from the notify call
+      const notifyCall = vi.mocked(notify).mock.calls.find(
+        (call) => call[0] === "info" && typeof call[1] === "string" && call[1].includes("new song request")
+      );
+      expect(notifyCall).toBeDefined();
+      const action = notifyCall?.[2] as { onClick: () => void };
+      expect(action?.onClick).toBeDefined();
+
+      // Call the onClick callback
+      action.onClick();
+
+      // Verify modal opens
+      expect(useSessionStore.getState().showRequestsModal).toBe(true);
     });
   });
 

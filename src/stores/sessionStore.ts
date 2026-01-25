@@ -703,6 +703,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         hostedSession,
         showHostModal: true,
         _hostedSessionPollInterval: pollInterval,
+        previousPendingCount: hostedSession.stats.pendingRequests,
       });
 
       log.info(`Hosted session started: ${hostedSession.sessionCode}`);
@@ -776,9 +777,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           hostedSession: null,
           showHostModal: false,
           _hostedSessionPollInterval: null,
+          previousPendingCount: 0,
         });
       } else {
-        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
+        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null, previousPendingCount: 0 });
       }
 
       // Notify user if API call failed (backend may still think session is hosted)
@@ -829,11 +831,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         hostedSession.id
       );
 
+      // Check for new requests and show notification
+      const previousCount = get().previousPendingCount;
+      const newCount = updated.stats.pendingRequests;
+
+      if (newCount > previousCount && previousCount !== undefined) {
+        const diff = newCount - previousCount;
+        notify("info", `${diff} new song request${diff > 1 ? "s" : ""}`, {
+          label: "View",
+          onClick: () => get().openRequestsModal(),
+        });
+      }
+
       // Only update stats, preserve other fields from the original session
       set((state) => ({
         hostedSession: state.hostedSession
           ? { ...state.hostedSession, stats: updated.stats, status: updated.status }
           : null,
+        previousPendingCount: newCount,
       }));
 
       // Emit signal after successful stats update
@@ -986,7 +1001,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         get().refreshHostedSession();
       }, HOSTED_SESSION_POLL_INTERVAL_MS);
 
-      set({ hostedSession: restoredSession, _hostedSessionPollInterval: pollInterval });
+      set({
+        hostedSession: restoredSession,
+        _hostedSessionPollInterval: pollInterval,
+        previousPendingCount: restoredSession.stats.pendingRequests,
+      });
 
       log.info(`Restored hosted session: ${restoredSession.sessionCode}`);
       notify("success", "Reconnected to hosted session");
