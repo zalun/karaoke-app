@@ -3773,4 +3773,61 @@ describe("sessionStore - Song Request Actions", () => {
       expect(pendingRequests).toHaveLength(2);
     });
   });
+
+  describe("openRequestsModal", () => {
+    it("should set showRequestsModal to true", () => {
+      useSessionStore.setState({ showRequestsModal: false });
+
+      useSessionStore.getState().openRequestsModal();
+
+      expect(useSessionStore.getState().showRequestsModal).toBe(true);
+    });
+
+    it("should call loadPendingRequests to fetch fresh data", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getRequests).mockResolvedValue([]);
+
+      useSessionStore.getState().openRequestsModal();
+
+      // Wait for the async loadPendingRequests to be called
+      await vi.waitFor(() => {
+        expect(hostedSessionService.getRequests).toHaveBeenCalledWith(
+          mockTokens.access_token,
+          mockHostedSession.id,
+          "pending"
+        );
+      });
+    });
+
+    it("should update pendingRequests with fresh data from API", async () => {
+      const freshRequests = [
+        {
+          id: "request-3",
+          title: "New Song",
+          status: "pending" as const,
+          guest_name: "Charlie",
+          requested_at: "2025-01-01T12:10:00Z",
+        },
+      ];
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getRequests).mockResolvedValue(freshRequests);
+
+      useSessionStore.getState().openRequestsModal();
+
+      // Wait for state to be updated with fresh data
+      await vi.waitFor(() => {
+        expect(useSessionStore.getState().pendingRequests).toEqual(freshRequests);
+      });
+    });
+  });
+
+  describe("closeRequestsModal", () => {
+    it("should set showRequestsModal to false", () => {
+      useSessionStore.setState({ showRequestsModal: true });
+
+      useSessionStore.getState().closeRequestsModal();
+
+      expect(useSessionStore.getState().showRequestsModal).toBe(false);
+    });
+  });
 });

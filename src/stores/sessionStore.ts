@@ -102,6 +102,8 @@ interface SessionState {
   approveRequest: (requestId: string) => Promise<void>;
   rejectRequest: (requestId: string) => Promise<void>;
   approveAllRequests: (guestName?: string) => Promise<void>;
+  openRequestsModal: () => void;
+  closeRequestsModal: () => void;
 
   // Singer actions
   loadSingers: () => Promise<void>;
@@ -1191,5 +1193,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       notify("error", "Failed to approve requests");
       throw error;
     }
+  },
+
+  openRequestsModal: () => {
+    set({ showRequestsModal: true });
+    // Fetch fresh data when opening the modal
+    get().loadPendingRequests();
+  },
+
+  closeRequestsModal: () => {
+    set({ showRequestsModal: false });
   },
 }));

@@ -171,7 +171,7 @@
         "src/stores/sessionStore.ts has closeRequestsModal action",
         "closeRequestsModal sets showRequestsModal to false"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-015",
