@@ -40,6 +40,10 @@ vi.mock("../services", async (importOriginal) => {
       getSession: vi.fn(),
       createHostedSession: vi.fn(),
       endHostedSession: vi.fn(),
+      getRequests: vi.fn(),
+      approveRequest: vi.fn(),
+      rejectRequest: vi.fn(),
+      approveAllRequests: vi.fn(),
     },
     getPersistedSessionId: vi.fn(),
     clearPersistedSessionId: vi.fn(),
@@ -3415,6 +3419,147 @@ describe("sessionStore - Host Session", () => {
       expect(currentSession?.hosted_session_id).toBe("hosted-D");
       expect(currentSession?.hosted_by_user_id).toBe("user-D");
       expect(currentSession?.hosted_session_status).toBe("paused");
+    });
+  });
+});
+
+describe("sessionStore - Song Request Actions", () => {
+  const mockHostedSession = {
+    id: "hosted-session-123",
+    sessionCode: "ABC123",
+    joinUrl: "https://app.homekaraoke.app/join/ABC123",
+    qrCodeUrl: "https://api.homekaraoke.app/qr?url=https://app.homekaraoke.app/join/ABC123",
+    status: "active" as const,
+    stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 1 },
+  };
+
+  const mockPendingRequests = [
+    {
+      id: "request-1",
+      title: "Bohemian Rhapsody",
+      status: "pending" as const,
+      guest_name: "Alice",
+      requested_at: "2025-01-01T12:00:00Z",
+      youtube_id: "fJ9rUzIMcZQ",
+      artist: "Queen",
+      duration: 354,
+      thumbnail_url: "https://i.ytimg.com/vi/fJ9rUzIMcZQ/default.jpg",
+    },
+    {
+      id: "request-2",
+      title: "Don't Stop Me Now",
+      status: "pending" as const,
+      guest_name: "Bob",
+      requested_at: "2025-01-01T12:05:00Z",
+      youtube_id: "HgzGwKwLmgM",
+      artist: "Queen",
+      duration: 210,
+      thumbnail_url: "https://i.ytimg.com/vi/HgzGwKwLmgM/default.jpg",
+    },
+  ];
+
+  const mockTokens = {
+    access_token: "test-access-token",
+    refresh_token: "test-refresh-token",
+    expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useSessionStore.setState({
+      session: mockSession,
+      hostedSession: mockHostedSession,
+      pendingRequests: mockPendingRequests,
+      previousPendingCount: 2,
+      showRequestsModal: false,
+      isLoadingRequests: false,
+    });
+
+    // Default mock for queue store
+    vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+  });
+
+  describe("approveRequest", () => {
+    it("should approve a request and remove it from pendingRequests", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveRequest("request-1");
+
+      // Verify approveRequest was called with correct parameters
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        "request-1"
+      );
+
+      // Verify request was removed from pendingRequests
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-2");
+
+      // Verify refreshHostedSession was called
+      expect(hostedSessionService.getSession).toHaveBeenCalled();
+    });
+
+    it("should throw error when no hosted session", async () => {
+      useSessionStore.setState({ hostedSession: null });
+
+      await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow(
+        "No hosted session"
+      );
+
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when not authenticated", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow(
+        "Not authenticated"
+      );
+
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
+    });
+
+    it("should notify and re-throw on API error", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+
+      await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow(
+        "Network error"
+      );
+
+      expect(notify).toHaveBeenCalledWith("error", "Failed to approve request");
+
+      // Verify pendingRequests was not modified on error
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+    });
+
+    it("should handle approving the last pending request", async () => {
+      // Set up with only one pending request
+      useSessionStore.setState({
+        pendingRequests: [mockPendingRequests[0]],
+      });
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 0, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveRequest("request-1");
+
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(0);
     });
   });
 });

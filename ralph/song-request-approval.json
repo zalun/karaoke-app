@@ -131,7 +131,7 @@
         "Action removes the approved request from pendingRequests state",
         "Action refreshes the hosted session to update stats"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-012",

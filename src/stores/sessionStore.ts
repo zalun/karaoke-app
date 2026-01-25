@@ -99,6 +99,7 @@ interface SessionState {
 
   // Song request actions
   loadPendingRequests: () => Promise<void>;
+  approveRequest: (requestId: string) => Promise<void>;
 
   // Singer actions
   loadSingers: () => Promise<void>;
@@ -1060,6 +1061,44 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       log.error(`Failed to load pending requests: ${message}`);
       set({ isLoadingRequests: false });
       notify("error", "Failed to load song requests");
+    }
+  },
+
+  approveRequest: async (requestId: string) => {
+    const { hostedSession, pendingRequests } = get();
+    if (!hostedSession) {
+      log.error("Cannot approve request: no hosted session");
+      throw new Error("No hosted session");
+    }
+
+    log.debug(`Approving request: ${requestId}`);
+    try {
+      const tokens = await authService.getTokens();
+      if (!tokens) {
+        log.error("Cannot approve request: not authenticated");
+        throw new Error("Not authenticated");
+      }
+
+      await hostedSessionService.approveRequest(
+        tokens.access_token,
+        hostedSession.id,
+        requestId
+      );
+
+      // Remove from pending requests
+      set({
+        pendingRequests: pendingRequests.filter((r) => r.id !== requestId),
+      });
+
+      // Refresh hosted session to update stats
+      await get().refreshHostedSession();
+
+      log.debug(`Request ${requestId} approved`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to approve request: ${message}`);
+      notify("error", "Failed to approve request");
+      throw error;
     }
   },
 }));
