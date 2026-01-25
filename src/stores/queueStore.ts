@@ -86,7 +86,7 @@ function emitNextSongChangedIfDifferent(
       nextItemId: currentFirstItemId,
       nextVideoId: currentFirstItem?.video.id ?? null,
     };
-    emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
+    void emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
   }
 }
 
@@ -172,20 +172,20 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         );
 
         // Emit signal after queue and history are loaded (fire-and-forget)
-        emitSignal(APP_SIGNALS.QUEUE_LOADED, undefined);
+        void emitSignal(APP_SIGNALS.QUEUE_LOADED, undefined);
       } else {
         set({ isInitialized: true });
         log.debug("No persisted state found (no active session)");
 
         // Emit signal even when no persisted state - queue is still "loaded" (empty)
-        emitSignal(APP_SIGNALS.QUEUE_LOADED, undefined);
+        void emitSignal(APP_SIGNALS.QUEUE_LOADED, undefined);
       }
     } catch (error) {
       log.error("Failed to load persisted state:", error);
       set({ isInitialized: true });
 
       // Emit signal even on error - queue initialization is complete (in error state)
-      emitSignal(APP_SIGNALS.QUEUE_LOADED, undefined);
+      void emitSignal(APP_SIGNALS.QUEUE_LOADED, undefined);
     }
   },
 
@@ -270,7 +270,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     }
 
     // Emit signal after item is added to queue (fire-and-forget)
-    emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
+    void emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
     // Emit next song changed if first item changed (e.g., queue was empty or fair position was 0)
     emitNextSongChangedIfDifferent(previousFirstItemId, get().queue);
 
@@ -308,13 +308,13 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     });
 
     // Emit signal after item is added to queue (fire-and-forget)
-    emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
+    void emitSignal(APP_SIGNALS.QUEUE_ITEM_ADDED, undefined);
     // Always emits since new item is always first
     const payload: NextSongPayload = {
       nextItemId: newItem.id,
       nextVideoId: newItem.video.id,
     };
-    emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
+    void emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
 
     return newItem;
   },
@@ -335,7 +335,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     });
 
     // Emit signal after item is removed from queue (fire-and-forget)
-    emitSignal(APP_SIGNALS.QUEUE_ITEM_REMOVED, undefined);
+    void emitSignal(APP_SIGNALS.QUEUE_ITEM_REMOVED, undefined);
     // Emit next song changed if the removed item was first
     emitNextSongChangedIfDifferent(previousFirstItemId, get().queue);
   },
@@ -363,7 +363,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     });
 
     // Emit signals for queue order change (fire-and-forget)
-    emitSignal(APP_SIGNALS.QUEUE_ORDER_CHANGED, undefined);
+    void emitSignal(APP_SIGNALS.QUEUE_ORDER_CHANGED, undefined);
     emitNextSongChangedIfDifferent(previousFirstItemId, get().queue);
   },
 
@@ -383,7 +383,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     // Emit next song changed if queue had items (now empty)
     if (previousFirstItemId !== null) {
       const payload: NextSongPayload = { nextItemId: null, nextVideoId: null };
-      emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
+      void emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
     }
   },
 
@@ -409,7 +409,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         log.info(`fairShuffle: reloaded ${newQueue.length} items`);
 
         // Emit signals for queue order change (fire-and-forget)
-        emitSignal(APP_SIGNALS.QUEUE_ORDER_CHANGED, undefined);
+        void emitSignal(APP_SIGNALS.QUEUE_ORDER_CHANGED, undefined);
         emitNextSongChangedIfDifferent(previousFirstItemId, newQueue);
       }
     } catch (error) {
@@ -474,7 +474,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           operation: "moveAllHistoryToQueue",
           message: error instanceof Error ? error.message : "Failed to move history to queue",
         };
-        emitSignal(APP_SIGNALS.QUEUE_OPERATION_FAILED, payload);
+        void emitSignal(APP_SIGNALS.QUEUE_OPERATION_FAILED, payload);
       })
     );
   },
@@ -635,7 +635,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       nextItemId: nextItem?.id ?? null,
       nextVideoId: nextItem?.video.id ?? null,
     };
-    emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
+    void emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
 
     return item;
   },
@@ -681,7 +681,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       nextItemId: nextItem?.id ?? null,
       nextVideoId: nextItem?.video.id ?? null,
     };
-    emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
+    void emitSignal(APP_SIGNALS.NEXT_SONG_CHANGED, payload);
 
     return item;
   },

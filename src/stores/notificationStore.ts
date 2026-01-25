@@ -101,9 +101,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           animationTimeoutId = setTimeout(() => {
             if (get().current?.id === currentId) {
               set({ isVisible: false, isHiding: false, moreCount: 0 });
-              // Emit NOTIFICATION_HIDDEN signal
+              // Emit NOTIFICATION_HIDDEN signal (fire-and-forget)
               if (currentId) {
-                emitSignal(APP_SIGNALS.NOTIFICATION_HIDDEN, { id: currentId });
+                void emitSignal(APP_SIGNALS.NOTIFICATION_HIDDEN, { id: currentId });
               }
             }
           }, ANIMATION_DURATION_MS);
@@ -132,8 +132,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       moreCount: 0,
     });
 
-    // Emit NOTIFICATION_SHOWING signal
-    emitSignal(APP_SIGNALS.NOTIFICATION_SHOWING, {
+    // Emit NOTIFICATION_SHOWING signal (fire-and-forget)
+    void emitSignal(APP_SIGNALS.NOTIFICATION_SHOWING, {
       id: notification.id,
       type: notification.type,
     });
@@ -152,8 +152,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           // Double-check notification hasn't changed during animation
           if (get().current?.id === notificationId) {
             set({ isVisible: false, isHiding: false, moreCount: 0 });
-            // Emit NOTIFICATION_HIDDEN signal
-            emitSignal(APP_SIGNALS.NOTIFICATION_HIDDEN, { id: notificationId });
+            // Emit NOTIFICATION_HIDDEN signal (fire-and-forget)
+            void emitSignal(APP_SIGNALS.NOTIFICATION_HIDDEN, { id: notificationId });
           }
         }, ANIMATION_DURATION_MS);
       }
@@ -175,9 +175,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // After animation completes, hide fully
     animationTimeoutId = setTimeout(() => {
       set({ isVisible: false, isHiding: false, moreCount: 0 });
-      // Emit NOTIFICATION_HIDDEN signal
+      // Emit NOTIFICATION_HIDDEN signal (fire-and-forget)
       if (currentId) {
-        emitSignal(APP_SIGNALS.NOTIFICATION_HIDDEN, { id: currentId });
+        void emitSignal(APP_SIGNALS.NOTIFICATION_HIDDEN, { id: currentId });
       }
     }, ANIMATION_DURATION_MS);
   },
