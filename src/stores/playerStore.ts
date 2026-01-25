@@ -86,6 +86,8 @@ interface PlayerState {
   prefetchedStreamUrl: { videoId: string; url: string; timestamp: number } | null;
   // Track videos that don't allow embedding (error 101/150)
   nonEmbeddableVideoIds: Set<string>;
+  // Track last video ID for which VIDEO_METADATA_CHANGED was emitted
+  lastMetadataVideoId: string | null;
 
   // Actions
   setCurrentVideo: (video: Video | null) => void;
@@ -106,6 +108,9 @@ interface PlayerState {
   // Non-embeddable video tracking
   markAsNonEmbeddable: (videoId: string) => void;
   isNonEmbeddable: (videoId: string) => boolean;
+  // Metadata signal tracking
+  setLastMetadataVideoId: (videoId: string | null) => void;
+  getLastMetadataVideoId: () => string | null;
 }
 
 const initialState = {
@@ -121,6 +126,7 @@ const initialState = {
   seekTime: null,
   prefetchedStreamUrl: null,
   nonEmbeddableVideoIds: new Set<string>(),
+  lastMetadataVideoId: null,
 };
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -207,6 +213,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
   isNonEmbeddable: (videoId) => {
     return get().nonEmbeddableVideoIds.has(videoId);
+  },
+  setLastMetadataVideoId: (videoId) => {
+    set({ lastMetadataVideoId: videoId });
+  },
+  getLastMetadataVideoId: () => {
+    return get().lastMetadataVideoId;
   },
 }));
 
@@ -331,6 +343,33 @@ export async function notifyPlaybackEnded(): Promise<void> {
 }
 
 /**
+ * Emit VIDEO_METADATA_CHANGED signal when a new video is loaded.
+ * Tracks the last emitted video ID to prevent duplicate emissions for same video replay.
+ *
+ * @param video - The video being played
+ * @returns Promise that resolves when the signal is emitted (or skipped if same video)
+ */
+export async function emitVideoMetadataChanged(video: Video): Promise<void> {
+  const videoId = video.youtubeId || video.id;
+  const lastVideoId = usePlayerStore.getState().getLastMetadataVideoId();
+
+  // Skip if same video (replay scenario)
+  if (lastVideoId === videoId) {
+    log.debug(`emitVideoMetadataChanged: skipping, same video (${videoId})`);
+    return;
+  }
+
+  log.info(`emitVideoMetadataChanged: emitting for "${video.title}" (${videoId})`);
+  usePlayerStore.getState().setLastMetadataVideoId(videoId);
+  await emitSignal(APP_SIGNALS.VIDEO_METADATA_CHANGED, {
+    title: video.title,
+    artist: video.artist,
+    duration: video.duration,
+    videoId,
+  });
+}
+
+/**
  * Play a video by fetching its stream URL (for yt-dlp mode) or directly (for YouTube mode).
  * Shared helper for playback logic used by both PlayerControls and useMediaControls.
  *
@@ -365,6 +404,8 @@ export async function playVideo(video: Video): Promise<void> {
     log.info(`Playing via YouTube embed: ${video.title}`);
     setCurrentVideo(video);
     setIsPlaying(true);
+    // Emit video metadata changed signal (only if different video)
+    await emitVideoMetadataChanged(video);
     // Emit both high-level (queue) and low-level (playback) signals
     await emitSignal(APP_SIGNALS.SONG_STARTED, undefined);
     await emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined);
@@ -378,6 +419,8 @@ export async function playVideo(video: Video): Promise<void> {
     setCurrentVideo({ ...video, streamUrl });
     setIsPlaying(true);
     setIsLoading(false);
+    // Emit video metadata changed signal (only if different video)
+    await emitVideoMetadataChanged(video);
     // Emit both high-level (queue) and low-level (playback) signals
     await emitSignal(APP_SIGNALS.SONG_STARTED, undefined);
     await emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined);

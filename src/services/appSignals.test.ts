@@ -56,6 +56,7 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.PLAYBACK_STARTED).toBe("app:playback-started");
     expect(APP_SIGNALS.PLAYBACK_PAUSED).toBe("app:playback-paused");
     expect(APP_SIGNALS.PLAYBACK_ENDED).toBe("app:playback-ended");
+    expect(APP_SIGNALS.VIDEO_METADATA_CHANGED).toBe("app:video-metadata-changed");
   });
 });
 

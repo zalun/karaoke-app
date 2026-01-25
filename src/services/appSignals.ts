@@ -61,6 +61,8 @@ export const APP_SIGNALS = {
   PLAYBACK_PAUSED: "app:playback-paused",
   /** Emitted when video playback ends (lower-level than SONG_ENDED) */
   PLAYBACK_ENDED: "app:playback-ended",
+  /** Emitted when video metadata changes (new video loaded) */
+  VIDEO_METADATA_CHANGED: "app:video-metadata-changed",
 } as const;
 
 /** Type for signal names */
@@ -97,6 +99,20 @@ export interface SignalPayloads {
   [APP_SIGNALS.PLAYBACK_PAUSED]: undefined;
   /** No payload - signals video playback has ended */
   [APP_SIGNALS.PLAYBACK_ENDED]: undefined;
+  /** Payload contains video metadata (title, artist, duration) */
+  [APP_SIGNALS.VIDEO_METADATA_CHANGED]: VideoMetadata;
+}
+
+/** Video metadata payload for VIDEO_METADATA_CHANGED signal */
+export interface VideoMetadata {
+  /** Video title */
+  title: string;
+  /** Artist name, if available */
+  artist?: string;
+  /** Video duration in seconds, if available */
+  duration?: number;
+  /** Video ID for deduplication (prevents emitting for same video) */
+  videoId: string;
 }
 
 /**

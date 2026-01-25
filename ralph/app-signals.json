@@ -277,7 +277,7 @@
         "npm test passes",
         "Change videos and verify signal fires once per video"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-403",

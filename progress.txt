@@ -274,3 +274,35 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (522). Lint clean. TypeScript clean.
+
+## SIG-402: VIDEO_METADATA_CHANGED signal (DONE)
+- Added VIDEO_METADATA_CHANGED to APP_SIGNALS constant in appSignals.ts
+- Added VideoMetadata interface (title, artist, duration, videoId)
+- Added payload type to SignalPayloads interface (VideoMetadata)
+- Added lastMetadataVideoId tracking in playerStore state
+- Created emitVideoMetadataChanged() function that:
+  - Compares current video ID to last emitted ID
+  - Skips emit for same video (replay scenario)
+  - Updates lastMetadataVideoId after emit
+- Emit signal in playVideo() for both YouTube embed and yt-dlp modes
+- Exported VideoMetadata type from services/index.ts
+- Added VIDEO_METADATA_CHANGED to appSignals.test.ts signal name test
+- Updated playerStore.signals.test.ts mock with VIDEO_METADATA_CHANGED
+- Added lastMetadataVideoId to test state reset
+- Added 5 unit tests:
+  - Signal emits when new video played
+  - Signal emits via emitVideoMetadataChanged direct call
+  - Signal NOT emitted for same video replay
+  - Signal emits when switching to different video
+  - Uses id as videoId when youtubeId not available
+- Updated "switching video" test to expect 4 signals (now includes VIDEO_METADATA_CHANGED)
+
+Files changed:
+- src/services/appSignals.ts (signal def + VideoMetadata interface + payload type)
+- src/services/appSignals.test.ts (signal name test)
+- src/services/index.ts (export VideoMetadata)
+- src/stores/playerStore.ts (lastMetadataVideoId state, emitVideoMetadataChanged fn, 2 emit calls)
+- src/stores/playerStore.signals.test.ts (mock update + 5 new tests + 1 updated test)
+- ralph/app-signals.json
+
+All tests pass (527). Lint clean. TypeScript clean.

@@ -19,6 +19,7 @@ vi.mock("../services", () => ({
     PLAYBACK_STARTED: "app:playback-started",
     PLAYBACK_PAUSED: "app:playback-paused",
     PLAYBACK_ENDED: "app:playback-ended",
+    VIDEO_METADATA_CHANGED: "app:video-metadata-changed",
   },
 }));
 
@@ -28,7 +29,7 @@ vi.mock("@tauri-apps/plugin-os", () => ({
 }));
 
 // Import after mocking
-import { usePlayerStore, playVideo, stopVideo, pausePlayback, resumePlayback, notifyPlaybackEnded, type Video } from "./playerStore";
+import { usePlayerStore, playVideo, stopVideo, pausePlayback, resumePlayback, notifyPlaybackEnded, emitVideoMetadataChanged, type Video } from "./playerStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 import { emitSignal, APP_SIGNALS } from "../services";
 
@@ -56,6 +57,7 @@ describe("playerStore signal emissions", () => {
       seekTime: null,
       prefetchedStreamUrl: null,
       nonEmbeddableVideoIds: new Set<string>(),
+      lastMetadataVideoId: null,
     });
 
     // Set default playback mode to YouTube embed
@@ -164,11 +166,12 @@ describe("playerStore signal emissions", () => {
 
       await playVideo(newVideo);
 
-      // Should emit SONG_STOPPED (for old video), then SONG_STARTED and PLAYBACK_STARTED (for new video)
+      // Should emit SONG_STOPPED (for old video), then VIDEO_METADATA_CHANGED, SONG_STARTED and PLAYBACK_STARTED (for new video)
       expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SONG_STOPPED, undefined);
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.VIDEO_METADATA_CHANGED, expect.any(Object));
       expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SONG_STARTED, undefined);
       expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.PLAYBACK_STARTED, undefined);
-      expect(emitSignal).toHaveBeenCalledTimes(3);
+      expect(emitSignal).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -257,6 +260,90 @@ describe("playerStore signal emissions", () => {
       await notifyPlaybackEnded();
 
       expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.PLAYBACK_ENDED, undefined);
+    });
+  });
+
+  describe("VIDEO_METADATA_CHANGED signal", () => {
+    it("should emit VIDEO_METADATA_CHANGED signal when new video is played", async () => {
+      await playVideo(mockVideo);
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.VIDEO_METADATA_CHANGED, {
+        title: mockVideo.title,
+        artist: mockVideo.artist,
+        duration: mockVideo.duration,
+        videoId: mockVideo.youtubeId,
+      });
+    });
+
+    it("should emit VIDEO_METADATA_CHANGED signal via emitVideoMetadataChanged", async () => {
+      await emitVideoMetadataChanged(mockVideo);
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.VIDEO_METADATA_CHANGED, {
+        title: mockVideo.title,
+        artist: mockVideo.artist,
+        duration: mockVideo.duration,
+        videoId: mockVideo.youtubeId,
+      });
+      expect(usePlayerStore.getState().lastMetadataVideoId).toBe(mockVideo.youtubeId);
+    });
+
+    it("should NOT emit VIDEO_METADATA_CHANGED signal for same video replay", async () => {
+      // First play - should emit
+      await emitVideoMetadataChanged(mockVideo);
+      expect(emitSignal).toHaveBeenCalledTimes(1);
+
+      // Clear mocks to check next call
+      vi.clearAllMocks();
+
+      // Second play of same video - should NOT emit
+      await emitVideoMetadataChanged(mockVideo);
+      expect(emitSignal).not.toHaveBeenCalled();
+    });
+
+    it("should emit VIDEO_METADATA_CHANGED signal when switching to different video", async () => {
+      // First video
+      await emitVideoMetadataChanged(mockVideo);
+      expect(emitSignal).toHaveBeenCalledTimes(1);
+
+      vi.clearAllMocks();
+
+      // Different video
+      const newVideo: Video = {
+        id: "video-2",
+        title: "New Song",
+        artist: "New Artist",
+        duration: 180,
+        source: "youtube",
+        youtubeId: "xyz789",
+      };
+
+      await emitVideoMetadataChanged(newVideo);
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.VIDEO_METADATA_CHANGED, {
+        title: newVideo.title,
+        artist: newVideo.artist,
+        duration: newVideo.duration,
+        videoId: newVideo.youtubeId,
+      });
+      expect(usePlayerStore.getState().lastMetadataVideoId).toBe(newVideo.youtubeId);
+    });
+
+    it("should use id as videoId when youtubeId is not available", async () => {
+      const localVideo: Video = {
+        id: "local-video-1",
+        title: "Local Song",
+        source: "local",
+        // No youtubeId
+      };
+
+      await emitVideoMetadataChanged(localVideo);
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.VIDEO_METADATA_CHANGED, {
+        title: localVideo.title,
+        artist: undefined,
+        duration: undefined,
+        videoId: localVideo.id,
+      });
     });
   });
 });
