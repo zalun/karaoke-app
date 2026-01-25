@@ -612,3 +612,12 @@
 - Files changed: ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, lint passes, typecheck passes
 
+## DOC-002: Update persistSessionId JSDoc to reflect legacy status
+- Added @deprecated tag to persistSessionId() function in hostedSession.ts
+- JSDoc explains sessions table is primary storage (Migration 8 fields)
+- Added @deprecated tags to related getPersistedSessionId() and clearPersistedSessionId()
+- Each explains: function is legacy, sessions table preferred, backward compat only
+- No code changes, documentation only
+- Files changed: src/services/hostedSession.ts, ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, lint passes, typecheck passes
+

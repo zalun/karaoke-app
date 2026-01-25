@@ -455,7 +455,9 @@
         "Verify JSDoc mentions this is now legacy/redundant",
         "Verify JSDoc mentions sessions table is primary storage"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added @deprecated tags to persistSessionId, getPersistedSessionId, clearPersistedSessionId. JSDoc explains sessions table is primary storage and these functions remain only for legacy migration/backward compatibility."
     },
     {
       "id": "DOC-003",

@@ -27,8 +27,19 @@ const HOSTED_SESSION_KEY = "hosted_session_id";
 const LEGACY_MIGRATION_DONE_KEY = "hosted_session_legacy_migration_done";
 
 /**
+ * @deprecated Legacy function - sessions table is now the primary storage.
+ *
  * Persist the hosted session ID to SQLite settings.
- * Used to restore the session after app restart.
+ * This was the original approach before Migration 8 added hosted_session_id,
+ * hosted_by_user_id, and hosted_session_status columns to the sessions table.
+ *
+ * The sessions table approach is preferred because it:
+ * - Tracks which user started hosting (ownership)
+ * - Stores session status for proper restoration logic
+ * - Keeps hosted info with the session it belongs to
+ *
+ * This function remains for backward compatibility but should not be used
+ * for new code. Use sessionService.setHostedSession() instead.
  */
 export async function persistSessionId(sessionId: string): Promise<void> {
   log.debug(`Persisting session ID: ${sessionId}`);
@@ -72,8 +83,13 @@ export async function runLegacyHostedSessionMigration(): Promise<void> {
 }
 
 /**
+ * @deprecated Legacy function - sessions table is now the primary storage.
+ *
  * Get the persisted hosted session ID from SQLite settings.
  * Returns null if no session ID is stored.
+ *
+ * Used only by runLegacyHostedSessionMigration() to check for old data.
+ * New code should read hosted_session_id from the Session object instead.
  */
 export async function getPersistedSessionId(): Promise<string | null> {
   const sessionId = await invoke<string | null>("settings_get", { key: HOSTED_SESSION_KEY });
@@ -84,8 +100,12 @@ export async function getPersistedSessionId(): Promise<string | null> {
 }
 
 /**
+ * @deprecated Legacy function - sessions table is now the primary storage.
+ *
  * Clear the persisted hosted session ID from SQLite settings.
- * Called when stopping hosting or signing out.
+ *
+ * Used only by runLegacyHostedSessionMigration() to clear old data.
+ * New code should call sessionService.updateHostedSessionStatus() with 'ended'.
  */
 export async function clearPersistedSessionId(): Promise<void> {
   log.debug("Clearing persisted session ID");
