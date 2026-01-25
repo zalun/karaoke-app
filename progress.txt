@@ -472,3 +472,11 @@
   - Confirms original values preserved after rollback
 - Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration.json
 - 441 unit tests pass, 138 Rust tests (6 session_set_hosted tests), lint passes, cargo check passes
+
+## ERR-003/ERR-004: Update getSession and endHostedSession to throw ApiError
+- ERR-001 and ERR-002 already implemented (ApiError class exists, createHostedSession uses it)
+- Changed getSession to throw ApiError(response.status, ...) instead of Error
+- Changed endHostedSession to throw ApiError(response.status, ...) instead of Error
+- Enables callers to use instanceof checks instead of string matching for status codes
+- Files changed: src/services/hostedSession.ts, ralph/hosted-session-restoration-review.json
+- 448 unit tests pass, lint passes

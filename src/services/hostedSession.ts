@@ -5,6 +5,23 @@ import { HOMEKARAOKE_API_URL, buildJoinUrl, buildQrCodeUrl } from "../constants"
 
 const log = createLogger("HostedSessionService");
 
+/**
+ * Custom error class for API errors with HTTP status codes.
+ * Allows callers to distinguish between different error types (401, 403, 404, etc.)
+ * using instanceof checks instead of error message string matching.
+ */
+export class ApiError extends Error {
+  public readonly statusCode: number;
+
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+    this.name = "ApiError";
+    // Restore prototype chain (needed for instanceof to work with ES5 targets)
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+}
+
 const HOSTED_SESSION_KEY = "hosted_session_id";
 const LEGACY_MIGRATION_DONE_KEY = "hosted_session_legacy_migration_done";
 
@@ -143,7 +160,7 @@ export const hostedSessionService = {
     if (!response.ok) {
       const error = await response.text();
       log.error(`Failed to create hosted session (${response.status}): ${error}`);
-      throw new Error(`Failed to create hosted session: ${error}`);
+      throw new ApiError(response.status, `Failed to create hosted session: ${error}`);
     }
 
     const data: CreateSessionResponse = await response.json();
@@ -198,7 +215,7 @@ export const hostedSessionService = {
     if (!response.ok) {
       const error = await response.text();
       log.error(`Failed to get session (${response.status}): ${error}`);
-      throw new Error(`Failed to get session: ${error}`);
+      throw new ApiError(response.status, `Failed to get session: ${error}`);
     }
 
     const data: GetSessionResponse = await response.json();
@@ -252,7 +269,7 @@ export const hostedSessionService = {
     if (!response.ok) {
       const error = await response.text();
       log.error(`Failed to end hosted session (${response.status}): ${error}`);
-      throw new Error(`Failed to end hosted session: ${error}`);
+      throw new ApiError(response.status, `Failed to end hosted session: ${error}`);
     }
 
     log.info("Hosted session ended");
