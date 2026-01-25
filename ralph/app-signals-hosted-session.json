@@ -99,7 +99,8 @@
         "If timeout (no auth): restoreHostedSession logs and returns early",
         "Hosted session restores successfully after fresh login"
       ],
-      "passes": false
+      "passes": true,
+      "completed_notes": "Replaced direct useAuthStore.getState().user call with waitForSignalOrCondition(APP_SIGNALS.USER_LOGGED_IN, () => useAuthStore.getState().user, 5000). Added imports for APP_SIGNALS, waitForSignalOrCondition from ../services and User type from ../services/auth. Updated sessionStore.test.ts mock to include APP_SIGNALS and waitForSignalOrCondition. On timeout, logs 'Skipping restore: user profile not available within timeout' and returns early. All 459 tests pass."
     },
     {
       "id": "SIG-006",

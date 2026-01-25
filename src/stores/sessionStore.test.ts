@@ -51,6 +51,23 @@ vi.mock("../services", async (importOriginal) => {
     },
     // Use the real ApiError class so instanceof checks work
     ApiError: actual.ApiError,
+    // App signals for cross-store coordination
+    APP_SIGNALS: {
+      USER_LOGGED_IN: "app:user-logged-in",
+      USER_LOGGED_OUT: "app:user-logged-out",
+    },
+    // Mock waitForSignalOrCondition to execute the condition function immediately
+    // This simulates the case where user is already available (no waiting needed)
+    waitForSignalOrCondition: vi.fn().mockImplementation(
+      (_signal: string, checkCondition: () => unknown) => {
+        const result = checkCondition();
+        if (result !== null && result !== undefined) {
+          return Promise.resolve(result);
+        }
+        // If condition not met, reject with timeout (simulates no user available)
+        return Promise.reject(new Error("Timeout waiting for signal"));
+      }
+    ),
   };
 });
 

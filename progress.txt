@@ -715,3 +715,14 @@
 - Updated authStore.test.ts mock to include APP_SIGNALS and emitSignal (tests were failing without it)
 - Files changed: src/stores/authStore.ts, src/stores/authStore.test.ts, ralph/app-signals-hosted-session.json, progress.txt
 - 459 JS tests pass, lint passes, typecheck passes
+
+## SIG-005: Use waitForSignalOrCondition in restoreHostedSession()
+- Replaced direct useAuthStore.getState().user call with waitForSignalOrCondition
+- Added imports: APP_SIGNALS, waitForSignalOrCondition from ../services; User type from ../services/auth
+- Call: waitForSignalOrCondition(APP_SIGNALS.USER_LOGGED_IN, () => useAuthStore.getState().user, 5000)
+- On timeout (catch block): logs "Skipping restore: user profile not available within timeout" and returns early
+- Fixes RACE-001: restoreHostedSession now waits for fetchUserProfile() to complete
+- Updated sessionStore.test.ts mock to include APP_SIGNALS and waitForSignalOrCondition
+- Mock returns condition result immediately if truthy, rejects if not (simulates timeout)
+- Files changed: src/stores/sessionStore.ts, src/stores/sessionStore.test.ts, ralph/app-signals-hosted-session.json, progress.txt
+- 459 JS tests pass, lint passes, typecheck passes

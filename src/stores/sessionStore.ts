@@ -7,11 +7,13 @@ import {
   clearPersistedSessionId,
   HOSTED_SESSION_STATUS,
   ApiError,
+  APP_SIGNALS,
+  waitForSignalOrCondition,
   type Singer,
   type Session,
   type HostedSession,
 } from "../services";
-import { authService } from "../services/auth";
+import { authService, type User } from "../services/auth";
 import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
 import { notify } from "./notificationStore";
@@ -845,10 +847,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
 
     // RESTORE-004/RESTORE-006: Check if current user is the owner
-    // Get current user from auth store
-    const currentUser = useAuthStore.getState().user;
-    if (!currentUser) {
-      log.debug("Skipping restore: user profile not loaded (preserving hosted fields for owner)");
+    // Wait for user profile to load, or use immediately if already available
+    // This fixes RACE-001 where restoreHostedSession() was called before fetchUserProfile() completed
+    let currentUser: User | null = null;
+    try {
+      currentUser = await waitForSignalOrCondition(
+        APP_SIGNALS.USER_LOGGED_IN,
+        () => useAuthStore.getState().user,
+        5000
+      );
+    } catch {
+      log.debug("Skipping restore: user profile not available within timeout");
       return;
     }
 
