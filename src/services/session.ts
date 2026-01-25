@@ -47,14 +47,35 @@ export interface SingerFavorite {
   added_at: string;
 }
 
+/**
+ * Represents a karaoke session stored in the local database.
+ *
+ * ## Hosted Session Fields
+ *
+ * The three hosted fields form a logical unit for tracking remote hosting state:
+ * - `hosted_session_id` - The remote session ID from the homekaraoke.app backend
+ * - `hosted_by_user_id` - The Supabase user ID of who started hosting
+ * - `hosted_session_status` - Current status: 'active', 'paused', or 'ended'
+ *
+ * These fields are set together via `sessionService.setHostedSession()` when hosting
+ * starts, and the status is updated via `sessionService.updateHostedSessionStatus()`
+ * when hosting ends. The fields are intentionally never cleared—only the status
+ * changes to 'ended'—to preserve ownership info for scenarios like:
+ * - A different user signing in on the same device
+ * - The original user returning to resume hosting
+ * - Debugging and audit purposes
+ */
 export interface Session {
   id: number;
   name: string | null;
   started_at: string;
   ended_at: string | null;
   is_active: boolean;
+  /** Remote hosted session ID from homekaraoke.app backend. Set with hosted_by_user_id and hosted_session_status. */
   hosted_session_id?: string;
+  /** Supabase user ID of who started hosting. Used to verify ownership on restoration. */
   hosted_by_user_id?: string;
+  /** Current hosting status. Only this field changes after initial set—never cleared. */
   hosted_session_status?: HostedSessionStatus;
 }
 

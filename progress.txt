@@ -661,3 +661,12 @@
 - Files changed: src/stores/sessionStore.ts, ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, lint passes
 
+## DOC-007: Add JSDoc to Session interface explaining hosted field relationship
+- Added comprehensive JSDoc to Session interface in src/services/session.ts:50-72
+- Explains hosted fields form logical unit: hosted_session_id, hosted_by_user_id, hosted_session_status
+- Documents: set together via setHostedSession(), only status changes, never cleared
+- Explains why fields preserved: different user scenarios, owner returning, debugging
+- Added inline JSDoc comments to each hosted field
+- Files changed: src/services/session.ts, ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, lint passes, typecheck passes
+
