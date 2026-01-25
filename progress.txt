@@ -78,3 +78,16 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (487). Lint clean. TypeScript clean.
+
+## SIG-107: SONG_STARTED signal (DONE)
+- Imported emitSignal and APP_SIGNALS in playerStore.ts
+- Emit SONG_STARTED in playVideo() after setIsPlaying(true) for both YouTube embed and yt-dlp modes
+- Created new test file playerStore.signals.test.ts with 3 tests
+- Tests cover: YouTube embed mode, yt-dlp mode, no-op when video has no youtubeId
+
+Files changed:
+- src/stores/playerStore.ts (import + 2 emit calls in playVideo)
+- src/stores/playerStore.signals.test.ts (new file - 3 tests)
+- ralph/app-signals.json
+
+All tests pass (490). Lint clean. TypeScript clean.

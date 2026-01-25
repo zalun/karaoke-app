@@ -106,7 +106,7 @@
         "npm test -- playerStore passes",
         "Play a video and verify signal fires"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-108",

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { platform } from "@tauri-apps/plugin-os";
-import { youtubeService, createLogger } from "../services";
+import { youtubeService, createLogger, emitSignal, APP_SIGNALS } from "../services";
 import { notify } from "./notificationStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 
@@ -284,6 +284,7 @@ export async function playVideo(video: Video): Promise<void> {
     log.info(`Playing via YouTube embed: ${video.title}`);
     setCurrentVideo(video);
     setIsPlaying(true);
+    await emitSignal(APP_SIGNALS.SONG_STARTED, undefined);
     return;
   }
 
@@ -294,6 +295,7 @@ export async function playVideo(video: Video): Promise<void> {
     setCurrentVideo({ ...video, streamUrl });
     setIsPlaying(true);
     setIsLoading(false);
+    await emitSignal(APP_SIGNALS.SONG_STARTED, undefined);
     log.info(`Now playing via yt-dlp: ${video.title}`);
   } catch (err) {
     log.error("Failed to play video", err);
