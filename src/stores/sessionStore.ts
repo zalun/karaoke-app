@@ -14,6 +14,7 @@ import {
   type Session,
   type HostedSession,
 } from "../services";
+import type { SongRequest } from "../types";
 import { authService, type User } from "../services/auth";
 import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
@@ -56,6 +57,12 @@ interface SessionState {
   showHostModal: boolean;
   // Dialog shown when another user was hosting this session (RESTORE-006)
   showHostedByOtherUserDialog: boolean;
+
+  // Song request approval state
+  pendingRequests: SongRequest[];
+  previousPendingCount: number;
+  showRequestsModal: boolean;
+  isLoadingRequests: boolean;
 
   // Singers state
   singers: Singer[];
@@ -122,6 +129,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   hostedSession: null,
   showHostModal: false,
   showHostedByOtherUserDialog: false,
+  pendingRequests: [],
+  previousPendingCount: 0,
+  showRequestsModal: false,
+  isLoadingRequests: false,
   singers: [],
   activeSingerId: null,
   queueSingerAssignments: new Map(),

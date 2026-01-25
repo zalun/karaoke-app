@@ -105,7 +105,7 @@
         "src/stores/sessionStore.ts has isLoadingRequests state field typed as boolean",
         "Initial values are set appropriately (empty array, 0, false, false)"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-010",
