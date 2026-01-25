@@ -239,3 +239,38 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (514). Lint clean. TypeScript clean.
+
+## SIG-401: PLAYBACK_STARTED/PAUSED/ENDED signals (DONE)
+- Added PLAYBACK_STARTED, PLAYBACK_PAUSED, PLAYBACK_ENDED to APP_SIGNALS constant
+- Added payload types to SignalPayloads interface (all undefined)
+- Created 3 new functions in playerStore.ts:
+  - pausePlayback(): pauses video, emits PLAYBACK_PAUSED
+  - resumePlayback(): resumes video, emits PLAYBACK_STARTED
+  - notifyPlaybackEnded(): emits PLAYBACK_ENDED
+- Emit PLAYBACK_STARTED in playVideo() after SONG_STARTED (both YouTube/yt-dlp modes)
+- Emit PLAYBACK_ENDED in VideoPlayer.handleEnded before SONG_ENDED
+- Exported new functions from stores/index.ts
+- Updated mock APP_SIGNALS in playerStore.signals.test.ts and VideoPlayer.handleEnded.test.tsx
+- Added 8 unit tests in playerStore.signals.test.ts:
+  - PLAYBACK_STARTED via playVideo
+  - PLAYBACK_STARTED via resumePlayback
+  - No signal when no video loaded (resumePlayback)
+  - No signal when already playing (resumePlayback)
+  - PLAYBACK_PAUSED via pausePlayback
+  - No signal when no video playing (pausePlayback)
+  - No signal when already paused (pausePlayback)
+  - PLAYBACK_ENDED via notifyPlaybackEnded
+- Added signal name tests to appSignals.test.ts
+- Updated "switching video" test to expect 3 signals (SONG_STOPPED, SONG_STARTED, PLAYBACK_STARTED)
+
+Files changed:
+- src/services/appSignals.ts (3 signal defs + payload types)
+- src/services/appSignals.test.ts (3 signal name tests)
+- src/stores/playerStore.ts (3 new functions, 2 emit calls in playVideo)
+- src/stores/index.ts (3 new exports)
+- src/stores/playerStore.signals.test.ts (mock update + 8 new tests + 1 updated test)
+- src/components/player/VideoPlayer.tsx (1 emit call in handleEnded)
+- src/components/player/VideoPlayer.handleEnded.test.tsx (mock update)
+- ralph/app-signals.json
+
+All tests pass (522). Lint clean. TypeScript clean.

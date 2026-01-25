@@ -259,7 +259,7 @@
         "npm test passes",
         "Play, pause, and let video end - verify each signal fires"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-402",

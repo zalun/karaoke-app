@@ -55,6 +55,12 @@ export const APP_SIGNALS = {
   TOKENS_REFRESHED: "app:tokens-refreshed",
   /** Emitted after refreshHostedSession() successfully updates stats */
   HOSTED_SESSION_UPDATED: "app:hosted-session-updated",
+  /** Emitted when video playback starts (lower-level than SONG_STARTED) */
+  PLAYBACK_STARTED: "app:playback-started",
+  /** Emitted when video playback is paused */
+  PLAYBACK_PAUSED: "app:playback-paused",
+  /** Emitted when video playback ends (lower-level than SONG_ENDED) */
+  PLAYBACK_ENDED: "app:playback-ended",
 } as const;
 
 /** Type for signal names */
@@ -85,6 +91,12 @@ export interface SignalPayloads {
   [APP_SIGNALS.TOKENS_REFRESHED]: undefined;
   /** Payload is the updated session stats */
   [APP_SIGNALS.HOSTED_SESSION_UPDATED]: SessionStats;
+  /** No payload - signals video playback has started */
+  [APP_SIGNALS.PLAYBACK_STARTED]: undefined;
+  /** No payload - signals video playback has been paused */
+  [APP_SIGNALS.PLAYBACK_PAUSED]: undefined;
+  /** No payload - signals video playback has ended */
+  [APP_SIGNALS.PLAYBACK_ENDED]: undefined;
 }
 
 /**

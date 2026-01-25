@@ -260,6 +260,7 @@ vi.mock("../../services", () => ({
   emitSignal: (...args: unknown[]) => mockEmitSignal(...args),
   APP_SIGNALS: {
     SONG_ENDED: "app:song-ended",
+    PLAYBACK_ENDED: "app:playback-ended",
   },
 }));
 

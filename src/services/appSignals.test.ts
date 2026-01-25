@@ -53,6 +53,9 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.AUTH_INITIALIZED).toBe("app:auth-initialized");
     expect(APP_SIGNALS.TOKENS_REFRESHED).toBe("app:tokens-refreshed");
     expect(APP_SIGNALS.HOSTED_SESSION_UPDATED).toBe("app:hosted-session-updated");
+    expect(APP_SIGNALS.PLAYBACK_STARTED).toBe("app:playback-started");
+    expect(APP_SIGNALS.PLAYBACK_PAUSED).toBe("app:playback-paused");
+    expect(APP_SIGNALS.PLAYBACK_ENDED).toBe("app:playback-ended");
   });
 });
 

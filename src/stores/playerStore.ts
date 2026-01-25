@@ -273,6 +273,64 @@ export async function stopVideo(): Promise<void> {
 }
 
 /**
+ * Pause the current video playback and emit PLAYBACK_PAUSED signal.
+ * This is a lower-level signal for video player state coordination.
+ * Does nothing if video is not currently playing.
+ *
+ * @returns Promise that resolves when the signal is emitted
+ */
+export async function pausePlayback(): Promise<void> {
+  const { currentVideo, isPlaying, setIsPlaying } = usePlayerStore.getState();
+
+  if (!currentVideo || !isPlaying) {
+    log.debug("pausePlayback: no video playing, skipping signal");
+    return;
+  }
+
+  log.info(`pausePlayback: pausing "${currentVideo.title}"`);
+  setIsPlaying(false);
+  await emitSignal(APP_SIGNALS.PLAYBACK_PAUSED, undefined);
+}
+
+/**
+ * Resume video playback and emit PLAYBACK_STARTED signal.
+ * This is a lower-level signal for video player state coordination.
+ * Does nothing if no video is loaded or already playing.
+ *
+ * @returns Promise that resolves when the signal is emitted
+ */
+export async function resumePlayback(): Promise<void> {
+  const { currentVideo, isPlaying, setIsPlaying } = usePlayerStore.getState();
+
+  if (!currentVideo) {
+    log.debug("resumePlayback: no video loaded, skipping signal");
+    return;
+  }
+
+  if (isPlaying) {
+    log.debug("resumePlayback: already playing, skipping signal");
+    return;
+  }
+
+  log.info(`resumePlayback: resuming "${currentVideo.title}"`);
+  setIsPlaying(true);
+  await emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined);
+}
+
+/**
+ * Notify that video playback has ended and emit PLAYBACK_ENDED signal.
+ * This is a lower-level signal distinct from SONG_ENDED.
+ * PLAYBACK_ENDED indicates the video player finished, while SONG_ENDED
+ * indicates a queue song completed (which may trigger autoplay).
+ *
+ * @returns Promise that resolves when the signal is emitted
+ */
+export async function notifyPlaybackEnded(): Promise<void> {
+  log.debug("notifyPlaybackEnded: emitting PLAYBACK_ENDED signal");
+  await emitSignal(APP_SIGNALS.PLAYBACK_ENDED, undefined);
+}
+
+/**
  * Play a video by fetching its stream URL (for yt-dlp mode) or directly (for YouTube mode).
  * Shared helper for playback logic used by both PlayerControls and useMediaControls.
  *
@@ -307,7 +365,9 @@ export async function playVideo(video: Video): Promise<void> {
     log.info(`Playing via YouTube embed: ${video.title}`);
     setCurrentVideo(video);
     setIsPlaying(true);
+    // Emit both high-level (queue) and low-level (playback) signals
     await emitSignal(APP_SIGNALS.SONG_STARTED, undefined);
+    await emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined);
     return;
   }
 
@@ -318,7 +378,9 @@ export async function playVideo(video: Video): Promise<void> {
     setCurrentVideo({ ...video, streamUrl });
     setIsPlaying(true);
     setIsLoading(false);
+    // Emit both high-level (queue) and low-level (playback) signals
     await emitSignal(APP_SIGNALS.SONG_STARTED, undefined);
+    await emitSignal(APP_SIGNALS.PLAYBACK_STARTED, undefined);
     log.info(`Now playing via yt-dlp: ${video.title}`);
   } catch (err) {
     log.error("Failed to play video", err);

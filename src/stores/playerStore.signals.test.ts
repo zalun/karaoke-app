@@ -16,6 +16,9 @@ vi.mock("../services", () => ({
     SONG_STARTED: "app:song-started",
     SONG_STOPPED: "app:song-stopped",
     SONG_ENDED: "app:song-ended",
+    PLAYBACK_STARTED: "app:playback-started",
+    PLAYBACK_PAUSED: "app:playback-paused",
+    PLAYBACK_ENDED: "app:playback-ended",
   },
 }));
 
@@ -25,7 +28,7 @@ vi.mock("@tauri-apps/plugin-os", () => ({
 }));
 
 // Import after mocking
-import { usePlayerStore, playVideo, stopVideo, type Video } from "./playerStore";
+import { usePlayerStore, playVideo, stopVideo, pausePlayback, resumePlayback, notifyPlaybackEnded, type Video } from "./playerStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 import { emitSignal, APP_SIGNALS } from "../services";
 
@@ -161,10 +164,99 @@ describe("playerStore signal emissions", () => {
 
       await playVideo(newVideo);
 
-      // Should emit SONG_STOPPED (for old video) and then SONG_STARTED (for new video)
+      // Should emit SONG_STOPPED (for old video), then SONG_STARTED and PLAYBACK_STARTED (for new video)
       expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SONG_STOPPED, undefined);
       expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SONG_STARTED, undefined);
-      expect(emitSignal).toHaveBeenCalledTimes(2);
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.PLAYBACK_STARTED, undefined);
+      expect(emitSignal).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe("PLAYBACK_STARTED signal", () => {
+    it("should emit PLAYBACK_STARTED signal when video starts via playVideo", async () => {
+      await playVideo(mockVideo);
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.PLAYBACK_STARTED, undefined);
+    });
+
+    it("should emit PLAYBACK_STARTED signal when resuming playback", async () => {
+      // Set up paused video
+      usePlayerStore.setState({
+        currentVideo: mockVideo,
+        isPlaying: false,
+      });
+
+      await resumePlayback();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.PLAYBACK_STARTED, undefined);
+      expect(usePlayerStore.getState().isPlaying).toBe(true);
+    });
+
+    it("should not emit PLAYBACK_STARTED signal when no video is loaded", async () => {
+      usePlayerStore.setState({
+        currentVideo: null,
+        isPlaying: false,
+      });
+
+      await resumePlayback();
+
+      expect(emitSignal).not.toHaveBeenCalled();
+    });
+
+    it("should not emit PLAYBACK_STARTED signal when already playing", async () => {
+      usePlayerStore.setState({
+        currentVideo: mockVideo,
+        isPlaying: true,
+      });
+
+      await resumePlayback();
+
+      expect(emitSignal).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("PLAYBACK_PAUSED signal", () => {
+    it("should emit PLAYBACK_PAUSED signal when pausing playback", async () => {
+      // Set up playing video
+      usePlayerStore.setState({
+        currentVideo: mockVideo,
+        isPlaying: true,
+      });
+
+      await pausePlayback();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.PLAYBACK_PAUSED, undefined);
+      expect(usePlayerStore.getState().isPlaying).toBe(false);
+    });
+
+    it("should not emit PLAYBACK_PAUSED signal when no video is playing", async () => {
+      usePlayerStore.setState({
+        currentVideo: null,
+        isPlaying: false,
+      });
+
+      await pausePlayback();
+
+      expect(emitSignal).not.toHaveBeenCalled();
+    });
+
+    it("should not emit PLAYBACK_PAUSED signal when video is already paused", async () => {
+      usePlayerStore.setState({
+        currentVideo: mockVideo,
+        isPlaying: false,
+      });
+
+      await pausePlayback();
+
+      expect(emitSignal).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("PLAYBACK_ENDED signal", () => {
+    it("should emit PLAYBACK_ENDED signal via notifyPlaybackEnded", async () => {
+      await notifyPlaybackEnded();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.PLAYBACK_ENDED, undefined);
     });
   });
 });
