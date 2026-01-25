@@ -52,7 +52,7 @@ pub struct Session {
     pub is_active: bool,
     pub hosted_session_id: Option<String>,
     pub hosted_by_user_id: Option<String>,
-    pub hosted_session_status: Option<String>,
+    pub hosted_session_status: Option<HostedSessionStatus>,
 }
 
 // ============ Singer Commands ============
@@ -352,7 +352,8 @@ pub fn start_session(
                     is_active: row.get::<_, i32>(4)? != 0,
                     hosted_session_id: row.get(5)?,
                     hosted_by_user_id: row.get(6)?,
-                    hosted_session_status: row.get(7)?,
+                    hosted_session_status: row.get::<_, Option<String>>(7)?
+                        .and_then(|s| HostedSessionStatus::from_str(&s)),
                 })
             },
         )?;
@@ -449,7 +450,8 @@ pub fn get_active_session(state: State<'_, AppState>) -> Result<Option<Session>,
                 is_active: row.get::<_, i32>(4)? != 0,
                 hosted_session_id: row.get(5)?,
                 hosted_by_user_id: row.get(6)?,
-                hosted_session_status: row.get(7)?,
+                hosted_session_status: row.get::<_, Option<String>>(7)?
+                    .and_then(|s| HostedSessionStatus::from_str(&s)),
             })
         },
     );
@@ -714,7 +716,8 @@ pub fn get_recent_sessions(
                 is_active: row.get::<_, i32>(4)? != 0,
                 hosted_session_id: row.get(5)?,
                 hosted_by_user_id: row.get(6)?,
-                hosted_session_status: row.get(7)?,
+                hosted_session_status: row.get::<_, Option<String>>(7)?
+                    .and_then(|s| HostedSessionStatus::from_str(&s)),
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -761,7 +764,8 @@ pub fn rename_session(
                 is_active: row.get::<_, i32>(4)? != 0,
                 hosted_session_id: row.get(5)?,
                 hosted_by_user_id: row.get(6)?,
-                hosted_session_status: row.get(7)?,
+                hosted_session_status: row.get::<_, Option<String>>(7)?
+                    .and_then(|s| HostedSessionStatus::from_str(&s)),
             })
         },
     )?;
@@ -847,7 +851,8 @@ pub fn load_session(
                     is_active: row.get::<_, i32>(4)? != 0,
                     hosted_session_id: row.get(5)?,
                     hosted_by_user_id: row.get(6)?,
-                    hosted_session_status: row.get(7)?,
+                    hosted_session_status: row.get::<_, Option<String>>(7)?
+                        .and_then(|s| HostedSessionStatus::from_str(&s)),
                 })
             },
         )?;

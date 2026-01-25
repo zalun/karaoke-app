@@ -290,7 +290,9 @@
         "Check src-tauri/src/commands/session.rs Session struct",
         "Verify hosted_session_status is Option<HostedSessionStatus> not Option<String>"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Changed Session struct field from Option<String> to Option<HostedSessionStatus>. Updated all 5 query mappings to convert DB string to enum using row.get::<_, Option<String>>()?.and_then(|s| HostedSessionStatus::from_str(&s)). All 78 Rust tests and 459 JS tests pass."
     },
     {
       "id": "TYPE-003",

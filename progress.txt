@@ -559,3 +559,11 @@
 - Note: Enum not yet used in Session struct or commands (TYPE-002 through TYPE-007)
 - 459 unit tests pass, 157 Rust tests pass, lint passes, cargo check passes
 
+## TYPE-002: Update Session struct to use HostedSessionStatus enum
+- Changed Session struct field from Option<String> to Option<HostedSessionStatus>
+- Updated all 5 query mappings (start_session, get_active_session, get_recent_sessions, rename_session, load_session)
+- Each mapping converts DB string to enum using: row.get::<_, Option<String>>(7)?.and_then(|s| HostedSessionStatus::from_str(&s))
+- TypeScript side already uses HostedSessionStatus type - serde serializes enum to "active"/"paused"/"ended" matching TS
+- Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, 78 Rust session tests pass, just check passes
+
