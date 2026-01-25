@@ -8,6 +8,7 @@ import {
   HOSTED_SESSION_STATUS,
   ApiError,
   APP_SIGNALS,
+  emitSignal,
   waitForSignalOrCondition,
   type Singer,
   type Session,
@@ -165,6 +166,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Load singer assignments for all queue and history items
       await get().loadAllQueueItemSingers();
       log.info(`Session started: ${session.id}`);
+      // Emit signal for other stores/components that depend on session start
+      await emitSignal(APP_SIGNALS.SESSION_STARTED, undefined);
     } catch (error) {
       log.error("Failed to start session:", error);
       set({ isLoading: false });

@@ -30,6 +30,12 @@ vi.mock("../services", () => ({
     getActiveSinger: vi.fn(),
   },
   clearPersistedSessionId: vi.fn().mockResolvedValue(undefined),
+  // App signals for cross-store coordination
+  APP_SIGNALS: {
+    SESSION_STARTED: "app:session-started",
+    SESSION_ENDED: "app:session-ended",
+  },
+  emitSignal: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock queueStore

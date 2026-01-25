@@ -55,7 +55,13 @@ vi.mock("../services", async (importOriginal) => {
     APP_SIGNALS: {
       USER_LOGGED_IN: "app:user-logged-in",
       USER_LOGGED_OUT: "app:user-logged-out",
+      SESSION_STARTED: "app:session-started",
+      SESSION_ENDED: "app:session-ended",
+      HOSTING_STARTED: "app:hosting-started",
+      HOSTING_STOPPED: "app:hosting-stopped",
     },
+    // Mock emitSignal for testing signal emissions
+    emitSignal: vi.fn().mockResolvedValue(undefined),
     // Mock waitForSignalOrCondition to execute the condition function immediately
     // This simulates the case where user is already available (no waiting needed)
     waitForSignalOrCondition: vi.fn().mockImplementation(
@@ -517,6 +523,19 @@ describe("sessionStore - Session Lifecycle", () => {
 
       await expect(useSessionStore.getState().startSession()).rejects.toThrow("Database error");
       expect(useSessionStore.getState().isLoading).toBe(false);
+    });
+
+    it("should emit SESSION_STARTED signal after session is created", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      const newSession = { ...mockSession, id: 2, name: "New Session" };
+      vi.mocked(sessionService.startSession).mockResolvedValue(newSession);
+      vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+
+      await useSessionStore.getState().startSession("New Session");
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.SESSION_STARTED, undefined);
     });
   });
 
