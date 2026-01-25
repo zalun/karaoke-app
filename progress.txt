@@ -603,3 +603,12 @@
 - Files changed: ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, lint passes
 
+## TEST-002/TEST-003: Verify loadSingers error test and all tests pass
+- TEST-002: Test already exists at sessionStore.test.ts:382-398
+- Test name: "should reset singers and show warning on error"
+- Test mocks getSessionSingers to reject, asserts singers reset to [], asserts notify called with 'warning'
+- TEST-003: Verified all 459 unit tests pass with npm test -- --run
+- Both tests marked passes=true in JSON with completion notes
+- Files changed: ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, lint passes, typecheck passes
+
