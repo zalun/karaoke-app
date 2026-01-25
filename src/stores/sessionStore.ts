@@ -26,9 +26,9 @@ const HOSTED_SESSION_POLL_INTERVAL_MS = 30 * 1000;
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 
 /**
- * Check if token is expired or about to expire.
- * Returns true if token is valid and has enough time remaining.
- * Note: expiresAt is in Unix seconds, Date.now() is in milliseconds.
+ * Check if authentication token is still valid.
+ * @param expiresAt - Token expiration time in Unix seconds
+ * @returns true if token is valid (not expired and has at least TOKEN_EXPIRY_BUFFER_MS remaining)
  */
 function isTokenValid(expiresAt: number): boolean {
   const expiresAtMs = expiresAt * 1000;
