@@ -503,3 +503,96 @@ describe("hostedSessionService.approveRequest", () => {
     ).rejects.toThrow("Network error: Connection refused");
   });
 });
+
+describe("hostedSessionService.rejectRequest", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should throw error when access token is empty", async () => {
+    await expect(
+      hostedSessionService.rejectRequest("", "session-123", "request-456")
+    ).rejects.toThrow("Access token is required");
+
+    await expect(
+      hostedSessionService.rejectRequest("   ", "session-123", "request-456")
+    ).rejects.toThrow("Access token is required");
+  });
+
+  it("should throw error when session ID is empty", async () => {
+    await expect(
+      hostedSessionService.rejectRequest("token-123", "", "request-456")
+    ).rejects.toThrow("Session ID is required");
+
+    await expect(
+      hostedSessionService.rejectRequest("token-123", "   ", "request-456")
+    ).rejects.toThrow("Session ID is required");
+  });
+
+  it("should throw error when request ID is empty", async () => {
+    await expect(
+      hostedSessionService.rejectRequest("token-123", "session-456", "")
+    ).rejects.toThrow("Request ID is required");
+
+    await expect(
+      hostedSessionService.rejectRequest("token-123", "session-456", "   ")
+    ).rejects.toThrow("Request ID is required");
+  });
+
+  it("should call PATCH with correct URL, headers, and body", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+    });
+
+    await hostedSessionService.rejectRequest("token-123", "session-456", "request-789");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/session/session-456/requests"),
+      expect.objectContaining({
+        method: "PATCH",
+        headers: {
+          Authorization: "Bearer token-123",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "reject", requestId: "request-789" }),
+      })
+    );
+  });
+
+  it("should resolve successfully on ok response", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+    });
+
+    await expect(
+      hostedSessionService.rejectRequest("token", "session", "request")
+    ).resolves.toBeUndefined();
+  });
+
+  it("should throw ApiError on non-ok response", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: () => Promise.resolve("Request not found"),
+    });
+
+    await expect(
+      hostedSessionService.rejectRequest("token", "session", "request")
+    ).rejects.toThrow(ApiError);
+
+    try {
+      await hostedSessionService.rejectRequest("token", "session", "request");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).statusCode).toBe(404);
+    }
+  });
+
+  it("should throw network error on fetch failure", async () => {
+    mockFetch.mockRejectedValue(new Error("Connection refused"));
+
+    await expect(
+      hostedSessionService.rejectRequest("token", "session", "request")
+    ).rejects.toThrow("Network error: Connection refused");
+  });
+});

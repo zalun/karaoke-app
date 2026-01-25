@@ -81,7 +81,7 @@
         "Function signature: rejectRequest(accessToken: string, sessionId: string, requestId: string): Promise<void>",
         "Function calls PATCH /api/session/{id}/requests with body { action: 'reject', requestId }"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-008",
