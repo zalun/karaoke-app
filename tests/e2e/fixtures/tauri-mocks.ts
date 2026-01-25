@@ -675,9 +675,28 @@ export async function injectTauriMocks(
             return null;
           }
 
-          case "plugin:event|emit":
-            console.log(`[Tauri Mock] plugin:event|emit`, args);
+          case "plugin:event|emit": {
+            const eventName = args?.event as string;
+            const payload = args?.payload;
+            console.log(`[Tauri Mock] plugin:event|emit: ${eventName}`, payload);
+            // Call handlers registered via plugin:event|listen
+            const pluginListeners = pluginEventListeners.get(eventName);
+            if (pluginListeners) {
+              pluginListeners.forEach((handlerId) => {
+                const cb = callbacks[handlerId];
+                if (cb) {
+                  console.log(`[Tauri Mock] emit calling callback ${handlerId} for event ${eventName}`);
+                  cb({ event: eventName, payload });
+                }
+              });
+            }
+            // Also call handlers registered via __TAURI_PLUGIN_EVENT__.listen
+            const listeners = eventListeners.get(eventName);
+            if (listeners) {
+              listeners.forEach((cb) => cb({ payload }));
+            }
             return null;
+          }
 
           // Window commands
           case "plugin:window|available_monitors":

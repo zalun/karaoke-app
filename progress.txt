@@ -749,3 +749,17 @@
 - Default behavior unchanged (no delay when authDelay not set)
 - Files changed: tests/e2e/fixtures/tauri-mocks.ts, ralph/app-signals-hosted-session.json
 - All 476 tests pass, typecheck passes, lint passes
+
+## SIG-008: Add E2E test for race condition fix
+- Added E2E-005 test in tests/e2e/specs/hosted-session.spec.ts
+- Test name: "E2E-005: restores hosted session even with delayed auth"
+- Uses authDelay: 2000 to simulate slow keychain/network access
+- Sets up initialSession with hosted_session_id, hosted_by_user_id, hosted_session_status: "active"
+- Verifies "Hosting" button appears (not "Host") - proves session was restored
+- Verifies modal opens with join code when clicking Hosting button
+- Fixed tauri-mocks.ts plugin:event|emit - was only logging, not emitting to listeners
+- plugin:event|emit now calls both pluginEventListeners and eventListeners (same as __TAURI_PLUGIN_EVENT__.emit)
+- This fix was required because emit() from @tauri-apps/api/event uses plugin:event|emit
+- Test passes consistently on chromium and webkit (ran 3 times)
+- Files changed: tests/e2e/specs/hosted-session.spec.ts, tests/e2e/fixtures/tauri-mocks.ts, ralph/app-signals-hosted-session.json
+- 476 JS tests pass, lint passes

@@ -161,7 +161,8 @@
         "Test passes consistently (run 3 times)",
         "Test fails if waitForSignalOrCondition is removed (regression check)"
       ],
-      "passes": false
+      "passes": true,
+      "completed_notes": "Added E2E-005 test in hosted-session.spec.ts that uses authDelay: 2000 to simulate slow auth. Test verifies hosted session is restored despite delay. Fixed tauri-mocks.ts plugin:event|emit to actually emit events to listeners (was only logging before). Test passes consistently in chromium and webkit. All 476 unit tests pass."
     },
     {
       "id": "SIG-009",

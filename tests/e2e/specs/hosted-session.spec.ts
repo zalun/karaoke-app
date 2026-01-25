@@ -545,6 +545,71 @@ test.describe("Hosted Session", () => {
       expect(hostedState.sessionCode).toMatch(joinCodePattern);
     });
 
+    test("E2E-005: restores hosted session even with delayed auth", async ({ page }) => {
+      // This test verifies the fix for RACE-001: restoreHostedSession() used to call
+      // useAuthStore.getState().user before fetchUserProfile() completed, causing
+      // hosted session restoration to be skipped. Now it uses waitForSignalOrCondition
+      // to wait for the USER_LOGGED_IN signal before checking user ownership.
+
+      const hostedSessionId = "mock-session-" + Math.random().toString(36).substring(7);
+      const testUserId = "test-user-id";
+
+      await injectTauriMocks(page, {
+        authTokens: {
+          access_token: "test_access_token",
+          refresh_token: "test_refresh_token",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        },
+        mockUser: {
+          id: testUserId,
+          email: "test@example.com",
+          displayName: "Test User",
+        },
+        // Key: Delay auth token retrieval to simulate slow keychain/network access
+        // This creates the race condition that waitForSignalOrCondition solves
+        authDelay: 2000,
+        // Simulate app restart with persisted session that was being hosted
+        initialSession: {
+          id: 1,
+          name: "Test Session",
+          hosted_session_id: hostedSessionId,
+          hosted_by_user_id: testUserId,
+          hosted_session_status: "active",
+        },
+      });
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for session to be loaded
+      await expect(async () => {
+        const hasSession = await mainPage.hasActiveSession();
+        expect(hasSession).toBe(true);
+      }).toPass({ timeout: 10000 });
+
+      // Despite the 2-second auth delay, the hosted session should be restored
+      // because restoreHostedSession() waits for USER_LOGGED_IN signal
+      await expect(async () => {
+        const hostingButton = page.getByRole("button", { name: "Hosting" });
+        await expect(hostingButton).toBeVisible();
+      }).toPass({ timeout: 15000 }); // Allow extra time for auth delay + signal wait
+
+      // Verify the session was actually restored (click to open modal)
+      const hostingButton = page.getByRole("button", { name: "Hosting" });
+      await hostingButton.click();
+
+      // Modal should show session info
+      await expect(page.locator("text=Session Hosted")).toBeVisible({ timeout: 10000 });
+
+      // Verify join code is displayed (session was restored successfully)
+      const joinCodePattern = /HK-[A-Z0-9]{4}-[A-Z0-9]{4}/i;
+      await expect(async () => {
+        const modalContent = await page.locator(".text-4xl.font-bold.font-mono").textContent();
+        expect(modalContent).toMatch(joinCodePattern);
+      }).toPass({ timeout: 5000 });
+    });
+
     test("should stop hosting when ending session", async ({ page }) => {
       // Setup: Authenticated user
       await injectTauriMocks(page, {
