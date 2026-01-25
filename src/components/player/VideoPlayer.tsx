@@ -12,7 +12,7 @@ import {
   isEmbeddingError,
   notify,
 } from "../../stores";
-import { youtubeService, createLogger, windowManager } from "../../services";
+import { youtubeService, createLogger, windowManager, emitSignal, APP_SIGNALS } from "../../services";
 import { useWakeLock } from "../../hooks";
 import {
   NextSongOverlay,
@@ -285,6 +285,9 @@ export function VideoPlayer() {
     // Stop playback immediately to prevent the ended video from restarting
     // during async operations (e.g., fetching next stream URL)
     setIsPlaying(false);
+
+    // Emit signal that song ended naturally (fire-and-forget)
+    emitSignal(APP_SIGNALS.SONG_ENDED, undefined).catch(() => {});
 
     // Check autoplay setting
     const autoplayNext = useSettingsStore.getState().getSetting(SETTINGS_KEYS.AUTOPLAY_NEXT);
