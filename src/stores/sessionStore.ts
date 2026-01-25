@@ -755,6 +755,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (apiCallFailed) {
         notify("warning", "Could not end session on server. It may expire automatically.");
       }
+
+      // Emit signal for other stores/components that depend on hosting stop
+      // Signal is emitted in finally block so it fires in both success and error paths
+      await emitSignal(APP_SIGNALS.HOSTING_STOPPED, undefined);
     }
   },
 

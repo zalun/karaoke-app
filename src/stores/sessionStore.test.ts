@@ -2670,6 +2670,50 @@ describe("sessionStore - Host Session", () => {
       // Should still clear hostedSession
       expect(useSessionStore.getState().hostedSession).toBeNull();
     });
+
+    it("should emit HOSTING_STOPPED signal after successful stop", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockResolvedValue();
+
+      await useSessionStore.getState().stopHosting();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.HOSTING_STOPPED, undefined);
+    });
+
+    it("should emit HOSTING_STOPPED signal even when API call fails", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockRejectedValue(new Error("Network error"));
+
+      await useSessionStore.getState().stopHosting();
+
+      // Signal should still be emitted in the error cleanup path
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.HOSTING_STOPPED, undefined);
+    });
+
+    it("should not emit HOSTING_STOPPED signal if no hosted session exists", async () => {
+      const { emitSignal } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      useSessionStore.setState({ hostedSession: null });
+
+      await useSessionStore.getState().stopHosting();
+
+      expect(emitSignal).not.toHaveBeenCalled();
+    });
   });
 
   describe("refreshHostedSession", () => {

@@ -61,7 +61,7 @@
         "npm test -- sessionStore passes",
         "Stop hosting and verify signal fires"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-105",

@@ -37,3 +37,16 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass. Lint clean.
+
+## SIG-104: HOSTING_STOPPED signal (DONE)
+- Emit HOSTING_STOPPED at end of stopHosting() finally block (line 762)
+- Signal emitted in both success AND error paths (per acceptance criteria)
+- Placed in finally block so fires regardless of API call outcome
+- Added 3 unit tests: success path, error path, skip when no hosted session
+
+Files changed:
+- src/stores/sessionStore.ts
+- src/stores/sessionStore.test.ts (3 new tests)
+- ralph/app-signals.json
+
+All tests pass (483). Lint clean. TypeScript clean.
