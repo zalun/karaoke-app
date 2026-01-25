@@ -100,6 +100,7 @@ interface SessionState {
   // Song request actions
   loadPendingRequests: () => Promise<void>;
   approveRequest: (requestId: string) => Promise<void>;
+  rejectRequest: (requestId: string) => Promise<void>;
 
   // Singer actions
   loadSingers: () => Promise<void>;
@@ -1098,6 +1099,44 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to approve request: ${message}`);
       notify("error", "Failed to approve request");
+      throw error;
+    }
+  },
+
+  rejectRequest: async (requestId: string) => {
+    const { hostedSession, pendingRequests } = get();
+    if (!hostedSession) {
+      log.error("Cannot reject request: no hosted session");
+      throw new Error("No hosted session");
+    }
+
+    log.debug(`Rejecting request: ${requestId}`);
+    try {
+      const tokens = await authService.getTokens();
+      if (!tokens) {
+        log.error("Cannot reject request: not authenticated");
+        throw new Error("Not authenticated");
+      }
+
+      await hostedSessionService.rejectRequest(
+        tokens.access_token,
+        hostedSession.id,
+        requestId
+      );
+
+      // Remove from pending requests
+      set({
+        pendingRequests: pendingRequests.filter((r) => r.id !== requestId),
+      });
+
+      // Refresh hosted session to update stats
+      await get().refreshHostedSession();
+
+      log.debug(`Request ${requestId} rejected`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to reject request: ${message}`);
+      notify("error", "Failed to reject request");
       throw error;
     }
   },

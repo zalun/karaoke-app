@@ -3562,4 +3562,88 @@ describe("sessionStore - Song Request Actions", () => {
       expect(pendingRequests).toHaveLength(0);
     });
   });
+
+  describe("rejectRequest", () => {
+    it("should reject a request and remove it from pendingRequests", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.rejectRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().rejectRequest("request-1");
+
+      // Verify rejectRequest was called with correct parameters
+      expect(hostedSessionService.rejectRequest).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        "request-1"
+      );
+
+      // Verify request was removed from pendingRequests
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-2");
+
+      // Verify refreshHostedSession was called
+      expect(hostedSessionService.getSession).toHaveBeenCalled();
+    });
+
+    it("should throw error when no hosted session", async () => {
+      useSessionStore.setState({ hostedSession: null });
+
+      await expect(useSessionStore.getState().rejectRequest("request-1")).rejects.toThrow(
+        "No hosted session"
+      );
+
+      expect(hostedSessionService.rejectRequest).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when not authenticated", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await expect(useSessionStore.getState().rejectRequest("request-1")).rejects.toThrow(
+        "Not authenticated"
+      );
+
+      expect(hostedSessionService.rejectRequest).not.toHaveBeenCalled();
+    });
+
+    it("should notify and re-throw on API error", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.rejectRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+
+      await expect(useSessionStore.getState().rejectRequest("request-1")).rejects.toThrow(
+        "Network error"
+      );
+
+      expect(notify).toHaveBeenCalledWith("error", "Failed to reject request");
+
+      // Verify pendingRequests was not modified on error
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+    });
+
+    it("should handle rejecting the last pending request", async () => {
+      // Set up with only one pending request
+      useSessionStore.setState({
+        pendingRequests: [mockPendingRequests[0]],
+      });
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.rejectRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 0, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().rejectRequest("request-1");
+
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(0);
+    });
+  });
 });
