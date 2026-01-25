@@ -89,6 +89,10 @@ export const APP_SIGNALS = {
   PLAYER_REATTACHED: "app:player-reattached",
   /** Emitted when the active singer changes in sessionStore.setActiveSinger() */
   ACTIVE_SINGER_CHANGED: "app:active-singer-changed",
+  /** Emitted when a notification becomes visible */
+  NOTIFICATION_SHOWING: "app:notification-showing",
+  /** Emitted when a notification is hidden/dismissed */
+  NOTIFICATION_HIDDEN: "app:notification-hidden",
 } as const;
 
 /** Type for signal names */
@@ -153,6 +157,10 @@ export interface SignalPayloads {
   [APP_SIGNALS.PLAYER_REATTACHED]: undefined;
   /** Payload is the singer ID (number) or null when active singer is cleared */
   [APP_SIGNALS.ACTIVE_SINGER_CHANGED]: number | null;
+  /** Payload contains notification ID and type when notification becomes visible */
+  [APP_SIGNALS.NOTIFICATION_SHOWING]: NotificationShowingPayload;
+  /** Payload contains notification ID when notification is hidden */
+  [APP_SIGNALS.NOTIFICATION_HIDDEN]: NotificationHiddenPayload;
 }
 
 /** Video metadata payload for VIDEO_METADATA_CHANGED signal */
@@ -197,6 +205,20 @@ export interface FileAvailabilityPayload {
   filePath: string;
   /** Whether the file is available */
   available: boolean;
+}
+
+/** Payload for NOTIFICATION_SHOWING signal */
+export interface NotificationShowingPayload {
+  /** The notification ID */
+  id: string;
+  /** The notification type */
+  type: "error" | "warning" | "success" | "info";
+}
+
+/** Payload for NOTIFICATION_HIDDEN signal */
+export interface NotificationHiddenPayload {
+  /** The notification ID that was hidden */
+  id: string;
 }
 
 /**

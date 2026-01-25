@@ -500,3 +500,23 @@ All tests pass (543). Lint clean. TypeScript clean.
 - Signal NOT emitted if backend call fails (error thrown before emission)
 
 All tests pass (546). Lint clean. TypeScript clean.
+
+---
+
+## SIG-802: Add NOTIFICATION_SHOWING/HIDDEN signals
+
+**Completed**: Added notification visibility signals for accessibility and analytics tracking.
+
+**Changes**:
+- src/services/appSignals.ts: Added NOTIFICATION_SHOWING and NOTIFICATION_HIDDEN to APP_SIGNALS, added NotificationShowingPayload and NotificationHiddenPayload interfaces, added payload types to SignalPayloads
+- src/stores/notificationStore.ts: Import emitSignal/APP_SIGNALS, emit NOTIFICATION_SHOWING after notification becomes visible, emit NOTIFICATION_HIDDEN in 3 places (auto-hide timeout, queued notification auto-hide, dismiss)
+- src/stores/notificationStore.signals.test.ts: New test file with 8 tests covering signal emission
+
+**Key decisions**:
+- NOTIFICATION_SHOWING payload includes id and type (error/warning/success/info)
+- NOTIFICATION_HIDDEN payload includes only id (type available from previous SHOWING signal)
+- Signal NOT emitted when notification is queued (only when actually visible)
+- NOTIFICATION_HIDDEN emitted after animation completes (300ms after hide starts)
+- Useful for accessibility (screen readers) and analytics tracking
+
+All tests pass (554). Lint clean. TypeScript clean.
