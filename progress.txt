@@ -670,3 +670,11 @@
 - Files changed: src/services/session.ts, ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, lint passes, typecheck passes
 
+## DOC-008: Update CHANGELOG.md with hosted session ownership changes
+- Added changelog entry under [Unreleased] section for issue #207
+- Entry covers: session table storage, ownership tracking, auto-restoration, different-user dialog
+- Includes status tracking (active/paused/ended), conflict prevention
+- Migration note: "Users upgrading from v0.7.7 will need to re-host their session once"
+- Files changed: CHANGELOG.md, ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, lint passes, cargo check passes
+

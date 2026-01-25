@@ -530,7 +530,9 @@
         "Verify entry for hosted session ownership tracking",
         "Verify mentions migration note about re-hosting after upgrade"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added changelog entry under Unreleased section for #207. Covers: session table storage, ownership tracking, auto-restoration, different-user dialog, status tracking, conflict prevention, migration note about re-hosting."
     }
   ]
 }

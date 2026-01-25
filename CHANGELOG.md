@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Join code overlay on idle video player
   - Stop hosting button to end guest access
   - Automatic cleanup when ending session
+- Hosted session ownership tracking (#207)
+  - Hosted session info now stored in sessions table (not settings)
+  - Tracks which user started hosting for proper ownership
+  - Automatic restoration of hosted session on app restart
+  - Different user detection: shows dialog when another user was hosting
+  - Status tracking: active, paused, ended
+  - Prevents hosting conflicts when different user is already hosting
+  - Note: Users upgrading from v0.7.7 will need to re-host their session once
 - Fair Queue toggle for automatic fair song insertion (#205)
   - Toggle button next to Fair Shuffle in queue panel
   - When enabled, new songs insert at fair position based on singer rotation
