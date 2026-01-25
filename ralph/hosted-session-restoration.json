@@ -564,7 +564,8 @@
         "Verify legacy data is still migrated correctly on first run",
         "Consider removing after 1-2 releases when users have upgraded"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Added runLegacyHostedSessionMigration() function in hostedSession.ts that: 1) Checks hosted_session_legacy_migration_done flag in settings, 2) If not done, checks for legacy hosted_session_id, 3) Clears legacy ID if found, 4) Marks migration done. Called from App.tsx useEffect before SessionBar mounts. Removed MIGRATE-002 cleanup from loadSession() in sessionStore.ts. Updated sessionStore.test.ts to remove old MIGRATE-002 tests. Added 5 unit tests in hostedSession.test.ts for the migration function. All 442 tests pass."
     },
     {
       "id": "REVIEW-006",

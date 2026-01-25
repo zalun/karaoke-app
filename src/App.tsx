@@ -29,7 +29,7 @@ import { AuthStatus } from "./components/auth";
 import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, useAuthStore, getStreamUrlWithCache, showWindowsAudioNoticeOnce, notify, SETTINGS_KEYS, type QueueItem, type LibraryVideo, type Video } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star, ListOrdered } from "lucide-react";
-import { youtubeService, createLogger, getErrorMessage } from "./services";
+import { youtubeService, createLogger, getErrorMessage, runLegacyHostedSessionMigration } from "./services";
 import { useMediaControls, useDisplayWatcher, useUpdateCheck, useKeyboardShortcuts } from "./hooks";
 import { NotificationBar } from "./components/notification";
 import type { SearchResult } from "./types";
@@ -134,6 +134,15 @@ function App() {
       log.error("Failed to initialize auth:", err);
     });
   }, [initializeAuth]);
+
+  // Run one-time legacy hosted session migration (REVIEW-005)
+  // This clears the old hosted_session_id from settings table if it exists.
+  // Must run before SessionBar mounts and calls loadSession().
+  useEffect(() => {
+    runLegacyHostedSessionMigration().catch((err) => {
+      log.error("Failed to run legacy hosted session migration:", err);
+    });
+  }, []);
 
   // Focus search bar and switch to search tab
   const handleFocusSearch = useCallback(() => {

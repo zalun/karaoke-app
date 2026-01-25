@@ -6,6 +6,7 @@ import { HOMEKARAOKE_API_URL, buildJoinUrl, buildQrCodeUrl } from "../constants"
 const log = createLogger("HostedSessionService");
 
 const HOSTED_SESSION_KEY = "hosted_session_id";
+const LEGACY_MIGRATION_DONE_KEY = "hosted_session_legacy_migration_done";
 
 /**
  * Persist the hosted session ID to SQLite settings.
@@ -14,6 +15,42 @@ const HOSTED_SESSION_KEY = "hosted_session_id";
 export async function persistSessionId(sessionId: string): Promise<void> {
   log.debug(`Persisting session ID: ${sessionId}`);
   await invoke("settings_set", { key: HOSTED_SESSION_KEY, value: sessionId });
+}
+
+/**
+ * Run one-time migration to clear legacy hosted_session_id from settings table.
+ *
+ * The new system stores hosted info in the sessions table (hosted_session_id,
+ * hosted_by_user_id, hosted_session_status). The old settings-based approach
+ * didn't track ownership, so we can't migrate - just clear and let user re-host.
+ *
+ * This should be called during app initialization (before loadSession).
+ * The migration is tracked via a settings flag to ensure it only runs once.
+ */
+export async function runLegacyHostedSessionMigration(): Promise<void> {
+  try {
+    // Check if migration was already done
+    const migrationDone = await invoke<string | null>("settings_get", { key: LEGACY_MIGRATION_DONE_KEY });
+    if (migrationDone === "true") {
+      log.debug("Legacy hosted_session_id migration already completed");
+      return;
+    }
+
+    // Check if there's a legacy hosted_session_id to clear
+    const legacyId = await getPersistedSessionId();
+    if (legacyId) {
+      log.info("MIGRATE-002: Clearing legacy hosted_session_id from settings table");
+      await clearPersistedSessionId();
+    }
+
+    // Mark migration as done
+    await invoke("settings_set", { key: LEGACY_MIGRATION_DONE_KEY, value: "true" });
+    log.debug("Legacy hosted_session_id migration completed");
+  } catch (error) {
+    // Log but don't throw - migration failure shouldn't block app startup
+    const message = error instanceof Error ? error.message : String(error);
+    log.warn(`MIGRATE-002: Failed to run legacy migration: ${message}`);
+  }
 }
 
 /**

@@ -26,6 +26,7 @@ export {
   getPersistedSessionId,
   persistSessionId,
   clearPersistedSessionId,
+  runLegacyHostedSessionMigration,
 } from "./hostedSession";
 export type { HostedSession, SessionStats } from "./hostedSession";
 export {
