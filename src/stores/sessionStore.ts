@@ -863,8 +863,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // MIGRATE-002: Legacy fallback removed - old settings value cleared during app startup
     // Use hosted_session_id from session DB field (the only source of truth now)
     const sessionIdToRestore = session.hosted_session_id;
-    // Note: This check is technically redundant (RESTORE-001 already checked)
-    // but kept for defensive coding
+    // Note: This check is technically redundant since RESTORE-001 already verified
+    // hosted_session_id exists. However, TypeScript's type narrowing doesn't persist
+    // through async operations (tokens/user fetches above), so TS can't prove
+    // session.hosted_session_id is still non-null here. This explicit check satisfies
+    // the type system and provides defense against theoretical concurrent modifications.
     if (!sessionIdToRestore) {
       log.debug("No session ID available for restoration");
       return;

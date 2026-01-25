@@ -621,3 +621,12 @@
 - Files changed: src/services/hostedSession.ts, ralph/hosted-session-restoration-review.json, progress.txt
 - 459 JS tests pass, lint passes, typecheck passes
 
+## DOC-003: Clarify defensive check comment about TypeScript narrowing
+- Updated comment at sessionStore.ts line 866-871
+- Old comment: "Note: This check is technically redundant (RESTORE-001 already checked) but kept for defensive coding"
+- New comment: Explains TypeScript type narrowing doesnt persist through async operations (tokens/user fetches above)
+- Clarifies: explicit check satisfies type system AND provides defense against concurrent modifications
+- No unit tests needed - documentation change only
+- Files changed: src/stores/sessionStore.ts, ralph/hosted-session-restoration-review.json, progress.txt
+- 459 JS tests pass, lint passes, typecheck passes
+
