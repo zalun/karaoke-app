@@ -862,28 +862,32 @@ pub fn session_set_hosted(
         )));
     }
 
-    let db = state.db.lock().map_lock_err()?;
+    let mut db = state.db.lock().map_lock_err()?;
+
+    // Use transaction for consistency: verify session exists and update atomically
+    let tx = db.connection_mut().transaction()?;
 
     // Verify session exists
-    let session_exists: bool = db
-        .connection()
-        .query_row(
-            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
-            [session_id],
-            |row| row.get(0),
-        )?;
+    let session_exists: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
+        [session_id],
+        |row| row.get(0),
+    )?;
 
     if !session_exists {
+        // Transaction will be rolled back automatically when tx is dropped
         return Err(CommandError::Validation(format!(
             "Session {} does not exist",
             session_id
         )));
     }
 
-    db.connection().execute(
+    tx.execute(
         "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
         rusqlite::params![hosted_session_id, hosted_by_user_id, status, session_id],
     )?;
+
+    tx.commit()?;
 
     info!(
         "Hosted session set for session {}: hosted_id={}, status={}",
@@ -2189,6 +2193,82 @@ mod tests {
 
             // No rows should be affected
             assert_eq!(rows_affected, 0);
+        }
+
+        #[test]
+        fn test_session_set_hosted_transaction_rollback_on_invalid_status() {
+            // This test verifies that when a database constraint (CHECK trigger)
+            // rejects an invalid status value, the entire transaction is rolled back
+            // and no partial changes are committed.
+            let mut conn = setup_test_db();
+
+            // Add the CHECK triggers (from Migration 12) that validate hosted_session_status
+            conn.execute_batch(
+                r#"
+                CREATE TRIGGER IF NOT EXISTS check_hosted_session_status_insert
+                BEFORE INSERT ON sessions
+                WHEN NEW.hosted_session_status IS NOT NULL
+                    AND NEW.hosted_session_status NOT IN ('active', 'paused', 'ended')
+                BEGIN
+                    SELECT RAISE(ABORT, 'Invalid hosted_session_status. Must be NULL, active, paused, or ended.');
+                END;
+
+                CREATE TRIGGER IF NOT EXISTS check_hosted_session_status_update
+                BEFORE UPDATE OF hosted_session_status ON sessions
+                WHEN NEW.hosted_session_status IS NOT NULL
+                    AND NEW.hosted_session_status NOT IN ('active', 'paused', 'ended')
+                BEGIN
+                    SELECT RAISE(ABORT, 'Invalid hosted_session_status. Must be NULL, active, paused, or ended.');
+                END;
+                "#,
+            )
+            .unwrap();
+
+            // Create a session with initial hosted info
+            conn.execute(
+                "INSERT INTO sessions (name, is_active, hosted_session_id, hosted_by_user_id, hosted_session_status) VALUES ('Test', 1, 'old-hs', 'old-user', 'active')",
+                [],
+            )
+            .unwrap();
+            let session_id: i64 = conn.last_insert_rowid();
+
+            // Attempt a transaction that would violate the CHECK constraint
+            let tx = conn.transaction().unwrap();
+
+            // First operation: verify session exists (succeeds)
+            let exists: bool = tx
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?1)",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(exists);
+
+            // Second operation: update with invalid status (should fail due to trigger)
+            let result = tx.execute(
+                "UPDATE sessions SET hosted_session_id = ?1, hosted_by_user_id = ?2, hosted_session_status = ?3 WHERE id = ?4",
+                rusqlite::params!["new-hs", "new-user", "invalid_status", session_id],
+            );
+
+            // The CHECK trigger should reject this
+            assert!(result.is_err(), "Expected error for invalid status, but got success");
+
+            // Don't commit - let transaction drop (automatic rollback)
+            drop(tx);
+
+            // Verify original values are preserved (transaction was rolled back)
+            let (hosted_id, user_id, status): (Option<String>, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT hosted_session_id, hosted_by_user_id, hosted_session_status FROM sessions WHERE id = ?1",
+                    [session_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+
+            assert_eq!(hosted_id, Some("old-hs".to_string()), "hosted_session_id should be unchanged after rollback");
+            assert_eq!(user_id, Some("old-user".to_string()), "hosted_by_user_id should be unchanged after rollback");
+            assert_eq!(status, Some("active".to_string()), "hosted_session_status should be unchanged after rollback");
         }
     }
 

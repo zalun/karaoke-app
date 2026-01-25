@@ -456,3 +456,19 @@
 - Updated 3 tests in SessionBar.test.tsx (disabled button tests) to use new tooltip text
 - Files changed: src/stores/sessionStore.ts, src/components/session/SessionBar.tsx, src/stores/sessionStore.test.ts, src/components/session/SessionBar.test.tsx, ralph/hosted-session-restoration.json
 - 441 unit tests pass, lint passes, typecheck passes
+
+## REVIEW-004: Wrap session_set_hosted command in database transaction
+- Updated session_set_hosted in session.rs to use rusqlite transaction
+- Changed db.lock() to get mutable reference (let mut db)
+- Used connection_mut().transaction() to start transaction
+- Moved EXISTS check and UPDATE inside transaction (using tx)
+- Added tx.commit() after successful UPDATE
+- Transaction auto-rollbacks on early return (session not found) or UPDATE failure
+- Added test_session_set_hosted_transaction_rollback_on_invalid_status:
+  - Creates session with initial hosted values
+  - Adds CHECK triggers (from Migration 12) to test database
+  - Starts transaction, verifies session exists, attempts UPDATE with invalid status
+  - Verifies UPDATE fails due to trigger, drops transaction (rollback)
+  - Confirms original values preserved after rollback
+- Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration.json
+- 441 unit tests pass, 138 Rust tests (6 session_set_hosted tests), lint passes, cargo check passes

@@ -548,7 +548,8 @@
         "Add test for transaction rollback scenario",
         "Verify command still works correctly"
       ],
-      "passes": false
+      "passes": true,
+      "notes": "Updated session_set_hosted in session.rs to use rusqlite transaction: 1) Changed lock() to get mutable db reference, 2) Used connection_mut().transaction() to start transaction, 3) Moved EXISTS check and UPDATE inside transaction, 4) Added tx.commit() after successful UPDATE. Transaction automatically rolls back on early return (session not found) or UPDATE failure. Added unit test test_session_set_hosted_transaction_rollback_on_invalid_status that verifies rollback when CHECK trigger rejects invalid status value. All 6 session_set_hosted tests pass plus 441 frontend tests."
     },
     {
       "id": "REVIEW-005",
