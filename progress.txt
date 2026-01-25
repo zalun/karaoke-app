@@ -216,3 +216,26 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (511). Lint clean. TypeScript clean.
+
+## SIG-303: HOSTED_SESSION_UPDATED signal (DONE)
+- Added HOSTED_SESSION_UPDATED to APP_SIGNALS constant in appSignals.ts
+- Added import for SessionStats type from hostedSession.ts
+- Added payload type to SignalPayloads interface (SessionStats)
+- Emit HOSTED_SESSION_UPDATED in sessionStore.refreshHostedSession() after stats update
+- Signal emitted with updated.stats payload after successful getSession call
+- Signal NOT emitted if refresh fails or session is cleared
+- Added HOSTED_SESSION_UPDATED to appSignals.test.ts signal name test
+- Added HOSTED_SESSION_UPDATED to sessionStore.test.ts mock
+- Added 3 unit tests in sessionStore.test.ts:
+  - Verifies signal emits with stats after successful refresh
+  - Verifies signal NOT emitted when refresh fails
+  - Verifies signal NOT emitted when no hosted session exists
+
+Files changed:
+- src/services/appSignals.ts (import SessionStats, signal def + payload type)
+- src/services/appSignals.test.ts (signal name test)
+- src/stores/sessionStore.ts (1 emit call after stats update)
+- src/stores/sessionStore.test.ts (mock update + 3 new tests)
+- ralph/app-signals.json
+
+All tests pass (514). Lint clean. TypeScript clean.

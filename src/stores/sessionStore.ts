@@ -805,6 +805,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           ? { ...state.hostedSession, stats: updated.stats, status: updated.status }
           : null,
       }));
+
+      // Emit signal after successful stats update
+      await emitSignal(APP_SIGNALS.HOSTED_SESSION_UPDATED, updated.stats);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to refresh hosted session: ${message}`);

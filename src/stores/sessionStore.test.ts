@@ -61,6 +61,7 @@ vi.mock("../services", async (importOriginal) => {
       SINGERS_LOADED: "app:singers-loaded",
       HOSTING_STARTED: "app:hosting-started",
       HOSTING_STOPPED: "app:hosting-stopped",
+      HOSTED_SESSION_UPDATED: "app:hosted-session-updated",
     },
     // Mock emitSignal for testing signal emissions
     emitSignal: vi.fn().mockResolvedValue(undefined),
@@ -2982,6 +2983,59 @@ describe("sessionStore - Host Session", () => {
       expect(useSessionStore.getState().showHostModal).toBe(false);
       // New behavior: also clear persisted session ID
       expect(clearPersistedSessionId).toHaveBeenCalled();
+    });
+
+    it("should emit HOSTED_SESSION_UPDATED signal after successful stats update", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      const updatedStats = { pendingRequests: 5, approvedRequests: 15, totalGuests: 10 };
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: updatedStats,
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(emitSignal).toHaveBeenCalledWith(APP_SIGNALS.HOSTED_SESSION_UPDATED, updatedStats);
+    });
+
+    it("should NOT emit HOSTED_SESSION_UPDATED signal when refresh fails", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND"));
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(emitSignal).not.toHaveBeenCalledWith(
+        APP_SIGNALS.HOSTED_SESSION_UPDATED,
+        expect.anything()
+      );
+    });
+
+    it("should NOT emit HOSTED_SESSION_UPDATED signal when no hosted session exists", async () => {
+      const { emitSignal, APP_SIGNALS } = await import("../services");
+      vi.mocked(emitSignal).mockClear();
+
+      useSessionStore.setState({ hostedSession: null });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(emitSignal).not.toHaveBeenCalledWith(
+        APP_SIGNALS.HOSTED_SESSION_UPDATED,
+        expect.anything()
+      );
     });
   });
 

@@ -240,7 +240,7 @@
         "npm test passes",
         "Polling cycle emits signal with updated stats"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-401",

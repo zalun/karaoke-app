@@ -12,6 +12,7 @@
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createLogger } from "./logger";
 import type { User } from "./auth";
+import type { SessionStats } from "./hostedSession";
 
 const log = createLogger("AppSignals");
 
@@ -52,6 +53,8 @@ export const APP_SIGNALS = {
   AUTH_INITIALIZED: "app:auth-initialized",
   /** Emitted after successful token refresh in refreshSession() */
   TOKENS_REFRESHED: "app:tokens-refreshed",
+  /** Emitted after refreshHostedSession() successfully updates stats */
+  HOSTED_SESSION_UPDATED: "app:hosted-session-updated",
 } as const;
 
 /** Type for signal names */
@@ -80,6 +83,8 @@ export interface SignalPayloads {
   [APP_SIGNALS.AUTH_INITIALIZED]: boolean;
   /** No payload - just signals that tokens were refreshed successfully */
   [APP_SIGNALS.TOKENS_REFRESHED]: undefined;
+  /** Payload is the updated session stats */
+  [APP_SIGNALS.HOSTED_SESSION_UPDATED]: SessionStats;
 }
 
 /**
