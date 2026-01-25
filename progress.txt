@@ -530,3 +530,11 @@
   - test_conditional_update_succeeds_when_no_prior_host
 - Files changed: src-tauri/src/commands/session.rs, ralph/hosted-session-restoration-review.json
 - 456 JS tests pass, 147 Rust tests pass (14 session_set_hosted tests), lint passes, cargo check passes
+
+## CONC-006: Update E2E mocks to support ownership conflict scenario
+- Added shouldFailWithOwnershipConflict config option to TauriMockConfig
+- Updated session_set_hosted mock case to check config and throw ownership conflict error
+- Error format matches CommandError::OwnershipConflict serialization: { type: 'ownership_conflict', message: '...' }
+- Enables E2E testing of hostSession() conflict handling (dialog display, orphan cleanup)
+- Files changed: tests/e2e/fixtures/tauri-mocks.ts, ralph/hosted-session-restoration-review.json
+- 459 JS tests pass, lint passes, cargo check passes

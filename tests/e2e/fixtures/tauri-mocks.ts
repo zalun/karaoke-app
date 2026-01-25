@@ -104,6 +104,8 @@ export interface TauriMockConfig {
     hosted_by_user_id?: string;
     hosted_session_status?: string;
   } | null;
+  /** Whether session_set_hosted should return ownership conflict error */
+  shouldFailWithOwnershipConflict?: boolean;
 }
 
 /**
@@ -489,6 +491,17 @@ export async function injectTauriMocks(
             const hostedByUserId = args?.hostedByUserId as string;
             const status = args?.status as string;
             console.log(`[Tauri Mock] session_set_hosted: session=${sessionId}, hostedId=${hostedSessionId}, userId=${hostedByUserId}, status=${status}`);
+
+            // CONC-006: Support simulating ownership conflict for E2E tests
+            if (config.shouldFailWithOwnershipConflict) {
+              console.log("[Tauri Mock] session_set_hosted: simulating ownership conflict");
+              // Return error object matching CommandError::OwnershipConflict serialization
+              throw {
+                type: "ownership_conflict",
+                message: "Another user is currently hosting this session. They must stop hosting before you can host.",
+              };
+            }
+
             if (activeSession && activeSession.id === sessionId) {
               activeSession.hosted_session_id = hostedSessionId;
               activeSession.hosted_by_user_id = hostedByUserId;

@@ -264,7 +264,9 @@
         "Verify session_set_hosted mock can return ownership conflict error",
         "Verify mock config has option to simulate conflict"
       ],
-      "passes": false
+      "passes": true,
+      "completed_at": "2026-01-25",
+      "notes": "Added shouldFailWithOwnershipConflict config option to TauriMockConfig. Updated session_set_hosted mock case to throw { type: 'ownership_conflict', message: '...' } error matching CommandError::OwnershipConflict serialization when config is set."
     },
     {
       "id": "TYPE-001",
