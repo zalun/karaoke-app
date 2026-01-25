@@ -204,7 +204,7 @@
         "npm test passes",
         "App startup emits signal regardless of auth state"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SIG-302",

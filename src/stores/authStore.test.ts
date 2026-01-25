@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useAuthStore } from "./authStore";
 
 // Mock the services
+const mockEmitSignal = vi.fn();
 vi.mock("../services", () => ({
   createLogger: () => ({
     debug: vi.fn(),
@@ -12,8 +13,9 @@ vi.mock("../services", () => ({
   APP_SIGNALS: {
     USER_LOGGED_IN: "app:user-logged-in",
     USER_LOGGED_OUT: "app:user-logged-out",
+    AUTH_INITIALIZED: "app:auth-initialized",
   },
-  emitSignal: vi.fn(),
+  emitSignal: (...args: unknown[]) => mockEmitSignal(...args),
 }));
 
 // Mock hostedSession service
@@ -62,6 +64,79 @@ function resetStoreState() {
     isOffline: false,
   });
 }
+
+describe("authStore - initialize", () => {
+  beforeEach(() => {
+    resetStoreState();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    useAuthStore.getState()._cleanup();
+  });
+
+  describe("AUTH_INITIALIZED signal", () => {
+    it("should emit AUTH_INITIALIZED with false when no tokens are stored", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+      vi.mocked(authService.getPendingCallback).mockResolvedValue(null);
+
+      await useAuthStore.getState().initialize();
+
+      expect(mockEmitSignal).toHaveBeenCalledWith("app:auth-initialized", false);
+    });
+
+    it("should emit AUTH_INITIALIZED with false when tokens are invalid", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue({
+        access_token: "invalid-token",
+        refresh_token: "invalid-refresh",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      });
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(null);
+      vi.mocked(authService.clearTokens).mockResolvedValue(undefined);
+      vi.mocked(authService.getPendingCallback).mockResolvedValue(null);
+
+      await useAuthStore.getState().initialize();
+
+      expect(mockEmitSignal).toHaveBeenCalledWith("app:auth-initialized", false);
+    });
+
+    it("should emit AUTH_INITIALIZED with true when user is authenticated", async () => {
+      const mockTokens = {
+        access_token: "valid-token",
+        refresh_token: "valid-refresh",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      };
+      const mockUser = {
+        id: "user-1",
+        email: "test@example.com",
+        displayName: "Test User",
+        avatarUrl: null,
+      };
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(authService.refreshTokenIfNeeded).mockResolvedValue(mockTokens);
+      vi.mocked(authService.getPendingCallback).mockResolvedValue(null);
+
+      // Set up mock user for E2E testing path
+      (window as { __MOCK_USER__?: typeof mockUser }).__MOCK_USER__ = mockUser;
+
+      await useAuthStore.getState().initialize();
+
+      expect(mockEmitSignal).toHaveBeenCalledWith("app:auth-initialized", true);
+
+      // Clean up mock user
+      delete (window as { __MOCK_USER__?: typeof mockUser }).__MOCK_USER__;
+    });
+
+    it("should emit AUTH_INITIALIZED with false when initialization throws", async () => {
+      vi.mocked(authService.getPendingCallback).mockRejectedValue(new Error("Network error"));
+
+      await useAuthStore.getState().initialize();
+
+      expect(mockEmitSignal).toHaveBeenCalledWith("app:auth-initialized", false);
+    });
+  });
+});
 
 describe("authStore - signOut", () => {
   beforeEach(() => {

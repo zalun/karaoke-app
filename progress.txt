@@ -169,3 +169,28 @@ Files changed:
 - ralph/app-signals.json
 
 All tests pass (503). Lint clean. TypeScript clean.
+
+## SIG-301: AUTH_INITIALIZED signal (DONE)
+- Added AUTH_INITIALIZED to APP_SIGNALS constant in appSignals.ts
+- Added payload type to SignalPayloads interface (boolean for isAuthenticated)
+- Emit AUTH_INITIALIZED in authStore.initialize() in all exit paths:
+  - Pending callback path: emit with current isAuthenticated state
+  - No tokens path: emit false
+  - Invalid tokens path: emit false
+  - Success path: emit true
+  - Error path: emit false
+- Added AUTH_INITIALIZED to appSignals.test.ts signal name test
+- Added 4 unit tests in authStore.test.ts:
+  - Verifies signal emits false when no tokens stored
+  - Verifies signal emits false when tokens are invalid
+  - Verifies signal emits true when user is authenticated
+  - Verifies signal emits false when initialization throws
+
+Files changed:
+- src/services/appSignals.ts (signal def + payload type)
+- src/services/appSignals.test.ts (signal name test)
+- src/stores/authStore.ts (5 emit calls in initialize)
+- src/stores/authStore.test.ts (mock update + 4 new tests)
+- ralph/app-signals.json
+
+All tests pass (507). Lint clean. TypeScript clean.

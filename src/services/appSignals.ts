@@ -48,6 +48,8 @@ export const APP_SIGNALS = {
   HOSTING_STARTED: "app:hosting-started",
   /** Emitted when hosting a session stops */
   HOSTING_STOPPED: "app:hosting-stopped",
+  /** Emitted after auth initialization completes (regardless of auth state) */
+  AUTH_INITIALIZED: "app:auth-initialized",
 } as const;
 
 /** Type for signal names */
@@ -72,6 +74,8 @@ export interface SignalPayloads {
   [APP_SIGNALS.QUEUE_LOADED]: undefined;
   [APP_SIGNALS.HOSTING_STARTED]: undefined;
   [APP_SIGNALS.HOSTING_STOPPED]: undefined;
+  /** Payload is boolean indicating whether user is authenticated */
+  [APP_SIGNALS.AUTH_INITIALIZED]: boolean;
 }
 
 /**

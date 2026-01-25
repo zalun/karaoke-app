@@ -50,6 +50,7 @@ describe("APP_SIGNALS", () => {
     expect(APP_SIGNALS.QUEUE_LOADED).toBe("app:queue-loaded");
     expect(APP_SIGNALS.HOSTING_STARTED).toBe("app:hosting-started");
     expect(APP_SIGNALS.HOSTING_STOPPED).toBe("app:hosting-stopped");
+    expect(APP_SIGNALS.AUTH_INITIALIZED).toBe("app:auth-initialized");
   });
 });
 
