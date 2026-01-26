@@ -586,7 +586,7 @@
         "No stale request IDs remain in memory after modal closes",
         "Re-opening modal shows correct processing state"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-050",

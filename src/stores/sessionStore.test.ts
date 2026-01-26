@@ -2785,6 +2785,38 @@ describe("sessionStore - Host Session", () => {
 
       expect(emitSignal).not.toHaveBeenCalled();
     });
+
+    it("should clear processingRequestIds when hosting stops (SRA-049)", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+        processingRequestIds: new Set(["request-1", "request-2"]),
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockResolvedValue();
+
+      await useSessionStore.getState().stopHosting();
+
+      // Verify processingRequestIds is cleared
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.size).toBe(0);
+    });
+
+    it("should clear processingRequestIds even when API fails (SRA-049)", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+        processingRequestIds: new Set(["request-1", "request-2"]),
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockRejectedValue(new Error("Network error"));
+
+      await useSessionStore.getState().stopHosting();
+
+      // Verify processingRequestIds is cleared even on API failure
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.size).toBe(0);
+    });
   });
 
   describe("refreshHostedSession", () => {
@@ -4428,6 +4460,20 @@ describe("sessionStore - Song Request Actions", () => {
       useSessionStore.getState().closeRequestsModal();
 
       expect(useSessionStore.getState().showRequestsModal).toBe(false);
+    });
+
+    it("should clear processingRequestIds when modal closes (SRA-049)", () => {
+      // Set up state with some processing request IDs
+      useSessionStore.setState({
+        showRequestsModal: true,
+        processingRequestIds: new Set(["request-1", "request-2", "request-3"]),
+      });
+
+      useSessionStore.getState().closeRequestsModal();
+
+      // Verify processingRequestIds is cleared
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.size).toBe(0);
     });
   });
 });

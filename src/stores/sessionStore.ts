@@ -780,9 +780,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           showHostModal: false,
           _hostedSessionPollInterval: null,
           previousPendingCount: -1,
+          processingRequestIds: new Set(),
         });
       } else {
-        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null, previousPendingCount: -1 });
+        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null, previousPendingCount: -1, processingRequestIds: new Set() });
       }
 
       // Notify user if API call failed (backend may still think session is hosted)
@@ -1299,6 +1300,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   closeRequestsModal: () => {
-    set({ showRequestsModal: false });
+    set({ showRequestsModal: false, processingRequestIds: new Set() });
   },
 }));
