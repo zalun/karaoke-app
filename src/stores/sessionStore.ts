@@ -1144,7 +1144,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   rejectRequest: async (requestId: string) => {
-    const { hostedSession, pendingRequests, processingRequestIds } = get();
+    const { hostedSession, processingRequestIds } = get();
     if (!hostedSession) {
       log.error("Cannot reject request: no hosted session");
       throw new Error("No hosted session");
@@ -1177,8 +1177,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       await get().refreshHostedSession();
 
       // Remove from pending requests after successful refresh
+      // Use get().pendingRequests to get the most current list after refresh
       set({
-        pendingRequests: pendingRequests.filter((r) => r.id !== requestId),
+        pendingRequests: get().pendingRequests.filter((r) => r.id !== requestId),
       });
 
       log.debug(`Request ${requestId} rejected`);

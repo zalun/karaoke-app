@@ -481,7 +481,7 @@
         "State update only occurs if the entire operation succeeds",
         "Error handling still works correctly with reordered operations"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-041",
