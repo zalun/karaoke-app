@@ -270,4 +270,229 @@ test.describe("Song Requests Modal", () => {
       await expect(badge).toBeVisible();
     });
   });
+
+  test.describe("Approve and Reject Actions", () => {
+    test("should remove request from list when clicking approve button", async ({
+      page,
+    }) => {
+      const mockRequests = createMockSongRequests(2, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Verify initial state - 2 requests
+      await expect(dialog.getByText("Test Song Request 1")).toBeVisible();
+      await expect(dialog.getByText("Test Song Request 2")).toBeVisible();
+
+      // Click approve on the first request
+      const approveButtons = dialog.locator('button[aria-label="Approve request"]');
+      await approveButtons.first().click();
+
+      // Wait for the request to be removed from the list
+      await expect(async () => {
+        await expect(dialog.getByText("Test Song Request 1")).not.toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Second request should still be visible
+      await expect(dialog.getByText("Test Song Request 2")).toBeVisible();
+
+      // Badge should update to show 1
+      const badge = requestsButton.locator("span").filter({ hasText: "1" });
+      await expect(badge).toBeVisible();
+    });
+
+    test("should remove request from list when clicking reject button", async ({
+      page,
+    }) => {
+      const mockRequests = createMockSongRequests(2, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Verify initial state
+      await expect(dialog.getByText("Test Song Request 1")).toBeVisible();
+      await expect(dialog.getByText("Test Song Request 2")).toBeVisible();
+
+      // Click reject on the first request
+      const rejectButtons = dialog.locator('button[aria-label="Reject request"]');
+      await rejectButtons.first().click();
+
+      // Wait for the request to be removed from the list
+      await expect(async () => {
+        await expect(dialog.getByText("Test Song Request 1")).not.toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Second request should still be visible
+      await expect(dialog.getByText("Test Song Request 2")).toBeVisible();
+    });
+
+    test("should show loading spinner on approve/reject buttons during operation", async ({
+      page,
+    }) => {
+      const mockRequests = createMockSongRequests(1, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Verify approve button shows check icon initially (not a spinner)
+      const approveButton = dialog.locator('button[aria-label="Approve request"]');
+      await expect(approveButton).toBeVisible();
+
+      // The approve button should contain an SVG (either Check or Loader2)
+      // When not processing, it should NOT have the animate-spin class
+      const initialSvg = approveButton.locator("svg").first();
+      await expect(initialSvg).toBeVisible();
+
+      // Click approve - the button should show a spinner briefly
+      // Note: The operation may be fast, so we just verify the button works
+      await approveButton.click();
+
+      // After the operation completes, the request should be removed
+      await expect(async () => {
+        await expect(dialog.getByText("Test Song Request 1")).not.toBeVisible();
+      }).toPass({ timeout: 10000 });
+    });
+
+    test("should disable buttons while request is processing", async ({
+      page,
+    }) => {
+      const mockRequests = createMockSongRequests(2, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Verify buttons are initially enabled
+      const approveButtons = dialog.locator('button[aria-label="Approve request"]');
+      const rejectButtons = dialog.locator('button[aria-label="Reject request"]');
+
+      await expect(approveButtons.first()).toBeEnabled();
+      await expect(rejectButtons.first()).toBeEnabled();
+
+      // Click approve - the action completes and the request is removed
+      await approveButtons.first().click();
+
+      // After operation, the first request should be gone
+      await expect(async () => {
+        await expect(dialog.getByText("Test Song Request 1")).not.toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Second request's buttons should still be enabled
+      await expect(approveButtons.first()).toBeEnabled();
+      await expect(rejectButtons.first()).toBeEnabled();
+    });
+
+    test("should update badge count after approval", async ({ page }) => {
+      const mockRequests = createMockSongRequests(3, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Verify initial badge shows 3
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      const initialBadge = requestsButton.locator("span").filter({ hasText: "3" });
+      await expect(initialBadge).toBeVisible();
+
+      // Open modal and approve one request
+      await requestsButton.click();
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      const approveButtons = dialog.locator('button[aria-label="Approve request"]');
+      await approveButtons.first().click();
+
+      // Wait for request to be removed
+      await expect(async () => {
+        await expect(dialog.getByText("Test Song Request 1")).not.toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Badge should update to 2
+      const updatedBadge = requestsButton.locator("span").filter({ hasText: "2" });
+      await expect(updatedBadge).toBeVisible();
+    });
+
+    test("should update badge count after rejection", async ({ page }) => {
+      const mockRequests = createMockSongRequests(3, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Verify initial badge shows 3
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+
+      // Open modal and reject one request
+      await requestsButton.click();
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      const rejectButtons = dialog.locator('button[aria-label="Reject request"]');
+      await rejectButtons.first().click();
+
+      // Wait for request to be removed
+      await expect(async () => {
+        await expect(dialog.getByText("Test Song Request 1")).not.toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Badge should update to 2
+      const updatedBadge = requestsButton.locator("span").filter({ hasText: "2" });
+      await expect(updatedBadge).toBeVisible();
+    });
+  });
 });

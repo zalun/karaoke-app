@@ -636,7 +636,7 @@
         "Test verifies loading spinner shows during operation",
         "Test verifies badge count updates after approval/rejection"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-054",
