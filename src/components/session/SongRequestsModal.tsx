@@ -37,6 +37,7 @@ export function SongRequestsModal() {
     approveRequest,
     rejectRequest,
     approveAllRequests,
+    processingRequestIds,
   } = useSessionStore();
 
   // Track image load errors by request ID
@@ -184,21 +185,29 @@ export function SongRequestsModal() {
                         <div className="flex items-center gap-1 flex-shrink-0">
                           <button
                             onClick={() => handleApprove(request.id)}
-                            disabled={isLoadingRequests}
+                            disabled={isLoadingRequests || processingRequestIds.has(request.id)}
                             className="p-1.5 text-green-400 hover:text-green-300 hover:bg-green-400/10 rounded transition-colors disabled:opacity-50"
                             title="Approve"
                             aria-label="Approve request"
                           >
-                            <Check size={16} />
+                            {processingRequestIds.has(request.id) ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Check size={16} />
+                            )}
                           </button>
                           <button
                             onClick={() => handleReject(request.id)}
-                            disabled={isLoadingRequests}
+                            disabled={isLoadingRequests || processingRequestIds.has(request.id)}
                             className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded transition-colors disabled:opacity-50"
                             title="Reject"
                             aria-label="Reject request"
                           >
-                            <XIcon size={16} />
+                            {processingRequestIds.has(request.id) ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <XIcon size={16} />
+                            )}
                           </button>
                         </div>
                       </div>

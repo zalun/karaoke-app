@@ -459,7 +459,7 @@
         "Buttons are disabled when their request is processing",
         "Check icon shows when not processing, spinner shows when processing"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-039",

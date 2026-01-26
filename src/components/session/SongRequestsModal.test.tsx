@@ -11,6 +11,7 @@ interface MockSessionState {
   showRequestsModal: boolean;
   pendingRequests: SongRequest[];
   isLoadingRequests: boolean;
+  processingRequestIds: Set<string>;
   closeRequestsModal: ReturnType<typeof vi.fn>;
   approveRequest: ReturnType<typeof vi.fn>;
   rejectRequest: ReturnType<typeof vi.fn>;
@@ -62,11 +63,13 @@ function setupMocks(options: {
   showRequestsModal?: boolean;
   pendingRequests?: SongRequest[];
   isLoadingRequests?: boolean;
+  processingRequestIds?: Set<string>;
 } = {}) {
   mockSessionStore = {
     showRequestsModal: options.showRequestsModal ?? true,
     pendingRequests: options.pendingRequests ?? [],
     isLoadingRequests: options.isLoadingRequests ?? false,
+    processingRequestIds: options.processingRequestIds ?? new Set(),
     closeRequestsModal: vi.fn(),
     approveRequest: vi.fn().mockResolvedValue(undefined),
     rejectRequest: vi.fn().mockResolvedValue(undefined),
@@ -400,6 +403,121 @@ describe("SongRequestsModal", () => {
         "src",
         "https://example.com/img2.jpg"
       );
+    });
+  });
+
+  describe("Per-item loading spinners (SRA-038)", () => {
+    it("shows check icon on approve button when not processing", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+        processingRequestIds: new Set(),
+      });
+      render(<SongRequestsModal />);
+
+      const approveButton = screen.getByRole("button", { name: "Approve request" });
+      expect(approveButton.querySelector('[data-testid="check-icon"]')).toBeInTheDocument();
+      expect(approveButton.querySelector('[data-testid="loader-icon"]')).not.toBeInTheDocument();
+    });
+
+    it("shows spinner on approve button when request is processing", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+        processingRequestIds: new Set(["1"]),
+      });
+      render(<SongRequestsModal />);
+
+      const approveButton = screen.getByRole("button", { name: "Approve request" });
+      expect(approveButton.querySelector('[data-testid="loader-icon"]')).toBeInTheDocument();
+      expect(approveButton.querySelector('[data-testid="check-icon"]')).not.toBeInTheDocument();
+    });
+
+    it("shows X icon on reject button when not processing", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+        processingRequestIds: new Set(),
+      });
+      render(<SongRequestsModal />);
+
+      const rejectButton = screen.getByRole("button", { name: "Reject request" });
+      expect(rejectButton.querySelector('[data-testid="x-reject-icon"]')).toBeInTheDocument();
+      expect(rejectButton.querySelector('[data-testid="loader-icon"]')).not.toBeInTheDocument();
+    });
+
+    it("shows spinner on reject button when request is processing", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+        processingRequestIds: new Set(["1"]),
+      });
+      render(<SongRequestsModal />);
+
+      const rejectButton = screen.getByRole("button", { name: "Reject request" });
+      expect(rejectButton.querySelector('[data-testid="loader-icon"]')).toBeInTheDocument();
+      expect(rejectButton.querySelector('[data-testid="x-reject-icon"]')).not.toBeInTheDocument();
+    });
+
+    it("disables approve button when request is processing", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+        processingRequestIds: new Set(["1"]),
+      });
+      render(<SongRequestsModal />);
+
+      const approveButton = screen.getByRole("button", { name: "Approve request" });
+      expect(approveButton).toBeDisabled();
+    });
+
+    it("disables reject button when request is processing", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+        processingRequestIds: new Set(["1"]),
+      });
+      render(<SongRequestsModal />);
+
+      const rejectButton = screen.getByRole("button", { name: "Reject request" });
+      expect(rejectButton).toBeDisabled();
+    });
+
+    it("enables buttons when request is not processing", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+        processingRequestIds: new Set(),
+      });
+      render(<SongRequestsModal />);
+
+      const approveButton = screen.getByRole("button", { name: "Approve request" });
+      const rejectButton = screen.getByRole("button", { name: "Reject request" });
+      expect(approveButton).not.toBeDisabled();
+      expect(rejectButton).not.toBeDisabled();
+    });
+
+    it("shows spinner only for processing request, not others", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [
+          createMockRequest("1"),
+          createMockRequest("2"),
+        ],
+        processingRequestIds: new Set(["1"]),
+      });
+      render(<SongRequestsModal />);
+
+      const approveButtons = screen.getAllByRole("button", { name: "Approve request" });
+      const rejectButtons = screen.getAllByRole("button", { name: "Reject request" });
+
+      // First request (id="1") should show spinners
+      expect(approveButtons[0].querySelector('[data-testid="loader-icon"]')).toBeInTheDocument();
+      expect(rejectButtons[0].querySelector('[data-testid="loader-icon"]')).toBeInTheDocument();
+
+      // Second request (id="2") should show normal icons
+      expect(approveButtons[1].querySelector('[data-testid="check-icon"]')).toBeInTheDocument();
+      expect(rejectButtons[1].querySelector('[data-testid="x-reject-icon"]')).toBeInTheDocument();
     });
   });
 });
