@@ -139,7 +139,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   showHostModal: false,
   showHostedByOtherUserDialog: false,
   pendingRequests: [],
-  previousPendingCount: 0,
+  previousPendingCount: -1,
   showRequestsModal: false,
   isLoadingRequests: false,
   processingRequestIds: new Set(),
@@ -779,10 +779,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           hostedSession: null,
           showHostModal: false,
           _hostedSessionPollInterval: null,
-          previousPendingCount: 0,
+          previousPendingCount: -1,
         });
       } else {
-        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null, previousPendingCount: 0 });
+        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null, previousPendingCount: -1 });
       }
 
       // Notify user if API call failed (backend may still think session is hosted)
@@ -837,7 +837,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const previousCount = get().previousPendingCount;
       const newCount = updated.stats.pendingRequests;
 
-      if (newCount > previousCount && previousCount >= 0) {
+      if (newCount > previousCount && previousCount > 0) {
         const diff = newCount - previousCount;
         notify("info", `${diff} new song request${diff > 1 ? "s" : ""}`, {
           label: "View",

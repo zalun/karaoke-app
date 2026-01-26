@@ -539,7 +539,7 @@
         "No notification shown on first poll when there are existing pending requests",
         "Notifications only appear for genuinely new requests after initial load"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-046",

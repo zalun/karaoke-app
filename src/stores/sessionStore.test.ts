@@ -218,7 +218,7 @@ function resetStoreState() {
     showHostModal: false,
     showHostedByOtherUserDialog: false,
     pendingRequests: [],
-    previousPendingCount: 0,
+    previousPendingCount: -1,
     showRequestsModal: false,
     isLoadingRequests: false,
   });
@@ -3136,6 +3136,56 @@ describe("sessionStore - Host Session", () => {
       );
     });
 
+    it("should NOT show notification on first poll even with existing pending requests (SRA-045)", async () => {
+      // On first poll, previousPendingCount is -1 (initial value)
+      // This prevents spurious notifications for pre-existing requests
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: -1,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 5, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      // Should NOT show notification even though pendingRequests (5) > previousPendingCount (-1)
+      expect(notify).not.toHaveBeenCalledWith(
+        "info",
+        expect.stringContaining("new song request"),
+        expect.anything()
+      );
+      // But previousPendingCount should be updated for future polls
+      expect(useSessionStore.getState().previousPendingCount).toBe(5);
+    });
+
+    it("should NOT show notification on first poll when previousPendingCount is zero (SRA-045)", async () => {
+      // Edge case: previousPendingCount is 0 (could happen in certain state transitions)
+      // Should still not show notification since 0 is not > 0
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 0,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 3, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      // Should NOT show notification because previousPendingCount (0) is not > 0
+      expect(notify).not.toHaveBeenCalledWith(
+        "info",
+        expect.stringContaining("new song request"),
+        expect.anything()
+      );
+    });
+
     it("should update previousPendingCount after refresh", async () => {
       useSessionStore.setState({
         hostedSession: mockRefreshHostedSession,
@@ -3156,7 +3206,7 @@ describe("sessionStore - Host Session", () => {
     it("should call openRequestsModal when clicking View in notification", async () => {
       useSessionStore.setState({
         hostedSession: mockRefreshHostedSession,
-        previousPendingCount: 0,
+        previousPendingCount: 1,
         _isRefreshingHostedSession: false,
         showRequestsModal: false,
       } as Parameters<typeof useSessionStore.setState>[0]);
