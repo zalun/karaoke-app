@@ -40,6 +40,10 @@ vi.mock("../services", async (importOriginal) => {
       getSession: vi.fn(),
       createHostedSession: vi.fn(),
       endHostedSession: vi.fn(),
+      getRequests: vi.fn(),
+      approveRequest: vi.fn(),
+      rejectRequest: vi.fn(),
+      approveAllRequests: vi.fn(),
     },
     getPersistedSessionId: vi.fn(),
     clearPersistedSessionId: vi.fn(),
@@ -213,6 +217,10 @@ function resetStoreState() {
     hostedSession: null,
     showHostModal: false,
     showHostedByOtherUserDialog: false,
+    pendingRequests: [],
+    previousPendingCount: -1,
+    showRequestsModal: false,
+    isLoadingRequests: false,
   });
 }
 
@@ -2777,6 +2785,38 @@ describe("sessionStore - Host Session", () => {
 
       expect(emitSignal).not.toHaveBeenCalled();
     });
+
+    it("should clear processingRequestIds when hosting stops (SRA-049)", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+        processingRequestIds: new Set(["request-1", "request-2"]),
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockResolvedValue();
+
+      await useSessionStore.getState().stopHosting();
+
+      // Verify processingRequestIds is cleared
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.size).toBe(0);
+    });
+
+    it("should clear processingRequestIds even when API fails (SRA-049)", async () => {
+      useSessionStore.setState({
+        session: mockSession,
+        hostedSession: mockHostedSession,
+        processingRequestIds: new Set(["request-1", "request-2"]),
+      });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.endHostedSession).mockRejectedValue(new Error("Network error"));
+
+      await useSessionStore.getState().stopHosting();
+
+      // Verify processingRequestIds is cleared even on API failure
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.size).toBe(0);
+    });
   });
 
   describe("refreshHostedSession", () => {
@@ -3036,6 +3076,196 @@ describe("sessionStore - Host Session", () => {
         APP_SIGNALS.HOSTED_SESSION_UPDATED,
         expect.anything()
       );
+    });
+
+    it("should show notification when pending requests increase", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 2,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 5, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(notify).toHaveBeenCalledWith(
+        "info",
+        "3 new song requests",
+        expect.objectContaining({
+          label: "View",
+          onClick: expect.any(Function),
+        })
+      );
+    });
+
+    it("should show singular notification for one new request", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 2,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 3, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(notify).toHaveBeenCalledWith(
+        "info",
+        "1 new song request",
+        expect.objectContaining({
+          label: "View",
+          onClick: expect.any(Function),
+        })
+      );
+    });
+
+    it("should NOT show notification when pending requests decrease", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 5,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 2, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(notify).not.toHaveBeenCalledWith(
+        "info",
+        expect.stringContaining("new song request"),
+        expect.anything()
+      );
+    });
+
+    it("should NOT show notification when pending requests stay the same", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 3,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 3, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(notify).not.toHaveBeenCalledWith(
+        "info",
+        expect.stringContaining("new song request"),
+        expect.anything()
+      );
+    });
+
+    it("should NOT show notification on first poll even with existing pending requests (SRA-045)", async () => {
+      // On first poll, previousPendingCount is -1 (initial value)
+      // This prevents spurious notifications for pre-existing requests
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: -1,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 5, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      // Should NOT show notification even though pendingRequests (5) > previousPendingCount (-1)
+      expect(notify).not.toHaveBeenCalledWith(
+        "info",
+        expect.stringContaining("new song request"),
+        expect.anything()
+      );
+      // But previousPendingCount should be updated for future polls
+      expect(useSessionStore.getState().previousPendingCount).toBe(5);
+    });
+
+    it("should show notification for first song request when previousPendingCount is zero (SRA-047)", async () => {
+      // When previousPendingCount is 0 (session just started hosting with no requests)
+      // and new requests arrive, a notification should be shown
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 0,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 3, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      // Should show notification because newCount (3) > previousCount (0) and previousCount >= 0
+      expect(notify).toHaveBeenCalledWith(
+        "info",
+        "3 new song requests",
+        expect.objectContaining({
+          label: "View",
+          onClick: expect.any(Function),
+        })
+      );
+    });
+
+    it("should update previousPendingCount after refresh", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 2,
+        _isRefreshingHostedSession: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 7, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      expect(useSessionStore.getState().previousPendingCount).toBe(7);
+    });
+
+    it("should call openRequestsModal when clicking View in notification", async () => {
+      useSessionStore.setState({
+        hostedSession: mockRefreshHostedSession,
+        previousPendingCount: 1,
+        _isRefreshingHostedSession: false,
+        showRequestsModal: false,
+      } as Parameters<typeof useSessionStore.setState>[0]);
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockRefreshHostedSession,
+        stats: { pendingRequests: 3, approvedRequests: 10, totalGuests: 5 },
+      });
+
+      await useSessionStore.getState().refreshHostedSession();
+
+      // Get the onClick callback from the notify call
+      const notifyCall = vi.mocked(notify).mock.calls.find(
+        (call) => call[0] === "info" && typeof call[1] === "string" && call[1].includes("new song request")
+      );
+      expect(notifyCall).toBeDefined();
+      const action = notifyCall?.[2] as { onClick: () => void };
+      expect(action?.onClick).toBeDefined();
+
+      // Call the onClick callback
+      action.onClick();
+
+      // Verify modal opens
+      expect(useSessionStore.getState().showRequestsModal).toBe(true);
     });
   });
 
@@ -3415,6 +3645,835 @@ describe("sessionStore - Host Session", () => {
       expect(currentSession?.hosted_session_id).toBe("hosted-D");
       expect(currentSession?.hosted_by_user_id).toBe("user-D");
       expect(currentSession?.hosted_session_status).toBe("paused");
+    });
+  });
+});
+
+describe("sessionStore - Song Request Actions", () => {
+  const mockHostedSession = {
+    id: "hosted-session-123",
+    sessionCode: "ABC123",
+    joinUrl: "https://app.homekaraoke.app/join/ABC123",
+    qrCodeUrl: "https://api.homekaraoke.app/qr?url=https://app.homekaraoke.app/join/ABC123",
+    status: "active" as const,
+    stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 1 },
+  };
+
+  const mockPendingRequests = [
+    {
+      id: "request-1",
+      title: "Bohemian Rhapsody",
+      status: "pending" as const,
+      guest_name: "Alice",
+      requested_at: "2025-01-01T12:00:00Z",
+      youtube_id: "fJ9rUzIMcZQ",
+      artist: "Queen",
+      duration: 354,
+      thumbnail_url: "https://i.ytimg.com/vi/fJ9rUzIMcZQ/default.jpg",
+    },
+    {
+      id: "request-2",
+      title: "Don't Stop Me Now",
+      status: "pending" as const,
+      guest_name: "Bob",
+      requested_at: "2025-01-01T12:05:00Z",
+      youtube_id: "HgzGwKwLmgM",
+      artist: "Queen",
+      duration: 210,
+      thumbnail_url: "https://i.ytimg.com/vi/HgzGwKwLmgM/default.jpg",
+    },
+  ];
+
+  const mockTokens = {
+    access_token: "test-access-token",
+    refresh_token: "test-refresh-token",
+    expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useSessionStore.setState({
+      session: mockSession,
+      hostedSession: mockHostedSession,
+      pendingRequests: mockPendingRequests,
+      previousPendingCount: 2,
+      showRequestsModal: false,
+      isLoadingRequests: false,
+      processingRequestIds: new Set(),
+    });
+
+    // Default mock for queue store
+    vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+  });
+
+  describe("approveRequest", () => {
+    it("should approve a request and remove it from pendingRequests", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveRequest("request-1");
+
+      // Verify approveRequest was called with correct parameters
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        "request-1"
+      );
+
+      // Verify request was removed from pendingRequests
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-2");
+
+      // Verify refreshHostedSession was called
+      expect(hostedSessionService.getSession).toHaveBeenCalled();
+    });
+
+    it("should throw error when no hosted session", async () => {
+      useSessionStore.setState({ hostedSession: null });
+
+      await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow(
+        "No hosted session"
+      );
+
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when not authenticated", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow(
+        "Not authenticated"
+      );
+
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
+    });
+
+    it("should notify and re-throw on API error", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+
+      await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow(
+        "Network error"
+      );
+
+      expect(notify).toHaveBeenCalledWith("error", "Failed to approve request");
+
+      // Verify pendingRequests was not modified on error
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+    });
+
+    it("should handle approving the last pending request", async () => {
+      // Set up with only one pending request
+      useSessionStore.setState({
+        pendingRequests: [mockPendingRequests[0]],
+      });
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 0, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveRequest("request-1");
+
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(0);
+    });
+
+    it("should add requestId to processingRequestIds at start and remove in finally", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      // Create a deferred promise to control when the API call resolves
+      let resolveApprove: (() => void) | null = null;
+      vi.mocked(hostedSessionService.approveRequest).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveApprove = () => resolve(undefined);
+          })
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      // Start the approval but don't await
+      const approvePromise = useSessionStore.getState().approveRequest("request-1");
+
+      // Wait a tick for the state to update
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Verify requestId is in processingRequestIds
+      const { processingRequestIds: processingDuring } = useSessionStore.getState();
+      expect(processingDuring.has("request-1")).toBe(true);
+
+      // Resolve the API call
+      resolveApprove!();
+      await approvePromise;
+
+      // Verify requestId is removed from processingRequestIds
+      const { processingRequestIds: processingAfter } = useSessionStore.getState();
+      expect(processingAfter.has("request-1")).toBe(false);
+    });
+
+    it("should remove requestId from processingRequestIds even on error", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+
+      await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow();
+
+      // Verify requestId is removed from processingRequestIds after error
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.has("request-1")).toBe(false);
+    });
+
+    it("should prevent duplicate clicks while request is processing", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      // Create a deferred promise to control when the API call resolves
+      let resolveApprove: (() => void) | null = null;
+      vi.mocked(hostedSessionService.approveRequest).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveApprove = () => resolve(undefined);
+          })
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      // Start first approval
+      const firstApprove = useSessionStore.getState().approveRequest("request-1");
+
+      // Wait a tick for the state to update
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Try to approve the same request again - should return early
+      const secondApprove = useSessionStore.getState().approveRequest("request-1");
+
+      // Resolve the API call
+      resolveApprove!();
+      await firstApprove;
+      await secondApprove;
+
+      // Verify approveRequest was only called once
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it("should use current pendingRequests state after refresh (race condition fix)", async () => {
+      // This test verifies the fix for the race condition where pendingRequests
+      // could change during the refresh call. The fix ensures we use get().pendingRequests
+      // after refresh instead of a captured stale value.
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+
+      // During refresh, simulate a new request being added to pendingRequests
+      const newRequest = {
+        id: "request-3",
+        title: "New Song During Refresh",
+        status: "pending" as const,
+        guest_name: "Guest 3",
+        requested_at: new Date().toISOString(),
+      };
+
+      vi.mocked(hostedSessionService.getSession).mockImplementation(async () => {
+        // Simulate new request arriving during refresh
+        useSessionStore.setState({
+          pendingRequests: [...useSessionStore.getState().pendingRequests, newRequest],
+        });
+        return {
+          ...mockHostedSession,
+          stats: { pendingRequests: 2, approvedRequests: 1, totalGuests: 1 },
+        };
+      });
+
+      await useSessionStore.getState().approveRequest("request-1");
+
+      // After approving request-1, we should still have request-2 AND the new request-3
+      // that was added during refresh. If we used the stale captured value,
+      // request-3 would be lost.
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+      expect(pendingRequests.map(r => r.id)).toEqual(["request-2", "request-3"]);
+    });
+
+    it("should refresh the queue after approving a request so approved song appears", async () => {
+      const mockLoadPersistedState = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(useQueueStore.getState).mockReturnValue(
+        createMockQueueState({ loadPersistedState: mockLoadPersistedState })
+      );
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveRequest("request-1");
+
+      // Verify loadPersistedState was called to refresh the queue
+      expect(mockLoadPersistedState).toHaveBeenCalled();
+    });
+  });
+
+  describe("rejectRequest", () => {
+    it("should reject a request and remove it from pendingRequests", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.rejectRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().rejectRequest("request-1");
+
+      // Verify rejectRequest was called with correct parameters
+      expect(hostedSessionService.rejectRequest).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        "request-1"
+      );
+
+      // Verify request was removed from pendingRequests
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-2");
+
+      // Verify refreshHostedSession was called
+      expect(hostedSessionService.getSession).toHaveBeenCalled();
+    });
+
+    it("should throw error when no hosted session", async () => {
+      useSessionStore.setState({ hostedSession: null });
+
+      await expect(useSessionStore.getState().rejectRequest("request-1")).rejects.toThrow(
+        "No hosted session"
+      );
+
+      expect(hostedSessionService.rejectRequest).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when not authenticated", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await expect(useSessionStore.getState().rejectRequest("request-1")).rejects.toThrow(
+        "Not authenticated"
+      );
+
+      expect(hostedSessionService.rejectRequest).not.toHaveBeenCalled();
+    });
+
+    it("should notify and re-throw on API error", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.rejectRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+
+      await expect(useSessionStore.getState().rejectRequest("request-1")).rejects.toThrow(
+        "Network error"
+      );
+
+      expect(notify).toHaveBeenCalledWith("error", "Failed to reject request");
+
+      // Verify pendingRequests was not modified on error
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+    });
+
+    it("should handle rejecting the last pending request", async () => {
+      // Set up with only one pending request
+      useSessionStore.setState({
+        pendingRequests: [mockPendingRequests[0]],
+      });
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.rejectRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 0, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().rejectRequest("request-1");
+
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(0);
+    });
+
+    it("should add requestId to processingRequestIds at start and remove in finally", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      // Create a deferred promise to control when the API call resolves
+      let resolveReject: (() => void) | null = null;
+      vi.mocked(hostedSessionService.rejectRequest).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveReject = () => resolve(undefined);
+          })
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      // Start the rejection but don't await
+      const rejectPromise = useSessionStore.getState().rejectRequest("request-1");
+
+      // Wait a tick for the state to update
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Verify requestId is in processingRequestIds
+      const { processingRequestIds: processingDuring } = useSessionStore.getState();
+      expect(processingDuring.has("request-1")).toBe(true);
+
+      // Resolve the API call
+      resolveReject!();
+      await rejectPromise;
+
+      // Verify requestId is removed from processingRequestIds
+      const { processingRequestIds: processingAfter } = useSessionStore.getState();
+      expect(processingAfter.has("request-1")).toBe(false);
+    });
+
+    it("should remove requestId from processingRequestIds even on error", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.rejectRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+
+      await expect(useSessionStore.getState().rejectRequest("request-1")).rejects.toThrow();
+
+      // Verify requestId is removed from processingRequestIds after error
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.has("request-1")).toBe(false);
+    });
+
+    it("should prevent duplicate clicks while request is processing", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      // Create a deferred promise to control when the API call resolves
+      let resolveReject: (() => void) | null = null;
+      vi.mocked(hostedSessionService.rejectRequest).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveReject = () => resolve(undefined);
+          })
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      // Start first rejection
+      const firstReject = useSessionStore.getState().rejectRequest("request-1");
+
+      // Wait a tick for the state to update
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Try to reject the same request again - should return early
+      const secondReject = useSessionStore.getState().rejectRequest("request-1");
+
+      // Resolve the API call
+      resolveReject!();
+      await firstReject;
+      await secondReject;
+
+      // Verify rejectRequest was only called once
+      expect(hostedSessionService.rejectRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it("should use current pendingRequests state after refresh (race condition fix)", async () => {
+      // This test verifies the fix for the race condition where pendingRequests
+      // could change during the refresh call. The fix ensures we use get().pendingRequests
+      // after refresh instead of a captured stale value.
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.rejectRequest).mockResolvedValue(undefined);
+
+      // During refresh, simulate a new request being added to pendingRequests
+      const newRequest = {
+        id: "request-3",
+        title: "New Song During Refresh",
+        status: "pending" as const,
+        guest_name: "Guest 3",
+        requested_at: new Date().toISOString(),
+      };
+
+      vi.mocked(hostedSessionService.getSession).mockImplementation(async () => {
+        // Simulate new request arriving during refresh
+        useSessionStore.setState({
+          pendingRequests: [...useSessionStore.getState().pendingRequests, newRequest],
+        });
+        return {
+          ...mockHostedSession,
+          stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 2 },
+        };
+      });
+
+      await useSessionStore.getState().rejectRequest("request-1");
+
+      // After rejecting request-1, we should still have request-2 AND the new request-3
+      // that was added during refresh. If we used the stale captured value,
+      // request-3 would be lost.
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+      expect(pendingRequests.map(r => r.id)).toEqual(["request-2", "request-3"]);
+    });
+  });
+
+  describe("approveAllRequests", () => {
+    it("should approve all pending requests when no guestName filter", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 0, approvedRequests: 2, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveAllRequests();
+
+      // Verify approveRequest was called individually for each request
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(2);
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        "request-1"
+      );
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        "request-2"
+      );
+
+      // Verify all requests were removed from pendingRequests
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(0);
+
+      // Verify refreshHostedSession was called
+      expect(hostedSessionService.getSession).toHaveBeenCalled();
+    });
+
+    it("should only approve requests from specified guest when guestName provided", async () => {
+      // Add another request from Alice to have multiple requests from same guest
+      const aliceRequest2 = {
+        id: "request-3",
+        title: "We Are The Champions",
+        status: "pending" as const,
+        guest_name: "Alice",
+        requested_at: "2025-01-01T12:10:00Z",
+        youtube_id: "04854XqcfCY",
+        artist: "Queen",
+        duration: 180,
+        thumbnail_url: "https://i.ytimg.com/vi/04854XqcfCY/default.jpg",
+      };
+      useSessionStore.setState({
+        pendingRequests: [...mockPendingRequests, aliceRequest2],
+      });
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 2, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveAllRequests("Alice");
+
+      // Verify approveRequest was called only for Alice's requests
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(2);
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        "request-1"
+      );
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        "request-3"
+      );
+
+      // Verify only Alice's requests were removed; Bob's remains
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-2");
+      expect(pendingRequests[0].guest_name).toBe("Bob");
+    });
+
+    it("should do nothing when no requests match the guestName filter", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().approveAllRequests("Charlie");
+
+      // Verify approveRequest was NOT called
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
+
+      // Verify pendingRequests was not modified
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+    });
+
+    it("should do nothing when there are no pending requests", async () => {
+      useSessionStore.setState({ pendingRequests: [] });
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      await useSessionStore.getState().approveAllRequests();
+
+      // Verify approveRequest was NOT called
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when no hosted session", async () => {
+      useSessionStore.setState({ hostedSession: null });
+
+      await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow(
+        "No hosted session"
+      );
+
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when not authenticated", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(null);
+
+      await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow(
+        "Not authenticated"
+      );
+
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
+    });
+
+    it("should throw error and notify when all requests fail", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow(
+        "All 2 requests failed to approve"
+      );
+
+      expect(notify).toHaveBeenCalledWith("error", "Failed to approve requests");
+
+      // Verify pendingRequests was not modified on error
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+    });
+
+    it("should handle partial failures with Promise.allSettled", async () => {
+      // Setup: request-1 succeeds, request-2 fails
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest)
+        .mockResolvedValueOnce(undefined) // request-1 succeeds
+        .mockRejectedValueOnce(new Error("Network error")); // request-2 fails
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      // Should not throw - partial success is allowed
+      await useSessionStore.getState().approveAllRequests();
+
+      // Verify warning notification for partial failure
+      expect(notify).toHaveBeenCalledWith("warning", "Approved 1 requests, 1 failed");
+
+      // Verify only successful request was removed from pendingRequests
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-2"); // Failed one remains
+    });
+
+    it("should remove all successfully approved requests even when some fail", async () => {
+      // Add a third request
+      const thirdRequest = {
+        id: "request-3",
+        title: "Another Song",
+        status: "pending" as const,
+        guest_name: "Charlie",
+        requested_at: "2025-01-01T12:15:00Z",
+      };
+      useSessionStore.setState({
+        pendingRequests: [...mockPendingRequests, thirdRequest],
+      });
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest)
+        .mockResolvedValueOnce(undefined) // request-1 succeeds
+        .mockRejectedValueOnce(new Error("Error")) // request-2 fails
+        .mockResolvedValueOnce(undefined); // request-3 succeeds
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 2, totalGuests: 2 },
+      });
+
+      await useSessionStore.getState().approveAllRequests();
+
+      // Verify warning notification
+      expect(notify).toHaveBeenCalledWith("warning", "Approved 2 requests, 1 failed");
+
+      // Verify successful requests were removed, failed one remains
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-2");
+    });
+
+    it("should use current pendingRequests state after refresh (race condition fix)", async () => {
+      // This test verifies the fix for the race condition where pendingRequests
+      // could change during the refresh call. The fix ensures we use get().pendingRequests
+      // after refresh instead of a captured stale value.
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+
+      // During refresh, simulate a new request being added to pendingRequests
+      const newRequest = {
+        id: "request-3",
+        title: "New Song During Refresh",
+        status: "pending" as const,
+        guest_name: "Charlie",
+        requested_at: new Date().toISOString(),
+      };
+
+      vi.mocked(hostedSessionService.getSession).mockImplementation(async () => {
+        // Simulate new request arriving during refresh
+        useSessionStore.setState({
+          pendingRequests: [...useSessionStore.getState().pendingRequests, newRequest],
+        });
+        return {
+          ...mockHostedSession,
+          stats: { pendingRequests: 1, approvedRequests: 2, totalGuests: 2 },
+        };
+      });
+
+      // Approve all current requests (request-1 and request-2)
+      await useSessionStore.getState().approveAllRequests();
+
+      // After approving request-1 and request-2, we should still have request-3
+      // that was added during refresh. If we used the stale captured value,
+      // request-3 would be lost.
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-3");
+    });
+
+    it("should refresh the queue after approving all requests so approved songs appear", async () => {
+      const mockLoadPersistedState = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(useQueueStore.getState).mockReturnValue(
+        createMockQueueState({ loadPersistedState: mockLoadPersistedState })
+      );
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 0, approvedRequests: 2, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveAllRequests();
+
+      // Verify loadPersistedState was called to refresh the queue
+      expect(mockLoadPersistedState).toHaveBeenCalled();
+    });
+
+    it("should clear processingRequestIds in finally block even on total failure", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      // Catch the expected error
+      await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow();
+
+      // Verify processingRequestIds is cleared
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.size).toBe(0);
+    });
+  });
+
+  describe("openRequestsModal", () => {
+    it("should set showRequestsModal to true", () => {
+      useSessionStore.setState({ showRequestsModal: false });
+
+      useSessionStore.getState().openRequestsModal();
+
+      expect(useSessionStore.getState().showRequestsModal).toBe(true);
+    });
+
+    it("should call loadPendingRequests to fetch fresh data", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getRequests).mockResolvedValue([]);
+
+      useSessionStore.getState().openRequestsModal();
+
+      // Wait for the async loadPendingRequests to be called
+      await vi.waitFor(() => {
+        expect(hostedSessionService.getRequests).toHaveBeenCalledWith(
+          mockTokens.access_token,
+          mockHostedSession.id,
+          "pending"
+        );
+      });
+    });
+
+    it("should update pendingRequests with fresh data from API", async () => {
+      const freshRequests = [
+        {
+          id: "request-3",
+          title: "New Song",
+          status: "pending" as const,
+          guest_name: "Charlie",
+          requested_at: "2025-01-01T12:10:00Z",
+        },
+      ];
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.getRequests).mockResolvedValue(freshRequests);
+
+      useSessionStore.getState().openRequestsModal();
+
+      // Wait for state to be updated with fresh data
+      await vi.waitFor(() => {
+        expect(useSessionStore.getState().pendingRequests).toEqual(freshRequests);
+      });
+    });
+  });
+
+  describe("closeRequestsModal", () => {
+    it("should set showRequestsModal to false", () => {
+      useSessionStore.setState({ showRequestsModal: true });
+
+      useSessionStore.getState().closeRequestsModal();
+
+      expect(useSessionStore.getState().showRequestsModal).toBe(false);
+    });
+
+    it("should clear processingRequestIds when modal closes (SRA-049)", () => {
+      // Set up state with some processing request IDs
+      useSessionStore.setState({
+        showRequestsModal: true,
+        processingRequestIds: new Set(["request-1", "request-2", "request-3"]),
+      });
+
+      useSessionStore.getState().closeRequestsModal();
+
+      // Verify processingRequestIds is cleared
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.size).toBe(0);
     });
   });
 });

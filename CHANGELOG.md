@@ -40,6 +40,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing queue order - only new songs are placed fairly
   - Falls back to append-to-end when no singer selected
   - Setting persists across app restarts
+- Song Request Approval for hosted sessions (#211)
+  - Notification when guests submit new song requests with "View" action
+  - Requests button in queue panel header with badge showing pending count
+  - Approval modal displays requests grouped by guest name
+  - Approve or reject individual requests, or approve all at once
+  - Per-guest "Approve All" button for bulk approval by guest
+  - Approved songs automatically added to queue
+  - Keyboard accessible modal (Escape to close, Tab navigation, focus trap)
+  - Lazy loading thumbnails for performance with many requests
 
 ## [0.7.7] - 2026-01-18
 

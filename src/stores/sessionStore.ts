@@ -14,6 +14,7 @@ import {
   type Session,
   type HostedSession,
 } from "../services";
+import type { SongRequest } from "../types";
 import { authService, type User } from "../services/auth";
 import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
@@ -57,6 +58,13 @@ interface SessionState {
   // Dialog shown when another user was hosting this session (RESTORE-006)
   showHostedByOtherUserDialog: boolean;
 
+  // Song request approval state
+  pendingRequests: SongRequest[];
+  previousPendingCount: number;
+  showRequestsModal: boolean;
+  isLoadingRequests: boolean;
+  processingRequestIds: Set<string>;
+
   // Singers state
   singers: Singer[];
 
@@ -90,6 +98,14 @@ interface SessionState {
   closeHostModal: () => void;
   closeHostedByOtherUserDialog: () => void;
 
+  // Song request actions
+  loadPendingRequests: () => Promise<void>;
+  approveRequest: (requestId: string) => Promise<void>;
+  rejectRequest: (requestId: string) => Promise<void>;
+  approveAllRequests: (guestName?: string) => Promise<void>;
+  openRequestsModal: () => void;
+  closeRequestsModal: () => void;
+
   // Singer actions
   loadSingers: () => Promise<void>;
   createSinger: (name: string, color?: string, isPersistent?: boolean) => Promise<Singer>;
@@ -122,6 +138,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   hostedSession: null,
   showHostModal: false,
   showHostedByOtherUserDialog: false,
+  pendingRequests: [],
+  previousPendingCount: -1,
+  showRequestsModal: false,
+  isLoadingRequests: false,
+  processingRequestIds: new Set(),
   singers: [],
   activeSingerId: null,
   queueSingerAssignments: new Map(),
@@ -684,6 +705,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         hostedSession,
         showHostModal: true,
         _hostedSessionPollInterval: pollInterval,
+        previousPendingCount: hostedSession.stats.pendingRequests,
       });
 
       log.info(`Hosted session started: ${hostedSession.sessionCode}`);
@@ -757,9 +779,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           hostedSession: null,
           showHostModal: false,
           _hostedSessionPollInterval: null,
+          previousPendingCount: -1,
+          processingRequestIds: new Set(),
         });
       } else {
-        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
+        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null, previousPendingCount: -1, processingRequestIds: new Set() });
       }
 
       // Notify user if API call failed (backend may still think session is hosted)
@@ -810,11 +834,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         hostedSession.id
       );
 
+      // Check for new requests and show notification
+      const previousCount = get().previousPendingCount;
+      const newCount = updated.stats.pendingRequests;
+
+      if (newCount > previousCount && previousCount >= 0) {
+        const diff = newCount - previousCount;
+        notify("info", `${diff} new song request${diff > 1 ? "s" : ""}`, {
+          label: "View",
+          onClick: () => get().openRequestsModal(),
+        });
+      }
+
       // Only update stats, preserve other fields from the original session
       set((state) => ({
         hostedSession: state.hostedSession
           ? { ...state.hostedSession, stats: updated.stats, status: updated.status }
           : null,
+        previousPendingCount: newCount,
       }));
 
       // Emit signal after successful stats update
@@ -967,7 +1004,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         get().refreshHostedSession();
       }, HOSTED_SESSION_POLL_INTERVAL_MS);
 
-      set({ hostedSession: restoredSession, _hostedSessionPollInterval: pollInterval });
+      set({
+        hostedSession: restoredSession,
+        _hostedSessionPollInterval: pollInterval,
+        previousPendingCount: restoredSession.stats.pendingRequests,
+      });
 
       log.info(`Restored hosted session: ${restoredSession.sessionCode}`);
       notify("success", "Reconnected to hosted session");
@@ -1013,5 +1054,252 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   closeHostedByOtherUserDialog: () => {
     set({ showHostedByOtherUserDialog: false });
+  },
+
+  // Song request actions
+  loadPendingRequests: async () => {
+    const { hostedSession } = get();
+    if (!hostedSession) {
+      log.debug("Cannot load pending requests: no hosted session");
+      return;
+    }
+
+    log.debug("Loading pending requests");
+    set({ isLoadingRequests: true });
+    try {
+      const tokens = await authService.getTokens();
+      if (!tokens) {
+        log.warn("Cannot load pending requests: not authenticated");
+        set({ isLoadingRequests: false });
+        return;
+      }
+
+      const requests = await hostedSessionService.getRequests(
+        tokens.access_token,
+        hostedSession.id,
+        "pending"
+      );
+
+      set({ pendingRequests: requests, isLoadingRequests: false });
+      log.debug(`Loaded ${requests.length} pending requests`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to load pending requests: ${message}`);
+      set({ isLoadingRequests: false });
+      notify("error", "Failed to load song requests");
+    }
+  },
+
+  approveRequest: async (requestId: string) => {
+    const { hostedSession, processingRequestIds } = get();
+    if (!hostedSession) {
+      log.error("Cannot approve request: no hosted session");
+      throw new Error("No hosted session");
+    }
+
+    // Prevent duplicate clicks while request is processing
+    if (processingRequestIds.has(requestId)) {
+      log.debug(`Request ${requestId} is already being processed`);
+      return;
+    }
+
+    log.debug(`Approving request: ${requestId}`);
+    // Add to processing set
+    set({ processingRequestIds: new Set(processingRequestIds).add(requestId) });
+
+    try {
+      const tokens = await authService.getTokens();
+      if (!tokens) {
+        log.error("Cannot approve request: not authenticated");
+        throw new Error("Not authenticated");
+      }
+
+      await hostedSessionService.approveRequest(
+        tokens.access_token,
+        hostedSession.id,
+        requestId
+      );
+
+      // Refresh queue so the approved song appears immediately
+      await useQueueStore.getState().loadPersistedState();
+
+      // Refresh hosted session to update stats
+      await get().refreshHostedSession();
+
+      // Remove from pending requests after successful refresh
+      // Use get().pendingRequests to get the most current list after refresh
+      set({
+        pendingRequests: get().pendingRequests.filter((r) => r.id !== requestId),
+      });
+
+      log.debug(`Request ${requestId} approved`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to approve request: ${message}`);
+      notify("error", "Failed to approve request");
+      throw error;
+    } finally {
+      // Always remove from processing set, even on failure
+      const currentProcessing = get().processingRequestIds;
+      const newProcessing = new Set(currentProcessing);
+      newProcessing.delete(requestId);
+      set({ processingRequestIds: newProcessing });
+    }
+  },
+
+  rejectRequest: async (requestId: string) => {
+    const { hostedSession, processingRequestIds } = get();
+    if (!hostedSession) {
+      log.error("Cannot reject request: no hosted session");
+      throw new Error("No hosted session");
+    }
+
+    // Prevent duplicate clicks while request is processing
+    if (processingRequestIds.has(requestId)) {
+      log.debug(`Request ${requestId} is already being processed`);
+      return;
+    }
+
+    log.debug(`Rejecting request: ${requestId}`);
+    // Add to processing set
+    set({ processingRequestIds: new Set(processingRequestIds).add(requestId) });
+
+    try {
+      const tokens = await authService.getTokens();
+      if (!tokens) {
+        log.error("Cannot reject request: not authenticated");
+        throw new Error("Not authenticated");
+      }
+
+      await hostedSessionService.rejectRequest(
+        tokens.access_token,
+        hostedSession.id,
+        requestId
+      );
+
+      // Refresh hosted session to update stats
+      await get().refreshHostedSession();
+
+      // Remove from pending requests after successful refresh
+      // Use get().pendingRequests to get the most current list after refresh
+      set({
+        pendingRequests: get().pendingRequests.filter((r) => r.id !== requestId),
+      });
+
+      log.debug(`Request ${requestId} rejected`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to reject request: ${message}`);
+      notify("error", "Failed to reject request");
+      throw error;
+    } finally {
+      // Always remove from processing set, even on failure
+      const currentProcessing = get().processingRequestIds;
+      const newProcessing = new Set(currentProcessing);
+      newProcessing.delete(requestId);
+      set({ processingRequestIds: newProcessing });
+    }
+  },
+
+  approveAllRequests: async (guestName?: string) => {
+    const { hostedSession, pendingRequests, processingRequestIds } = get();
+    if (!hostedSession) {
+      log.error("Cannot approve all requests: no hosted session");
+      throw new Error("No hosted session");
+    }
+
+    // Filter requests by guest name if provided
+    const requestsToApprove = guestName
+      ? pendingRequests.filter((r) => r.guest_name === guestName)
+      : pendingRequests;
+
+    if (requestsToApprove.length === 0) {
+      log.debug("No requests to approve");
+      return;
+    }
+
+    const requestIds = requestsToApprove.map((r) => r.id);
+    log.debug(`Approving ${requestIds.length} requests${guestName ? ` from ${guestName}` : ""}`);
+
+    // Add all request IDs to processing set
+    const newProcessing = new Set(processingRequestIds);
+    for (const id of requestIds) {
+      newProcessing.add(id);
+    }
+    set({ processingRequestIds: newProcessing });
+
+    try {
+      const tokens = await authService.getTokens();
+      if (!tokens) {
+        log.error("Cannot approve all requests: not authenticated");
+        throw new Error("Not authenticated");
+      }
+
+      // Use Promise.allSettled for partial failure handling
+      // Each request is approved individually so failures don't block others
+      const results = await Promise.allSettled(
+        requestIds.map((requestId) =>
+          hostedSessionService.approveRequest(
+            tokens.access_token,
+            hostedSession.id,
+            requestId
+          )
+        )
+      );
+
+      // Separate successful and failed results
+      const succeededIds: string[] = [];
+      const failedIds: string[] = [];
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          succeededIds.push(requestIds[index]);
+        } else {
+          failedIds.push(requestIds[index]);
+          log.error(`Failed to approve request ${requestIds[index]}: ${result.reason}`);
+        }
+      });
+
+      log.debug(`Approved ${succeededIds.length}/${requestIds.length} requests`);
+
+      // Refresh queue so the approved songs appear immediately
+      await useQueueStore.getState().loadPersistedState();
+
+      // Refresh hosted session to update stats
+      await get().refreshHostedSession();
+
+      // Remove only successfully approved requests from pending requests
+      const approvedIds = new Set(succeededIds);
+      set({
+        pendingRequests: get().pendingRequests.filter((r) => !approvedIds.has(r.id)),
+      });
+
+      // Notify user about partial failures
+      if (failedIds.length > 0 && succeededIds.length > 0) {
+        notify("warning", `Approved ${succeededIds.length} requests, ${failedIds.length} failed`);
+      } else if (failedIds.length > 0 && succeededIds.length === 0) {
+        notify("error", "Failed to approve requests");
+        throw new Error(`All ${failedIds.length} requests failed to approve`);
+      }
+
+      log.debug(`${succeededIds.length} requests approved successfully`);
+    } finally {
+      // Always remove all request IDs from processing set, even on failure
+      const currentProcessing = get().processingRequestIds;
+      const updatedProcessing = new Set(currentProcessing);
+      for (const id of requestIds) {
+        updatedProcessing.delete(id);
+      }
+      set({ processingRequestIds: updatedProcessing });
+    }
+  },
+
+  openRequestsModal: () => {
+    set({ showRequestsModal: true });
+    // Fetch fresh data when opening the modal
+    get().loadPendingRequests();
+  },
+
+  closeRequestsModal: () => {
+    set({ showRequestsModal: false, processingRequestIds: new Set() });
   },
 }));

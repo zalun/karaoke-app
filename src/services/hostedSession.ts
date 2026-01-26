@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "./logger";
 import { HOMEKARAOKE_API_URL, buildJoinUrl, buildQrCodeUrl } from "../constants";
 import { HostedSessionStatus } from "./session";
+import { SongRequest, SongRequestStatus } from "../types/songRequest";
 
 const log = createLogger("HostedSessionService");
 
@@ -147,6 +148,18 @@ interface GetSessionResponse {
   };
 }
 
+interface SongRequestResponse {
+  id: string;
+  title: string;
+  status: "pending" | "approved" | "rejected" | "played";
+  guest_name: string;
+  requested_at: string;
+  youtube_id?: string;
+  artist?: string;
+  duration?: number;
+  thumbnail_url?: string;
+}
+
 export const hostedSessionService = {
   /**
    * Create a new hosted session.
@@ -254,6 +267,203 @@ export const hostedSessionService = {
         totalGuests: data.stats.total_guests,
       },
     };
+  },
+
+  /**
+   * Get song requests for a hosted session.
+   * Can filter by status (pending, approved, rejected, played).
+   */
+  async getRequests(
+    accessToken: string,
+    sessionId: string,
+    status?: SongRequestStatus
+  ): Promise<SongRequest[]> {
+    if (!accessToken || accessToken.trim() === "") {
+      throw new Error("Access token is required");
+    }
+    if (!sessionId || sessionId.trim() === "") {
+      throw new Error("Session ID is required");
+    }
+
+    const url = new URL(`${HOMEKARAOKE_API_URL}/api/session/${sessionId}/requests`);
+    if (status) {
+      url.searchParams.set("status", status);
+    }
+
+    log.debug(`Getting requests for session: ${sessionId}${status ? ` (status=${status})` : ""}`);
+
+    let response: Response;
+    try {
+      response = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error(`Network error getting requests: ${message}`);
+      throw new Error(`Network error: ${message}`);
+    }
+
+    if (!response.ok) {
+      const error = await response.text();
+      log.error(`Failed to get requests (${response.status}): ${error}`);
+      throw new ApiError(response.status, `Failed to get requests: ${error}`);
+    }
+
+    const data: SongRequestResponse[] = await response.json();
+    log.debug(`Retrieved ${data.length} requests`);
+
+    return data.map((item) => ({
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      guest_name: item.guest_name,
+      requested_at: item.requested_at,
+      youtube_id: item.youtube_id,
+      artist: item.artist,
+      duration: item.duration,
+      thumbnail_url: item.thumbnail_url,
+    }));
+  },
+
+  /**
+   * Approve a song request.
+   * The approved song will be added to the queue.
+   */
+  async approveRequest(
+    accessToken: string,
+    sessionId: string,
+    requestId: string
+  ): Promise<void> {
+    if (!accessToken || accessToken.trim() === "") {
+      throw new Error("Access token is required");
+    }
+    if (!sessionId || sessionId.trim() === "") {
+      throw new Error("Session ID is required");
+    }
+    if (!requestId || requestId.trim() === "") {
+      throw new Error("Request ID is required");
+    }
+
+    log.debug(`Approving request ${requestId} for session ${sessionId}`);
+
+    let response: Response;
+    try {
+      response = await fetch(`${HOMEKARAOKE_API_URL}/api/session/${sessionId}/requests`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "approve", requestId }),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error(`Network error approving request: ${message}`);
+      throw new Error(`Network error: ${message}`);
+    }
+
+    if (!response.ok) {
+      const error = await response.text();
+      log.error(`Failed to approve request (${response.status}): ${error}`);
+      throw new ApiError(response.status, `Failed to approve request: ${error}`);
+    }
+
+    log.debug(`Request ${requestId} approved`);
+  },
+
+  /**
+   * Reject a song request.
+   * The request will be marked as rejected and won't be added to the queue.
+   */
+  async rejectRequest(
+    accessToken: string,
+    sessionId: string,
+    requestId: string
+  ): Promise<void> {
+    if (!accessToken || accessToken.trim() === "") {
+      throw new Error("Access token is required");
+    }
+    if (!sessionId || sessionId.trim() === "") {
+      throw new Error("Session ID is required");
+    }
+    if (!requestId || requestId.trim() === "") {
+      throw new Error("Request ID is required");
+    }
+
+    log.debug(`Rejecting request ${requestId} for session ${sessionId}`);
+
+    let response: Response;
+    try {
+      response = await fetch(`${HOMEKARAOKE_API_URL}/api/session/${sessionId}/requests`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "reject", requestId }),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error(`Network error rejecting request: ${message}`);
+      throw new Error(`Network error: ${message}`);
+    }
+
+    if (!response.ok) {
+      const error = await response.text();
+      log.error(`Failed to reject request (${response.status}): ${error}`);
+      throw new ApiError(response.status, `Failed to reject request: ${error}`);
+    }
+
+    log.debug(`Request ${requestId} rejected`);
+  },
+
+  /**
+   * Approve multiple song requests at once.
+   * All approved songs will be added to the queue.
+   */
+  async approveAllRequests(
+    accessToken: string,
+    sessionId: string,
+    requestIds: string[]
+  ): Promise<void> {
+    if (!accessToken || accessToken.trim() === "") {
+      throw new Error("Access token is required");
+    }
+    if (!sessionId || sessionId.trim() === "") {
+      throw new Error("Session ID is required");
+    }
+    if (!requestIds || requestIds.length === 0) {
+      throw new Error("Request IDs are required");
+    }
+
+    log.debug(`Approving ${requestIds.length} requests for session ${sessionId}`);
+
+    let response: Response;
+    try {
+      response = await fetch(`${HOMEKARAOKE_API_URL}/api/session/${sessionId}/requests`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "approve", requestIds }),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error(`Network error approving requests: ${message}`);
+      throw new Error(`Network error: ${message}`);
+    }
+
+    if (!response.ok) {
+      const error = await response.text();
+      log.error(`Failed to approve requests (${response.status}): ${error}`);
+      throw new ApiError(response.status, `Failed to approve requests: ${error}`);
+    }
+
+    log.debug(`${requestIds.length} requests approved`);
   },
 
   /**

@@ -1,0 +1,679 @@
+{
+  "feature": "Song Request Approval",
+  "description": "Add functionality for hosts to receive notifications about song requests from guests and approve/reject them through a dedicated UI",
+  "items": [
+    {
+      "id": "SRA-001",
+      "category": "Types",
+      "description": "Create SongRequest type definition with all required fields",
+      "steps_to_verify": [
+        "File src/types/songRequest.ts exists",
+        "SongRequest interface includes: id (string), title (string), status ('pending' | 'approved' | 'rejected' | 'played'), guest_name (string), requested_at (string)",
+        "SongRequest interface includes optional fields: youtube_id, artist, duration, thumbnail_url",
+        "GroupedRequests interface exists with guestName (string) and requests (SongRequest[]) fields",
+        "Types are exported from the file"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-002",
+      "category": "Types",
+      "description": "Export song request types from types index",
+      "steps_to_verify": [
+        "src/types/index.ts exports SongRequest and GroupedRequests types",
+        "Types can be imported from 'src/types' in other files"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-003",
+      "category": "Notification System",
+      "description": "Extend NotificationAction interface to support onClick callbacks",
+      "steps_to_verify": [
+        "NotificationAction interface in src/stores/notificationStore.ts has optional onClick property",
+        "onClick property is typed as () => void",
+        "Existing url property remains optional for external links"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-004",
+      "category": "Notification System",
+      "description": "NotificationBar component handles onClick callbacks",
+      "steps_to_verify": [
+        "NotificationBar in src/components/notification/NotificationBar.tsx renders action buttons",
+        "When action has onClick, clicking the button calls the onClick function",
+        "When action has url, clicking the button opens the URL (existing behavior)",
+        "onClick and url behaviors work independently"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-005",
+      "category": "API Service",
+      "description": "Add getRequests method to hosted session service",
+      "steps_to_verify": [
+        "src/services/hostedSession.ts has getRequests function",
+        "Function signature: getRequests(accessToken: string, sessionId: string, status?: string): Promise<SongRequest[]>",
+        "Function calls GET /api/session/{id}/requests endpoint",
+        "Function passes status as query parameter when provided",
+        "Function returns array of SongRequest objects"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-006",
+      "category": "API Service",
+      "description": "Add approveRequest method to hosted session service",
+      "steps_to_verify": [
+        "src/services/hostedSession.ts has approveRequest function",
+        "Function signature: approveRequest(accessToken: string, sessionId: string, requestId: string): Promise<void>",
+        "Function calls PATCH /api/session/{id}/requests with body { action: 'approve', requestId }"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-007",
+      "category": "API Service",
+      "description": "Add rejectRequest method to hosted session service",
+      "steps_to_verify": [
+        "src/services/hostedSession.ts has rejectRequest function",
+        "Function signature: rejectRequest(accessToken: string, sessionId: string, requestId: string): Promise<void>",
+        "Function calls PATCH /api/session/{id}/requests with body { action: 'reject', requestId }"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-008",
+      "category": "API Service",
+      "description": "Add approveAllRequests method to hosted session service",
+      "steps_to_verify": [
+        "src/services/hostedSession.ts has approveAllRequests function",
+        "Function signature: approveAllRequests(accessToken: string, sessionId: string, requestIds: string[]): Promise<void>",
+        "Function calls PATCH /api/session/{id}/requests with body { action: 'approve', requestIds: [...] }"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-009",
+      "category": "Session Store",
+      "description": "Add pending requests state to session store",
+      "steps_to_verify": [
+        "src/stores/sessionStore.ts has pendingRequests state field typed as SongRequest[]",
+        "src/stores/sessionStore.ts has previousPendingCount state field typed as number",
+        "src/stores/sessionStore.ts has showRequestsModal state field typed as boolean",
+        "src/stores/sessionStore.ts has isLoadingRequests state field typed as boolean",
+        "Initial values are set appropriately (empty array, 0, false, false)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-010",
+      "category": "Session Store",
+      "description": "Add loadPendingRequests action to session store",
+      "steps_to_verify": [
+        "src/stores/sessionStore.ts has loadPendingRequests action",
+        "Action sets isLoadingRequests to true while loading",
+        "Action calls hostedSession.getRequests with status='pending'",
+        "Action updates pendingRequests state with results",
+        "Action sets isLoadingRequests to false after completion",
+        "Action handles errors gracefully"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-011",
+      "category": "Session Store",
+      "description": "Add approveRequest action to session store",
+      "steps_to_verify": [
+        "src/stores/sessionStore.ts has approveRequest action accepting requestId string",
+        "Action calls hostedSession.approveRequest",
+        "Action removes the approved request from pendingRequests state",
+        "Action refreshes the hosted session to update stats"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-012",
+      "category": "Session Store",
+      "description": "Add rejectRequest action to session store",
+      "steps_to_verify": [
+        "src/stores/sessionStore.ts has rejectRequest action accepting requestId string",
+        "Action calls hostedSession.rejectRequest",
+        "Action removes the rejected request from pendingRequests state",
+        "Action refreshes the hosted session to update stats"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-013",
+      "category": "Session Store",
+      "description": "Add approveAllRequests action to session store",
+      "steps_to_verify": [
+        "src/stores/sessionStore.ts has approveAllRequests action",
+        "Action accepts optional guestName parameter to filter requests",
+        "When guestName provided, only approves requests from that guest",
+        "When guestName not provided, approves all pending requests",
+        "Action calls hostedSession.approveAllRequests with array of request IDs",
+        "Action removes approved requests from pendingRequests state",
+        "Action refreshes the hosted session to update stats"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-014",
+      "category": "Session Store",
+      "description": "Add modal control actions to session store",
+      "steps_to_verify": [
+        "src/stores/sessionStore.ts has openRequestsModal action",
+        "openRequestsModal sets showRequestsModal to true",
+        "openRequestsModal calls loadPendingRequests to fetch fresh data",
+        "src/stores/sessionStore.ts has closeRequestsModal action",
+        "closeRequestsModal sets showRequestsModal to false"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-015",
+      "category": "Session Store",
+      "description": "Add notification trigger for new requests in refreshHostedSession",
+      "steps_to_verify": [
+        "refreshHostedSession in src/stores/sessionStore.ts tracks previousPendingCount",
+        "When pendingRequests count increases, a notification is shown",
+        "Notification message shows the number of new requests",
+        "Notification has 'View' action button with onClick callback",
+        "Clicking 'View' action calls openRequestsModal",
+        "previousPendingCount is updated after comparison"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-016",
+      "category": "UI Component",
+      "description": "Create SongRequestsModal component file",
+      "steps_to_verify": [
+        "File src/components/session/SongRequestsModal.tsx exists",
+        "Component is a React functional component",
+        "Component is exported as default or named export"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-017",
+      "category": "UI Component",
+      "description": "SongRequestsModal has proper modal structure",
+      "steps_to_verify": [
+        "Modal has fixed overlay with bg-black/50 background",
+        "Modal container has bg-gray-800, rounded-lg, padding, max-width ~500px",
+        "Modal has max-height constraint (~80vh) with overflow scroll for content",
+        "Modal renders only when showRequestsModal is true from session store"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-018",
+      "category": "UI Component",
+      "description": "SongRequestsModal has header with title and close button",
+      "steps_to_verify": [
+        "Modal header displays 'Song Requests' title",
+        "Header has close button (X icon)",
+        "Clicking close button calls closeRequestsModal from session store"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-019",
+      "category": "UI Component",
+      "description": "SongRequestsModal groups requests by guest name",
+      "steps_to_verify": [
+        "Requests are grouped by guest_name field",
+        "Each group has a header showing the guest name",
+        "Each group header has 'Approve All' button for that guest",
+        "Clicking group 'Approve All' calls approveAllRequests with guestName filter"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-020",
+      "category": "UI Component",
+      "description": "SongRequestsModal displays request items with details",
+      "steps_to_verify": [
+        "Each request item shows thumbnail (if available)",
+        "Each request item shows song title",
+        "Each request item shows artist (if available)",
+        "Each request item shows duration (if available, formatted as mm:ss)",
+        "Each request item has approve button (checkmark icon)",
+        "Each request item has reject button (X icon)",
+        "Clicking approve calls approveRequest with request ID",
+        "Clicking reject calls rejectRequest with request ID"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-021",
+      "category": "UI Component",
+      "description": "SongRequestsModal has global Approve All button in footer",
+      "steps_to_verify": [
+        "Modal footer has 'Approve All' button",
+        "Button is styled prominently (e.g., blue background)",
+        "Clicking button calls approveAllRequests without guestName filter",
+        "Button is disabled or hidden when no pending requests"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-022",
+      "category": "UI Component",
+      "description": "SongRequestsModal shows empty state",
+      "steps_to_verify": [
+        "When pendingRequests is empty, shows appropriate empty state message",
+        "Empty state message indicates no pending requests",
+        "Approve All buttons are not shown in empty state"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-023",
+      "category": "UI Component",
+      "description": "SongRequestsModal shows loading state",
+      "steps_to_verify": [
+        "When isLoadingRequests is true, shows loading indicator",
+        "Loading indicator is centered in modal content area",
+        "Action buttons are disabled during loading"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-024",
+      "category": "UI Component",
+      "description": "Export SongRequestsModal from session components index",
+      "steps_to_verify": [
+        "src/components/session/index.ts exports SongRequestsModal",
+        "Component can be imported from 'src/components/session'"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-025",
+      "category": "App Integration",
+      "description": "Add requests button to queue panel header",
+      "steps_to_verify": [
+        "src/App.tsx has button with Inbox icon in queue panel header",
+        "Button is positioned before the fair queue toggle",
+        "Button only renders when hostedSession exists",
+        "Button has appropriate hover styles (text-gray-400 to text-blue-400)",
+        "Button has title attribute showing pending count"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-026",
+      "category": "App Integration",
+      "description": "Requests button shows badge with pending count",
+      "steps_to_verify": [
+        "Badge appears when pendingRequests count > 0",
+        "Badge shows the actual pending count number",
+        "Badge shows '99+' when count exceeds 99",
+        "Badge is styled as small circle (bg-blue-500, text-white, rounded-full)",
+        "Badge is positioned at top-right corner of button (-top-1 -right-1)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-027",
+      "category": "App Integration",
+      "description": "Clicking requests button opens modal",
+      "steps_to_verify": [
+        "Clicking the requests button calls openRequestsModal from session store",
+        "Modal becomes visible after clicking button"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-028",
+      "category": "App Integration",
+      "description": "Render SongRequestsModal in App component",
+      "steps_to_verify": [
+        "src/App.tsx imports SongRequestsModal component",
+        "SongRequestsModal is rendered in the component tree",
+        "Modal receives necessary props or accesses store directly"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-029",
+      "category": "Integration",
+      "description": "Approving a request adds song to queue",
+      "steps_to_verify": [
+        "After approving a request, the song appears in the queue",
+        "Song is added with correct metadata (title, artist, youtube_id, etc.)",
+        "Queue updates in real-time after approval"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-030",
+      "category": "Integration",
+      "description": "Notification appears when new requests arrive during active session",
+      "steps_to_verify": [
+        "When refreshHostedSession detects increased pending count, notification appears",
+        "Notification shows correct count of new requests",
+        "Notification has 'info' type styling",
+        "Notification 'View' action opens the requests modal"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-031",
+      "category": "Security",
+      "description": "Validate thumbnail URLs to prevent XSS attacks",
+      "steps_to_verify": [
+        "SongRequestsModal.tsx has isValidThumbnailUrl helper function",
+        "Helper function validates URL starts with https:// protocol",
+        "Helper function uses try/catch with new URL() for safe parsing",
+        "Helper function returns false for undefined, null, or invalid URLs",
+        "Thumbnail img element only renders when isValidThumbnailUrl returns true",
+        "Placeholder div renders when URL is invalid or missing"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-032",
+      "category": "Security",
+      "description": "Handle broken thumbnail images gracefully",
+      "steps_to_verify": [
+        "Thumbnail img element has onError handler",
+        "onError handler hides the broken image or shows placeholder",
+        "Component uses useState to track image load errors per request",
+        "Broken images show the same placeholder as missing thumbnails"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-033",
+      "category": "Accessibility",
+      "description": "Add ARIA attributes to SongRequestsModal for screen readers",
+      "steps_to_verify": [
+        "Modal container div has role='dialog' attribute",
+        "Modal container div has aria-modal='true' attribute",
+        "Modal container div has aria-labelledby pointing to title element",
+        "Title h3 element has id='song-requests-modal-title'",
+        "Screen readers can identify the modal as a dialog"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-034",
+      "category": "Session Store",
+      "description": "Add processingRequestIds state to track in-flight request operations",
+      "steps_to_verify": [
+        "SessionState interface has processingRequestIds field typed as Set<string>",
+        "Initial value is new Set() in store creation",
+        "State is exposed for components to consume"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-035",
+      "category": "Session Store",
+      "description": "Track processing state in approveRequest action",
+      "steps_to_verify": [
+        "approveRequest adds requestId to processingRequestIds at start",
+        "approveRequest removes requestId from processingRequestIds in finally block",
+        "Processing state is cleared even if operation fails",
+        "Duplicate clicks are prevented while request is processing"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-036",
+      "category": "Session Store",
+      "description": "Track processing state in rejectRequest action",
+      "steps_to_verify": [
+        "rejectRequest adds requestId to processingRequestIds at start",
+        "rejectRequest removes requestId from processingRequestIds in finally block",
+        "Processing state is cleared even if operation fails",
+        "Duplicate clicks are prevented while request is processing"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-037",
+      "category": "Session Store",
+      "description": "Track processing state in approveAllRequests action",
+      "steps_to_verify": [
+        "approveAllRequests adds all requestIds to processingRequestIds at start",
+        "approveAllRequests removes all requestIds from processingRequestIds in finally block",
+        "Processing state is cleared even if operation fails"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-038",
+      "category": "UI Component",
+      "description": "Show per-item loading spinners on approve/reject buttons",
+      "steps_to_verify": [
+        "SongRequestsModal imports processingRequestIds from session store",
+        "Approve button shows Loader2 spinner when request.id is in processingRequestIds",
+        "Reject button shows Loader2 spinner when request.id is in processingRequestIds",
+        "Buttons are disabled when their request is processing",
+        "Check icon shows when not processing, spinner shows when processing"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-039",
+      "category": "Session Store",
+      "description": "Fix race condition by moving state update after refresh in approveRequest",
+      "steps_to_verify": [
+        "In approveRequest, pendingRequests filter happens AFTER refreshHostedSession call",
+        "State update only occurs if the entire operation succeeds",
+        "Error handling still works correctly with reordered operations"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-040",
+      "category": "Session Store",
+      "description": "Fix race condition by moving state update after refresh in rejectRequest",
+      "steps_to_verify": [
+        "In rejectRequest, pendingRequests filter happens AFTER refreshHostedSession call",
+        "State update only occurs if the entire operation succeeds",
+        "Error handling still works correctly with reordered operations"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-041",
+      "category": "Session Store",
+      "description": "Fix race condition by moving state update after refresh in approveAllRequests",
+      "steps_to_verify": [
+        "In approveAllRequests, pendingRequests filter happens AFTER refreshHostedSession call",
+        "State update only occurs if the entire operation succeeds",
+        "Error handling still works correctly with reordered operations"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-042",
+      "category": "Session Store",
+      "description": "Improve notification logic clarity in refreshHostedSession",
+      "steps_to_verify": [
+        "Condition 'previousCount !== undefined' changed to 'previousCount >= 0'",
+        "Logic is clearer since previousPendingCount is initialized to 0",
+        "Notification still triggers correctly when new requests arrive"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-043",
+      "category": "Session Store",
+      "description": "Refresh queue after approving song requests so users see approved songs",
+      "steps_to_verify": [
+        "approveRequest calls useQueueStore.getState().loadPersistedState() after successful API call",
+        "approveAllRequests calls useQueueStore.getState().loadPersistedState() after successful API call",
+        "Approved songs appear in the queue UI without manual refresh",
+        "Queue refresh happens before refreshHostedSession to show songs immediately"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-044",
+      "category": "Session Store",
+      "description": "Fix state sync race condition - use fresh state reference after refresh",
+      "steps_to_verify": [
+        "In approveRequest, pendingRequests filter uses get().pendingRequests (fresh reference)",
+        "In rejectRequest, pendingRequests filter uses get().pendingRequests (fresh reference)",
+        "In approveAllRequests, pendingRequests filter uses get().pendingRequests (fresh reference)",
+        "State updates use current state after async operations complete"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-045",
+      "category": "Session Store",
+      "description": "Fix notification spurious trigger on first poll by initializing previousPendingCount to -1",
+      "steps_to_verify": [
+        "previousPendingCount initial value changed from 0 to -1",
+        "Notification condition checks previousCount > 0 (not >= 0)",
+        "No notification shown on first poll when there are existing pending requests",
+        "Notifications only appear for genuinely new requests after initial load"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-046",
+      "category": "API Service",
+      "description": "Add type safety for status parameter in getRequests",
+      "steps_to_verify": [
+        "getRequests status parameter typed as union: 'pending' | 'approved' | 'rejected' | 'played' | undefined",
+        "TypeScript provides autocomplete for valid status values",
+        "Invalid status values cause type errors at compile time"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-047",
+      "category": "Session Store",
+      "description": "Show notification for first song request by using previousCount >= 0",
+      "steps_to_verify": [
+        "Notification condition changed from 'previousCount > 0' to 'previousCount >= 0'",
+        "First song request triggers a notification",
+        "Subsequent requests still trigger notifications correctly",
+        "No duplicate notifications are shown"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-048",
+      "category": "Session Store",
+      "description": "Use Promise.allSettled in approveAllRequests for partial failure handling",
+      "steps_to_verify": [
+        "approveAllRequests uses Promise.allSettled instead of single API call if backend supports individual approvals",
+        "If single bulk API call is used, error handling shows which requests failed",
+        "Partial failures are communicated to user with appropriate notification",
+        "Successfully approved requests are removed from pendingRequests even if some fail"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-049",
+      "category": "Session Store",
+      "description": "Clear processingRequestIds when modal closes or hosted session ends",
+      "steps_to_verify": [
+        "closeRequestsModal clears processingRequestIds Set",
+        "stopHosting clears processingRequestIds Set",
+        "No stale request IDs remain in memory after modal closes",
+        "Re-opening modal shows correct processing state"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-050",
+      "category": "UI Component",
+      "description": "Add keyboard accessibility to SongRequestsModal",
+      "steps_to_verify": [
+        "Pressing Escape key closes the modal",
+        "Focus is trapped inside modal when open",
+        "Focus moves to modal when it opens",
+        "Focus returns to trigger element when modal closes",
+        "Tab navigation cycles through interactive elements"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-051",
+      "category": "UI Component",
+      "description": "Add lazy loading for thumbnail images in SongRequestsModal",
+      "steps_to_verify": [
+        "Thumbnail img elements have loading='lazy' attribute",
+        "Images outside viewport are not loaded until scrolled into view",
+        "Performance is improved for modals with many requests"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-052",
+      "category": "E2E Testing",
+      "description": "Add E2E test for song requests modal opening and display",
+      "steps_to_verify": [
+        "E2E test file exists at tests/e2e/song-requests.spec.ts",
+        "Test mocks hosted session with pending requests",
+        "Test verifies requests button shows badge with correct count",
+        "Test clicks button and verifies modal opens",
+        "Test verifies requests are grouped by guest name"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-053",
+      "category": "E2E Testing",
+      "description": "Add E2E test for approving and rejecting song requests",
+      "steps_to_verify": [
+        "Test mocks approve/reject API endpoints",
+        "Test clicks approve button and verifies request is removed from list",
+        "Test clicks reject button and verifies request is removed from list",
+        "Test verifies loading spinner shows during operation",
+        "Test verifies badge count updates after approval/rejection"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-054",
+      "category": "E2E Testing",
+      "description": "Add E2E test for Approve All functionality",
+      "steps_to_verify": [
+        "Test clicks Approve All button for a specific guest",
+        "Test verifies all requests from that guest are removed",
+        "Test clicks global Approve All button",
+        "Test verifies all requests are removed and modal shows empty state"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-055",
+      "category": "E2E Testing",
+      "description": "Add E2E test for keyboard accessibility in modal",
+      "steps_to_verify": [
+        "Test opens modal and presses Escape key",
+        "Test verifies modal closes on Escape",
+        "Test verifies Tab key cycles through interactive elements",
+        "Test verifies focus is trapped within modal"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-056",
+      "category": "Documentation",
+      "description": "Update CHANGELOG.md with song request approval feature",
+      "steps_to_verify": [
+        "CHANGELOG.md has new entry under Unreleased or next version section",
+        "Entry describes song request approval feature for hosted sessions",
+        "Entry mentions notification system for new requests",
+        "Entry mentions approval modal with grouped requests",
+        "Entry follows Keep a Changelog format"
+      ],
+      "passes": true
+    }
+  ]
+}

@@ -18,7 +18,8 @@ export type NotificationType = "error" | "warning" | "success" | "info";
 
 export interface NotificationAction {
   label: string;
-  url: string;
+  url?: string;
+  onClick?: () => void;
 }
 
 export interface Notification {
