@@ -3869,6 +3869,88 @@ describe("sessionStore - Song Request Actions", () => {
       const { pendingRequests } = useSessionStore.getState();
       expect(pendingRequests).toHaveLength(0);
     });
+
+    it("should add requestId to processingRequestIds at start and remove in finally", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      // Create a deferred promise to control when the API call resolves
+      let resolveReject: (() => void) | null = null;
+      vi.mocked(hostedSessionService.rejectRequest).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveReject = () => resolve(undefined);
+          })
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      // Start the rejection but don't await
+      const rejectPromise = useSessionStore.getState().rejectRequest("request-1");
+
+      // Wait a tick for the state to update
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Verify requestId is in processingRequestIds
+      const { processingRequestIds: processingDuring } = useSessionStore.getState();
+      expect(processingDuring.has("request-1")).toBe(true);
+
+      // Resolve the API call
+      resolveReject!();
+      await rejectPromise;
+
+      // Verify requestId is removed from processingRequestIds
+      const { processingRequestIds: processingAfter } = useSessionStore.getState();
+      expect(processingAfter.has("request-1")).toBe(false);
+    });
+
+    it("should remove requestId from processingRequestIds even on error", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.rejectRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+
+      await expect(useSessionStore.getState().rejectRequest("request-1")).rejects.toThrow();
+
+      // Verify requestId is removed from processingRequestIds after error
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.has("request-1")).toBe(false);
+    });
+
+    it("should prevent duplicate clicks while request is processing", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      // Create a deferred promise to control when the API call resolves
+      let resolveReject: (() => void) | null = null;
+      vi.mocked(hostedSessionService.rejectRequest).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveReject = () => resolve(undefined);
+          })
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      // Start first rejection
+      const firstReject = useSessionStore.getState().rejectRequest("request-1");
+
+      // Wait a tick for the state to update
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Try to reject the same request again - should return early
+      const secondReject = useSessionStore.getState().rejectRequest("request-1");
+
+      // Resolve the API call
+      resolveReject!();
+      await firstReject;
+      await secondReject;
+
+      // Verify rejectRequest was only called once
+      expect(hostedSessionService.rejectRequest).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("approveAllRequests", () => {
