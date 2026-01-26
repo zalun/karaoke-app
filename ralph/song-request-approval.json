@@ -411,7 +411,7 @@
         "Initial value is new Set() in store creation",
         "State is exposed for components to consume"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-035",

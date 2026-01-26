@@ -63,6 +63,7 @@ interface SessionState {
   previousPendingCount: number;
   showRequestsModal: boolean;
   isLoadingRequests: boolean;
+  processingRequestIds: Set<string>;
 
   // Singers state
   singers: Singer[];
@@ -141,6 +142,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   previousPendingCount: 0,
   showRequestsModal: false,
   isLoadingRequests: false,
+  processingRequestIds: new Set(),
   singers: [],
   activeSingerId: null,
   queueSingerAssignments: new Map(),
