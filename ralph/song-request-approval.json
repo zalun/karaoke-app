@@ -503,7 +503,7 @@
         "Logic is clearer since previousPendingCount is initialized to 0",
         "Notification still triggers correctly when new requests arrive"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }

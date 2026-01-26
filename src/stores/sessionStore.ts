@@ -837,7 +837,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const previousCount = get().previousPendingCount;
       const newCount = updated.stats.pendingRequests;
 
-      if (newCount > previousCount && previousCount !== undefined) {
+      if (newCount > previousCount && previousCount >= 0) {
         const diff = newCount - previousCount;
         notify("info", `${diff} new song request${diff > 1 ? "s" : ""}`, {
           label: "View",
