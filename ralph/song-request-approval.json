@@ -527,7 +527,7 @@
         "In approveAllRequests, pendingRequests filter uses get().pendingRequests (fresh reference)",
         "State updates use current state after async operations complete"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-045",

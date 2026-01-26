@@ -4007,6 +4007,43 @@ describe("sessionStore - Song Request Actions", () => {
       // Verify rejectRequest was only called once
       expect(hostedSessionService.rejectRequest).toHaveBeenCalledTimes(1);
     });
+
+    it("should use current pendingRequests state after refresh (race condition fix)", async () => {
+      // This test verifies the fix for the race condition where pendingRequests
+      // could change during the refresh call. The fix ensures we use get().pendingRequests
+      // after refresh instead of a captured stale value.
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.rejectRequest).mockResolvedValue(undefined);
+
+      // During refresh, simulate a new request being added to pendingRequests
+      const newRequest = {
+        id: "request-3",
+        title: "New Song During Refresh",
+        status: "pending" as const,
+        guest_name: "Guest 3",
+        requested_at: new Date().toISOString(),
+      };
+
+      vi.mocked(hostedSessionService.getSession).mockImplementation(async () => {
+        // Simulate new request arriving during refresh
+        useSessionStore.setState({
+          pendingRequests: [...useSessionStore.getState().pendingRequests, newRequest],
+        });
+        return {
+          ...mockHostedSession,
+          stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 2 },
+        };
+      });
+
+      await useSessionStore.getState().rejectRequest("request-1");
+
+      // After rejecting request-1, we should still have request-2 AND the new request-3
+      // that was added during refresh. If we used the stale captured value,
+      // request-3 would be lost.
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(2);
+      expect(pendingRequests.map(r => r.id)).toEqual(["request-2", "request-3"]);
+    });
   });
 
   describe("approveAllRequests", () => {
