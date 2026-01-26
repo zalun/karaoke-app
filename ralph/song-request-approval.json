@@ -599,7 +599,7 @@
         "Focus returns to trigger element when modal closes",
         "Tab navigation cycles through interactive elements"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-051",

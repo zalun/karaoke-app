@@ -520,4 +520,110 @@ describe("SongRequestsModal", () => {
       expect(rejectButtons[1].querySelector('[data-testid="x-reject-icon"]')).toBeInTheDocument();
     });
   });
+
+  describe("Keyboard accessibility (SRA-050)", () => {
+    it("closes modal when Escape key is pressed", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+      });
+      render(<SongRequestsModal />);
+
+      // Verify modal is open
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      // Press Escape key
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      // Verify closeRequestsModal was called
+      expect(mockSessionStore.closeRequestsModal).toHaveBeenCalled();
+    });
+
+    it("modal container has tabIndex for focusability", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [],
+      });
+      render(<SongRequestsModal />);
+
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).toHaveAttribute("tabIndex", "-1");
+    });
+
+    it("traps focus when Tab pressed on last focusable element", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+      });
+      render(<SongRequestsModal />);
+
+      // Get all buttons and find the last Approve All button (global one in footer)
+      const allButtons = screen.getAllByRole("button");
+      const globalApproveAllButton = allButtons[allButtons.length - 1];
+
+      // Focus the last button
+      globalApproveAllButton.focus();
+      expect(document.activeElement).toBe(globalApproveAllButton);
+
+      // Tab should wrap to first element (close button)
+      fireEvent.keyDown(document, { key: "Tab" });
+
+      // Close button should now have focus
+      const closeButton = screen.getByRole("button", { name: "Close" });
+      expect(document.activeElement).toBe(closeButton);
+    });
+
+    it("traps focus when Shift+Tab pressed on first focusable element", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+      });
+      render(<SongRequestsModal />);
+
+      // Get the close button (first focusable element)
+      const closeButton = screen.getByRole("button", { name: "Close" });
+
+      // Focus the first button
+      closeButton.focus();
+      expect(document.activeElement).toBe(closeButton);
+
+      // Shift+Tab should wrap to last element (global Approve All)
+      fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+
+      // Global Approve All button should now have focus (last button)
+      const allButtons = screen.getAllByRole("button");
+      const globalApproveAllButton = allButtons[allButtons.length - 1];
+      expect(document.activeElement).toBe(globalApproveAllButton);
+    });
+
+    it("closes modal when clicking backdrop", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+      });
+      render(<SongRequestsModal />);
+
+      // Click the backdrop (the outer div with bg-black/50)
+      const backdrop = document.querySelector('[data-tauri-drag-region]');
+      fireEvent.click(backdrop!);
+
+      // Verify closeRequestsModal was called
+      expect(mockSessionStore.closeRequestsModal).toHaveBeenCalled();
+    });
+
+    it("does not close modal when clicking modal content", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [createMockRequest("1")],
+      });
+      render(<SongRequestsModal />);
+
+      // Click the dialog content
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(dialog);
+
+      // Verify closeRequestsModal was NOT called (clicking content should not close)
+      expect(mockSessionStore.closeRequestsModal).not.toHaveBeenCalled();
+    });
+  });
 });

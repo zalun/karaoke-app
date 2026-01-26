@@ -1,7 +1,23 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { X, Check, XIcon, Loader2 } from "lucide-react";
 import { useSessionStore } from "../../stores";
 import type { GroupedRequests } from "../../types";
+
+/**
+ * Get all focusable elements within a container
+ */
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  const focusableSelectors = [
+    'button:not([disabled])',
+    '[href]',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(', ');
+
+  return Array.from(container.querySelectorAll<HTMLElement>(focusableSelectors));
+}
 
 /**
  * Format duration in seconds to mm:ss format
@@ -42,6 +58,76 @@ export function SongRequestsModal() {
 
   // Track image load errors by request ID
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+
+  // Refs for focus management
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedElement = useRef<HTMLElement | null>(null);
+
+  // Handle keyboard events for Escape key and focus trapping
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeRequestsModal();
+      return;
+    }
+
+    // Focus trapping with Tab key
+    if (event.key === 'Tab' && modalRef.current) {
+      const focusableElements = getFocusableElements(modalRef.current);
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey) {
+        // Shift+Tab: if on first element, wrap to last
+        if (document.activeElement === firstElement) {
+          event.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        // Tab: if on last element, wrap to first
+        if (document.activeElement === lastElement) {
+          event.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
+  }, [closeRequestsModal]);
+
+  // Focus management: save previous element, focus modal, restore on close
+  useEffect(() => {
+    if (showRequestsModal) {
+      // Save the currently focused element
+      previouslyFocusedElement.current = document.activeElement as HTMLElement;
+
+      // Focus the modal container after a brief delay to ensure it's rendered
+      const timer = setTimeout(() => {
+        if (modalRef.current) {
+          const focusableElements = getFocusableElements(modalRef.current);
+          if (focusableElements.length > 0) {
+            focusableElements[0].focus();
+          } else {
+            modalRef.current.focus();
+          }
+        }
+      }, 0);
+
+      // Add keyboard event listener
+      document.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      // Restore focus to previously focused element when modal closes
+      if (previouslyFocusedElement.current && previouslyFocusedElement.current.focus) {
+        previouslyFocusedElement.current.focus();
+        previouslyFocusedElement.current = null;
+      }
+    }
+  }, [showRequestsModal, handleKeyDown]);
 
   const handleImageError = (requestId: string) => {
     setImageErrors((prev) => new Set(prev).add(requestId));
@@ -100,12 +186,21 @@ export function SongRequestsModal() {
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       data-tauri-drag-region
+      onClick={(e) => {
+        // Close modal when clicking the backdrop (not the modal content)
+        if (e.target === e.currentTarget) {
+          closeRequestsModal();
+        }
+      }}
     >
       <div
+        ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="song-requests-modal-title"
-        className="bg-gray-800 rounded-lg p-6 w-[500px] max-h-[80vh] flex flex-col shadow-xl"
+        tabIndex={-1}
+        className="bg-gray-800 rounded-lg p-6 w-[500px] max-h-[80vh] flex flex-col shadow-xl outline-none"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
