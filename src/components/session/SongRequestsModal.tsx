@@ -100,10 +100,15 @@ export function SongRequestsModal() {
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       data-tauri-drag-region
     >
-      <div className="bg-gray-800 rounded-lg p-6 w-[500px] max-h-[80vh] flex flex-col shadow-xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="song-requests-modal-title"
+        className="bg-gray-800 rounded-lg p-6 w-[500px] max-h-[80vh] flex flex-col shadow-xl"
+      >
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-white">Song Requests</h3>
+          <h3 id="song-requests-modal-title" className="text-lg font-medium text-white">Song Requests</h3>
           <button
             onClick={closeRequestsModal}
             className="text-gray-400 hover:text-white transition-colors"

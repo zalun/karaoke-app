@@ -400,7 +400,7 @@
         "Title h3 element has id='song-requests-modal-title'",
         "Screen readers can identify the modal as a dialog"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-034",

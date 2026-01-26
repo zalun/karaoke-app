@@ -267,6 +267,52 @@ describe("SongRequestsModal", () => {
     });
   });
 
+  describe("Accessibility (SRA-033)", () => {
+    it("modal container has role='dialog' attribute", () => {
+      setupMocks({ showRequestsModal: true });
+      render(<SongRequestsModal />);
+
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).toBeInTheDocument();
+    });
+
+    it("modal container has aria-modal='true' attribute", () => {
+      setupMocks({ showRequestsModal: true });
+      render(<SongRequestsModal />);
+
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).toHaveAttribute("aria-modal", "true");
+    });
+
+    it("modal container has aria-labelledby pointing to title element", () => {
+      setupMocks({ showRequestsModal: true });
+      render(<SongRequestsModal />);
+
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).toHaveAttribute(
+        "aria-labelledby",
+        "song-requests-modal-title"
+      );
+    });
+
+    it("title element has correct id for aria-labelledby", () => {
+      setupMocks({ showRequestsModal: true });
+      render(<SongRequestsModal />);
+
+      const title = screen.getByText("Song Requests");
+      expect(title).toHaveAttribute("id", "song-requests-modal-title");
+    });
+
+    it("screen readers can identify modal as a dialog with correct title", () => {
+      setupMocks({ showRequestsModal: true });
+      render(<SongRequestsModal />);
+
+      // getByRole with name option verifies the accessible name
+      const dialog = screen.getByRole("dialog", { name: "Song Requests" });
+      expect(dialog).toBeInTheDocument();
+    });
+  });
+
   describe("Broken thumbnail image handling (SRA-032)", () => {
     it("shows placeholder when image fails to load", () => {
       setupMocks({
