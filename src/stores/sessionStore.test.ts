@@ -3162,9 +3162,9 @@ describe("sessionStore - Host Session", () => {
       expect(useSessionStore.getState().previousPendingCount).toBe(5);
     });
 
-    it("should NOT show notification on first poll when previousPendingCount is zero (SRA-045)", async () => {
-      // Edge case: previousPendingCount is 0 (could happen in certain state transitions)
-      // Should still not show notification since 0 is not > 0
+    it("should show notification for first song request when previousPendingCount is zero (SRA-047)", async () => {
+      // When previousPendingCount is 0 (session just started hosting with no requests)
+      // and new requests arrive, a notification should be shown
       useSessionStore.setState({
         hostedSession: mockRefreshHostedSession,
         previousPendingCount: 0,
@@ -3178,11 +3178,14 @@ describe("sessionStore - Host Session", () => {
 
       await useSessionStore.getState().refreshHostedSession();
 
-      // Should NOT show notification because previousPendingCount (0) is not > 0
-      expect(notify).not.toHaveBeenCalledWith(
+      // Should show notification because newCount (3) > previousCount (0) and previousCount >= 0
+      expect(notify).toHaveBeenCalledWith(
         "info",
-        expect.stringContaining("new song request"),
-        expect.anything()
+        "3 new song requests",
+        expect.objectContaining({
+          label: "View",
+          onClick: expect.any(Function),
+        })
       );
     });
 

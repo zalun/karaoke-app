@@ -551,6 +551,129 @@
         "Invalid status values cause type errors at compile time"
       ],
       "passes": true
+    },
+    {
+      "id": "SRA-047",
+      "category": "Session Store",
+      "description": "Show notification for first song request by using previousCount >= 0",
+      "steps_to_verify": [
+        "Notification condition changed from 'previousCount > 0' to 'previousCount >= 0'",
+        "First song request triggers a notification",
+        "Subsequent requests still trigger notifications correctly",
+        "No duplicate notifications are shown"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-048",
+      "category": "Session Store",
+      "description": "Use Promise.allSettled in approveAllRequests for partial failure handling",
+      "steps_to_verify": [
+        "approveAllRequests uses Promise.allSettled instead of single API call if backend supports individual approvals",
+        "If single bulk API call is used, error handling shows which requests failed",
+        "Partial failures are communicated to user with appropriate notification",
+        "Successfully approved requests are removed from pendingRequests even if some fail"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-049",
+      "category": "Session Store",
+      "description": "Clear processingRequestIds when modal closes or hosted session ends",
+      "steps_to_verify": [
+        "closeRequestsModal clears processingRequestIds Set",
+        "stopHosting clears processingRequestIds Set",
+        "No stale request IDs remain in memory after modal closes",
+        "Re-opening modal shows correct processing state"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-050",
+      "category": "UI Component",
+      "description": "Add keyboard accessibility to SongRequestsModal",
+      "steps_to_verify": [
+        "Pressing Escape key closes the modal",
+        "Focus is trapped inside modal when open",
+        "Focus moves to modal when it opens",
+        "Focus returns to trigger element when modal closes",
+        "Tab navigation cycles through interactive elements"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-051",
+      "category": "UI Component",
+      "description": "Add lazy loading for thumbnail images in SongRequestsModal",
+      "steps_to_verify": [
+        "Thumbnail img elements have loading='lazy' attribute",
+        "Images outside viewport are not loaded until scrolled into view",
+        "Performance is improved for modals with many requests"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-052",
+      "category": "E2E Testing",
+      "description": "Add E2E test for song requests modal opening and display",
+      "steps_to_verify": [
+        "E2E test file exists at tests/e2e/song-requests.spec.ts",
+        "Test mocks hosted session with pending requests",
+        "Test verifies requests button shows badge with correct count",
+        "Test clicks button and verifies modal opens",
+        "Test verifies requests are grouped by guest name"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-053",
+      "category": "E2E Testing",
+      "description": "Add E2E test for approving and rejecting song requests",
+      "steps_to_verify": [
+        "Test mocks approve/reject API endpoints",
+        "Test clicks approve button and verifies request is removed from list",
+        "Test clicks reject button and verifies request is removed from list",
+        "Test verifies loading spinner shows during operation",
+        "Test verifies badge count updates after approval/rejection"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-054",
+      "category": "E2E Testing",
+      "description": "Add E2E test for Approve All functionality",
+      "steps_to_verify": [
+        "Test clicks Approve All button for a specific guest",
+        "Test verifies all requests from that guest are removed",
+        "Test clicks global Approve All button",
+        "Test verifies all requests are removed and modal shows empty state"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-055",
+      "category": "E2E Testing",
+      "description": "Add E2E test for keyboard accessibility in modal",
+      "steps_to_verify": [
+        "Test opens modal and presses Escape key",
+        "Test verifies modal closes on Escape",
+        "Test verifies Tab key cycles through interactive elements",
+        "Test verifies focus is trapped within modal"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-056",
+      "category": "Documentation",
+      "description": "Update CHANGELOG.md with song request approval feature",
+      "steps_to_verify": [
+        "CHANGELOG.md has new entry under Unreleased or next version section",
+        "Entry describes song request approval feature for hosted sessions",
+        "Entry mentions notification system for new requests",
+        "Entry mentions approval modal with grouped requests",
+        "Entry follows Keep a Changelog format"
+      ],
+      "passes": false
     }
   ]
 }
