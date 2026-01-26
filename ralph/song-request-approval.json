@@ -387,7 +387,7 @@
         "Component uses useState to track image load errors per request",
         "Broken images show the same placeholder as missing thumbnails"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-033",

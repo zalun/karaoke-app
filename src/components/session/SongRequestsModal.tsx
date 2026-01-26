@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { X, Check, XIcon, Loader2 } from "lucide-react";
 import { useSessionStore } from "../../stores";
 import type { GroupedRequests } from "../../types";
@@ -38,6 +38,13 @@ export function SongRequestsModal() {
     rejectRequest,
     approveAllRequests,
   } = useSessionStore();
+
+  // Track image load errors by request ID
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+
+  const handleImageError = (requestId: string) => {
+    setImageErrors((prev) => new Set(prev).add(requestId));
+  };
 
   // Group requests by guest name
   const groupedRequests: GroupedRequests[] = useMemo(() => {
@@ -143,11 +150,13 @@ export function SongRequestsModal() {
                         className="flex items-center gap-3 p-2 bg-gray-800 rounded"
                       >
                         {/* Thumbnail */}
-                        {isValidThumbnailUrl(request.thumbnail_url) ? (
+                        {isValidThumbnailUrl(request.thumbnail_url) &&
+                        !imageErrors.has(request.id) ? (
                           <img
                             src={request.thumbnail_url}
                             alt=""
                             className="w-12 h-9 object-cover rounded flex-shrink-0"
+                            onError={() => handleImageError(request.id)}
                           />
                         ) : (
                           <div className="w-12 h-9 bg-gray-700 rounded flex-shrink-0" />

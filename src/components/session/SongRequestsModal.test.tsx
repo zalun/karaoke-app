@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { SongRequestsModal } from "./SongRequestsModal";
 import type { SongRequest } from "../../types";
 
@@ -264,6 +264,96 @@ describe("SongRequestsModal", () => {
       render(<SongRequestsModal />);
 
       expect(screen.getByTestId("loader-icon")).toBeInTheDocument();
+    });
+  });
+
+  describe("Broken thumbnail image handling (SRA-032)", () => {
+    it("shows placeholder when image fails to load", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [
+          createMockRequest("1", {
+            thumbnail_url: "https://example.com/broken-image.jpg",
+          }),
+        ],
+      });
+      render(<SongRequestsModal />);
+
+      // Initially the image should be present
+      const img = document.querySelector("img");
+      expect(img).toBeInTheDocument();
+
+      // Simulate the image failing to load
+      fireEvent.error(img!);
+
+      // After error, image should be replaced with placeholder
+      expect(document.querySelector("img")).not.toBeInTheDocument();
+      const placeholder = document.querySelector(".bg-gray-700");
+      expect(placeholder).toBeInTheDocument();
+    });
+
+    it("shows placeholder for broken image while keeping working images", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [
+          createMockRequest("1", {
+            thumbnail_url: "https://example.com/working.jpg",
+          }),
+          createMockRequest("2", {
+            thumbnail_url: "https://example.com/broken.jpg",
+          }),
+        ],
+      });
+      render(<SongRequestsModal />);
+
+      // Initially both images should be present
+      const images = document.querySelectorAll("img");
+      expect(images).toHaveLength(2);
+
+      // Simulate the second image failing to load
+      fireEvent.error(images[1]);
+
+      // After error, only one image should remain
+      const remainingImages = document.querySelectorAll("img");
+      expect(remainingImages).toHaveLength(1);
+      expect(remainingImages[0]).toHaveAttribute(
+        "src",
+        "https://example.com/working.jpg"
+      );
+    });
+
+    it("tracks errors independently for each request", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [
+          createMockRequest("1", {
+            thumbnail_url: "https://example.com/img1.jpg",
+          }),
+          createMockRequest("2", {
+            thumbnail_url: "https://example.com/img2.jpg",
+          }),
+          createMockRequest("3", {
+            thumbnail_url: "https://example.com/img3.jpg",
+          }),
+        ],
+      });
+      render(<SongRequestsModal />);
+
+      // Initially all three images should be present
+      let images = document.querySelectorAll("img");
+      expect(images).toHaveLength(3);
+
+      // Simulate the first and third images failing
+      fireEvent.error(images[0]);
+      fireEvent.error(images[2]);
+
+      // After errors, only the second image should remain
+      images = document.querySelectorAll("img");
+      expect(images).toHaveLength(1);
+      expect(images[0]).toHaveAttribute(
+        "src",
+        "https://example.com/img2.jpg"
+      );
     });
   });
 });
