@@ -504,6 +504,53 @@
         "Notification still triggers correctly when new requests arrive"
       ],
       "passes": true
+    },
+    {
+      "id": "SRA-043",
+      "category": "Session Store",
+      "description": "Refresh queue after approving song requests so users see approved songs",
+      "steps_to_verify": [
+        "approveRequest calls useQueueStore.getState().loadPersistedState() after successful API call",
+        "approveAllRequests calls useQueueStore.getState().loadPersistedState() after successful API call",
+        "Approved songs appear in the queue UI without manual refresh",
+        "Queue refresh happens before refreshHostedSession to show songs immediately"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-044",
+      "category": "Session Store",
+      "description": "Fix state sync race condition - use fresh state reference after refresh",
+      "steps_to_verify": [
+        "In approveRequest, pendingRequests filter uses get().pendingRequests (fresh reference)",
+        "In rejectRequest, pendingRequests filter uses get().pendingRequests (fresh reference)",
+        "In approveAllRequests, pendingRequests filter uses get().pendingRequests (fresh reference)",
+        "State updates use current state after async operations complete"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-045",
+      "category": "Session Store",
+      "description": "Fix notification spurious trigger on first poll by initializing previousPendingCount to -1",
+      "steps_to_verify": [
+        "previousPendingCount initial value changed from 0 to -1",
+        "Notification condition checks previousCount > 0 (not >= 0)",
+        "No notification shown on first poll when there are existing pending requests",
+        "Notifications only appear for genuinely new requests after initial load"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-046",
+      "category": "API Service",
+      "description": "Add type safety for status parameter in getRequests",
+      "steps_to_verify": [
+        "getRequests status parameter typed as union: 'pending' | 'approved' | 'rejected' | 'played' | undefined",
+        "TypeScript provides autocomplete for valid status values",
+        "Invalid status values cause type errors at compile time"
+      ],
+      "passes": false
     }
   ]
 }

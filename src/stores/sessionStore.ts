@@ -1119,6 +1119,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         requestId
       );
 
+      // Refresh queue so the approved song appears immediately
+      await useQueueStore.getState().loadPersistedState();
+
       // Refresh hosted session to update stats
       await get().refreshHostedSession();
 
@@ -1236,6 +1239,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         hostedSession.id,
         requestIds
       );
+
+      // Refresh queue so the approved songs appear immediately
+      await useQueueStore.getState().loadPersistedState();
 
       // Refresh hosted session to update stats
       await get().refreshHostedSession();

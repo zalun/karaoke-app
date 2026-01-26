@@ -3822,6 +3822,25 @@ describe("sessionStore - Song Request Actions", () => {
       expect(pendingRequests).toHaveLength(2);
       expect(pendingRequests.map(r => r.id)).toEqual(["request-2", "request-3"]);
     });
+
+    it("should refresh the queue after approving a request so approved song appears", async () => {
+      const mockLoadPersistedState = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(useQueueStore.getState).mockReturnValue(
+        createMockQueueState({ loadPersistedState: mockLoadPersistedState })
+      );
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveRequest("request-1");
+
+      // Verify loadPersistedState was called to refresh the queue
+      expect(mockLoadPersistedState).toHaveBeenCalled();
+    });
   });
 
   describe("rejectRequest", () => {
@@ -4152,6 +4171,25 @@ describe("sessionStore - Song Request Actions", () => {
       const { pendingRequests } = useSessionStore.getState();
       expect(pendingRequests).toHaveLength(1);
       expect(pendingRequests[0].id).toBe("request-3");
+    });
+
+    it("should refresh the queue after approving all requests so approved songs appear", async () => {
+      const mockLoadPersistedState = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(useQueueStore.getState).mockReturnValue(
+        createMockQueueState({ loadPersistedState: mockLoadPersistedState })
+      );
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveAllRequests).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 0, approvedRequests: 2, totalGuests: 1 },
+      });
+
+      await useSessionStore.getState().approveAllRequests();
+
+      // Verify loadPersistedState was called to refresh the queue
+      expect(mockLoadPersistedState).toHaveBeenCalled();
     });
   });
 
