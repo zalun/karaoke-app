@@ -3614,6 +3614,7 @@ describe("sessionStore - Song Request Actions", () => {
       previousPendingCount: 2,
       showRequestsModal: false,
       isLoadingRequests: false,
+      processingRequestIds: new Set(),
     });
 
     // Default mock for queue store
@@ -3701,6 +3702,88 @@ describe("sessionStore - Song Request Actions", () => {
 
       const { pendingRequests } = useSessionStore.getState();
       expect(pendingRequests).toHaveLength(0);
+    });
+
+    it("should add requestId to processingRequestIds at start and remove in finally", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      // Create a deferred promise to control when the API call resolves
+      let resolveApprove: (() => void) | null = null;
+      vi.mocked(hostedSessionService.approveRequest).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveApprove = () => resolve(undefined);
+          })
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      // Start the approval but don't await
+      const approvePromise = useSessionStore.getState().approveRequest("request-1");
+
+      // Wait a tick for the state to update
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Verify requestId is in processingRequestIds
+      const { processingRequestIds: processingDuring } = useSessionStore.getState();
+      expect(processingDuring.has("request-1")).toBe(true);
+
+      // Resolve the API call
+      resolveApprove!();
+      await approvePromise;
+
+      // Verify requestId is removed from processingRequestIds
+      const { processingRequestIds: processingAfter } = useSessionStore.getState();
+      expect(processingAfter.has("request-1")).toBe(false);
+    });
+
+    it("should remove requestId from processingRequestIds even on error", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+
+      await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow();
+
+      // Verify requestId is removed from processingRequestIds after error
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.has("request-1")).toBe(false);
+    });
+
+    it("should prevent duplicate clicks while request is processing", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+
+      // Create a deferred promise to control when the API call resolves
+      let resolveApprove: (() => void) | null = null;
+      vi.mocked(hostedSessionService.approveRequest).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveApprove = () => resolve(undefined);
+          })
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      // Start first approval
+      const firstApprove = useSessionStore.getState().approveRequest("request-1");
+
+      // Wait a tick for the state to update
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Try to approve the same request again - should return early
+      const secondApprove = useSessionStore.getState().approveRequest("request-1");
+
+      // Resolve the API call
+      resolveApprove!();
+      await firstApprove;
+      await secondApprove;
+
+      // Verify approveRequest was only called once
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(1);
     });
   });
 

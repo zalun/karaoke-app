@@ -1090,13 +1090,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   approveRequest: async (requestId: string) => {
-    const { hostedSession, pendingRequests } = get();
+    const { hostedSession, pendingRequests, processingRequestIds } = get();
     if (!hostedSession) {
       log.error("Cannot approve request: no hosted session");
       throw new Error("No hosted session");
     }
 
+    // Prevent duplicate clicks while request is processing
+    if (processingRequestIds.has(requestId)) {
+      log.debug(`Request ${requestId} is already being processed`);
+      return;
+    }
+
     log.debug(`Approving request: ${requestId}`);
+    // Add to processing set
+    set({ processingRequestIds: new Set(processingRequestIds).add(requestId) });
+
     try {
       const tokens = await authService.getTokens();
       if (!tokens) {
@@ -1110,13 +1119,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         requestId
       );
 
-      // Remove from pending requests
+      // Refresh hosted session to update stats
+      await get().refreshHostedSession();
+
+      // Remove from pending requests after successful refresh
       set({
         pendingRequests: pendingRequests.filter((r) => r.id !== requestId),
       });
-
-      // Refresh hosted session to update stats
-      await get().refreshHostedSession();
 
       log.debug(`Request ${requestId} approved`);
     } catch (error) {
@@ -1124,6 +1133,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       log.error(`Failed to approve request: ${message}`);
       notify("error", "Failed to approve request");
       throw error;
+    } finally {
+      // Always remove from processing set, even on failure
+      const currentProcessing = get().processingRequestIds;
+      const newProcessing = new Set(currentProcessing);
+      newProcessing.delete(requestId);
+      set({ processingRequestIds: newProcessing });
     }
   },
 

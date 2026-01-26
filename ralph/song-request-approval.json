@@ -423,7 +423,7 @@
         "Processing state is cleared even if operation fails",
         "Duplicate clicks are prevented while request is processing"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-036",
