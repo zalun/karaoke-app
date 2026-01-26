@@ -4102,7 +4102,7 @@ describe("sessionStore - Song Request Actions", () => {
   describe("approveAllRequests", () => {
     it("should approve all pending requests when no guestName filter", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.approveAllRequests).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
       vi.mocked(hostedSessionService.getSession).mockResolvedValue({
         ...mockHostedSession,
         stats: { pendingRequests: 0, approvedRequests: 2, totalGuests: 1 },
@@ -4110,11 +4110,17 @@ describe("sessionStore - Song Request Actions", () => {
 
       await useSessionStore.getState().approveAllRequests();
 
-      // Verify approveAllRequests was called with all request IDs
-      expect(hostedSessionService.approveAllRequests).toHaveBeenCalledWith(
+      // Verify approveRequest was called individually for each request
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(2);
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
         "test-access-token",
         "hosted-session-123",
-        ["request-1", "request-2"]
+        "request-1"
+      );
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        "request-2"
       );
 
       // Verify all requests were removed from pendingRequests
@@ -4143,7 +4149,7 @@ describe("sessionStore - Song Request Actions", () => {
       });
 
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.approveAllRequests).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
       vi.mocked(hostedSessionService.getSession).mockResolvedValue({
         ...mockHostedSession,
         stats: { pendingRequests: 1, approvedRequests: 2, totalGuests: 1 },
@@ -4151,11 +4157,17 @@ describe("sessionStore - Song Request Actions", () => {
 
       await useSessionStore.getState().approveAllRequests("Alice");
 
-      // Verify approveAllRequests was called with only Alice's request IDs
-      expect(hostedSessionService.approveAllRequests).toHaveBeenCalledWith(
+      // Verify approveRequest was called only for Alice's requests
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(2);
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
         "test-access-token",
         "hosted-session-123",
-        ["request-1", "request-3"]
+        "request-1"
+      );
+      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
+        "test-access-token",
+        "hosted-session-123",
+        "request-3"
       );
 
       // Verify only Alice's requests were removed; Bob's remains
@@ -4170,8 +4182,8 @@ describe("sessionStore - Song Request Actions", () => {
 
       await useSessionStore.getState().approveAllRequests("Charlie");
 
-      // Verify approveAllRequests was NOT called
-      expect(hostedSessionService.approveAllRequests).not.toHaveBeenCalled();
+      // Verify approveRequest was NOT called
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
 
       // Verify pendingRequests was not modified
       const { pendingRequests } = useSessionStore.getState();
@@ -4184,8 +4196,8 @@ describe("sessionStore - Song Request Actions", () => {
 
       await useSessionStore.getState().approveAllRequests();
 
-      // Verify approveAllRequests was NOT called
-      expect(hostedSessionService.approveAllRequests).not.toHaveBeenCalled();
+      // Verify approveRequest was NOT called
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
     });
 
     it("should throw error when no hosted session", async () => {
@@ -4195,7 +4207,7 @@ describe("sessionStore - Song Request Actions", () => {
         "No hosted session"
       );
 
-      expect(hostedSessionService.approveAllRequests).not.toHaveBeenCalled();
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
     });
 
     it("should throw error when not authenticated", async () => {
@@ -4205,17 +4217,21 @@ describe("sessionStore - Song Request Actions", () => {
         "Not authenticated"
       );
 
-      expect(hostedSessionService.approveAllRequests).not.toHaveBeenCalled();
+      expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
     });
 
-    it("should notify and re-throw on API error", async () => {
+    it("should throw error and notify when all requests fail", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.approveAllRequests).mockRejectedValue(
+      vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
         new Error("Network error")
       );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 1 },
+      });
 
       await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow(
-        "Network error"
+        "All 2 requests failed to approve"
       );
 
       expect(notify).toHaveBeenCalledWith("error", "Failed to approve requests");
@@ -4225,12 +4241,69 @@ describe("sessionStore - Song Request Actions", () => {
       expect(pendingRequests).toHaveLength(2);
     });
 
+    it("should handle partial failures with Promise.allSettled", async () => {
+      // Setup: request-1 succeeds, request-2 fails
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest)
+        .mockResolvedValueOnce(undefined) // request-1 succeeds
+        .mockRejectedValueOnce(new Error("Network error")); // request-2 fails
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
+      });
+
+      // Should not throw - partial success is allowed
+      await useSessionStore.getState().approveAllRequests();
+
+      // Verify warning notification for partial failure
+      expect(notify).toHaveBeenCalledWith("warning", "Approved 1 requests, 1 failed");
+
+      // Verify only successful request was removed from pendingRequests
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-2"); // Failed one remains
+    });
+
+    it("should remove all successfully approved requests even when some fail", async () => {
+      // Add a third request
+      const thirdRequest = {
+        id: "request-3",
+        title: "Another Song",
+        status: "pending" as const,
+        guest_name: "Charlie",
+        requested_at: "2025-01-01T12:15:00Z",
+      };
+      useSessionStore.setState({
+        pendingRequests: [...mockPendingRequests, thirdRequest],
+      });
+
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest)
+        .mockResolvedValueOnce(undefined) // request-1 succeeds
+        .mockRejectedValueOnce(new Error("Error")) // request-2 fails
+        .mockResolvedValueOnce(undefined); // request-3 succeeds
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 1, approvedRequests: 2, totalGuests: 2 },
+      });
+
+      await useSessionStore.getState().approveAllRequests();
+
+      // Verify warning notification
+      expect(notify).toHaveBeenCalledWith("warning", "Approved 2 requests, 1 failed");
+
+      // Verify successful requests were removed, failed one remains
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(1);
+      expect(pendingRequests[0].id).toBe("request-2");
+    });
+
     it("should use current pendingRequests state after refresh (race condition fix)", async () => {
       // This test verifies the fix for the race condition where pendingRequests
       // could change during the refresh call. The fix ensures we use get().pendingRequests
       // after refresh instead of a captured stale value.
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.approveAllRequests).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
 
       // During refresh, simulate a new request being added to pendingRequests
       const newRequest = {
@@ -4270,7 +4343,7 @@ describe("sessionStore - Song Request Actions", () => {
       );
 
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.approveAllRequests).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
       vi.mocked(hostedSessionService.getSession).mockResolvedValue({
         ...mockHostedSession,
         stats: { pendingRequests: 0, approvedRequests: 2, totalGuests: 1 },
@@ -4280,6 +4353,24 @@ describe("sessionStore - Song Request Actions", () => {
 
       // Verify loadPersistedState was called to refresh the queue
       expect(mockLoadPersistedState).toHaveBeenCalled();
+    });
+
+    it("should clear processingRequestIds in finally block even on total failure", async () => {
+      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+      vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
+        new Error("Network error")
+      );
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 1 },
+      });
+
+      // Catch the expected error
+      await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow();
+
+      // Verify processingRequestIds is cleared
+      const { processingRequestIds } = useSessionStore.getState();
+      expect(processingRequestIds.size).toBe(0);
     });
   });
 

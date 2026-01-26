@@ -574,7 +574,7 @@
         "Partial failures are communicated to user with appropriate notification",
         "Successfully approved requests are removed from pendingRequests even if some fail"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-049",

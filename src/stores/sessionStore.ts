@@ -1234,11 +1234,31 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         throw new Error("Not authenticated");
       }
 
-      await hostedSessionService.approveAllRequests(
-        tokens.access_token,
-        hostedSession.id,
-        requestIds
+      // Use Promise.allSettled for partial failure handling
+      // Each request is approved individually so failures don't block others
+      const results = await Promise.allSettled(
+        requestIds.map((requestId) =>
+          hostedSessionService.approveRequest(
+            tokens.access_token,
+            hostedSession.id,
+            requestId
+          )
+        )
       );
+
+      // Separate successful and failed results
+      const succeededIds: string[] = [];
+      const failedIds: string[] = [];
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          succeededIds.push(requestIds[index]);
+        } else {
+          failedIds.push(requestIds[index]);
+          log.error(`Failed to approve request ${requestIds[index]}: ${result.reason}`);
+        }
+      });
+
+      log.debug(`Approved ${succeededIds.length}/${requestIds.length} requests`);
 
       // Refresh queue so the approved songs appear immediately
       await useQueueStore.getState().loadPersistedState();
@@ -1246,18 +1266,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Refresh hosted session to update stats
       await get().refreshHostedSession();
 
-      // Remove approved requests from pending requests after successful refresh
-      const approvedIds = new Set(requestIds);
+      // Remove only successfully approved requests from pending requests
+      const approvedIds = new Set(succeededIds);
       set({
         pendingRequests: get().pendingRequests.filter((r) => !approvedIds.has(r.id)),
       });
 
-      log.debug(`${requestIds.length} requests approved`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      log.error(`Failed to approve all requests: ${message}`);
-      notify("error", "Failed to approve requests");
-      throw error;
+      // Notify user about partial failures
+      if (failedIds.length > 0 && succeededIds.length > 0) {
+        notify("warning", `Approved ${succeededIds.length} requests, ${failedIds.length} failed`);
+      } else if (failedIds.length > 0 && succeededIds.length === 0) {
+        notify("error", "Failed to approve requests");
+        throw new Error(`All ${failedIds.length} requests failed to approve`);
+      }
+
+      log.debug(`${succeededIds.length} requests approved successfully`);
     } finally {
       // Always remove all request IDs from processing set, even on failure
       const currentProcessing = get().processingRequestIds;
