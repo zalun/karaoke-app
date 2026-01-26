@@ -256,6 +256,7 @@ export function SongRequestsModal() {
                           <img
                             src={request.thumbnail_url}
                             alt=""
+                            loading="lazy"
                             className="w-12 h-9 object-cover rounded flex-shrink-0"
                             onError={() => handleImageError(request.id)}
                           />

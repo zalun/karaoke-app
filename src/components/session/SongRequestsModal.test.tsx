@@ -406,6 +406,50 @@ describe("SongRequestsModal", () => {
     });
   });
 
+  describe("Lazy loading for thumbnail images (SRA-051)", () => {
+    it("thumbnail images have loading='lazy' attribute", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [
+          createMockRequest("1", {
+            thumbnail_url: "https://example.com/image1.jpg",
+          }),
+        ],
+      });
+      render(<SongRequestsModal />);
+
+      const img = document.querySelector("img");
+      expect(img).toBeInTheDocument();
+      expect(img).toHaveAttribute("loading", "lazy");
+    });
+
+    it("all thumbnail images have loading='lazy' attribute with multiple requests", () => {
+      setupMocks({
+        showRequestsModal: true,
+        pendingRequests: [
+          createMockRequest("1", {
+            thumbnail_url: "https://example.com/image1.jpg",
+          }),
+          createMockRequest("2", {
+            thumbnail_url: "https://example.com/image2.jpg",
+          }),
+          createMockRequest("3", {
+            thumbnail_url: "https://example.com/image3.jpg",
+          }),
+        ],
+      });
+      render(<SongRequestsModal />);
+
+      const images = document.querySelectorAll("img");
+      expect(images).toHaveLength(3);
+
+      // All images should have loading="lazy"
+      images.forEach((img) => {
+        expect(img).toHaveAttribute("loading", "lazy");
+      });
+    });
+  });
+
   describe("Per-item loading spinners (SRA-038)", () => {
     it("shows check icon on approve button when not processing", () => {
       setupMocks({

@@ -610,7 +610,7 @@
         "Images outside viewport are not loaded until scrolled into view",
         "Performance is improved for modals with many requests"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-052",
