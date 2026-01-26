@@ -623,7 +623,7 @@
         "Test clicks button and verifies modal opens",
         "Test verifies requests are grouped by guest name"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-053",

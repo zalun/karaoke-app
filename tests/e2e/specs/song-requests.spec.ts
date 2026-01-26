@@ -1,0 +1,273 @@
+import { test, expect } from "@playwright/test";
+import {
+  injectTauriMocks,
+  createMockSongRequests,
+} from "../fixtures/tauri-mocks";
+import { MainPage } from "../pages";
+
+/**
+ * Tests for the Song Request Approval feature (#211).
+ * Verifies that hosts can view, approve, and reject song requests from guests.
+ *
+ * Note: The requests button only appears in the queue panel when there are
+ * songs in the queue. Tests use pre-populated queue state via initialSession.
+ */
+test.describe("Song Requests Modal", () => {
+  let mainPage: MainPage;
+
+  /**
+   * Create a mock queue item for pre-populating the queue.
+   */
+  function createMockQueueItem(index: number) {
+    return {
+      id: `queue-item-${index}`,
+      video: {
+        id: `video-${index}`,
+        title: `Test Song ${index}`,
+        channel: `Test Channel ${index}`,
+        duration: 180 + index * 30,
+        source: "youtube",
+      },
+      addedAt: new Date().toISOString(),
+      singer_id: null,
+      status: "pending",
+    };
+  }
+
+  /**
+   * Base mock config that sets up authenticated user with active hosted session.
+   */
+  function createBaseMockConfig(songRequests: ReturnType<typeof createMockSongRequests>) {
+    return {
+      authTokens: {
+        access_token: "test_access_token",
+        refresh_token: "test_refresh_token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      },
+      mockUser: {
+        id: "test-user-id",
+        email: "test@example.com",
+        displayName: "Test User",
+      },
+      songRequests,
+      // Pre-populate the queue so the requests button is visible
+      queueState: {
+        queue: [createMockQueueItem(1)],
+        history: [],
+        history_index: 0,
+      },
+      // Pre-configure an active hosted session that will be restored on load
+      initialSession: {
+        id: 1,
+        name: "Test Session",
+        hosted_session_id: "mock-session-12345",
+        hosted_by_user_id: "test-user-id",
+        hosted_session_status: "active",
+      },
+    };
+  }
+
+  test.describe("Modal Opening and Display", () => {
+    test("should show requests button with badge when hosting with pending requests", async ({
+      page,
+    }) => {
+      const mockRequests = createMockSongRequests(3, ["Alice", "Bob"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for session restoration - the hosted session should be restored
+      // The requests button should appear once hosting is active
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+
+      // Verify badge shows the correct count (3)
+      const badge = requestsButton.locator("span").filter({ hasText: "3" });
+      await expect(badge).toBeVisible();
+    });
+
+    test("should open modal when clicking requests button", async ({
+      page,
+    }) => {
+      const mockRequests = createMockSongRequests(3, ["Alice", "Bob"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for requests button to be visible
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+
+      // Click requests button
+      await requestsButton.click();
+
+      // Verify modal opens
+      await expect(page.locator('[role="dialog"]').getByRole("heading", { name: "Song Requests" })).toBeVisible({
+        timeout: 10000,
+      });
+    });
+
+    test("should display requests grouped by guest name", async ({ page }) => {
+      const mockRequests = [
+        ...createMockSongRequests(2, ["Alice"]),
+        ...createMockSongRequests(2, ["Bob"]).map((r, i) => ({
+          ...r,
+          id: `bob-request-${i + 1}`,
+          title: `Bob's Song ${i + 1}`,
+        })),
+      ];
+
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for and click requests button
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      // Verify modal shows both guest groups
+      const dialog = page.locator('[role="dialog"]');
+      await expect(dialog.getByRole("heading", { name: "Song Requests" })).toBeVisible({
+        timeout: 10000,
+      });
+      // Use exact match to avoid matching "Bob's Song 1"
+      await expect(dialog.getByText("Alice", { exact: true })).toBeVisible();
+      await expect(dialog.getByText("Bob", { exact: true })).toBeVisible();
+
+      // Verify "Approve All" buttons exist for each group
+      const approveAllButtons = page.locator('[role="dialog"] button:has-text("Approve All")');
+      // Should have 2 group buttons + 1 global button = 3 total
+      await expect(approveAllButtons).toHaveCount(3);
+    });
+
+    test("should show empty state when no pending requests", async ({
+      page,
+    }) => {
+      // No song requests
+      await injectTauriMocks(page, createBaseMockConfig([]));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for and click requests button (shows 0 pending)
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      // Verify empty state message
+      const dialog = page.locator('[role="dialog"]');
+      await expect(dialog.getByRole("heading", { name: "Song Requests" })).toBeVisible({
+        timeout: 10000,
+      });
+      await expect(
+        dialog.getByText("No pending song requests")
+      ).toBeVisible();
+
+      // Global Approve All button should not be visible in empty state
+      const globalApproveAll = dialog.locator('button:has-text("Approve All")');
+      await expect(globalApproveAll).not.toBeVisible();
+    });
+
+    test("should close modal when clicking close button", async ({ page }) => {
+      const mockRequests = createMockSongRequests(2);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for and click requests button
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+      await expect(page.locator('[role="dialog"]').getByRole("heading", { name: "Song Requests" })).toBeVisible({
+        timeout: 10000,
+      });
+
+      // Close the modal using the close button
+      const closeButton = page.locator(
+        '[role="dialog"] button[aria-label="Close"]'
+      );
+      await closeButton.click();
+
+      // Verify modal is closed
+      await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    });
+
+    test("should display request details: thumbnail, title, artist, duration", async ({
+      page,
+    }) => {
+      const mockRequests = [
+        {
+          id: "request-1",
+          title: "Bohemian Rhapsody Karaoke",
+          status: "pending" as const,
+          guest_name: "Alice",
+          requested_at: new Date().toISOString(),
+          youtube_id: "dQw4w9WgXcQ",
+          artist: "Queen",
+          duration: 354,
+          thumbnail_url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+        },
+      ];
+
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for and click requests button
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+      const dialog = page.locator('[role="dialog"]');
+      await expect(dialog.getByRole("heading", { name: "Song Requests" })).toBeVisible({
+        timeout: 10000,
+      });
+
+      // Verify song details are displayed in the dialog
+      await expect(
+        dialog.getByText("Bohemian Rhapsody Karaoke")
+      ).toBeVisible();
+      await expect(dialog.locator("text=Queen")).toBeVisible();
+      // Duration 354 seconds = 5:54
+      await expect(dialog.locator("text=5:54")).toBeVisible();
+
+      // Verify thumbnail image exists
+      const thumbnail = dialog.locator('img[loading="lazy"]');
+      await expect(thumbnail).toBeVisible();
+    });
+
+    test("badge should show 99+ when count exceeds 99", async ({ page }) => {
+      // Create 100 mock requests
+      const mockRequests = Array.from({ length: 100 }, (_, i) => ({
+        id: `request-${i + 1}`,
+        title: `Song ${i + 1}`,
+        status: "pending" as const,
+        guest_name: `Guest ${i % 10}`,
+        requested_at: new Date().toISOString(),
+      }));
+
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Wait for requests button with 99+ badge
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      const badge = requestsButton.locator("span").filter({ hasText: "99+" });
+      await expect(badge).toBeVisible();
+    });
+  });
+});

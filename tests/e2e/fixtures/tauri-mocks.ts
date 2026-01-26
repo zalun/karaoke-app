@@ -108,6 +108,18 @@ export interface TauriMockConfig {
   shouldFailWithOwnershipConflict?: boolean;
   /** Delay in ms before auth_get_tokens returns (simulates slow keychain/network) */
   authDelay?: number;
+  /** Mock song requests for testing song request approval feature */
+  songRequests?: Array<{
+    id: string;
+    title: string;
+    status: "pending" | "approved" | "rejected" | "played";
+    guest_name: string;
+    requested_at: string;
+    youtube_id?: string;
+    artist?: string;
+    duration?: number;
+    thumbnail_url?: string;
+  }>;
 }
 
 /**
@@ -164,6 +176,17 @@ export async function injectTauriMocks(
       __HOSTED_SESSION_ID__?: string;
       __HOSTED_SESSION_STOPPED__?: boolean;
       __HOSTED_SESSION_STATUS__?: string;
+      __SONG_REQUESTS__?: Array<{
+        id: string;
+        title: string;
+        status: string;
+        guest_name: string;
+        requested_at: string;
+        youtube_id?: string;
+        artist?: string;
+        duration?: number;
+        thumbnail_url?: string;
+      }>;
     }
 
     /** Helper to get typed access to HTTP mock globals */
@@ -248,6 +271,12 @@ export async function injectTauriMocks(
       if (mockConfig.initialSession.hosted_session_status === "active") {
         globals.__HOSTED_SESSION_CREATED__ = true;
       }
+    }
+
+    // Initialize song requests from config (always initialize, even if empty)
+    {
+      const globals = getHttpMockGlobals();
+      globals.__SONG_REQUESTS__ = mockConfig.songRequests ? [...mockConfig.songRequests] : [];
     }
 
     // In-memory search history state
@@ -802,6 +831,42 @@ export async function injectTauriMocks(
                   });
                 }
               }
+              // GET /api/session/[id]/requests - Get song requests
+              else if (url.match(/\/api\/session\/[^/]+\/requests/) && method === "GET") {
+                const requestsGlobals = getHttpMockGlobals();
+                const songRequests = requestsGlobals.__SONG_REQUESTS__ || [];
+                // Parse status filter from URL query params
+                const urlObj = new URL(url);
+                const statusFilter = urlObj.searchParams.get("status");
+                const filteredRequests = statusFilter
+                  ? songRequests.filter((r: { status: string }) => r.status === statusFilter)
+                  : songRequests;
+                responseBody = JSON.stringify(filteredRequests);
+              }
+              // PATCH /api/session/[id]/requests - Approve/reject requests
+              else if (url.match(/\/api\/session\/[^/]+\/requests/) && method === "PATCH") {
+                const requestsGlobals = getHttpMockGlobals();
+                const songRequests = requestsGlobals.__SONG_REQUESTS__ || [];
+                // Parse request body
+                const bodyBytes = request.body;
+                if (bodyBytes) {
+                  const bodyStr = new TextDecoder().decode(new Uint8Array(bodyBytes));
+                  const body = JSON.parse(bodyStr);
+                  const action = body.action;
+                  const requestId = body.requestId;
+                  const requestIds = body.requestIds || (requestId ? [requestId] : []);
+
+                  // Update request statuses
+                  for (const id of requestIds) {
+                    const req = songRequests.find((r: { id: string }) => r.id === id);
+                    if (req) {
+                      req.status = action === "approve" ? "approved" : "rejected";
+                    }
+                  }
+                  requestsGlobals.__SONG_REQUESTS__ = songRequests;
+                }
+                responseBody = "{}";
+              }
               // GET /api/session/[id] - Get session stats
               else if (url.match(/\/api\/session\/[^/]+$/) && method === "GET") {
                 const statsGlobals = getHttpMockGlobals();
@@ -813,11 +878,14 @@ export async function injectTauriMocks(
                   statusText = "Not Found";
                   responseBody = JSON.stringify({ error: "Session not found" });
                 } else {
+                  // Calculate pending requests from song requests
+                  const songRequests = statsGlobals.__SONG_REQUESTS__ || [];
+                  const pendingCount = songRequests.filter((r: { status: string }) => r.status === "pending").length;
                   responseBody = JSON.stringify({
                     id: sessionId,
                     session_code: sessionCode,
                     status: "active",
-                    stats: { pending_requests: 0, approved_requests: 0, total_guests: 0 },
+                    stats: { pending_requests: pendingCount, approved_requests: 0, total_guests: 0 },
                   });
                 }
               }
@@ -1207,4 +1275,82 @@ export async function getHostedSessionState(page: Page): Promise<HostedSessionTe
       status: (window as unknown as { __HOSTED_SESSION_STATUS__?: string }).__HOSTED_SESSION_STATUS__ ?? null,
     };
   });
+}
+
+/**
+ * Mock song request type for creating test data
+ */
+export interface MockSongRequest {
+  id: string;
+  title: string;
+  status: "pending" | "approved" | "rejected" | "played";
+  guest_name: string;
+  requested_at: string;
+  youtube_id?: string;
+  artist?: string;
+  duration?: number;
+  thumbnail_url?: string;
+}
+
+/**
+ * Helper function to create mock song requests for testing.
+ * @param count - Number of requests to create
+ * @param guestNames - Optional array of guest names to use (cycles through if fewer than count)
+ */
+export function createMockSongRequests(
+  count = 3,
+  guestNames: string[] = ["Alice", "Bob"]
+): MockSongRequest[] {
+  const videoIds = [
+    "dQw4w9WgXcQ",
+    "jNQXAC9IVRw",
+    "kJQP7kiw5Fk",
+    "9bZkp7q19f0",
+    "RgKAFK5djSk",
+  ];
+
+  return Array.from({ length: count }, (_, i) => ({
+    id: `request-${i + 1}`,
+    title: `Test Song Request ${i + 1}`,
+    status: "pending" as const,
+    guest_name: guestNames[i % guestNames.length],
+    requested_at: new Date(Date.now() - i * 60000).toISOString(),
+    youtube_id: videoIds[i % videoIds.length],
+    artist: `Artist ${i + 1}`,
+    duration: 180 + i * 30,
+    thumbnail_url: `https://i.ytimg.com/vi/${videoIds[i % videoIds.length]}/hqdefault.jpg`,
+  }));
+}
+
+/**
+ * Interface for checking song requests state in tests
+ */
+interface SongRequestsTestState {
+  requests: MockSongRequest[];
+  pendingCount: number;
+}
+
+/**
+ * Get song requests test state from the page
+ */
+export async function getSongRequestsState(page: Page): Promise<SongRequestsTestState> {
+  return page.evaluate(() => {
+    const requests = (window as unknown as { __SONG_REQUESTS__?: MockSongRequest[] }).__SONG_REQUESTS__ || [];
+    return {
+      requests,
+      pendingCount: requests.filter((r) => r.status === "pending").length,
+    };
+  });
+}
+
+/**
+ * Update song requests state dynamically during a test
+ */
+export async function updateSongRequests(
+  page: Page,
+  requests: MockSongRequest[]
+): Promise<void> {
+  await page.evaluate((newRequests) => {
+    (window as unknown as { __SONG_REQUESTS__: typeof newRequests }).__SONG_REQUESTS__ = newRequests;
+  }, requests);
 }
