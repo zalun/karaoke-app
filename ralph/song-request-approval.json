@@ -673,7 +673,7 @@
         "Entry mentions approval modal with grouped requests",
         "Entry follows Keep a Changelog format"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }
