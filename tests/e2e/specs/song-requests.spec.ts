@@ -495,4 +495,197 @@ test.describe("Song Requests Modal", () => {
       await expect(updatedBadge).toBeVisible();
     });
   });
+
+  test.describe("Approve All Functionality", () => {
+    test("should remove all requests from a specific guest when clicking guest Approve All", async ({
+      page,
+    }) => {
+      // Create requests from two different guests
+      const mockRequests = [
+        {
+          id: "alice-request-1",
+          title: "Alice Song 1",
+          status: "pending" as const,
+          guest_name: "Alice",
+          requested_at: new Date().toISOString(),
+          youtube_id: "dQw4w9WgXcQ",
+          artist: "Artist 1",
+          duration: 180,
+        },
+        {
+          id: "alice-request-2",
+          title: "Alice Song 2",
+          status: "pending" as const,
+          guest_name: "Alice",
+          requested_at: new Date(Date.now() - 60000).toISOString(),
+          youtube_id: "jNQXAC9IVRw",
+          artist: "Artist 2",
+          duration: 200,
+        },
+        {
+          id: "bob-request-1",
+          title: "Bob Song 1",
+          status: "pending" as const,
+          guest_name: "Bob",
+          requested_at: new Date(Date.now() - 120000).toISOString(),
+          youtube_id: "kJQP7kiw5Fk",
+          artist: "Artist 3",
+          duration: 220,
+        },
+      ];
+
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Verify initial state - all 3 requests visible
+      await expect(dialog.getByText("Alice Song 1")).toBeVisible();
+      await expect(dialog.getByText("Alice Song 2")).toBeVisible();
+      await expect(dialog.getByText("Bob Song 1")).toBeVisible();
+
+      // Find Alice's guest section and click her Approve All button
+      // The guest section structure: div.bg-gray-900/50 > div (header row) > span (guest name) + button (Approve All)
+      // We find the section that contains a span with "Alice" text
+      const aliceSection = dialog.locator('div.bg-gray-900\\/50:has(span:text-is("Alice"))');
+      const aliceApproveAll = aliceSection.locator('button:has-text("Approve All")');
+      await aliceApproveAll.click();
+
+      // Wait for Alice's requests to be removed
+      await expect(async () => {
+        await expect(dialog.getByText("Alice Song 1")).not.toBeVisible();
+        await expect(dialog.getByText("Alice Song 2")).not.toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Bob's request should still be visible
+      await expect(dialog.getByText("Bob Song 1")).toBeVisible();
+
+      // Badge should update to 1
+      const badge = requestsButton.locator("span").filter({ hasText: "1" });
+      await expect(badge).toBeVisible();
+    });
+
+    test("should remove all requests when clicking global Approve All", async ({
+      page,
+    }) => {
+      const mockRequests = [
+        {
+          id: "alice-request-1",
+          title: "Alice Song 1",
+          status: "pending" as const,
+          guest_name: "Alice",
+          requested_at: new Date().toISOString(),
+          youtube_id: "dQw4w9WgXcQ",
+          artist: "Artist 1",
+          duration: 180,
+        },
+        {
+          id: "bob-request-1",
+          title: "Bob Song 1",
+          status: "pending" as const,
+          guest_name: "Bob",
+          requested_at: new Date(Date.now() - 60000).toISOString(),
+          youtube_id: "jNQXAC9IVRw",
+          artist: "Artist 2",
+          duration: 200,
+        },
+        {
+          id: "charlie-request-1",
+          title: "Charlie Song 1",
+          status: "pending" as const,
+          guest_name: "Charlie",
+          requested_at: new Date(Date.now() - 120000).toISOString(),
+          youtube_id: "kJQP7kiw5Fk",
+          artist: "Artist 3",
+          duration: 220,
+        },
+      ];
+
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Verify initial state - all requests visible
+      await expect(dialog.getByText("Alice Song 1")).toBeVisible();
+      await expect(dialog.getByText("Bob Song 1")).toBeVisible();
+      await expect(dialog.getByText("Charlie Song 1")).toBeVisible();
+
+      // Click the global Approve All button in the footer
+      // It's the last Approve All button and has different styling (blue background)
+      const globalApproveAll = dialog.locator('button:has-text("Approve All")').last();
+      await globalApproveAll.click();
+
+      // Wait for all requests to be removed and empty state to appear
+      await expect(async () => {
+        await expect(dialog.getByText("Alice Song 1")).not.toBeVisible();
+        await expect(dialog.getByText("Bob Song 1")).not.toBeVisible();
+        await expect(dialog.getByText("Charlie Song 1")).not.toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Verify empty state is shown
+      await expect(dialog.getByText("No pending song requests")).toBeVisible();
+
+      // Global Approve All button should no longer be visible
+      await expect(dialog.locator('button:has-text("Approve All")')).not.toBeVisible();
+    });
+
+    test("should show empty state after approving all requests from single guest", async ({
+      page,
+    }) => {
+      // Only one guest with requests
+      const mockRequests = createMockSongRequests(2, ["Alice"]);
+
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Click global Approve All
+      const approveAllButton = dialog.locator('button:has-text("Approve All")').last();
+      await approveAllButton.click();
+
+      // Wait for empty state
+      await expect(async () => {
+        await expect(dialog.getByText("No pending song requests")).toBeVisible();
+      }).toPass({ timeout: 10000 });
+
+      // Badge should be hidden (0 pending)
+      const badge = requestsButton.locator("span.bg-blue-500");
+      await expect(badge).not.toBeVisible();
+    });
+  });
 });

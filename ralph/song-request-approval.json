@@ -648,7 +648,7 @@
         "Test clicks global Approve All button",
         "Test verifies all requests are removed and modal shows empty state"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-055",
