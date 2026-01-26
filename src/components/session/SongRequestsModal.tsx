@@ -12,6 +12,22 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+/**
+ * Validate thumbnail URL to prevent XSS attacks.
+ * Only allows HTTPS URLs to prevent javascript: and other dangerous protocols.
+ */
+function isValidThumbnailUrl(url: string | undefined | null): boolean {
+  if (!url) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function SongRequestsModal() {
   const {
     showRequestsModal,
@@ -127,7 +143,7 @@ export function SongRequestsModal() {
                         className="flex items-center gap-3 p-2 bg-gray-800 rounded"
                       >
                         {/* Thumbnail */}
-                        {request.thumbnail_url ? (
+                        {isValidThumbnailUrl(request.thumbnail_url) ? (
                           <img
                             src={request.thumbnail_url}
                             alt=""

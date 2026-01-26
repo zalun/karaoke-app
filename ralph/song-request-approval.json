@@ -362,6 +362,148 @@
         "Notification 'View' action opens the requests modal"
       ],
       "passes": true
+    },
+    {
+      "id": "SRA-031",
+      "category": "Security",
+      "description": "Validate thumbnail URLs to prevent XSS attacks",
+      "steps_to_verify": [
+        "SongRequestsModal.tsx has isValidThumbnailUrl helper function",
+        "Helper function validates URL starts with https:// protocol",
+        "Helper function uses try/catch with new URL() for safe parsing",
+        "Helper function returns false for undefined, null, or invalid URLs",
+        "Thumbnail img element only renders when isValidThumbnailUrl returns true",
+        "Placeholder div renders when URL is invalid or missing"
+      ],
+      "passes": true
+    },
+    {
+      "id": "SRA-032",
+      "category": "Security",
+      "description": "Handle broken thumbnail images gracefully",
+      "steps_to_verify": [
+        "Thumbnail img element has onError handler",
+        "onError handler hides the broken image or shows placeholder",
+        "Component uses useState to track image load errors per request",
+        "Broken images show the same placeholder as missing thumbnails"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-033",
+      "category": "Accessibility",
+      "description": "Add ARIA attributes to SongRequestsModal for screen readers",
+      "steps_to_verify": [
+        "Modal container div has role='dialog' attribute",
+        "Modal container div has aria-modal='true' attribute",
+        "Modal container div has aria-labelledby pointing to title element",
+        "Title h3 element has id='song-requests-modal-title'",
+        "Screen readers can identify the modal as a dialog"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-034",
+      "category": "Session Store",
+      "description": "Add processingRequestIds state to track in-flight request operations",
+      "steps_to_verify": [
+        "SessionState interface has processingRequestIds field typed as Set<string>",
+        "Initial value is new Set() in store creation",
+        "State is exposed for components to consume"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-035",
+      "category": "Session Store",
+      "description": "Track processing state in approveRequest action",
+      "steps_to_verify": [
+        "approveRequest adds requestId to processingRequestIds at start",
+        "approveRequest removes requestId from processingRequestIds in finally block",
+        "Processing state is cleared even if operation fails",
+        "Duplicate clicks are prevented while request is processing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-036",
+      "category": "Session Store",
+      "description": "Track processing state in rejectRequest action",
+      "steps_to_verify": [
+        "rejectRequest adds requestId to processingRequestIds at start",
+        "rejectRequest removes requestId from processingRequestIds in finally block",
+        "Processing state is cleared even if operation fails",
+        "Duplicate clicks are prevented while request is processing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-037",
+      "category": "Session Store",
+      "description": "Track processing state in approveAllRequests action",
+      "steps_to_verify": [
+        "approveAllRequests adds all requestIds to processingRequestIds at start",
+        "approveAllRequests removes all requestIds from processingRequestIds in finally block",
+        "Processing state is cleared even if operation fails"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-038",
+      "category": "UI Component",
+      "description": "Show per-item loading spinners on approve/reject buttons",
+      "steps_to_verify": [
+        "SongRequestsModal imports processingRequestIds from session store",
+        "Approve button shows Loader2 spinner when request.id is in processingRequestIds",
+        "Reject button shows Loader2 spinner when request.id is in processingRequestIds",
+        "Buttons are disabled when their request is processing",
+        "Check icon shows when not processing, spinner shows when processing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-039",
+      "category": "Session Store",
+      "description": "Fix race condition by moving state update after refresh in approveRequest",
+      "steps_to_verify": [
+        "In approveRequest, pendingRequests filter happens AFTER refreshHostedSession call",
+        "State update only occurs if the entire operation succeeds",
+        "Error handling still works correctly with reordered operations"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-040",
+      "category": "Session Store",
+      "description": "Fix race condition by moving state update after refresh in rejectRequest",
+      "steps_to_verify": [
+        "In rejectRequest, pendingRequests filter happens AFTER refreshHostedSession call",
+        "State update only occurs if the entire operation succeeds",
+        "Error handling still works correctly with reordered operations"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-041",
+      "category": "Session Store",
+      "description": "Fix race condition by moving state update after refresh in approveAllRequests",
+      "steps_to_verify": [
+        "In approveAllRequests, pendingRequests filter happens AFTER refreshHostedSession call",
+        "State update only occurs if the entire operation succeeds",
+        "Error handling still works correctly with reordered operations"
+      ],
+      "passes": false
+    },
+    {
+      "id": "SRA-042",
+      "category": "Session Store",
+      "description": "Improve notification logic clarity in refreshHostedSession",
+      "steps_to_verify": [
+        "Condition 'previousCount !== undefined' changed to 'previousCount >= 0'",
+        "Logic is clearer since previousPendingCount is initialized to 0",
+        "Notification still triggers correctly when new requests arrive"
+      ],
+      "passes": false
     }
   ]
 }
