@@ -446,7 +446,7 @@
         "approveAllRequests removes all requestIds from processingRequestIds in finally block",
         "Processing state is cleared even if operation fails"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-038",

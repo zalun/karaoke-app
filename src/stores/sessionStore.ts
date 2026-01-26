@@ -1196,7 +1196,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   approveAllRequests: async (guestName?: string) => {
-    const { hostedSession, pendingRequests } = get();
+    const { hostedSession, pendingRequests, processingRequestIds } = get();
     if (!hostedSession) {
       log.error("Cannot approve all requests: no hosted session");
       throw new Error("No hosted session");
@@ -1215,6 +1215,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const requestIds = requestsToApprove.map((r) => r.id);
     log.debug(`Approving ${requestIds.length} requests${guestName ? ` from ${guestName}` : ""}`);
 
+    // Add all request IDs to processing set
+    const newProcessing = new Set(processingRequestIds);
+    for (const id of requestIds) {
+      newProcessing.add(id);
+    }
+    set({ processingRequestIds: newProcessing });
+
     try {
       const tokens = await authService.getTokens();
       if (!tokens) {
@@ -1228,14 +1235,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         requestIds
       );
 
-      // Remove approved requests from pending requests
-      const approvedIds = new Set(requestIds);
-      set({
-        pendingRequests: pendingRequests.filter((r) => !approvedIds.has(r.id)),
-      });
-
       // Refresh hosted session to update stats
       await get().refreshHostedSession();
+
+      // Remove approved requests from pending requests after successful refresh
+      const approvedIds = new Set(requestIds);
+      set({
+        pendingRequests: get().pendingRequests.filter((r) => !approvedIds.has(r.id)),
+      });
 
       log.debug(`${requestIds.length} requests approved`);
     } catch (error) {
@@ -1243,6 +1250,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       log.error(`Failed to approve all requests: ${message}`);
       notify("error", "Failed to approve requests");
       throw error;
+    } finally {
+      // Always remove all request IDs from processing set, even on failure
+      const currentProcessing = get().processingRequestIds;
+      const updatedProcessing = new Set(currentProcessing);
+      for (const id of requestIds) {
+        updatedProcessing.delete(id);
+      }
+      set({ processingRequestIds: updatedProcessing });
     }
   },
 
