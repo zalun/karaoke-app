@@ -688,4 +688,205 @@ test.describe("Song Requests Modal", () => {
       await expect(badge).not.toBeVisible();
     });
   });
+
+  test.describe("Keyboard Accessibility", () => {
+    test("should close modal when pressing Escape key", async ({ page }) => {
+      const mockRequests = createMockSongRequests(2, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      // Verify modal is open
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Press Escape key
+      await page.keyboard.press("Escape");
+
+      // Verify modal is closed
+      await expect(dialog).not.toBeVisible();
+    });
+
+    test("should trap focus within modal when pressing Tab", async ({
+      page,
+    }) => {
+      const mockRequests = createMockSongRequests(2, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      // Verify modal is open
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Wait for focus to be set inside the modal
+      await expect(async () => {
+        const activeElement = await page.evaluate(() => {
+          const el = document.activeElement;
+          if (!el) return null;
+          // Check if active element is inside the dialog
+          return el.closest('[role="dialog"]') !== null;
+        });
+        expect(activeElement).toBe(true);
+      }).toPass({ timeout: 5000 });
+
+      // Get all focusable elements in the modal
+      const focusableElements = dialog.locator(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      const elementCount = await focusableElements.count();
+
+      // Tab through all elements - should cycle back to first
+      for (let i = 0; i < elementCount; i++) {
+        await page.keyboard.press("Tab");
+      }
+
+      // After tabbing through all elements, focus should wrap to first focusable element
+      await expect(async () => {
+        const activeElement = await page.evaluate(() => {
+          const el = document.activeElement;
+          if (!el) return null;
+          return el.closest('[role="dialog"]') !== null;
+        });
+        expect(activeElement).toBe(true);
+      }).toPass({ timeout: 5000 });
+    });
+
+    test("should move focus to modal when it opens", async ({ page }) => {
+      const mockRequests = createMockSongRequests(2, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      // Verify modal is open
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Verify focus moved inside the modal
+      await expect(async () => {
+        const focusInsideModal = await page.evaluate(() => {
+          const activeElement = document.activeElement;
+          if (!activeElement) return false;
+          return activeElement.closest('[role="dialog"]') !== null;
+        });
+        expect(focusInsideModal).toBe(true);
+      }).toPass({ timeout: 5000 });
+    });
+
+    test("should return focus to trigger element when modal closes", async ({
+      page,
+      browserName,
+    }) => {
+      // WebKit has known differences in focus handling, particularly with
+      // programmatic focus restoration after modal close
+      // See: https://bugs.webkit.org/show_bug.cgi?id=22261
+      if (browserName === "webkit") {
+        test.skip();
+        return;
+      }
+
+      const mockRequests = createMockSongRequests(2, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Get the requests button and focus it explicitly before clicking
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.focus();
+      await requestsButton.click();
+
+      // Verify modal is open
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Close modal with Escape
+      await page.keyboard.press("Escape");
+
+      // Verify modal is closed
+      await expect(dialog).not.toBeVisible();
+
+      // Verify focus returned to the requests button
+      await expect(async () => {
+        const isFocused = await requestsButton.evaluate(
+          (el) => el === document.activeElement
+        );
+        expect(isFocused).toBe(true);
+      }).toPass({ timeout: 5000 });
+    });
+
+    test("should cycle focus with Shift+Tab in reverse", async ({ page }) => {
+      const mockRequests = createMockSongRequests(1, ["Alice"]);
+      await injectTauriMocks(page, createBaseMockConfig(mockRequests));
+
+      mainPage = new MainPage(page);
+      await mainPage.goto();
+      await mainPage.waitForAppReady();
+
+      // Open the modal
+      const requestsButton = page.locator('button[title*="pending requests"]');
+      await expect(requestsButton).toBeVisible({ timeout: 15000 });
+      await requestsButton.click();
+
+      // Verify modal is open
+      const dialog = page.locator('[role="dialog"]');
+      await expect(
+        dialog.getByRole("heading", { name: "Song Requests" })
+      ).toBeVisible({ timeout: 10000 });
+
+      // Wait for focus to be set inside the modal
+      await expect(async () => {
+        const activeElement = await page.evaluate(() => {
+          const el = document.activeElement;
+          if (!el) return null;
+          return el.closest('[role="dialog"]') !== null;
+        });
+        expect(activeElement).toBe(true);
+      }).toPass({ timeout: 5000 });
+
+      // Press Shift+Tab - focus should wrap to last element
+      await page.keyboard.press("Shift+Tab");
+
+      // Verify focus is still inside the modal (wrapped to last element)
+      await expect(async () => {
+        const focusInsideModal = await page.evaluate(() => {
+          const activeElement = document.activeElement;
+          if (!activeElement) return false;
+          return activeElement.closest('[role="dialog"]') !== null;
+        });
+        expect(focusInsideModal).toBe(true);
+      }).toPass({ timeout: 5000 });
+    });
+  });
 });

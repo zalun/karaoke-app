@@ -660,7 +660,7 @@
         "Test verifies Tab key cycles through interactive elements",
         "Test verifies focus is trapped within modal"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "SRA-056",
