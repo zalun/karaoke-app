@@ -550,7 +550,7 @@
         "TypeScript provides autocomplete for valid status values",
         "Invalid status values cause type errors at compile time"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }

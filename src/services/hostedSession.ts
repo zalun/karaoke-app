@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { createLogger } from "./logger";
 import { HOMEKARAOKE_API_URL, buildJoinUrl, buildQrCodeUrl } from "../constants";
 import { HostedSessionStatus } from "./session";
-import { SongRequest } from "../types/songRequest";
+import { SongRequest, SongRequestStatus } from "../types/songRequest";
 
 const log = createLogger("HostedSessionService");
 
@@ -276,7 +276,7 @@ export const hostedSessionService = {
   async getRequests(
     accessToken: string,
     sessionId: string,
-    status?: string
+    status?: SongRequestStatus
   ): Promise<SongRequest[]> {
     if (!accessToken || accessToken.trim() === "") {
       throw new Error("Access token is required");

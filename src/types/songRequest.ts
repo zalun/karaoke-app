@@ -1,7 +1,13 @@
+/**
+ * Valid status values for song requests.
+ * Used for both SongRequest.status and filtering in API calls.
+ */
+export type SongRequestStatus = "pending" | "approved" | "rejected" | "played";
+
 export interface SongRequest {
   id: string;
   title: string;
-  status: "pending" | "approved" | "rejected" | "played";
+  status: SongRequestStatus;
   guest_name: string;
   requested_at: string;
   youtube_id?: string;

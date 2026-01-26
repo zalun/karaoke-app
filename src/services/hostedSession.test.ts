@@ -329,6 +329,27 @@ describe("hostedSessionService.getRequests", () => {
     );
   });
 
+  it("should accept all valid SongRequestStatus values", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([]),
+    });
+
+    // Test all valid status values to ensure type safety works at runtime
+    const validStatuses = ["pending", "approved", "rejected", "played"] as const;
+
+    for (const status of validStatuses) {
+      await hostedSessionService.getRequests("token-123", "session-456", status);
+
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.stringMatching(new RegExp(`status=${status}$`)),
+        expect.any(Object)
+      );
+    }
+
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
   it("should return array of SongRequest objects", async () => {
     const mockResponse = [
       {
