@@ -79,6 +79,18 @@ export const authService = {
   },
 
   /**
+   * Get the OAuth login URL without opening the browser.
+   * Uses the current pending state, or generates a new one if none exists.
+   * Useful for copying the URL to use in a different browser.
+   */
+  async getLoginUrl(): Promise<string> {
+    if (!pendingAuthState) {
+      pendingAuthState = generateState();
+    }
+    return await invoke<string>("auth_get_login_url", { state: pendingAuthState });
+  },
+
+  /**
    * Get any pending auth callback that arrived before the listener was ready.
    * This handles the race condition when the app is launched via deep link.
    */

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Loader2, ExternalLink, ClipboardPaste } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Loader2, ExternalLink, ClipboardPaste, Copy, Check } from "lucide-react";
 import { useAuthStore } from "../../stores";
 import { authService } from "../../services/auth";
 
@@ -17,6 +17,39 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualUrl, setManualUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loginUrl, setLoginUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Fetch the login URL when the modal opens
+  useEffect(() => {
+    if (isOpen) {
+      authService.getLoginUrl().then(setLoginUrl).catch(() => {
+        // Ignore errors - button just won't be available
+      });
+    } else {
+      setLoginUrl(null);
+      setCopied(false);
+    }
+  }, [isOpen]);
+
+  const handleCopyLink = async () => {
+    if (!loginUrl) return;
+    try {
+      await navigator.clipboard.writeText(loginUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea");
+      textArea.value = loginUrl;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -103,6 +136,26 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
               </div>
             </div>
           </div>
+
+          {/* Copy link button - for using a different browser */}
+          {loginUrl && (
+            <button
+              onClick={handleCopyLink}
+              className="flex items-center justify-center gap-2 w-full px-3 py-2 mb-4 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded-lg transition-colors"
+            >
+              {copied ? (
+                <>
+                  <Check size={16} className="text-green-400" />
+                  <span className="text-green-400">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy size={16} />
+                  <span>Copy sign-in link</span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* Manual URL input fallback */}
           {showManualInput ? (
