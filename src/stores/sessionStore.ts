@@ -83,6 +83,7 @@ async function addRequestToQueueWithSinger(
   }
 
   // Find or create singer for this guest
+  // session_guest_id is stable per user, allowing cross-session singer identification
   const singerId = await storeGet().findOrCreateSingerForGuest(
     request.session_guest_id,
     request.guest_name
@@ -294,6 +295,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       await flushPendingOperations();
       await sessionService.endSession();
       set({ session: null, isLoading: false, singers: [], activeSingerId: null, queueSingerAssignments: new Map(), hostedSession: null, showHostModal: false });
+      // Clear pending singer creations to prevent memory leak
+      pendingSingerCreations.clear();
       // Reset queue store (data already archived in DB)
       useQueueStore.getState().resetState();
       log.info("Session ended");
@@ -1384,15 +1387,26 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           log.warn("Cannot notify server of approvals: not authenticated");
           return;
         }
-        // Approve all requests on server (can be parallel since no dependencies)
-        const approvePromises = requestIds.map((requestId) =>
-          hostedSessionService.approveRequest(tokens.access_token, hostedSession.id, requestId)
-            .catch((error) => {
-              const message = error instanceof Error ? error.message : String(error);
-              log.warn(`Failed to approve request ${requestId} on server: ${message}`);
-            })
+        // Approve all requests on server (parallel, partial failures allowed)
+        const results = await Promise.allSettled(
+          requestIds.map((requestId) =>
+            hostedSessionService.approveRequest(tokens.access_token, hostedSession.id, requestId)
+          )
         );
-        await Promise.all(approvePromises);
+
+        // Log results for debugging
+        const succeeded = results.filter((r) => r.status === "fulfilled").length;
+        const failed = results.filter((r) => r.status === "rejected").length;
+        if (failed > 0) {
+          log.warn(`Server notification: ${succeeded} succeeded, ${failed} failed`);
+          results.forEach((r, i) => {
+            if (r.status === "rejected") {
+              const message = r.reason instanceof Error ? r.reason.message : String(r.reason);
+              log.warn(`  Failed request ${requestIds[i]}: ${message}`);
+            }
+          });
+        }
+
         // Refresh once after all approvals complete
         await get().refreshHostedSession();
       }).catch((error) => {
