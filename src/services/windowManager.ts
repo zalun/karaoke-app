@@ -27,7 +27,7 @@ const PLAYER_EVENTS = {
 export interface SongInfo {
   title: string;
   artist?: string;
-  singers?: Array<{ id: number; name: string; unique_name?: string | null; color: string }>;
+  singers?: Array<{ id: number; name: string; unique_name?: string | null; color: string; online_id?: string | null }>;
 }
 
 export interface PlayerState {

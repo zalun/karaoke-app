@@ -324,6 +324,11 @@ const MIGRATIONS: &[&str] = &[
         SELECT RAISE(ABORT, 'Invalid hosted_session_status. Must be NULL, active, paused, or ended.');
     END;
     "#,
+    // Migration 13: Add online_id to singers for linking to session guests (Issue #215)
+    r#"
+    ALTER TABLE singers ADD COLUMN online_id TEXT;
+    CREATE INDEX IF NOT EXISTS idx_singers_online_id ON singers(online_id);
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
@@ -410,7 +415,7 @@ mod tests {
     }
 
     #[test]
-    fn test_schema_version_is_12_after_all_migrations() {
+    fn test_schema_version_is_13_after_all_migrations() {
         let conn = Connection::open_in_memory().unwrap();
         run_migrations(&conn).unwrap();
 
@@ -422,7 +427,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(version, 12);
+        assert_eq!(version, 13);
     }
 
     #[test]
@@ -557,5 +562,70 @@ mod tests {
             .unwrap();
 
         assert_eq!(status, None);
+    }
+
+    #[test]
+    fn test_migration_13_adds_online_id_to_singers() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Insert a singer with online_id
+        conn.execute(
+            "INSERT INTO singers (name, color, is_persistent, online_id) VALUES ('Guest Singer', '#FF0000', 0, 'guest-123')",
+            [],
+        )
+        .unwrap();
+
+        // Verify we can query the online_id column
+        let online_id: Option<String> = conn
+            .query_row(
+                "SELECT online_id FROM singers WHERE name = 'Guest Singer'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(online_id, Some("guest-123".to_string()));
+    }
+
+    #[test]
+    fn test_migration_13_online_id_is_nullable() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Insert a singer without online_id
+        conn.execute(
+            "INSERT INTO singers (name, color, is_persistent) VALUES ('Local Singer', '#00FF00', 1)",
+            [],
+        )
+        .unwrap();
+
+        // Verify online_id is NULL
+        let online_id: Option<String> = conn
+            .query_row(
+                "SELECT online_id FROM singers WHERE name = 'Local Singer'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(online_id, None);
+    }
+
+    #[test]
+    fn test_migration_13_online_id_index_exists() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Verify index exists by querying sqlite_master
+        let index_exists: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_singers_online_id')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert!(index_exists);
     }
 }

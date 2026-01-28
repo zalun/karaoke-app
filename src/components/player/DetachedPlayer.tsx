@@ -368,6 +368,7 @@ export function DetachedPlayer() {
             unique_name: s.unique_name ?? null,
             color: s.color,
             is_persistent: false,
+            online_id: s.online_id ?? null,
           }))}
           joinCode={state.hostedSession?.sessionCode}
         />

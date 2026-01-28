@@ -8,7 +8,10 @@ export interface SongRequest {
   id: string;
   title: string;
   status: SongRequestStatus;
+  /** Display name for the guest (used for UI display) */
   guest_name: string;
+  /** Unique identifier for the session guest (used for linking to singer) */
+  session_guest_id: string;
   requested_at: string;
   youtube_id?: string;
   artist?: string;

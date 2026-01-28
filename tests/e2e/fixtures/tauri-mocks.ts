@@ -506,7 +506,29 @@ export async function injectTauriMocks(
           case "session_assign_singer":
           case "add_singer_to_session":
           case "remove_singer_from_session":
+          case "assign_singer_to_queue_item":
+          case "remove_singer_from_queue_item":
+          case "clear_queue_item_singers":
             return null;
+
+          case "create_singer": {
+            // Generate a mock singer with incrementing ID
+            const singerGlobals = getHttpMockGlobals();
+            const singerId = (singerGlobals.__NEXT_SINGER_ID__ || 1) as number;
+            singerGlobals.__NEXT_SINGER_ID__ = singerId + 1;
+            const name = args?.name as string || "Guest Singer";
+            const color = args?.color as string || "#4A90D9";
+            const onlineId = args?.onlineId as string | null;
+            console.log(`[Tauri Mock] create_singer: name=${name}, color=${color}, onlineId=${onlineId}`);
+            return {
+              id: singerId,
+              name,
+              unique_name: null,
+              color,
+              is_persistent: false,
+              online_id: onlineId || null,
+            };
+          }
 
           case "session_get_singers":
           case "get_session_singers":
@@ -853,8 +875,9 @@ export async function injectTauriMocks(
                   const bodyStr = new TextDecoder().decode(new Uint8Array(bodyBytes));
                   const body = JSON.parse(bodyStr);
                   const action = body.action;
-                  const requestId = body.requestId;
-                  const requestIds = body.requestIds || (requestId ? [requestId] : []);
+                  // Support both snake_case (request_id) and camelCase (requestId)
+                  const requestId = body.request_id || body.requestId;
+                  const requestIds = body.request_ids || body.requestIds || (requestId ? [requestId] : []);
 
                   // Update request statuses
                   for (const id of requestIds) {
@@ -1285,6 +1308,7 @@ export interface MockSongRequest {
   title: string;
   status: "pending" | "approved" | "rejected" | "played";
   guest_name: string;
+  session_guest_id: string;
   requested_at: string;
   youtube_id?: string;
   artist?: string;
@@ -1309,17 +1333,21 @@ export function createMockSongRequests(
     "RgKAFK5djSk",
   ];
 
-  return Array.from({ length: count }, (_, i) => ({
-    id: `request-${i + 1}`,
-    title: `Test Song Request ${i + 1}`,
-    status: "pending" as const,
-    guest_name: guestNames[i % guestNames.length],
-    requested_at: new Date(Date.now() - i * 60000).toISOString(),
-    youtube_id: videoIds[i % videoIds.length],
-    artist: `Artist ${i + 1}`,
-    duration: 180 + i * 30,
-    thumbnail_url: `https://i.ytimg.com/vi/${videoIds[i % videoIds.length]}/hqdefault.jpg`,
-  }));
+  return Array.from({ length: count }, (_, i) => {
+    const guestName = guestNames[i % guestNames.length];
+    return {
+      id: `request-${i + 1}`,
+      title: `Test Song Request ${i + 1}`,
+      status: "pending" as const,
+      guest_name: guestName,
+      session_guest_id: `guest-${guestName.toLowerCase()}-${i + 1}`,
+      requested_at: new Date(Date.now() - i * 60000).toISOString(),
+      youtube_id: videoIds[i % videoIds.length],
+      artist: `Artist ${i + 1}`,
+      duration: 180 + i * 30,
+      thumbnail_url: `https://i.ytimg.com/vi/${videoIds[i % videoIds.length]}/hqdefault.jpg`,
+    };
+  });
 }
 
 /**

@@ -8,6 +8,17 @@ use tauri::State;
 use tauri_plugin_opener::OpenerExt;
 
 const AUTH_LOGIN_URL: &str = "https://homekaraoke.app/auth/app-login";
+const AUTH_REDIRECT_URI: &str = "homekaraoke://auth/callback";
+
+/// Build the OAuth login URL with the given state parameter.
+fn build_login_url(state: &str) -> String {
+    format!(
+        "{}?redirect_uri={}&state={}",
+        AUTH_LOGIN_URL,
+        urlencoding::encode(AUTH_REDIRECT_URI),
+        urlencoding::encode(state)
+    )
+}
 
 /// Store authentication tokens in the OS keychain.
 #[tauri::command]
@@ -44,17 +55,20 @@ pub fn auth_clear_tokens() -> Result<(), String> {
     })
 }
 
+/// Get the OAuth login URL without opening the browser.
+/// Useful for copying the URL to use in a different browser.
+#[tauri::command]
+pub fn auth_get_login_url(state: String) -> String {
+    let url = build_login_url(&state);
+    debug!("Generated login URL: {}", url);
+    url
+}
+
 /// Open the system browser to the website login page for OAuth.
 /// The state parameter is used for CSRF protection.
 #[tauri::command]
 pub fn auth_open_login(app: tauri::AppHandle, state: String) -> Result<(), String> {
-    let redirect_uri = "homekaraoke://auth/callback";
-    let url = format!(
-        "{}?redirect_uri={}&state={}",
-        AUTH_LOGIN_URL,
-        urlencoding::encode(redirect_uri),
-        urlencoding::encode(&state)
-    );
+    let url = build_login_url(&state);
 
     info!("Opening browser for OAuth login");
     debug!("Login URL: {}", url);

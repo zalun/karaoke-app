@@ -27,6 +27,8 @@ export interface Singer {
   unique_name: string | null;
   color: string;
   is_persistent: boolean;
+  /** Links this singer to a session guest (session_guest_id from the API) */
+  online_id: string | null;
 }
 
 export interface FavoriteVideo {
@@ -85,7 +87,8 @@ export const sessionService = {
     name: string,
     color: string,
     isPersistent: boolean = false,
-    uniqueName?: string
+    uniqueName?: string,
+    onlineId?: string
   ): Promise<Singer> {
     log.info(`Creating singer: ${name}`);
     return await invoke<Singer>("create_singer", {
@@ -93,12 +96,18 @@ export const sessionService = {
       color,
       isPersistent,
       uniqueName: uniqueName || null,
+      onlineId: onlineId || null,
     });
   },
 
   async getSingers(): Promise<Singer[]> {
     log.debug("Fetching all singers");
     return await invoke<Singer[]>("get_singers");
+  },
+
+  async findSingerByOnlineId(onlineId: string): Promise<Singer | null> {
+    log.debug(`Finding singer by online_id: ${onlineId}`);
+    return await invoke<Singer | null>("find_singer_by_online_id", { onlineId });
   },
 
   async deleteSinger(singerId: number): Promise<void> {
