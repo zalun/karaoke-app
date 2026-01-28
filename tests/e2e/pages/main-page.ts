@@ -57,7 +57,7 @@ export class MainPage {
 
     // Session elements
     this.startSessionButton = page.getByRole("button", { name: "Start Session" });
-    this.endSessionButton = page.getByRole("button", { name: "End" });
+    this.endSessionButton = page.getByRole("button", { name: "End Session" });
     // Session indicator is the pulsing green dot (w-2 h-2 rounded-full bg-green-500 animate-pulse)
     this.sessionIndicator = page.locator('[class*="bg-green-500"][class*="animate-pulse"]');
   }
