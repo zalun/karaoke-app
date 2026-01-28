@@ -12,7 +12,7 @@ pub struct Singer {
     pub unique_name: Option<String>,
     pub color: String,
     pub is_persistent: bool,
-    /// Links this singer to a session guest (session_guest_id from the API).
+    /// Links this singer to a user (user_id from the API, stable across sessions).
     /// Used to automatically assign singers when approving song requests.
     pub online_id: Option<String>,
 }
@@ -150,7 +150,7 @@ pub fn get_singers(state: State<'_, AppState>) -> Result<Vec<Singer>, CommandErr
     Ok(singers)
 }
 
-/// Find a singer by their online_id (session_guest_id from the API).
+/// Find a singer by their online_id (user_id from the API).
 /// Returns None if no singer exists with the given online_id.
 #[tauri::command]
 pub fn find_singer_by_online_id(
