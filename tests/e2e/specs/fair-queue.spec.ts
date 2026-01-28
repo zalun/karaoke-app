@@ -16,7 +16,7 @@ test.describe("Fair Queue", () => {
       await mainPage.goto();
       await mainPage.waitForAppReady();
 
-      // Search and add an item to queue (toggle only shows when queue has items)
+      // Search and add an item to queue
       await mainPage.search("test");
       await mainPage.waitForSearchResults();
       await mainPage.clickAddToQueueOnResult(0);
@@ -46,7 +46,7 @@ test.describe("Fair Queue", () => {
       await mainPage.goto();
       await mainPage.waitForAppReady();
 
-      // Search and add an item to queue (toggle only shows when queue has items)
+      // Search and add an item to queue
       await mainPage.search("test");
       await mainPage.waitForSearchResults();
       await mainPage.clickAddToQueueOnResult(0);

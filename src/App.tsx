@@ -969,7 +969,7 @@ function QueuePanel() {
       }}
     >
       {queue.length === 0 ? (
-        <div className="text-gray-400 text-sm flex-1">
+        <div className="text-gray-400 text-sm flex-1" role="status" aria-live="polite">
           <p>No songs in queue</p>
           <p className="mt-2 text-xs">
             Search for songs and click "+" to add them
