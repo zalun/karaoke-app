@@ -153,7 +153,7 @@ interface SongRequestResponse {
   title: string;
   status: "pending" | "approved" | "rejected" | "played";
   guest_name: string;
-  session_guest_id: string;
+  user_id: string;
   requested_at: string;
   youtube_id?: string;
   artist?: string;
@@ -323,7 +323,7 @@ export const hostedSessionService = {
       title: item.title,
       status: item.status,
       guest_name: item.guest_name,
-      session_guest_id: item.session_guest_id,
+      user_id: item.user_id,
       requested_at: item.requested_at,
       youtube_id: item.youtube_id,
       artist: item.artist,

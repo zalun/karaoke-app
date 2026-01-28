@@ -1308,7 +1308,7 @@ export interface MockSongRequest {
   title: string;
   status: "pending" | "approved" | "rejected" | "played";
   guest_name: string;
-  session_guest_id: string;
+  user_id: string;
   requested_at: string;
   youtube_id?: string;
   artist?: string;
@@ -1340,7 +1340,7 @@ export function createMockSongRequests(
       title: `Test Song Request ${i + 1}`,
       status: "pending" as const,
       guest_name: guestName,
-      session_guest_id: `guest-${guestName.toLowerCase()}-${i + 1}`,
+      user_id: `guest-${guestName.toLowerCase()}-${i + 1}`,
       requested_at: new Date(Date.now() - i * 60000).toISOString(),
       youtube_id: videoIds[i % videoIds.length],
       artist: `Artist ${i + 1}`,

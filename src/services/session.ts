@@ -27,7 +27,7 @@ export interface Singer {
   unique_name: string | null;
   color: string;
   is_persistent: boolean;
-  /** Links this singer to a session guest (session_guest_id from the API) */
+  /** Links this singer to a user (user_id from the API, stable across sessions) */
   online_id: string | null;
 }
 

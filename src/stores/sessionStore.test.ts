@@ -3671,7 +3671,7 @@ describe("sessionStore - Song Request Actions", () => {
       title: "Bohemian Rhapsody",
       status: "pending" as const,
       guest_name: "Alice",
-      session_guest_id: "guest-alice-123",
+      user_id: "guest-alice-123",
       requested_at: "2025-01-01T12:00:00Z",
       youtube_id: "fJ9rUzIMcZQ",
       artist: "Queen",
@@ -3683,7 +3683,7 @@ describe("sessionStore - Song Request Actions", () => {
       title: "Don't Stop Me Now",
       status: "pending" as const,
       guest_name: "Bob",
-      session_guest_id: "guest-bob-456",
+      user_id: "guest-bob-456",
       requested_at: "2025-01-01T12:05:00Z",
       youtube_id: "HgzGwKwLmgM",
       artist: "Queen",
@@ -3919,7 +3919,7 @@ describe("sessionStore - Song Request Actions", () => {
         title: "New Song During Approval",
         status: "pending" as const,
         guest_name: "Guest 3",
-        session_guest_id: "guest-3-789",
+        user_id: "guest-3-789",
         requested_at: new Date().toISOString(),
       };
 
@@ -4147,7 +4147,7 @@ describe("sessionStore - Song Request Actions", () => {
         title: "New Song During Refresh",
         status: "pending" as const,
         guest_name: "Guest 3",
-        session_guest_id: "guest-3-789",
+        user_id: "guest-3-789",
         requested_at: new Date().toISOString(),
       };
 
@@ -4208,7 +4208,7 @@ describe("sessionStore - Song Request Actions", () => {
         title: "We Are The Champions",
         status: "pending" as const,
         guest_name: "Alice",
-        session_guest_id: "guest-alice-123",
+        user_id: "guest-alice-123",
         requested_at: "2025-01-01T12:10:00Z",
         youtube_id: "04854XqcfCY",
         artist: "Queen",
@@ -4329,7 +4329,7 @@ describe("sessionStore - Song Request Actions", () => {
         title: "New Song During Approval",
         status: "pending" as const,
         guest_name: "Charlie",
-        session_guest_id: "guest-charlie-999",
+        user_id: "guest-charlie-999",
         requested_at: new Date().toISOString(),
       };
 
@@ -4423,7 +4423,7 @@ describe("sessionStore - Song Request Actions", () => {
           title: "New Song",
           status: "pending" as const,
           guest_name: "Charlie",
-          session_guest_id: "guest-charlie-999",
+          user_id: "guest-charlie-999",
           requested_at: "2025-01-01T12:10:00Z",
         },
       ];

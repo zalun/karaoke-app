@@ -30,7 +30,7 @@ const HOSTED_SESSION_POLL_INTERVAL_MS = 30 * 1000;
 // Buffer time before token expiry to consider it expired (5 minutes)
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 
-// Map to track pending singer creation operations by session_guest_id
+// Map to track pending singer creation operations by user_id
 // Prevents race condition where concurrent approvals create duplicate singers
 const pendingSingerCreations = new Map<string, Promise<number>>();
 
@@ -83,9 +83,9 @@ async function addRequestToQueueWithSinger(
   }
 
   // Find or create singer for this guest
-  // session_guest_id is stable per user, allowing cross-session singer identification
+  // user_id is stable per user, allowing cross-session singer identification
   const singerId = await storeGet().findOrCreateSingerForGuest(
-    request.session_guest_id,
+    request.user_id,
     request.guest_name
   );
 
@@ -520,51 +520,51 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
   },
 
-  findOrCreateSingerForGuest: async (sessionGuestId: string, displayName: string) => {
+  findOrCreateSingerForGuest: async (userId: string, displayName: string) => {
     // 1. Try to find existing singer in memory (fast path)
-    const existingSinger = get().singers.find((s) => s.online_id === sessionGuestId);
+    const existingSinger = get().singers.find((s) => s.online_id === userId);
     if (existingSinger) {
-      log.debug(`Found existing singer in memory for guest ${sessionGuestId}: ${existingSinger.name} (id: ${existingSinger.id})`);
+      log.debug(`Found existing singer in memory for user ${userId}: ${existingSinger.name} (id: ${existingSinger.id})`);
       return existingSinger.id;
     }
 
-    // 2. Check if we're already creating a singer for this guest (race condition protection)
-    const pendingCreation = pendingSingerCreations.get(sessionGuestId);
+    // 2. Check if we're already creating a singer for this user (race condition protection)
+    const pendingCreation = pendingSingerCreations.get(userId);
     if (pendingCreation) {
-      log.debug(`Waiting for pending singer creation for guest ${sessionGuestId}`);
+      log.debug(`Waiting for pending singer creation for user ${userId}`);
       return pendingCreation;
     }
 
     // 3. Check database for existing singer (may exist from previous session)
-    // session_guest_id is stable per user, so we can find returning guests
-    const dbSinger = await sessionService.findSingerByOnlineId(sessionGuestId);
+    // user_id is stable per user, so we can find returning guests
+    const dbSinger = await sessionService.findSingerByOnlineId(userId);
     if (dbSinger) {
-      log.debug(`Found existing singer in database for guest ${sessionGuestId}: ${dbSinger.name} (id: ${dbSinger.id})`);
+      log.debug(`Found existing singer in database for user ${userId}: ${dbSinger.name} (id: ${dbSinger.id})`);
       // Add to in-memory list for future lookups
       set((state) => ({ singers: [...state.singers, dbSinger] }));
       return dbSinger.id;
     }
 
     // 4. Create new singer with online_id (with race condition protection)
-    log.info(`Creating new singer for guest ${sessionGuestId}: ${displayName}`);
+    log.info(`Creating new singer for user ${userId}: ${displayName}`);
     const creationPromise = (async () => {
       try {
-        const newSinger = await get().createSinger(displayName, undefined, false, sessionGuestId);
+        const newSinger = await get().createSinger(displayName, undefined, false, userId);
         return newSinger.id;
       } finally {
         // Clean up the pending map entry after creation completes
-        pendingSingerCreations.delete(sessionGuestId);
+        pendingSingerCreations.delete(userId);
       }
     })();
 
     // Store the promise so concurrent calls can wait on it
-    pendingSingerCreations.set(sessionGuestId, creationPromise);
+    pendingSingerCreations.set(userId, creationPromise);
 
     // Safety timeout: clean up stale entries after 30 seconds in case of unexpected failures
     setTimeout(() => {
-      if (pendingSingerCreations.get(sessionGuestId) === creationPromise) {
-        pendingSingerCreations.delete(sessionGuestId);
-        log.warn(`Cleaned up stale pending singer creation for guest ${sessionGuestId}`);
+      if (pendingSingerCreations.get(userId) === creationPromise) {
+        pendingSingerCreations.delete(userId);
+        log.warn(`Cleaned up stale pending singer creation for user ${userId}`);
       }
     }, 30000);
 
