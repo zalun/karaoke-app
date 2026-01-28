@@ -363,6 +363,7 @@ pub fn run() {
             commands::auth_store_tokens,
             commands::auth_get_tokens,
             commands::auth_clear_tokens,
+            commands::auth_get_login_url,
             commands::auth_open_login,
             commands::auth_get_pending_callback,
         ])
