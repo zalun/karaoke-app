@@ -324,7 +324,7 @@ const MIGRATIONS: &[&str] = &[
         SELECT RAISE(ABORT, 'Invalid hosted_session_status. Must be NULL, active, paused, or ended.');
     END;
     "#,
-    // Migration 13: Add online_id to singers for linking to session guests (Issue #XXX)
+    // Migration 13: Add online_id to singers for linking to session guests (Issue #215)
     r#"
     ALTER TABLE singers ADD COLUMN online_id TEXT;
     CREATE INDEX IF NOT EXISTS idx_singers_online_id ON singers(online_id);

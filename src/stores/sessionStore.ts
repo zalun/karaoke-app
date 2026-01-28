@@ -30,6 +30,52 @@ const HOSTED_SESSION_POLL_INTERVAL_MS = 30 * 1000;
 // Buffer time before token expiry to consider it expired (5 minutes)
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 
+// Map to track pending singer creation operations by session_guest_id
+// Prevents race condition where concurrent approvals create duplicate singers
+const pendingSingerCreations = new Map<string, Promise<number>>();
+
+/**
+ * Helper to add a song request to queue with singer assignment.
+ * Shared by approveRequest and approveAllRequests.
+ * @param request - The song request to add
+ * @param storeGet - The store's get() function
+ * @returns true if added successfully, false if request has no youtube_id
+ */
+async function addRequestToQueueWithSinger(
+  request: SongRequest,
+  storeGet: () => SessionState
+): Promise<boolean> {
+  if (!request.youtube_id) {
+    log.warn(`Request ${request.id} has no youtube_id, cannot add to queue`);
+    return false;
+  }
+
+  // Find or create singer for this guest
+  const singerId = await storeGet().findOrCreateSingerForGuest(
+    request.session_guest_id,
+    request.guest_name
+  );
+
+  // Convert request to Video and add to queue
+  const video: Video = {
+    id: request.youtube_id,
+    title: request.title,
+    artist: request.artist,
+    duration: request.duration,
+    thumbnailUrl: request.thumbnail_url,
+    source: "youtube",
+    youtubeId: request.youtube_id,
+  };
+  const queueItem = await useQueueStore.getState().addToQueue(video);
+  log.debug(`Added approved song to queue: ${video.title}`);
+
+  // Assign the guest's singer to the queue item
+  await storeGet().assignSingerToQueueItem(queueItem.id, singerId);
+  log.debug(`Assigned singer ${singerId} to queue item ${queueItem.id}`);
+
+  return true;
+}
+
 /**
  * Check if authentication token is still valid.
  * @param expiresAt - Token expiration time in Unix seconds
@@ -447,10 +493,28 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return existingSinger.id;
     }
 
-    // 2. Create new singer with online_id
+    // 2. Check if we're already creating a singer for this guest (race condition protection)
+    const pendingCreation = pendingSingerCreations.get(sessionGuestId);
+    if (pendingCreation) {
+      log.debug(`Waiting for pending singer creation for guest ${sessionGuestId}`);
+      return pendingCreation;
+    }
+
+    // 3. Create new singer with online_id (with race condition protection)
     log.info(`Creating new singer for guest ${sessionGuestId}: ${displayName}`);
-    const newSinger = await get().createSinger(displayName, undefined, false, sessionGuestId);
-    return newSinger.id;
+    const creationPromise = (async () => {
+      try {
+        const newSinger = await get().createSinger(displayName, undefined, false, sessionGuestId);
+        return newSinger.id;
+      } finally {
+        // Clean up the pending map entry after creation completes
+        pendingSingerCreations.delete(sessionGuestId);
+      }
+    })();
+
+    // Store the promise so concurrent calls can wait on it
+    pendingSingerCreations.set(sessionGuestId, creationPromise);
+    return creationPromise;
   },
 
   assignSingerToQueueItem: async (queueItemId: string, singerId: number) => {
@@ -1131,32 +1195,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ processingRequestIds: new Set(processingRequestIds).add(requestId) });
 
     try {
-      // Find or create singer for this guest
-      const singerId = await get().findOrCreateSingerForGuest(
-        request.session_guest_id,
-        request.guest_name
-      );
-
-      // Convert request to Video and add to queue
-      if (request.youtube_id) {
-        const video: Video = {
-          id: request.youtube_id,
-          title: request.title,
-          artist: request.artist,
-          duration: request.duration,
-          thumbnailUrl: request.thumbnail_url,
-          source: "youtube",
-          youtubeId: request.youtube_id,
-        };
-        const queueItem = await useQueueStore.getState().addToQueue(video);
-        log.debug(`Added approved song to queue: ${video.title}`);
-
-        // Assign the guest's singer to the queue item
-        await get().assignSingerToQueueItem(queueItem.id, singerId);
-        log.debug(`Assigned singer ${singerId} to queue item ${queueItem.id}`);
-      } else {
-        log.warn(`Request ${requestId} has no youtube_id, cannot add to queue`);
-      }
+      // Add song to queue with singer assignment
+      await addRequestToQueueWithSinger(request, get);
 
       // Remove from pending requests immediately (don't wait for server)
       set({
@@ -1179,6 +1219,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           const message = error instanceof Error ? error.message : String(error);
           log.warn(`Server notification failed (song already added to queue): ${message}`);
         });
+      }).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        log.warn(`Failed to get tokens for server notification: ${message}`);
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1276,33 +1319,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ processingRequestIds: newProcessing });
 
     try {
-      // Add all songs to queue and assign singers first (critical path)
+      // Add all songs to queue and assign singers (critical path)
       for (const request of requestsToApprove) {
-        if (request.youtube_id) {
-          // Find or create singer for this guest
-          const singerId = await get().findOrCreateSingerForGuest(
-            request.session_guest_id,
-            request.guest_name
-          );
-
-          const video: Video = {
-            id: request.youtube_id,
-            title: request.title,
-            artist: request.artist,
-            duration: request.duration,
-            thumbnailUrl: request.thumbnail_url,
-            source: "youtube",
-            youtubeId: request.youtube_id,
-          };
-          const queueItem = await useQueueStore.getState().addToQueue(video);
-          log.debug(`Added approved song to queue: ${video.title}`);
-
-          // Assign the guest's singer to the queue item
-          await get().assignSingerToQueueItem(queueItem.id, singerId);
-          log.debug(`Assigned singer ${singerId} to queue item ${queueItem.id}`);
-        } else {
-          log.warn(`Request ${request.id} has no youtube_id, cannot add to queue`);
-        }
+        await addRequestToQueueWithSinger(request, get);
       }
 
       // Remove all requests from pending (don't wait for server)
@@ -1328,6 +1347,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           const message = error instanceof Error ? error.message : String(error);
           log.warn(`Server notification failed (songs already added to queue): ${message}`);
         });
+      }).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        log.warn(`Failed to get tokens for server notification: ${message}`);
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
