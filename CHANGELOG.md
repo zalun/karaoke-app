@@ -49,6 +49,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Approved songs automatically added to queue
   - Keyboard accessible modal (Escape to close, Tab navigation, focus trap)
   - Lazy loading thumbnails for performance with many requests
+- Auto-assign singer when approving song requests (#215)
+  - Automatically creates or finds singer for guest based on user ID
+  - Returning guests are recognized across sessions
+  - Race condition protection for concurrent approvals
+
+### Changed
+- Use `user_id` instead of `session_guest_id` for guest identification (#222)
+  - More stable identifier that persists across sessions
+  - Enables reliable singer recognition for returning guests
 
 ## [0.7.7] - 2026-01-18
 
