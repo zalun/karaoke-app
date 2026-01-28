@@ -35,6 +35,38 @@ const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 const pendingSingerCreations = new Map<string, Promise<number>>();
 
 /**
+ * Helper to notify server of approval with one retry attempt.
+ * If both attempts fail, shows a warning to the user.
+ */
+async function notifyServerWithRetry(
+  accessToken: string,
+  hostedSessionId: string,
+  requestId: string,
+  refreshSession: () => Promise<void>
+): Promise<void> {
+  const attempt = async () => {
+    // Sequential: approve first, then refresh to get updated stats
+    await hostedSessionService.approveRequest(accessToken, hostedSessionId, requestId);
+    await refreshSession();
+  };
+
+  try {
+    await attempt();
+  } catch (firstError) {
+    const firstMessage = firstError instanceof Error ? firstError.message : String(firstError);
+    log.warn(`Server notification failed, retrying: ${firstMessage}`);
+
+    try {
+      await attempt();
+    } catch (retryError) {
+      const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
+      log.error(`Server notification failed after retry: ${retryMessage}`);
+      notify("warning", "Song added to queue, but server sync failed. Stats may be outdated.");
+    }
+  }
+}
+
+/**
  * Helper to add a song request to queue with singer assignment.
  * Shared by approveRequest and approveAllRequests.
  * @param request - The song request to add
@@ -1198,27 +1230,33 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Add song to queue with singer assignment
       await addRequestToQueueWithSinger(request, get);
 
-      // Remove from pending requests immediately (don't wait for server)
-      set({
-        pendingRequests: get().pendingRequests.filter((r) => r.id !== requestId),
-      });
+      // Remove from pending requests and update stats immediately (optimistic update)
+      set((state) => ({
+        pendingRequests: state.pendingRequests.filter((r) => r.id !== requestId),
+        // Optimistically update the badge count
+        hostedSession: state.hostedSession ? {
+          ...state.hostedSession,
+          stats: {
+            ...state.hostedSession.stats,
+            pendingRequests: Math.max(0, state.hostedSession.stats.pendingRequests - 1),
+          },
+        } : null,
+      }));
 
       log.debug(`Request ${requestId} approved locally`);
 
-      // Notify server and refresh stats in background (non-blocking)
+      // Notify server and refresh stats in background (non-blocking, with retry)
       authService.getTokens().then((tokens) => {
         if (!tokens) {
           log.warn("Cannot notify server of approval: not authenticated");
           return;
         }
-        // Fire and forget - server notification and stats refresh
-        Promise.all([
-          hostedSessionService.approveRequest(tokens.access_token, hostedSession.id, requestId),
-          get().refreshHostedSession(),
-        ]).catch((error) => {
-          const message = error instanceof Error ? error.message : String(error);
-          log.warn(`Server notification failed (song already added to queue): ${message}`);
-        });
+        notifyServerWithRetry(
+          tokens.access_token,
+          hostedSession.id,
+          requestId,
+          () => get().refreshHostedSession()
+        );
       }).catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         log.warn(`Failed to get tokens for server notification: ${message}`);
@@ -1324,29 +1362,39 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         await addRequestToQueueWithSinger(request, get);
       }
 
-      // Remove all requests from pending (don't wait for server)
-      set({
-        pendingRequests: get().pendingRequests.filter((r) => !requestIds.includes(r.id)),
-      });
+      // Remove all requests from pending and update stats immediately (optimistic update)
+      const approvedCount = requestIds.length;
+      set((state) => ({
+        pendingRequests: state.pendingRequests.filter((r) => !requestIds.includes(r.id)),
+        // Optimistically update the badge count
+        hostedSession: state.hostedSession ? {
+          ...state.hostedSession,
+          stats: {
+            ...state.hostedSession.stats,
+            pendingRequests: Math.max(0, state.hostedSession.stats.pendingRequests - approvedCount),
+          },
+        } : null,
+      }));
 
-      log.debug(`${requestIds.length} requests approved locally`);
+      log.debug(`${approvedCount} requests approved locally`);
 
       // Notify server and refresh stats in background (non-blocking)
-      authService.getTokens().then((tokens) => {
+      authService.getTokens().then(async (tokens) => {
         if (!tokens) {
           log.warn("Cannot notify server of approvals: not authenticated");
           return;
         }
-        // Fire and forget - server notifications and stats refresh
-        Promise.all([
-          ...requestIds.map((requestId) =>
-            hostedSessionService.approveRequest(tokens.access_token, hostedSession.id, requestId)
-          ),
-          get().refreshHostedSession(),
-        ]).catch((error) => {
-          const message = error instanceof Error ? error.message : String(error);
-          log.warn(`Server notification failed (songs already added to queue): ${message}`);
-        });
+        // Approve all requests on server (can be parallel since no dependencies)
+        const approvePromises = requestIds.map((requestId) =>
+          hostedSessionService.approveRequest(tokens.access_token, hostedSession.id, requestId)
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : String(error);
+              log.warn(`Failed to approve request ${requestId} on server: ${message}`);
+            })
+        );
+        await Promise.all(approvePromises);
+        // Refresh once after all approvals complete
+        await get().refreshHostedSession();
       }).catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         log.warn(`Failed to get tokens for server notification: ${message}`);

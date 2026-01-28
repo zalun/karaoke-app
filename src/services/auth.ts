@@ -30,7 +30,13 @@ function generateState(): string {
   );
 }
 
-// Store the state for validation - use sessionStorage to survive HMR reloads in dev mode
+// Store the state for validation using sessionStorage.
+// Why sessionStorage is safe here (desktop app context):
+// - No cross-tab concerns (Tauri app has single webview, no tabs)
+// - No cross-origin access (not a website, no untrusted content)
+// - Isolated from other apps (webview sessionStorage is app-private)
+// - Survives HMR reloads during development
+// - Cleared on app restart (new session)
 const PENDING_STATE_KEY = "homekaraoke_pending_auth_state";
 
 function getPendingAuthState(): string | null {
