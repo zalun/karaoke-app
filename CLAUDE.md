@@ -1,241 +1,94 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Project guidance for Claude Code. Keep concise - every line should earn its place.
 
-## Git Workflow
+## Workflow
 
-- Every change requires a GitHub issue first
-- Create a feature branch from the issue (never commit directly to main)
-- Create a pull request for code review before merging
-- Branch naming: `feature/<issue-number>-<description>` or `fix/<issue-number>-<description>`
-- **Avoid `git commit --amend`** - prefer separate commits for fixes/updates (easier to review)
+- **Plan mode first**: Use Plan mode (Shift+Tab twice) for complex tasks. Iterate until plan is solid, then auto-accept.
+- **Git discipline**: Issue first → feature branch → PR. Never commit to main directly.
+- **Branch naming**: `feature/<issue>-<desc>` or `fix/<issue>-<desc>`
+- **No amending**: Prefer separate commits over `git commit --amend`
 
-### Pre-Push Checklist
-
-Before pushing changes, **ask the user** if E2E tests should be run:
-- E2E tests catch integration issues that unit tests miss
-- Run `just e2e` to execute all E2E tests
-- If tests fail due to server connection issues, retry once (can be flaky locally)
-- CI will also run E2E tests, but catching issues locally saves time
-
-## Build and Development Commands
-
-This project uses a `justfile` for common tasks. Run `just` or `just --list` to see all available commands.
+## Commands
 
 ```bash
-# Preferred (using just)
-just dev                   # Start development (Vite + Tauri window)
-just build                 # Production build (creates .app and .dmg)
-just test                  # Run unit tests
-just e2e                   # Run E2E tests
-just lint                  # ESLint
-just check                 # Quick health check (typecheck + lint + cargo check)
-just ci                    # Full CI simulation (lint + typecheck + all tests)
-
-# Direct npm/cargo commands also work
-npm run tauri dev          # Start development (Vite + Tauri window)
-npm run tauri build        # Production build (creates .app and .dmg)
-npm run dev                # Vite dev server only (no Tauri window)
-npm run build              # Frontend build only (tsc + vite)
-npm run lint               # ESLint
+just check    # Quick validation: typecheck + lint + cargo check
+just test     # Unit tests
+just e2e      # E2E tests (ask user before running - can be slow)
+just dev      # Start development
+just build    # Production build
 ```
 
-## E2E Testing
+## Verification
 
-**See [`tests/e2e/GUIDE.md`](./tests/e2e/GUIDE.md) for comprehensive E2E testing patterns and lessons learned.**
+**Before marking work complete:**
+1. Run `just check` - must pass
+2. Run `just test` - must pass
+3. For UI changes, verify visually in the app
+4. For API changes, test the actual flow
 
-Key principles:
-- **Mock Tauri IPC**: Tests run in browser with mocked `__TAURI_INTERNALS__`
-- **Use `toPass()` for timing**: Never use fixed `waitForTimeout()` - always retry-based assertions
-- **Page Object Model**: Keep selectors in `tests/e2e/pages/`, not in test files
-- **CI is slower**: Use generous timeouts (45s test, 10s expect, 15s for video loads)
-
-Quick reference:
-```bash
-just e2e              # Run all E2E tests
-just e2e-ui           # Run with Playwright UI (debugging)
-just e2e-grep "name"  # Run tests matching pattern
-```
-
-When writing E2E tests:
-1. Inject mocks BEFORE `page.goto()` - app reads settings on startup
-2. Use `data-testid` attributes for stable selectors
-3. Wait for specific state changes, not arbitrary timeouts
-4. Document skipped tests with clear reasoning
+**Before pushing:**
+- Ask user if E2E tests should run (`just e2e`)
+- CI runs E2E too, but catching issues locally saves time
 
 ## Architecture
 
 **Stack:** Tauri 2.0 (Rust) + React 18 + TypeScript + Zustand + SQLite
 
-### Frontend (`src/`)
-- **State:** Zustand stores in `src/stores/` (playerStore, queueStore, appStore)
-- **Components:** `src/components/` organized by feature (layout, player, search, library, queue)
-- **Styling:** Tailwind CSS with dark theme (gray-900 background)
+| Layer | Location | Notes |
+|-------|----------|-------|
+| Frontend state | `src/stores/` | Zustand stores |
+| Components | `src/components/` | By feature |
+| Tauri commands | `src-tauri/src/commands/` | `youtube_*`, `library_*`, `queue_*`, etc. |
+| Database | `src-tauri/src/db/schema.rs` | Versioned migrations |
+| Services | `src/services/` | API calls, utilities |
 
-### Backend (`src-tauri/`)
-- **Entry:** `src/lib.rs` initializes SQLite database and Tauri plugins
-- **Database:** `src/db/schema.rs` contains migrations, `src/db/mod.rs` wraps rusqlite
-- **State:** `AppState` with `Mutex<Database>` managed by Tauri
+## Key Patterns
 
-### IPC Pattern
-Tauri commands follow naming: `youtube_*`, `library_*`, `queue_*`, `auth_*`, `drives_*`, `window_*`, `display_*`
-
-## Database Migrations
-
-The app uses a versioned migration system in `src-tauri/src/db/schema.rs`:
-
-- Migrations are stored in `MIGRATIONS` array, indexed by version (1-based)
-- Schema version tracked in `schema_version` table
-- On startup, only pending migrations run (current_version < migration_version)
-- Each migration runs in sequence and updates the version number
-
-**Safe upgrade path from v0.5.0 onwards:**
-- `ALTER TABLE ADD COLUMN` is safe - existing rows get NULL
-- `CREATE TABLE IF NOT EXISTS` doesn't affect existing data
-- `CREATE INDEX IF NOT EXISTS` is idempotent
-
-When adding new migrations:
-1. Append to `MIGRATIONS` array (never modify existing migrations)
-2. Use `IF NOT EXISTS` for tables/indexes
-3. For `ALTER TABLE ADD COLUMN`, nullable columns are safest
-4. Test upgrade path from previous released version
-
-## Key Conventions
-
-**Zustand stores:**
-```typescript
-export const useXxxStore = create<XxxState>((set, get) => ({
-  // state fields
-  items: [],
-  // actions
-  doSomething: () => set((state) => ({ ... })),
-}));
-```
-
-**Component exports:** Use barrel exports via `index.ts` files
+**Zustand stores:** `export const useXxxStore = create<XxxState>((set, get) => ({...}))`
 
 **Video sources:** `"youtube" | "local" | "external"`
 
-**Queue item status:** `"pending" | "playing" | "completed" | "skipped"`
+**Queue status:** `"pending" | "playing" | "completed" | "skipped"`
 
-## Authentication
+**Logging:** Frontend uses `createLogger("Context")`, backend uses `log::info!()` etc.
 
-The app uses Supabase Auth with OAuth (Google, Apple, Email) for user authentication.
+## Database Migrations
 
-### Architecture
+- Append to `MIGRATIONS` array in `schema.rs` (never modify existing)
+- Use `IF NOT EXISTS` for tables/indexes
+- `ALTER TABLE ADD COLUMN` with nullable columns is safe
+- Test upgrade from previous released version
 
-- **Keychain Storage:** Tokens stored securely via `keyring` crate (`src-tauri/src/keychain.rs`)
-- **Deep Links:** `homekaraoke://` scheme handles OAuth callbacks (`tauri-plugin-deep-link`)
-- **Auth Service:** `src/services/auth.ts` wraps Tauri commands for token management
-- **Auth Store:** `src/stores/authStore.ts` manages auth state and token refresh
+## Auth & Sessions
 
-### Tauri Commands
+- Tokens in macOS Keychain via `keyring` crate
+- OAuth via `homekaraoke://` deep links
+- Hosted sessions: `src/services/hostedSession.ts` for API, `useSessionStore` for state
+- See `src/stores/authStore.ts` for token refresh logic
 
-```rust
-// src-tauri/src/commands/auth.rs
-auth_store_tokens(access, refresh, expires_at)  // Store tokens in keychain
-auth_get_tokens() -> Option<AuthTokens>         // Retrieve tokens from keychain
-auth_clear_tokens()                              // Clear tokens from keychain
-auth_open_login()                                // Open browser for OAuth flow
-```
+## E2E Tests
 
-### Frontend Pattern
-
-```typescript
-// Initialize auth on app startup (in App.tsx useEffect)
-const { initialize } = useAuthStore();
-useEffect(() => {
-  initialize().catch(console.error);
-}, [initialize]);
-
-// Token refresh runs automatically every 4 minutes when authenticated
-// Offline detection pauses refresh and shows UI indicator
-```
-
-### Environment Variables
-
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-```
-
-## Hosted Sessions
-
-When authenticated, users can host their session for guests to join via mobile devices.
-
-### Architecture
-
-- **Service:** `src/services/hostedSession.ts` - REST API calls to homekaraoke.app backend
-- **Store:** `useSessionStore` in `src/stores/sessionStore.ts` manages hosting state
-- **UI:** `HostSessionModal` shows join code, QR code, and stats; `SessionBar` shows host button
-
-### State Flow
-
-```typescript
-// In sessionStore.ts
-hostedSession: HostedSession | null;  // Active hosted session
-showHostModal: boolean;               // Modal visibility
-
-// Actions
-hostSession()          // Create hosted session via API, start polling
-stopHosting()          // End hosted session, stop polling
-refreshHostedSession() // Poll for updated stats (30s interval)
-```
-
-### API Endpoints (homekaraoke.app)
-
-- `POST /api/session/create` - Create hosted session, returns join code + QR URL
-- `GET /api/session/[id]` - Get session stats (guests, pending requests)
-- `DELETE /api/session/[id]` - End hosted session
-
-## Logging
-
-- Uses `tauri-plugin-log` with file + stdout + webview targets
-- Debug mode toggle in View menu (persisted to SQLite)
-- Log location: `~/Library/Logs/app.homekaraoke/homekaraoke.log` (macOS)
-- Frontend: Use `createLogger("Context")` from `src/services/logger`
-- Backend: Use `log::debug!()`, `log::info!()`, etc.
-
-## Changelog & Versioning
-
-- Follow [Keep a Changelog](https://keepachangelog.com/) format in `CHANGELOG.md`
-- Use [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
-- Update version in three places: `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`
-- Add changelog entry with each PR that adds features or fixes bugs
+See `tests/e2e/GUIDE.md` for full patterns. Key rules:
+- Mock Tauri IPC before `page.goto()`
+- Use `toPass()` for timing, never `waitForTimeout()`
+- Use `data-testid` for selectors
+- Generous timeouts for CI (45s test, 10s expect)
 
 ## Releases
 
-**See [`plan/deployment.md`](./plan/deployment.md) for complete deployment guide** including code signing, notarization commands, and troubleshooting.
-
-Quick overview:
-1. Update version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`
+See `plan/deployment.md` for full guide. Quick:
+1. Update version in `package.json`, `Cargo.toml`, `tauri.conf.json`
 2. Update `CHANGELOG.md`
-3. Commit, push, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
-4. Build, notarize, and upload: `source .env && ./scripts/build-and-release.sh vX.Y.Z`
+3. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`
+4. Build: `source .env && ./scripts/build-and-release.sh vX.Y.Z`
 
-### Local Build with Notarization
+## Learnings
 
-Apple credentials are stored in `.env` (not committed to git):
-```bash
-APPLE_ID=...
-APPLE_TEAM_ID=...
-APPLE_PASSWORD=...  # App-specific password from appleid.apple.com
-```
+_Patterns discovered through development - update via PRs._
 
-To build, notarize, and upload a release:
-```bash
-source .env && ./scripts/build-and-release.sh v0.7.6
-```
-
-The script will:
-1. Build the app with `npm run tauri build`
-2. Submit to Apple for notarization (may take minutes to hours)
-3. Staple the notarization ticket to the DMG
-4. Upload to the GitHub release
-
-## Implementation Roadmap
-
-See [`plan/`](./plan/) for detailed documentation:
-- **Phases 1-4** (Complete): Foundation, YouTube, Sessions/Singers, Multi-display
-- **Phases 5-8** (Planned): Local files, Downloads, USB drives, Polish
-- **Future features**: See [`plan/future/`](./plan/future/) for detailed plans
+- **Parallel API calls**: Local operations (queue, UI) should not block on server responses. Fire-and-forget for non-critical notifications.
+- **Singer online_id**: Guests are linked to singers via `online_id` = `session_guest_id` from API.
+- **State sync timing**: DetachedPlayer uses refs for time/play state to avoid closure issues.
+- **Test mocks**: Mock objects must include all required fields including `online_id`, `session_guest_id`.
+- **Window manager**: Cross-window state sync uses Tauri events; song info includes singer data.

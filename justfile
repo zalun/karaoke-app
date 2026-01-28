@@ -31,7 +31,7 @@ dev-log level="debug":
 
 # Build production release (creates .app and .dmg)
 build:
-    npm run tauri build
+    source .env && npm run tauri build
 
 # Build frontend only (TypeScript + Vite)
 build-web:
