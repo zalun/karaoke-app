@@ -20,6 +20,7 @@ import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
 import { notify } from "./notificationStore";
 import { useAuthStore } from "./authStore";
+import type { Video } from "./playerStore";
 
 const log = createLogger("SessionStore");
 
@@ -108,9 +109,10 @@ interface SessionState {
 
   // Singer actions
   loadSingers: () => Promise<void>;
-  createSinger: (name: string, color?: string, isPersistent?: boolean) => Promise<Singer>;
+  createSinger: (name: string, color?: string, isPersistent?: boolean, onlineId?: string) => Promise<Singer>;
   deleteSinger: (singerId: number) => Promise<void>;
   removeSingerFromSession: (singerId: number) => Promise<void>;
+  findOrCreateSingerForGuest: (sessionGuestId: string, displayName: string) => Promise<number>;
 
   // Active singer actions
   setActiveSinger: (singerId: number | null) => Promise<void>;
@@ -370,13 +372,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  createSinger: async (name: string, color?: string, isPersistent: boolean = false) => {
+  createSinger: async (name: string, color?: string, isPersistent: boolean = false, onlineId?: string) => {
     const { singers, session } = get();
     const usedColors = singers.map((s) => s.color);
     const singerColor = color || getNextSingerColor(usedColors);
 
-    log.info(`Creating singer: ${name} (color: ${singerColor})`);
-    const singer = await sessionService.createSinger(name, singerColor, isPersistent);
+    log.info(`Creating singer: ${name} (color: ${singerColor})${onlineId ? ` (online_id: ${onlineId})` : ""}`);
+    const singer = await sessionService.createSinger(name, singerColor, isPersistent, undefined, onlineId);
 
     // Add to session if active
     if (session) {
@@ -435,6 +437,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const activeSingerId = state.activeSingerId === singerId ? null : state.activeSingerId;
       return { singers, queueSingerAssignments, activeSingerId };
     });
+  },
+
+  findOrCreateSingerForGuest: async (sessionGuestId: string, displayName: string) => {
+    // 1. Try to find existing singer by online_id
+    const existingSinger = get().singers.find((s) => s.online_id === sessionGuestId);
+    if (existingSinger) {
+      log.debug(`Found existing singer for guest ${sessionGuestId}: ${existingSinger.name} (id: ${existingSinger.id})`);
+      return existingSinger.id;
+    }
+
+    // 2. Create new singer with online_id
+    log.info(`Creating new singer for guest ${sessionGuestId}: ${displayName}`);
+    const newSinger = await get().createSinger(displayName, undefined, false, sessionGuestId);
+    return newSinger.id;
   },
 
   assignSingerToQueueItem: async (queueItemId: string, singerId: number) => {
@@ -1091,7 +1107,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   approveRequest: async (requestId: string) => {
-    const { hostedSession, processingRequestIds } = get();
+    const { hostedSession, pendingRequests, processingRequestIds } = get();
     if (!hostedSession) {
       log.error("Cannot approve request: no hosted session");
       throw new Error("No hosted session");
@@ -1103,36 +1119,67 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return;
     }
 
+    // Find the request to get song details
+    const request = pendingRequests.find((r) => r.id === requestId);
+    if (!request) {
+      log.error(`Cannot approve request: request ${requestId} not found`);
+      throw new Error("Request not found");
+    }
+
     log.debug(`Approving request: ${requestId}`);
     // Add to processing set
     set({ processingRequestIds: new Set(processingRequestIds).add(requestId) });
 
     try {
-      const tokens = await authService.getTokens();
-      if (!tokens) {
-        log.error("Cannot approve request: not authenticated");
-        throw new Error("Not authenticated");
-      }
-
-      await hostedSessionService.approveRequest(
-        tokens.access_token,
-        hostedSession.id,
-        requestId
+      // Find or create singer for this guest
+      const singerId = await get().findOrCreateSingerForGuest(
+        request.session_guest_id,
+        request.guest_name
       );
 
-      // Refresh queue so the approved song appears immediately
-      await useQueueStore.getState().loadPersistedState();
+      // Convert request to Video and add to queue
+      if (request.youtube_id) {
+        const video: Video = {
+          id: request.youtube_id,
+          title: request.title,
+          artist: request.artist,
+          duration: request.duration,
+          thumbnailUrl: request.thumbnail_url,
+          source: "youtube",
+          youtubeId: request.youtube_id,
+        };
+        const queueItem = await useQueueStore.getState().addToQueue(video);
+        log.debug(`Added approved song to queue: ${video.title}`);
 
-      // Refresh hosted session to update stats
-      await get().refreshHostedSession();
+        // Assign the guest's singer to the queue item
+        await get().assignSingerToQueueItem(queueItem.id, singerId);
+        log.debug(`Assigned singer ${singerId} to queue item ${queueItem.id}`);
+      } else {
+        log.warn(`Request ${requestId} has no youtube_id, cannot add to queue`);
+      }
 
-      // Remove from pending requests after successful refresh
-      // Use get().pendingRequests to get the most current list after refresh
+      // Remove from pending requests immediately (don't wait for server)
       set({
         pendingRequests: get().pendingRequests.filter((r) => r.id !== requestId),
       });
 
-      log.debug(`Request ${requestId} approved`);
+      log.debug(`Request ${requestId} approved locally`);
+
+      // Notify server and refresh stats in background (non-blocking)
+      authService.getTokens().then((tokens) => {
+        if (!tokens) {
+          log.warn("Cannot notify server of approval: not authenticated");
+          return;
+        }
+        // Fire and forget - server notification and stats refresh
+        Promise.all([
+          hostedSessionService.approveRequest(tokens.access_token, hostedSession.id, requestId),
+          get().refreshHostedSession(),
+        ]).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          log.warn(`Server notification failed (song already added to queue): ${message}`);
+        });
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to approve request: ${message}`);
@@ -1229,59 +1276,64 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ processingRequestIds: newProcessing });
 
     try {
-      const tokens = await authService.getTokens();
-      if (!tokens) {
-        log.error("Cannot approve all requests: not authenticated");
-        throw new Error("Not authenticated");
-      }
+      // Add all songs to queue and assign singers first (critical path)
+      for (const request of requestsToApprove) {
+        if (request.youtube_id) {
+          // Find or create singer for this guest
+          const singerId = await get().findOrCreateSingerForGuest(
+            request.session_guest_id,
+            request.guest_name
+          );
 
-      // Use Promise.allSettled for partial failure handling
-      // Each request is approved individually so failures don't block others
-      const results = await Promise.allSettled(
-        requestIds.map((requestId) =>
-          hostedSessionService.approveRequest(
-            tokens.access_token,
-            hostedSession.id,
-            requestId
-          )
-        )
-      );
+          const video: Video = {
+            id: request.youtube_id,
+            title: request.title,
+            artist: request.artist,
+            duration: request.duration,
+            thumbnailUrl: request.thumbnail_url,
+            source: "youtube",
+            youtubeId: request.youtube_id,
+          };
+          const queueItem = await useQueueStore.getState().addToQueue(video);
+          log.debug(`Added approved song to queue: ${video.title}`);
 
-      // Separate successful and failed results
-      const succeededIds: string[] = [];
-      const failedIds: string[] = [];
-      results.forEach((result, index) => {
-        if (result.status === "fulfilled") {
-          succeededIds.push(requestIds[index]);
+          // Assign the guest's singer to the queue item
+          await get().assignSingerToQueueItem(queueItem.id, singerId);
+          log.debug(`Assigned singer ${singerId} to queue item ${queueItem.id}`);
         } else {
-          failedIds.push(requestIds[index]);
-          log.error(`Failed to approve request ${requestIds[index]}: ${result.reason}`);
+          log.warn(`Request ${request.id} has no youtube_id, cannot add to queue`);
         }
-      });
-
-      log.debug(`Approved ${succeededIds.length}/${requestIds.length} requests`);
-
-      // Refresh queue so the approved songs appear immediately
-      await useQueueStore.getState().loadPersistedState();
-
-      // Refresh hosted session to update stats
-      await get().refreshHostedSession();
-
-      // Remove only successfully approved requests from pending requests
-      const approvedIds = new Set(succeededIds);
-      set({
-        pendingRequests: get().pendingRequests.filter((r) => !approvedIds.has(r.id)),
-      });
-
-      // Notify user about partial failures
-      if (failedIds.length > 0 && succeededIds.length > 0) {
-        notify("warning", `Approved ${succeededIds.length} requests, ${failedIds.length} failed`);
-      } else if (failedIds.length > 0 && succeededIds.length === 0) {
-        notify("error", "Failed to approve requests");
-        throw new Error(`All ${failedIds.length} requests failed to approve`);
       }
 
-      log.debug(`${succeededIds.length} requests approved successfully`);
+      // Remove all requests from pending (don't wait for server)
+      set({
+        pendingRequests: get().pendingRequests.filter((r) => !requestIds.includes(r.id)),
+      });
+
+      log.debug(`${requestIds.length} requests approved locally`);
+
+      // Notify server and refresh stats in background (non-blocking)
+      authService.getTokens().then((tokens) => {
+        if (!tokens) {
+          log.warn("Cannot notify server of approvals: not authenticated");
+          return;
+        }
+        // Fire and forget - server notifications and stats refresh
+        Promise.all([
+          ...requestIds.map((requestId) =>
+            hostedSessionService.approveRequest(tokens.access_token, hostedSession.id, requestId)
+          ),
+          get().refreshHostedSession(),
+        ]).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          log.warn(`Server notification failed (songs already added to queue): ${message}`);
+        });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to approve requests: ${message}`);
+      notify("error", "Failed to approve requests");
+      throw error;
     } finally {
       // Always remove all request IDs from processing set, even on failure
       const currentProcessing = get().processingRequestIds;

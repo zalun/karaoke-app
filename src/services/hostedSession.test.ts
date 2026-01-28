@@ -357,6 +357,7 @@ describe("hostedSessionService.getRequests", () => {
         title: "Song Title",
         status: "pending",
         guest_name: "John",
+        session_guest_id: "guest-john-123",
         requested_at: "2024-01-15T10:30:00Z",
         youtube_id: "abc123",
         artist: "Artist Name",
@@ -368,6 +369,7 @@ describe("hostedSessionService.getRequests", () => {
         title: "Another Song",
         status: "pending",
         guest_name: "Jane",
+        session_guest_id: "guest-jane-456",
         requested_at: "2024-01-15T10:31:00Z",
       },
     ];
@@ -385,6 +387,7 @@ describe("hostedSessionService.getRequests", () => {
       title: "Song Title",
       status: "pending",
       guest_name: "John",
+      session_guest_id: "guest-john-123",
       requested_at: "2024-01-15T10:30:00Z",
       youtube_id: "abc123",
       artist: "Artist Name",
@@ -396,6 +399,7 @@ describe("hostedSessionService.getRequests", () => {
       title: "Another Song",
       status: "pending",
       guest_name: "Jane",
+      session_guest_id: "guest-jane-456",
       requested_at: "2024-01-15T10:31:00Z",
       youtube_id: undefined,
       artist: undefined,
@@ -482,7 +486,7 @@ describe("hostedSessionService.approveRequest", () => {
           Authorization: "Bearer token-123",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ action: "approve", requestId: "request-789" }),
+        body: JSON.stringify({ action: "approve", request_id: "request-789" }),
       })
     );
   });
@@ -575,7 +579,7 @@ describe("hostedSessionService.rejectRequest", () => {
           Authorization: "Bearer token-123",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ action: "reject", requestId: "request-789" }),
+        body: JSON.stringify({ action: "reject", request_id: "request-789" }),
       })
     );
   });
@@ -664,7 +668,7 @@ describe("hostedSessionService.approveAllRequests", () => {
           Authorization: "Bearer token-123",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ action: "approve", requestIds: ["request-789"] }),
+        body: JSON.stringify({ action: "approve", request_ids: ["request-789"] }),
       })
     );
   });
@@ -679,7 +683,7 @@ describe("hostedSessionService.approveAllRequests", () => {
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/session/session-456/requests"),
       expect.objectContaining({
-        body: JSON.stringify({ action: "approve", requestIds: ["req-1", "req-2", "req-3"] }),
+        body: JSON.stringify({ action: "approve", request_ids: ["req-1", "req-2", "req-3"] }),
       })
     );
   });

@@ -185,6 +185,7 @@ const mockSinger1: Singer = {
   color: "#ff0000",
   is_persistent: false,
   unique_name: null,
+  online_id: null,
 };
 
 const mockSinger2: Singer = {
@@ -193,6 +194,7 @@ const mockSinger2: Singer = {
   color: "#00ff00",
   is_persistent: false,
   unique_name: null,
+  online_id: null,
 };
 
 const mockSinger3: Singer = {
@@ -201,6 +203,7 @@ const mockSinger3: Singer = {
   color: "#0000ff",
   is_persistent: true,
   unique_name: "charlie123",
+  online_id: null,
 };
 
 function resetStoreState() {
@@ -238,7 +241,7 @@ describe("sessionStore - Singer CRUD", () => {
 
       const singer = await useSessionStore.getState().createSinger("Alice", "#ff0000");
 
-      expect(sessionService.createSinger).toHaveBeenCalledWith("Alice", "#ff0000", false);
+      expect(sessionService.createSinger).toHaveBeenCalledWith("Alice", "#ff0000", false, undefined, undefined);
       expect(sessionService.addSingerToSession).toHaveBeenCalledWith(1, 1);
       expect(singer).toEqual(mockSinger1);
       expect(useSessionStore.getState().singers).toContainEqual(mockSinger1);
@@ -255,7 +258,9 @@ describe("sessionStore - Singer CRUD", () => {
       expect(sessionService.createSinger).toHaveBeenCalledWith(
         "Bob",
         expect.not.stringMatching(/#ff0000/i),
-        false
+        false,
+        undefined,
+        undefined
       );
     });
 
@@ -266,7 +271,7 @@ describe("sessionStore - Singer CRUD", () => {
 
       await useSessionStore.getState().createSinger("Charlie", "#0000ff", true);
 
-      expect(sessionService.createSinger).toHaveBeenCalledWith("Charlie", "#0000ff", true);
+      expect(sessionService.createSinger).toHaveBeenCalledWith("Charlie", "#0000ff", true, undefined, undefined);
     });
 
     it("should create a singer without adding to session when no session exists", async () => {
@@ -3665,6 +3670,7 @@ describe("sessionStore - Song Request Actions", () => {
       title: "Bohemian Rhapsody",
       status: "pending" as const,
       guest_name: "Alice",
+      session_guest_id: "guest-alice-123",
       requested_at: "2025-01-01T12:00:00Z",
       youtube_id: "fJ9rUzIMcZQ",
       artist: "Queen",
@@ -3676,6 +3682,7 @@ describe("sessionStore - Song Request Actions", () => {
       title: "Don't Stop Me Now",
       status: "pending" as const,
       guest_name: "Bob",
+      session_guest_id: "guest-bob-456",
       requested_at: "2025-01-01T12:05:00Z",
       youtube_id: "HgzGwKwLmgM",
       artist: "Queen",
@@ -3700,14 +3707,29 @@ describe("sessionStore - Song Request Actions", () => {
       showRequestsModal: false,
       isLoadingRequests: false,
       processingRequestIds: new Set(),
+      singers: [], // Start with no singers - they will be created on demand
     });
 
-    // Default mock for queue store
-    vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+    // Default mock for queue store with addToQueue returning a queue item with id
+    const mockQueueState = createMockQueueState();
+    mockQueueState.addToQueue = vi.fn().mockImplementation((video) => Promise.resolve({ id: `queue-${video.id}` }));
+    vi.mocked(useQueueStore.getState).mockReturnValue(mockQueueState);
+
+    // Mock singer-related services for auto singer assignment
+    vi.mocked(sessionService.createSinger).mockImplementation(async (name) => ({
+      id: Math.floor(Math.random() * 1000) + 100,
+      name,
+      color: "#EF4444",
+      is_persistent: false,
+      unique_name: null,
+      online_id: null,
+    }));
+    vi.mocked(sessionService.addSingerToSession).mockResolvedValue();
+    vi.mocked(sessionService.assignSingerToQueueItem).mockResolvedValue();
   });
 
   describe("approveRequest", () => {
-    it("should approve a request and remove it from pendingRequests", async () => {
+    it("should add song to queue, assign singer, and remove from pendingRequests", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
       vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
       vi.mocked(hostedSessionService.getSession).mockResolvedValue({
@@ -3717,20 +3739,26 @@ describe("sessionStore - Song Request Actions", () => {
 
       await useSessionStore.getState().approveRequest("request-1");
 
-      // Verify approveRequest was called with correct parameters
-      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
-        "test-access-token",
-        "hosted-session-123",
-        "request-1"
-      );
-
-      // Verify request was removed from pendingRequests
+      // Verify request was removed from pendingRequests immediately
       const { pendingRequests } = useSessionStore.getState();
       expect(pendingRequests).toHaveLength(1);
       expect(pendingRequests[0].id).toBe("request-2");
 
-      // Verify refreshHostedSession was called
-      expect(hostedSessionService.getSession).toHaveBeenCalled();
+      // Verify song was added to queue
+      expect(useQueueStore.getState().addToQueue).toHaveBeenCalled();
+
+      // Verify singer was created and assigned
+      expect(sessionService.createSinger).toHaveBeenCalled();
+      expect(sessionService.assignSingerToQueueItem).toHaveBeenCalled();
+
+      // Server notification happens in background - wait for it
+      await vi.waitFor(() => {
+        expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
+          "test-access-token",
+          "hosted-session-123",
+          "request-1"
+        );
+      });
     });
 
     it("should throw error when no hosted session", async () => {
@@ -3743,31 +3771,36 @@ describe("sessionStore - Song Request Actions", () => {
       expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
     });
 
-    it("should throw error when not authenticated", async () => {
+    it("should still add to queue even if not authenticated (server notification skipped)", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(null);
 
-      await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow(
-        "Not authenticated"
-      );
+      // Should succeed locally even without auth
+      await useSessionStore.getState().approveRequest("request-1");
 
+      // Verify song was added to queue
+      expect(useQueueStore.getState().addToQueue).toHaveBeenCalled();
+
+      // Server notification should not happen (no auth)
+      // Give async code time to run
+      await new Promise((resolve) => setTimeout(resolve, 10));
       expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
     });
 
-    it("should notify and re-throw on API error", async () => {
+    it("should still succeed locally when API error occurs (non-blocking)", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
       vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
         new Error("Network error")
       );
 
-      await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow(
-        "Network error"
-      );
+      // Should succeed locally
+      await useSessionStore.getState().approveRequest("request-1");
 
-      expect(notify).toHaveBeenCalledWith("error", "Failed to approve request");
-
-      // Verify pendingRequests was not modified on error
+      // Verify request was removed from pendingRequests
       const { pendingRequests } = useSessionStore.getState();
-      expect(pendingRequests).toHaveLength(2);
+      expect(pendingRequests).toHaveLength(1);
+
+      // Verify song was added to queue despite API error
+      expect(useQueueStore.getState().addToQueue).toHaveBeenCalled();
     });
 
     it("should handle approving the last pending request", async () => {
@@ -3789,21 +3822,21 @@ describe("sessionStore - Song Request Actions", () => {
       expect(pendingRequests).toHaveLength(0);
     });
 
-    it("should add requestId to processingRequestIds at start and remove in finally", async () => {
+    it("should add requestId to processingRequestIds at start and remove after local operations", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-
-      // Create a deferred promise to control when the API call resolves
-      let resolveApprove: (() => void) | null = null;
-      vi.mocked(hostedSessionService.approveRequest).mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveApprove = () => resolve(undefined);
-          })
-      );
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
       vi.mocked(hostedSessionService.getSession).mockResolvedValue({
         ...mockHostedSession,
         stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
       });
+
+      // Slow down queue operation to observe processing state
+      let resolveAddToQueue: ((value: { id: string }) => void) | null = null;
+      const mockQueueState = createMockQueueState();
+      mockQueueState.addToQueue = vi.fn().mockImplementation(
+        (video) => new Promise((resolve) => { resolveAddToQueue = () => resolve({ id: `queue-${video.id}` }); })
+      );
+      vi.mocked(useQueueStore.getState).mockReturnValue(mockQueueState);
 
       // Start the approval but don't await
       const approvePromise = useSessionStore.getState().approveRequest("request-1");
@@ -3811,24 +3844,22 @@ describe("sessionStore - Song Request Actions", () => {
       // Wait a tick for the state to update
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      // Verify requestId is in processingRequestIds
+      // Verify requestId is in processingRequestIds during local operation
       const { processingRequestIds: processingDuring } = useSessionStore.getState();
       expect(processingDuring.has("request-1")).toBe(true);
 
-      // Resolve the API call
-      resolveApprove!();
+      // Complete the queue operation
+      resolveAddToQueue!({ id: "queue-test" });
       await approvePromise;
 
-      // Verify requestId is removed from processingRequestIds
+      // Verify requestId is removed from processingRequestIds after local operations
       const { processingRequestIds: processingAfter } = useSessionStore.getState();
       expect(processingAfter.has("request-1")).toBe(false);
     });
 
-    it("should remove requestId from processingRequestIds even on error", async () => {
-      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
-        new Error("Network error")
-      );
+    it("should remove requestId from processingRequestIds even on local error", async () => {
+      // Simulate local operation failure (e.g., singer creation fails)
+      vi.mocked(sessionService.createSinger).mockRejectedValue(new Error("Local error"));
 
       await expect(useSessionStore.getState().approveRequest("request-1")).rejects.toThrow();
 
@@ -3839,19 +3870,19 @@ describe("sessionStore - Song Request Actions", () => {
 
     it("should prevent duplicate clicks while request is processing", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-
-      // Create a deferred promise to control when the API call resolves
-      let resolveApprove: (() => void) | null = null;
-      vi.mocked(hostedSessionService.approveRequest).mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveApprove = () => resolve(undefined);
-          })
-      );
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
       vi.mocked(hostedSessionService.getSession).mockResolvedValue({
         ...mockHostedSession,
         stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
       });
+
+      // Slow down queue operation to simulate processing time
+      let resolveAddToQueue: ((value: { id: string }) => void) | null = null;
+      const mockQueueState = createMockQueueState();
+      mockQueueState.addToQueue = vi.fn().mockImplementation(
+        (video) => new Promise((resolve) => { resolveAddToQueue = () => resolve({ id: `queue-${video.id}` }); })
+      );
+      vi.mocked(useQueueStore.getState).mockReturnValue(mockQueueState);
 
       // Start first approval
       const firstApprove = useSessionStore.getState().approveRequest("request-1");
@@ -3862,57 +3893,58 @@ describe("sessionStore - Song Request Actions", () => {
       // Try to approve the same request again - should return early
       const secondApprove = useSessionStore.getState().approveRequest("request-1");
 
-      // Resolve the API call
-      resolveApprove!();
+      // Complete the queue operation
+      resolveAddToQueue!({ id: "queue-test" });
       await firstApprove;
       await secondApprove;
 
-      // Verify approveRequest was only called once
-      expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(1);
+      // Verify addToQueue was only called once (second request returned early)
+      expect(mockQueueState.addToQueue).toHaveBeenCalledTimes(1);
     });
 
-    it("should use current pendingRequests state after refresh (race condition fix)", async () => {
-      // This test verifies the fix for the race condition where pendingRequests
-      // could change during the refresh call. The fix ensures we use get().pendingRequests
-      // after refresh instead of a captured stale value.
+    it("should preserve new requests that arrive during approval", async () => {
+      // This test verifies that new requests arriving during approval are preserved
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
       vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+        ...mockHostedSession,
+        stats: { pendingRequests: 2, approvedRequests: 1, totalGuests: 1 },
+      });
 
-      // During refresh, simulate a new request being added to pendingRequests
+      // Add a new request during local operation
       const newRequest = {
         id: "request-3",
-        title: "New Song During Refresh",
+        title: "New Song During Approval",
         status: "pending" as const,
         guest_name: "Guest 3",
+        session_guest_id: "guest-3-789",
         requested_at: new Date().toISOString(),
       };
 
-      vi.mocked(hostedSessionService.getSession).mockImplementation(async () => {
-        // Simulate new request arriving during refresh
+      // Slow down queue operation and add new request during it
+      const mockQueueState = createMockQueueState();
+      mockQueueState.addToQueue = vi.fn().mockImplementation(async (video) => {
+        // Simulate new request arriving during local processing
         useSessionStore.setState({
           pendingRequests: [...useSessionStore.getState().pendingRequests, newRequest],
         });
-        return {
-          ...mockHostedSession,
-          stats: { pendingRequests: 2, approvedRequests: 1, totalGuests: 1 },
-        };
+        return { id: `queue-${video.id}` };
       });
+      vi.mocked(useQueueStore.getState).mockReturnValue(mockQueueState);
 
       await useSessionStore.getState().approveRequest("request-1");
 
       // After approving request-1, we should still have request-2 AND the new request-3
-      // that was added during refresh. If we used the stale captured value,
-      // request-3 would be lost.
       const { pendingRequests } = useSessionStore.getState();
       expect(pendingRequests).toHaveLength(2);
       expect(pendingRequests.map(r => r.id)).toEqual(["request-2", "request-3"]);
     });
 
-    it("should refresh the queue after approving a request so approved song appears", async () => {
-      const mockLoadPersistedState = vi.fn().mockResolvedValue(undefined);
-      vi.mocked(useQueueStore.getState).mockReturnValue(
-        createMockQueueState({ loadPersistedState: mockLoadPersistedState })
-      );
+    it("should add approved song to queue and assign singer", async () => {
+      const mockAddToQueue = vi.fn().mockImplementation((video) => Promise.resolve({ id: `queue-${video.id}` }));
+      const mockQueueState = createMockQueueState();
+      mockQueueState.addToQueue = mockAddToQueue;
+      vi.mocked(useQueueStore.getState).mockReturnValue(mockQueueState);
 
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
       vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
@@ -3923,8 +3955,15 @@ describe("sessionStore - Song Request Actions", () => {
 
       await useSessionStore.getState().approveRequest("request-1");
 
-      // Verify loadPersistedState was called to refresh the queue
-      expect(mockLoadPersistedState).toHaveBeenCalled();
+      // Verify addToQueue was called with the video from the request
+      expect(mockAddToQueue).toHaveBeenCalledWith(expect.objectContaining({
+        id: "fJ9rUzIMcZQ",
+        title: "Bohemian Rhapsody",
+        source: "youtube",
+      }));
+      // Verify singer was created and assigned
+      expect(sessionService.createSinger).toHaveBeenCalled();
+      expect(sessionService.assignSingerToQueueItem).toHaveBeenCalled();
     });
   });
 
@@ -4106,6 +4145,7 @@ describe("sessionStore - Song Request Actions", () => {
         title: "New Song During Refresh",
         status: "pending" as const,
         guest_name: "Guest 3",
+        session_guest_id: "guest-3-789",
         requested_at: new Date().toISOString(),
       };
 
@@ -4132,7 +4172,7 @@ describe("sessionStore - Song Request Actions", () => {
   });
 
   describe("approveAllRequests", () => {
-    it("should approve all pending requests when no guestName filter", async () => {
+    it("should add all songs to queue and remove from pendingRequests", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
       vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
       vi.mocked(hostedSessionService.getSession).mockResolvedValue({
@@ -4142,25 +4182,21 @@ describe("sessionStore - Song Request Actions", () => {
 
       await useSessionStore.getState().approveAllRequests();
 
-      // Verify approveRequest was called individually for each request
-      expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(2);
-      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
-        "test-access-token",
-        "hosted-session-123",
-        "request-1"
-      );
-      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
-        "test-access-token",
-        "hosted-session-123",
-        "request-2"
-      );
+      // Verify songs were added to queue
+      expect(useQueueStore.getState().addToQueue).toHaveBeenCalledTimes(2);
+
+      // Verify singers were created and assigned
+      expect(sessionService.createSinger).toHaveBeenCalledTimes(2);
+      expect(sessionService.assignSingerToQueueItem).toHaveBeenCalledTimes(2);
 
       // Verify all requests were removed from pendingRequests
       const { pendingRequests } = useSessionStore.getState();
       expect(pendingRequests).toHaveLength(0);
 
-      // Verify refreshHostedSession was called
-      expect(hostedSessionService.getSession).toHaveBeenCalled();
+      // Server notification happens in background - wait for it
+      await vi.waitFor(() => {
+        expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(2);
+      });
     });
 
     it("should only approve requests from specified guest when guestName provided", async () => {
@@ -4170,6 +4206,7 @@ describe("sessionStore - Song Request Actions", () => {
         title: "We Are The Champions",
         status: "pending" as const,
         guest_name: "Alice",
+        session_guest_id: "guest-alice-123",
         requested_at: "2025-01-01T12:10:00Z",
         youtube_id: "04854XqcfCY",
         artist: "Queen",
@@ -4189,24 +4226,19 @@ describe("sessionStore - Song Request Actions", () => {
 
       await useSessionStore.getState().approveAllRequests("Alice");
 
-      // Verify approveRequest was called only for Alice's requests
-      expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(2);
-      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
-        "test-access-token",
-        "hosted-session-123",
-        "request-1"
-      );
-      expect(hostedSessionService.approveRequest).toHaveBeenCalledWith(
-        "test-access-token",
-        "hosted-session-123",
-        "request-3"
-      );
+      // Verify songs were added to queue for Alice's requests only
+      expect(useQueueStore.getState().addToQueue).toHaveBeenCalledTimes(2);
 
       // Verify only Alice's requests were removed; Bob's remains
       const { pendingRequests } = useSessionStore.getState();
       expect(pendingRequests).toHaveLength(1);
       expect(pendingRequests[0].id).toBe("request-2");
       expect(pendingRequests[0].guest_name).toBe("Bob");
+
+      // Server notification happens in background - wait for it
+      await vi.waitFor(() => {
+        expect(hostedSessionService.approveRequest).toHaveBeenCalledTimes(2);
+      });
     });
 
     it("should do nothing when no requests match the guestName filter", async () => {
@@ -4242,17 +4274,25 @@ describe("sessionStore - Song Request Actions", () => {
       expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
     });
 
-    it("should throw error when not authenticated", async () => {
+    it("should still add songs to queue even if not authenticated (server notification skipped)", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(null);
 
-      await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow(
-        "Not authenticated"
-      );
+      // Should succeed locally even without auth
+      await useSessionStore.getState().approveAllRequests();
 
+      // Verify songs were added to queue
+      expect(useQueueStore.getState().addToQueue).toHaveBeenCalledTimes(2);
+
+      // Verify all requests were removed from pendingRequests
+      const { pendingRequests } = useSessionStore.getState();
+      expect(pendingRequests).toHaveLength(0);
+
+      // Server notification should not happen (no auth)
+      await new Promise((resolve) => setTimeout(resolve, 10));
       expect(hostedSessionService.approveRequest).not.toHaveBeenCalled();
     });
 
-    it("should throw error and notify when all requests fail", async () => {
+    it("should still succeed locally when API errors occur (non-blocking)", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
       vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
         new Error("Network error")
@@ -4262,117 +4302,63 @@ describe("sessionStore - Song Request Actions", () => {
         stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 1 },
       });
 
-      await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow(
-        "All 2 requests failed to approve"
-      );
-
-      expect(notify).toHaveBeenCalledWith("error", "Failed to approve requests");
-
-      // Verify pendingRequests was not modified on error
-      const { pendingRequests } = useSessionStore.getState();
-      expect(pendingRequests).toHaveLength(2);
-    });
-
-    it("should handle partial failures with Promise.allSettled", async () => {
-      // Setup: request-1 succeeds, request-2 fails
-      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.approveRequest)
-        .mockResolvedValueOnce(undefined) // request-1 succeeds
-        .mockRejectedValueOnce(new Error("Network error")); // request-2 fails
-      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
-        ...mockHostedSession,
-        stats: { pendingRequests: 1, approvedRequests: 1, totalGuests: 1 },
-      });
-
-      // Should not throw - partial success is allowed
+      // Should succeed locally despite API errors
       await useSessionStore.getState().approveAllRequests();
 
-      // Verify warning notification for partial failure
-      expect(notify).toHaveBeenCalledWith("warning", "Approved 1 requests, 1 failed");
+      // Verify songs were added to queue
+      expect(useQueueStore.getState().addToQueue).toHaveBeenCalledTimes(2);
 
-      // Verify only successful request was removed from pendingRequests
+      // Verify requests were removed from pendingRequests
       const { pendingRequests } = useSessionStore.getState();
-      expect(pendingRequests).toHaveLength(1);
-      expect(pendingRequests[0].id).toBe("request-2"); // Failed one remains
+      expect(pendingRequests).toHaveLength(0);
     });
 
-    it("should remove all successfully approved requests even when some fail", async () => {
-      // Add a third request
-      const thirdRequest = {
-        id: "request-3",
-        title: "Another Song",
-        status: "pending" as const,
-        guest_name: "Charlie",
-        requested_at: "2025-01-01T12:15:00Z",
-      };
-      useSessionStore.setState({
-        pendingRequests: [...mockPendingRequests, thirdRequest],
-      });
-
+    it("should preserve new requests that arrive during approval", async () => {
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.approveRequest)
-        .mockResolvedValueOnce(undefined) // request-1 succeeds
-        .mockRejectedValueOnce(new Error("Error")) // request-2 fails
-        .mockResolvedValueOnce(undefined); // request-3 succeeds
+      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
       vi.mocked(hostedSessionService.getSession).mockResolvedValue({
         ...mockHostedSession,
         stats: { pendingRequests: 1, approvedRequests: 2, totalGuests: 2 },
       });
 
-      await useSessionStore.getState().approveAllRequests();
-
-      // Verify warning notification
-      expect(notify).toHaveBeenCalledWith("warning", "Approved 2 requests, 1 failed");
-
-      // Verify successful requests were removed, failed one remains
-      const { pendingRequests } = useSessionStore.getState();
-      expect(pendingRequests).toHaveLength(1);
-      expect(pendingRequests[0].id).toBe("request-2");
-    });
-
-    it("should use current pendingRequests state after refresh (race condition fix)", async () => {
-      // This test verifies the fix for the race condition where pendingRequests
-      // could change during the refresh call. The fix ensures we use get().pendingRequests
-      // after refresh instead of a captured stale value.
-      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
-
-      // During refresh, simulate a new request being added to pendingRequests
+      // Simulate new request arriving during local processing
       const newRequest = {
         id: "request-3",
-        title: "New Song During Refresh",
+        title: "New Song During Approval",
         status: "pending" as const,
         guest_name: "Charlie",
+        session_guest_id: "guest-charlie-999",
         requested_at: new Date().toISOString(),
       };
 
-      vi.mocked(hostedSessionService.getSession).mockImplementation(async () => {
-        // Simulate new request arriving during refresh
-        useSessionStore.setState({
-          pendingRequests: [...useSessionStore.getState().pendingRequests, newRequest],
-        });
-        return {
-          ...mockHostedSession,
-          stats: { pendingRequests: 1, approvedRequests: 2, totalGuests: 2 },
-        };
+      const mockQueueState = createMockQueueState();
+      let addCount = 0;
+      mockQueueState.addToQueue = vi.fn().mockImplementation(async (video) => {
+        addCount++;
+        // Simulate new request arriving after first song is added
+        if (addCount === 1) {
+          useSessionStore.setState({
+            pendingRequests: [...useSessionStore.getState().pendingRequests, newRequest],
+          });
+        }
+        return { id: `queue-${video.id}` };
       });
+      vi.mocked(useQueueStore.getState).mockReturnValue(mockQueueState);
 
       // Approve all current requests (request-1 and request-2)
       await useSessionStore.getState().approveAllRequests();
 
       // After approving request-1 and request-2, we should still have request-3
-      // that was added during refresh. If we used the stale captured value,
-      // request-3 would be lost.
       const { pendingRequests } = useSessionStore.getState();
       expect(pendingRequests).toHaveLength(1);
       expect(pendingRequests[0].id).toBe("request-3");
     });
 
-    it("should refresh the queue after approving all requests so approved songs appear", async () => {
-      const mockLoadPersistedState = vi.fn().mockResolvedValue(undefined);
-      vi.mocked(useQueueStore.getState).mockReturnValue(
-        createMockQueueState({ loadPersistedState: mockLoadPersistedState })
-      );
+    it("should add all approved songs to queue and assign singers", async () => {
+      const mockAddToQueue = vi.fn().mockImplementation((video) => Promise.resolve({ id: `queue-${video.id}` }));
+      const mockQueueState = createMockQueueState();
+      mockQueueState.addToQueue = mockAddToQueue;
+      vi.mocked(useQueueStore.getState).mockReturnValue(mockQueueState);
 
       vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
       vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
@@ -4383,19 +4369,16 @@ describe("sessionStore - Song Request Actions", () => {
 
       await useSessionStore.getState().approveAllRequests();
 
-      // Verify loadPersistedState was called to refresh the queue
-      expect(mockLoadPersistedState).toHaveBeenCalled();
+      // Verify addToQueue was called for each request with youtube_id
+      expect(mockAddToQueue).toHaveBeenCalledTimes(2);
+      // Verify singers were created and assigned for each song
+      expect(sessionService.createSinger).toHaveBeenCalledTimes(2);
+      expect(sessionService.assignSingerToQueueItem).toHaveBeenCalledTimes(2);
     });
 
-    it("should clear processingRequestIds in finally block even on total failure", async () => {
-      vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
-      vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(
-        new Error("Network error")
-      );
-      vi.mocked(hostedSessionService.getSession).mockResolvedValue({
-        ...mockHostedSession,
-        stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 1 },
-      });
+    it("should clear processingRequestIds even on local errors", async () => {
+      // Simulate local operation failure
+      vi.mocked(sessionService.createSinger).mockRejectedValue(new Error("Local error"));
 
       // Catch the expected error
       await expect(useSessionStore.getState().approveAllRequests()).rejects.toThrow();
@@ -4438,6 +4421,7 @@ describe("sessionStore - Song Request Actions", () => {
           title: "New Song",
           status: "pending" as const,
           guest_name: "Charlie",
+          session_guest_id: "guest-charlie-999",
           requested_at: "2025-01-01T12:10:00Z",
         },
       ];

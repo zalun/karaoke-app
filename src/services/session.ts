@@ -27,6 +27,8 @@ export interface Singer {
   unique_name: string | null;
   color: string;
   is_persistent: boolean;
+  /** Links this singer to a session guest (session_guest_id from the API) */
+  online_id: string | null;
 }
 
 export interface FavoriteVideo {
@@ -85,7 +87,8 @@ export const sessionService = {
     name: string,
     color: string,
     isPersistent: boolean = false,
-    uniqueName?: string
+    uniqueName?: string,
+    onlineId?: string
   ): Promise<Singer> {
     log.info(`Creating singer: ${name}`);
     return await invoke<Singer>("create_singer", {
@@ -93,6 +96,7 @@ export const sessionService = {
       color,
       isPersistent,
       uniqueName: uniqueName || null,
+      onlineId: onlineId || null,
     });
   },
 

@@ -11,6 +11,9 @@ pub struct Singer {
     pub unique_name: Option<String>,
     pub color: String,
     pub is_persistent: bool,
+    /// Links this singer to a session guest (session_guest_id from the API).
+    /// Used to automatically assign singers when approving song requests.
+    pub online_id: Option<String>,
 }
 
 /// Status of a hosted session. Serializes to lowercase strings: "active", "paused", "ended".
@@ -66,6 +69,7 @@ pub fn create_singer(
     color: String,
     is_persistent: bool,
     unique_name: Option<String>,
+    online_id: Option<String>,
 ) -> Result<Singer, CommandError> {
     // Input validation
     let name = name.trim().to_string();
@@ -94,12 +98,17 @@ pub fn create_singer(
         }
     }
 
+    // Validate and normalize online_id (session guest ID from API)
+    let online_id = online_id
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty());
+
     debug!("Creating singer: {} with color {}", name, color);
     let db = state.db.lock().map_lock_err()?;
 
     db.connection().execute(
-        "INSERT INTO singers (name, color, is_persistent, unique_name) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![name, color, is_persistent, unique_name],
+        "INSERT INTO singers (name, color, is_persistent, unique_name, online_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![name, color, is_persistent, unique_name, online_id],
     )?;
 
     let id = db.connection().last_insert_rowid();
@@ -111,6 +120,7 @@ pub fn create_singer(
         unique_name,
         color,
         is_persistent,
+        online_id,
     })
 }
 
@@ -121,7 +131,7 @@ pub fn get_singers(state: State<'_, AppState>) -> Result<Vec<Singer>, CommandErr
 
     let mut stmt = db
         .connection()
-        .prepare("SELECT id, name, unique_name, color, is_persistent FROM singers ORDER BY name")?;
+        .prepare("SELECT id, name, unique_name, color, is_persistent, online_id FROM singers ORDER BY name")?;
 
     let singers = stmt
         .query_map([], |row| {
@@ -131,6 +141,7 @@ pub fn get_singers(state: State<'_, AppState>) -> Result<Vec<Singer>, CommandErr
                 unique_name: row.get(2)?,
                 color: row.get(3)?,
                 is_persistent: row.get::<_, i32>(4)? != 0,
+                online_id: row.get(5)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -237,7 +248,7 @@ pub fn update_singer(
 
     // Return updated singer
     let singer = db.connection().query_row(
-        "SELECT id, name, unique_name, color, is_persistent FROM singers WHERE id = ?1",
+        "SELECT id, name, unique_name, color, is_persistent, online_id FROM singers WHERE id = ?1",
         [singer_id],
         |row| {
             Ok(Singer {
@@ -246,6 +257,7 @@ pub fn update_singer(
                 unique_name: row.get(2)?,
                 color: row.get(3)?,
                 is_persistent: row.get::<_, i32>(4)? != 0,
+                online_id: row.get(5)?,
             })
         },
     )?;
@@ -259,7 +271,7 @@ pub fn get_persistent_singers(state: State<'_, AppState>) -> Result<Vec<Singer>,
     let db = state.db.lock().map_lock_err()?;
 
     let mut stmt = db.connection().prepare(
-        "SELECT id, name, unique_name, color, is_persistent FROM singers WHERE is_persistent = 1 ORDER BY name",
+        "SELECT id, name, unique_name, color, is_persistent, online_id FROM singers WHERE is_persistent = 1 ORDER BY name",
     )?;
 
     let singers = stmt
@@ -270,6 +282,7 @@ pub fn get_persistent_singers(state: State<'_, AppState>) -> Result<Vec<Singer>,
                 unique_name: row.get(2)?,
                 color: row.get(3)?,
                 is_persistent: row.get::<_, i32>(4)? != 0,
+                online_id: row.get(5)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -569,7 +582,7 @@ pub fn get_session_singers(
     let db = state.db.lock().map_lock_err()?;
 
     let mut stmt = db.connection().prepare(
-        "SELECT s.id, s.name, s.unique_name, s.color, s.is_persistent
+        "SELECT s.id, s.name, s.unique_name, s.color, s.is_persistent, s.online_id
              FROM singers s
              INNER JOIN session_singers ss ON s.id = ss.singer_id
              WHERE ss.session_id = ?1
@@ -584,6 +597,7 @@ pub fn get_session_singers(
                 unique_name: row.get(2)?,
                 color: row.get(3)?,
                 is_persistent: row.get::<_, i32>(4)? != 0,
+                online_id: row.get(5)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -652,7 +666,7 @@ pub fn get_queue_item_singers(
     let db = state.db.lock().map_lock_err()?;
 
     let mut stmt = db.connection().prepare(
-        "SELECT s.id, s.name, s.unique_name, s.color, s.is_persistent
+        "SELECT s.id, s.name, s.unique_name, s.color, s.is_persistent, s.online_id
              FROM singers s
              INNER JOIN queue_singers qs ON s.id = qs.singer_id
              WHERE qs.queue_item_id = ?1
@@ -667,6 +681,7 @@ pub fn get_queue_item_singers(
                 unique_name: row.get(2)?,
                 color: row.get(3)?,
                 is_persistent: row.get::<_, i32>(4)? != 0,
+                online_id: row.get(5)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -1057,7 +1072,7 @@ pub fn session_get_active_singer(
     let db = state.db.lock().map_lock_err()?;
 
     let result = db.connection().query_row(
-        "SELECT s.id, s.name, s.unique_name, s.color, s.is_persistent
+        "SELECT s.id, s.name, s.unique_name, s.color, s.is_persistent, s.online_id
          FROM singers s
          INNER JOIN sessions sess ON sess.active_singer_id = s.id
          WHERE sess.id = ?1",
@@ -1069,6 +1084,7 @@ pub fn session_get_active_singer(
                 unique_name: row.get(2)?,
                 color: row.get(3)?,
                 is_persistent: row.get::<_, i32>(4)? != 0,
+                online_id: row.get(5)?,
             })
         },
     );

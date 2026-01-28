@@ -153,6 +153,7 @@ interface SongRequestResponse {
   title: string;
   status: "pending" | "approved" | "rejected" | "played";
   guest_name: string;
+  session_guest_id: string;
   requested_at: string;
   youtube_id?: string;
   artist?: string;
@@ -312,7 +313,9 @@ export const hostedSessionService = {
       throw new ApiError(response.status, `Failed to get requests: ${error}`);
     }
 
-    const data: SongRequestResponse[] = await response.json();
+    const json = await response.json();
+    // Handle both array response and wrapped response (e.g., {requests: [...]})
+    const data: SongRequestResponse[] = Array.isArray(json) ? json : (json.requests ?? []);
     log.debug(`Retrieved ${data.length} requests`);
 
     return data.map((item) => ({
@@ -320,6 +323,7 @@ export const hostedSessionService = {
       title: item.title,
       status: item.status,
       guest_name: item.guest_name,
+      session_guest_id: item.session_guest_id,
       requested_at: item.requested_at,
       youtube_id: item.youtube_id,
       artist: item.artist,
@@ -357,7 +361,7 @@ export const hostedSessionService = {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ action: "approve", requestId }),
+        body: JSON.stringify({ action: "approve", request_id: requestId }),
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -403,7 +407,7 @@ export const hostedSessionService = {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ action: "reject", requestId }),
+        body: JSON.stringify({ action: "reject", request_id: requestId }),
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -449,7 +453,7 @@ export const hostedSessionService = {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ action: "approve", requestIds }),
+        body: JSON.stringify({ action: "approve", request_ids: requestIds }),
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

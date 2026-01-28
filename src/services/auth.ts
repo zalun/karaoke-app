@@ -30,8 +30,20 @@ function generateState(): string {
   );
 }
 
-// Store the state for validation
-let pendingAuthState: string | null = null;
+// Store the state for validation - use sessionStorage to survive HMR reloads in dev mode
+const PENDING_STATE_KEY = "homekaraoke_pending_auth_state";
+
+function getPendingAuthState(): string | null {
+  return sessionStorage.getItem(PENDING_STATE_KEY);
+}
+
+function setPendingAuthState(state: string | null): void {
+  if (state) {
+    sessionStorage.setItem(PENDING_STATE_KEY, state);
+  } else {
+    sessionStorage.removeItem(PENDING_STATE_KEY);
+  }
+}
 
 export const authService = {
   /**
@@ -65,7 +77,7 @@ export const authService = {
   async clearTokens(): Promise<void> {
     log.info("Clearing auth tokens");
     await invoke("auth_clear_tokens");
-    pendingAuthState = null;
+    setPendingAuthState(null);
   },
 
   /**
@@ -74,8 +86,9 @@ export const authService = {
    */
   async openLogin(): Promise<void> {
     log.info("Opening browser for OAuth login");
-    pendingAuthState = generateState();
-    await invoke("auth_open_login", { state: pendingAuthState });
+    const state = generateState();
+    setPendingAuthState(state);
+    await invoke("auth_open_login", { state });
   },
 
   /**
@@ -84,10 +97,12 @@ export const authService = {
    * Useful for copying the URL to use in a different browser.
    */
   async getLoginUrl(): Promise<string> {
-    if (!pendingAuthState) {
-      pendingAuthState = generateState();
+    let state = getPendingAuthState();
+    if (!state) {
+      state = generateState();
+      setPendingAuthState(state);
     }
-    return await invoke<string>("auth_get_login_url", { state: pendingAuthState });
+    return await invoke<string>("auth_get_login_url", { state });
   },
 
   /**
@@ -105,16 +120,17 @@ export const authService = {
    * Only clears pending state on successful validation to allow retries.
    */
   validateState(state: string): boolean {
-    if (!pendingAuthState) {
+    const pendingState = getPendingAuthState();
+    if (!pendingState) {
       log.error("No pending auth state to validate");
       return false;
     }
-    const isValid = state === pendingAuthState;
+    const isValid = state === pendingState;
     if (!isValid) {
       log.error("State mismatch - possible CSRF attack");
       return false; // Don't clear state - allow retry with correct state
     }
-    pendingAuthState = null; // Only clear on success
+    setPendingAuthState(null); // Only clear on success
     return true;
   },
 
