@@ -956,17 +956,6 @@ function QueuePanel() {
     [queue, reorderQueue]
   );
 
-  if (queue.length === 0) {
-    return (
-      <div className="text-gray-400 text-sm flex-1">
-        <p>No songs in queue</p>
-        <p className="mt-2 text-xs">
-          Search for songs and click "+" to add them
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div
       ref={containerRef}
@@ -979,34 +968,43 @@ function QueuePanel() {
         }
       }}
     >
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={queue.map((item) => item.id)}
-          strategy={verticalListSortingStrategy}
+      {queue.length === 0 ? (
+        <div className="text-gray-400 text-sm flex-1" role="status" aria-live="polite">
+          <p>No songs in queue</p>
+          <p className="mt-2 text-xs">
+            Search for songs and click "+" to add them
+          </p>
+        </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
         >
-          <div className="flex-1 overflow-auto space-y-2">
-            {queue.map((item, index) => (
-              <DraggableQueueItem
-                key={item.id}
-                item={item}
-                index={index}
-                onPlay={() => handlePlayFromQueue(index)}
-                onRemove={() => {
-                  queueLog.info(`Removing from queue: "${item.video.title}"`);
-                  removeFromQueue(item.id);
-                }}
-                formatDuration={formatDuration}
-                isSelected={item.id === selectedItemId}
-                onSelect={() => setSelectedItemId(item.id)}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+          <SortableContext
+            items={queue.map((item) => item.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="flex-1 overflow-auto space-y-2">
+              {queue.map((item, index) => (
+                <DraggableQueueItem
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  onPlay={() => handlePlayFromQueue(index)}
+                  onRemove={() => {
+                    queueLog.info(`Removing from queue: "${item.video.title}"`);
+                    removeFromQueue(item.id);
+                  }}
+                  formatDuration={formatDuration}
+                  isSelected={item.id === selectedItemId}
+                  onSelect={() => setSelectedItemId(item.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
       <div className="mt-3 flex items-center gap-2">
         <QueueSummary queue={queue} />
         {hostedSession && (
