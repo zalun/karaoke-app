@@ -35,6 +35,7 @@ vi.mock("../services", async (importOriginal) => {
       getActiveSinger: vi.fn(),
       setHostedSession: vi.fn(),
       updateHostedSessionStatus: vi.fn(),
+      findSingerByOnlineId: vi.fn(),
     },
     hostedSessionService: {
       getSession: vi.fn(),
@@ -3716,6 +3717,7 @@ describe("sessionStore - Song Request Actions", () => {
     vi.mocked(useQueueStore.getState).mockReturnValue(mockQueueState);
 
     // Mock singer-related services for auto singer assignment
+    vi.mocked(sessionService.findSingerByOnlineId).mockResolvedValue(null); // No existing singer by default
     vi.mocked(sessionService.createSinger).mockImplementation(async (name) => ({
       id: Math.floor(Math.random() * 1000) + 100,
       name,

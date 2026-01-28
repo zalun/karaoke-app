@@ -1,6 +1,7 @@
 use super::errors::{CommandError, LockResultExt};
 use crate::AppState;
 use log::{debug, info};
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -147,6 +148,43 @@ pub fn get_singers(state: State<'_, AppState>) -> Result<Vec<Singer>, CommandErr
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(singers)
+}
+
+/// Find a singer by their online_id (session_guest_id from the API).
+/// Returns None if no singer exists with the given online_id.
+#[tauri::command]
+pub fn find_singer_by_online_id(
+    state: State<'_, AppState>,
+    online_id: String,
+) -> Result<Option<Singer>, CommandError> {
+    let online_id = online_id.trim();
+    if online_id.is_empty() {
+        return Err(CommandError::Validation(
+            "online_id cannot be empty".to_string(),
+        ));
+    }
+
+    debug!("Finding singer by online_id: {}", online_id);
+    let db = state.db.lock().map_lock_err()?;
+
+    let mut stmt = db.connection().prepare(
+        "SELECT id, name, unique_name, color, is_persistent, online_id FROM singers WHERE online_id = ?1",
+    )?;
+
+    let singer = stmt
+        .query_row([online_id], |row| {
+            Ok(Singer {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                unique_name: row.get(2)?,
+                color: row.get(3)?,
+                is_persistent: row.get::<_, i32>(4)? != 0,
+                online_id: row.get(5)?,
+            })
+        })
+        .optional()?;
+
+    Ok(singer)
 }
 
 #[tauri::command]

@@ -521,10 +521,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   findOrCreateSingerForGuest: async (sessionGuestId: string, displayName: string) => {
-    // 1. Try to find existing singer by online_id
+    // 1. Try to find existing singer in memory (fast path)
     const existingSinger = get().singers.find((s) => s.online_id === sessionGuestId);
     if (existingSinger) {
-      log.debug(`Found existing singer for guest ${sessionGuestId}: ${existingSinger.name} (id: ${existingSinger.id})`);
+      log.debug(`Found existing singer in memory for guest ${sessionGuestId}: ${existingSinger.name} (id: ${existingSinger.id})`);
       return existingSinger.id;
     }
 
@@ -535,7 +535,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return pendingCreation;
     }
 
-    // 3. Create new singer with online_id (with race condition protection)
+    // 3. Check database for existing singer (may exist from previous session)
+    // session_guest_id is stable per user, so we can find returning guests
+    const dbSinger = await sessionService.findSingerByOnlineId(sessionGuestId);
+    if (dbSinger) {
+      log.debug(`Found existing singer in database for guest ${sessionGuestId}: ${dbSinger.name} (id: ${dbSinger.id})`);
+      // Add to in-memory list for future lookups
+      set((state) => ({ singers: [...state.singers, dbSinger] }));
+      return dbSinger.id;
+    }
+
+    // 4. Create new singer with online_id (with race condition protection)
     log.info(`Creating new singer for guest ${sessionGuestId}: ${displayName}`);
     const creationPromise = (async () => {
       try {
@@ -1231,7 +1241,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     try {
       // Add song to queue with singer assignment
-      await addRequestToQueueWithSinger(request, get);
+      const added = await addRequestToQueueWithSinger(request, get);
+      if (!added) {
+        log.warn(`Request ${requestId} skipped: no youtube_id`);
+        notify("warning", "Song request has no video - cannot add to queue");
+        // Still remove from pending since it can't be added anyway
+      }
 
       // Remove from pending requests and update stats immediately (optimistic update)
       set((state) => ({
@@ -1246,7 +1261,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         } : null,
       }));
 
-      log.debug(`Request ${requestId} approved locally`);
+      log.debug(`Request ${requestId} approved locally${added ? "" : " (skipped - no video)"}`);
+
 
       // Notify server and refresh stats in background (non-blocking, with retry)
       authService.getTokens().then((tokens) => {
@@ -1361,8 +1377,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     try {
       // Add all songs to queue and assign singers (critical path)
+      let addedCount = 0;
+      let skippedCount = 0;
       for (const request of requestsToApprove) {
-        await addRequestToQueueWithSinger(request, get);
+        const added = await addRequestToQueueWithSinger(request, get);
+        if (added) {
+          addedCount++;
+        } else {
+          skippedCount++;
+        }
+      }
+
+      if (skippedCount > 0) {
+        log.warn(`${skippedCount} requests skipped: no youtube_id`);
+        notify("warning", `${skippedCount} request(s) skipped - no video`);
       }
 
       // Remove all requests from pending and update stats immediately (optimistic update)
@@ -1379,7 +1407,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         } : null,
       }));
 
-      log.debug(`${approvedCount} requests approved locally`);
+      log.debug(`${addedCount} requests added to queue, ${skippedCount} skipped`);
 
       // Notify server and refresh stats in background (non-blocking)
       authService.getTokens().then(async (tokens) => {

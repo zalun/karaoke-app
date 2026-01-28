@@ -286,6 +286,7 @@ pub fn run() {
             // Session & Singer commands
             commands::create_singer,
             commands::get_singers,
+            commands::find_singer_by_online_id,
             commands::delete_singer,
             commands::update_singer,
             commands::get_persistent_singers,

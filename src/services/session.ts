@@ -105,6 +105,11 @@ export const sessionService = {
     return await invoke<Singer[]>("get_singers");
   },
 
+  async findSingerByOnlineId(onlineId: string): Promise<Singer | null> {
+    log.debug(`Finding singer by online_id: ${onlineId}`);
+    return await invoke<Singer | null>("find_singer_by_online_id", { onlineId });
+  },
+
   async deleteSinger(singerId: number): Promise<void> {
     log.info(`Deleting singer: ${singerId}`);
     await invoke("delete_singer", { singerId });
