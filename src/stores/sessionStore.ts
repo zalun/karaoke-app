@@ -559,6 +559,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     // Store the promise so concurrent calls can wait on it
     pendingSingerCreations.set(sessionGuestId, creationPromise);
+
+    // Safety timeout: clean up stale entries after 30 seconds in case of unexpected failures
+    setTimeout(() => {
+      if (pendingSingerCreations.get(sessionGuestId) === creationPromise) {
+        pendingSingerCreations.delete(sessionGuestId);
+        log.warn(`Cleaned up stale pending singer creation for guest ${sessionGuestId}`);
+      }
+    }, 30000);
+
     return creationPromise;
   },
 
