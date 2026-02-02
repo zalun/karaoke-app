@@ -753,12 +753,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
 
       // Check for existing hosted session conflicts
-      // Block if a different user has an active or paused session
+      // Block only if a different user has an ACTIVE or PAUSED session (not ENDED or EXPIRED)
       if (
         session.hosted_session_id &&
         session.hosted_by_user_id &&
         session.hosted_by_user_id !== currentUser.id &&
-        session.hosted_session_status !== HOSTED_SESSION_STATUS.ENDED
+        (session.hosted_session_status === HOSTED_SESSION_STATUS.ACTIVE ||
+         session.hosted_session_status === HOSTED_SESSION_STATUS.PAUSED)
       ) {
         log.error("Cannot host session: another user is hosting");
         throw new Error(
@@ -1010,7 +1011,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         if (interval) {
           clearInterval(interval);
         }
-        set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
+        // Update session status to 'expired' in DB and local state so user can re-host
+        const { session } = get();
+        if (session) {
+          await sessionService.updateHostedSessionStatus(session.id, HOSTED_SESSION_STATUS.EXPIRED);
+          set({
+            session: { ...session, hosted_session_status: HOSTED_SESSION_STATUS.EXPIRED },
+            hostedSession: null,
+            showHostModal: false,
+            _hostedSessionPollInterval: null,
+          });
+        } else {
+          set({ hostedSession: null, showHostModal: false, _hostedSessionPollInterval: null });
+        }
         notify("warning", "Hosted session has ended or expired.");
       }
     } finally {
@@ -1040,11 +1053,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return;
     }
 
-    // RESTORE-002: Skip if session status is 'ended'
-    // No need to verify with backend or attempt restoration - the user already stopped hosting
+    // RESTORE-002: Skip if session status is 'ended' or 'expired'
+    // No need to verify with backend or attempt restoration - the session is no longer active
     // Keep the hosted fields for reference (they can be overridden by hosting again)
-    if (session.hosted_session_status === HOSTED_SESSION_STATUS.ENDED) {
-      log.debug("Skipping restore: hosted_session_status is 'ended'");
+    if (
+      session.hosted_session_status === HOSTED_SESSION_STATUS.ENDED ||
+      session.hosted_session_status === HOSTED_SESSION_STATUS.EXPIRED
+    ) {
+      log.debug(`Skipping restore: hosted_session_status is '${session.hosted_session_status}'`);
       return;
     }
 
