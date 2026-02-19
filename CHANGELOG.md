@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-02-19
+
 ### Added
 - User authentication with Supabase OAuth
   - Sign in with Google, Apple, or Email via external browser
@@ -525,6 +527,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Queue and history management
 - Basic video player controls
 
+[0.8.0]: https://github.com/zalun/karaoke-app/compare/v0.7.7...v0.8.0
 [0.5.7-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.6-beta...v0.5.7-beta
 [0.5.6-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.5-beta...v0.5.6-beta
 [0.5.5-beta]: https://github.com/zalun/karaoke-app/compare/v0.5.4-beta...v0.5.5-beta
