@@ -37,6 +37,8 @@ export function SingerChip({
             onRemove();
           }}
           className="text-gray-400 hover:text-gray-200 transition-colors ml-0.5"
+          title={`Remove ${name}`}
+          aria-label={`Remove ${name}`}
         >
           <X size={isSmall ? 12 : 14} />
         </button>
