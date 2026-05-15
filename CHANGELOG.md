@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Hosted sessions failing with "User not loaded. Please sign in again." in released builds (#226)
+  - Root cause: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` were not passed to `npm run tauri build` in CI or in `scripts/build-and-release.sh`, so the Supabase client was never initialised in the shipped binary.
+  - CI and the local release script now require both variables and fail fast if either is missing.
+
 ## [0.8.0] - 2026-02-19
 
 ### Added
