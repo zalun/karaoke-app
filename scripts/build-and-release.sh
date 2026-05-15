@@ -5,9 +5,11 @@ trap 'echo "Error at line $LINENO: Command \"$BASH_COMMAND\" failed with exit co
 # Build, sign, notarize, and upload to GitHub release
 #
 # Required environment variables:
-#   APPLE_ID        - Apple Developer email
-#   APPLE_PASSWORD  - App-specific password from appleid.apple.com
-#   APPLE_TEAM_ID   - Team ID (e.g., DCXDSQYXM7)
+#   APPLE_ID                 - Apple Developer email
+#   APPLE_PASSWORD           - App-specific password from appleid.apple.com
+#   APPLE_TEAM_ID            - Team ID (e.g., DCXDSQYXM7)
+#   VITE_SUPABASE_URL        - Supabase project URL (baked into the frontend bundle)
+#   VITE_SUPABASE_ANON_KEY   - Supabase anonymous key (baked into the frontend bundle)
 #
 # Usage:
 #   ./scripts/build-and-release.sh v0.6.3
@@ -53,6 +55,20 @@ fi
 
 if [ -z "$APPLE_TEAM_ID" ]; then
     echo "Error: APPLE_TEAM_ID environment variable not set"
+    exit 1
+fi
+
+if [ -z "$VITE_SUPABASE_URL" ]; then
+    echo "Error: VITE_SUPABASE_URL environment variable not set"
+    echo "       This must be set so Supabase auth works in the built app."
+    echo "       Without it, hosted sessions will fail with 'User not loaded'."
+    exit 1
+fi
+
+if [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+    echo "Error: VITE_SUPABASE_ANON_KEY environment variable not set"
+    echo "       This must be set so Supabase auth works in the built app."
+    echo "       Without it, hosted sessions will fail with 'User not loaded'."
     exit 1
 fi
 

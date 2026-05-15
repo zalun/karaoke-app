@@ -76,11 +76,23 @@ jobs:
           # Clean up certificate file
           rm -f $CERTIFICATE_PATH
 
+      - name: Verify Supabase build secrets
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY repo secrets must be set. Without them hosted sessions break in the released build."
+            exit 1
+          fi
+
       - name: Build Tauri app (signed, not notarized)
         run: npm run tauri build -- --target ${{ matrix.target }}
         env:
           # Only signing identity - no APPLE_ID/PASSWORD means no notarization
           APPLE_SIGNING_IDENTITY: "Developer ID Application: Piotr Zalewa"
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Install create-dmg
         run: brew install create-dmg
@@ -288,8 +300,21 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Verify Supabase build secrets
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY repo secrets must be set. Without them hosted sessions break in the released build."
+            exit 1
+          fi
+
       - name: Build Tauri app for Linux
         run: npm run tauri build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Find built packages
         id: find-packages
@@ -393,8 +418,22 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Verify Supabase build secrets
+        shell: bash
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY repo secrets must be set. Without them hosted sessions break in the released build."
+            exit 1
+          fi
+
       - name: Build Tauri app for Windows
         run: npm run tauri build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Find built packages
         id: find-packages
