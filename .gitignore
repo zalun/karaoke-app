@@ -66,3 +66,7 @@ status.json
 
 progress.txt
 .progress.txt
+
+# OpenSpec
+openspec/changes/
+
