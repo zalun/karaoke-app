@@ -1,11 +1,15 @@
 import { useState } from "react";
-import { X, Copy, Check, StopCircle, Users, Clock } from "lucide-react";
+import { X, Copy, Check, StopCircle, Users, Clock, Zap } from "lucide-react";
 import { useSessionStore } from "../../stores";
+import { useSettingsStore, SETTINGS_KEYS } from "../../stores/settingsStore";
 import { notify } from "../../stores/notificationStore";
 import { JoinCodeQR } from "./JoinCodeQR";
 
 export function HostSessionModal() {
   const { hostedSession, showHostModal, closeHostModal, stopHosting } = useSessionStore();
+  const autoAccept = useSettingsStore(
+    (state) => state.settings[SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS] === "true",
+  );
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isStoppingHost, setIsStoppingHost] = useState(false);
@@ -71,6 +75,15 @@ export function HostSessionModal() {
           <p className="text-4xl font-bold font-mono text-white tracking-wider">
             {hostedSession.sessionCode}
           </p>
+          {autoAccept && (
+            <div
+              className="inline-flex items-center gap-1 mt-3 px-2 py-0.5 bg-blue-900/50 border border-blue-700 rounded text-xs text-blue-200"
+              data-testid="auto-accept-badge"
+            >
+              <Zap size={12} />
+              <span>Auto-accept: ON</span>
+            </div>
+          )}
         </div>
 
         {/* QR Code */}

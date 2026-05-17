@@ -33,6 +33,8 @@ export const SETTINGS_KEYS = {
   PLAYBACK_MODE: "playback_mode", // 'youtube' | 'ytdlp'
   // Queue behavior
   FAIR_QUEUE_ENABLED: "fair_queue_enabled", // 'true' | 'false'
+  // Hosted session
+  AUTO_ACCEPT_GUEST_REQUESTS: "auto_accept_guest_requests", // 'true' | 'false'
   // Internal (not shown in UI, used for caching)
   YTDLP_AVAILABLE: "ytdlp_available", // 'true' | 'false' | '' (not checked)
   LAST_VOLUME: "last_volume", // remembered volume level (0-1 as string)
@@ -57,6 +59,7 @@ export const SETTINGS_DEFAULTS: Record<string, string> = {
   [SETTINGS_KEYS.PLAYBACK_MODE]: "youtube", // Default to YouTube embed
   [SETTINGS_KEYS.LAST_VOLUME]: "1", // Default to 100% volume
   [SETTINGS_KEYS.FAIR_QUEUE_ENABLED]: "false", // Default to disabled (append to end)
+  [SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS]: "false", // Default to manual approval
 };
 
 export type SettingsTab = "playback" | "display" | "queue" | "library" | "youtube" | "advanced" | "about";

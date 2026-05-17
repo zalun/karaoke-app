@@ -20,6 +20,7 @@ import { getNextSingerColor } from "../constants";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
 import { notify } from "./notificationStore";
 import { useAuthStore } from "./authStore";
+import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 import type { Video } from "./playerStore";
 
 const log = createLogger("SessionStore");
@@ -183,6 +184,7 @@ interface SessionState {
   approveRequest: (requestId: string) => Promise<void>;
   rejectRequest: (requestId: string) => Promise<void>;
   approveAllRequests: (guestName?: string) => Promise<void>;
+  autoAcceptNewRequests: () => Promise<void>;
   openRequestsModal: () => void;
   closeRequestsModal: () => void;
 
@@ -972,7 +974,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const previousCount = get().previousPendingCount;
       const newCount = updated.stats.pendingRequests;
 
-      if (newCount > previousCount && previousCount >= 0) {
+      const autoAccept =
+        newCount > previousCount && previousCount >= 0 &&
+        useSettingsStore.getState().getSetting(SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS) === "true";
+
+      if (newCount > previousCount && previousCount >= 0 && !autoAccept) {
         const diff = newCount - previousCount;
         notify("info", `${diff} new song request${diff > 1 ? "s" : ""}`, {
           label: "View",
@@ -980,13 +986,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         });
       }
 
-      // Only update stats, preserve other fields from the original session
+      // Update stats; previousPendingCount is owned by autoAcceptNewRequests when it runs,
+      // so that a fetch failure there leaves the gate open for the next poll to retry.
       set((state) => ({
         hostedSession: state.hostedSession
           ? { ...state.hostedSession, stats: updated.stats, status: updated.status }
           : null,
-        previousPendingCount: newCount,
+        ...(autoAccept ? {} : { previousPendingCount: newCount }),
       }));
+
+      if (autoAccept) {
+        void get().autoAcceptNewRequests();
+      }
 
       // Emit signal after successful stats update
       await emitSignal(APP_SIGNALS.HOSTED_SESSION_UPDATED, updated.stats);
@@ -1463,6 +1474,118 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         updatedProcessing.delete(id);
       }
       set({ processingRequestIds: updatedProcessing });
+    }
+  },
+
+  autoAcceptNewRequests: async () => {
+    const { hostedSession } = get();
+    if (!hostedSession) {
+      log.debug("Cannot auto-accept: no hosted session");
+      return;
+    }
+
+    const tokens = await authService.getTokens();
+    if (!tokens) {
+      log.error("Cannot auto-accept: not authenticated");
+      return;
+    }
+
+    // Fetch directly (not via loadPendingRequests) so a failure stays quiet
+    // and does not show the manual-flow error toast.
+    let requests: SongRequest[];
+    try {
+      requests = await hostedSessionService.getRequests(
+        tokens.access_token,
+        hostedSession.id,
+        "pending",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error(`Auto-accept fetch failed: ${message}`);
+      return;
+    }
+
+    // Skip ids already being handled by approveRequest/approveAllRequests to avoid double-processing.
+    const inFlight = get().processingRequestIds;
+    const eligible = requests.filter((r) => !inFlight.has(r.id));
+    if (eligible.length === 0) {
+      // Bump the count gate so the next poll re-evaluates the diff cleanly.
+      set({ previousPendingCount: get().hostedSession?.stats.pendingRequests ?? 0 });
+      return;
+    }
+
+    const eligibleIds = eligible.map((r) => r.id);
+    const newProcessing = new Set(inFlight);
+    for (const id of eligibleIds) newProcessing.add(id);
+    set({ processingRequestIds: newProcessing });
+
+    log.debug(`Auto-accepting ${eligible.length} pending request(s)`);
+    const acceptedIds: string[] = [];
+
+    try {
+      for (const request of eligible) {
+        try {
+          const added = await addRequestToQueueWithSinger(request, get);
+          if (!added) {
+            log.warn(`Auto-accept skipped request ${request.id}: no youtube_id`);
+            continue;
+          }
+          acceptedIds.push(request.id);
+          notify("info", `${request.guest_name} added ${request.title} to the queue`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          log.error(`Auto-accept failed for request ${request.id}: ${message}`);
+        }
+      }
+
+      if (acceptedIds.length === 0) {
+        set({ previousPendingCount: get().hostedSession?.stats.pendingRequests ?? 0 });
+        return;
+      }
+
+      // Optimistically remove accepted requests and decrement count.
+      set((state) => ({
+        pendingRequests: state.pendingRequests.filter((r) => !acceptedIds.includes(r.id)),
+        hostedSession: state.hostedSession
+          ? {
+              ...state.hostedSession,
+              stats: {
+                ...state.hostedSession.stats,
+                pendingRequests: Math.max(
+                  0,
+                  state.hostedSession.stats.pendingRequests - acceptedIds.length,
+                ),
+              },
+            }
+          : null,
+        previousPendingCount: Math.max(
+          0,
+          (state.hostedSession?.stats.pendingRequests ?? 0) - acceptedIds.length,
+        ),
+      }));
+
+      // Notify server in background, then refresh to reconcile. Mirrors approveAllRequests.
+      void Promise.allSettled(
+        acceptedIds.map((requestId) =>
+          hostedSessionService.approveRequest(tokens.access_token, hostedSession.id, requestId),
+        ),
+      )
+        .then(async (results) => {
+          const failed = results.filter((r) => r.status === "rejected").length;
+          if (failed > 0) {
+            log.error(`Auto-accept server sync: ${failed}/${acceptedIds.length} failed`);
+          }
+          await get().refreshHostedSession();
+        })
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          log.error(`Auto-accept post-sync failed: ${message}`);
+        });
+    } finally {
+      const current = get().processingRequestIds;
+      const next = new Set(current);
+      for (const id of eligibleIds) next.delete(id);
+      set({ processingRequestIds: next });
     }
   },
 

@@ -474,6 +474,23 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
     <div>
       <h4 className="text-lg font-medium text-white mb-4">Queue & History</h4>
 
+      {/* Hosted Session Section */}
+      <div className="mb-6">
+        <div className="text-sm font-medium text-gray-300 mb-3">Hosted Session</div>
+
+        <SettingRow
+          label="Auto-accept guest requests"
+          description="Skip approval — incoming requests go straight to the queue"
+        >
+          <ToggleSwitch
+            checked={getSetting(SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS) === "true"}
+            onChange={(v) =>
+              handleChange(SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS, v ? "true" : "false")
+            }
+          />
+        </SettingRow>
+      </div>
+
       {/* Search History Section */}
       <div className="mb-6">
         <div className="text-sm font-medium text-gray-300 mb-3">Search History</div>

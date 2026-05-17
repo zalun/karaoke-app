@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Auto-accept guest song requests (opt-in) (#231)
+  - New "Auto-accept guest requests" toggle in Settings → Queue & History
+  - When enabled, incoming remote requests skip the approval modal and are added directly to the queue with singer auto-assignment
+  - Passive toast per accepted request ("<guest> added <song> to the queue")
+  - `Auto-accept: ON` badge shown in the Host Session modal as a visible reminder
+
 ## [0.8.1] - 2026-05-15
 
 ### Fixed

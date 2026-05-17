@@ -6,11 +6,19 @@ describe("settingsStore", () => {
     it("should have FAIR_QUEUE_ENABLED key", () => {
       expect(SETTINGS_KEYS.FAIR_QUEUE_ENABLED).toBe("fair_queue_enabled");
     });
+
+    it("should have AUTO_ACCEPT_GUEST_REQUESTS key", () => {
+      expect(SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS).toBe("auto_accept_guest_requests");
+    });
   });
 
   describe("SETTINGS_DEFAULTS", () => {
     it("should have FAIR_QUEUE_ENABLED default set to 'false'", () => {
       expect(SETTINGS_DEFAULTS[SETTINGS_KEYS.FAIR_QUEUE_ENABLED]).toBe("false");
+    });
+
+    it("should have AUTO_ACCEPT_GUEST_REQUESTS default set to 'false'", () => {
+      expect(SETTINGS_DEFAULTS[SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS]).toBe("false");
     });
   });
 });
