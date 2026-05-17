@@ -108,14 +108,14 @@ vi.mock("./notificationStore", () => ({
   notify: vi.fn(),
 }));
 
-// Mock settingsStore (getSetting; default values returned)
+// Mock settingsStore (getSetting; default mirrors production "true")
 vi.mock("./settingsStore", () => ({
   SETTINGS_KEYS: {
     AUTO_ACCEPT_GUEST_REQUESTS: "auto_accept_guest_requests",
   },
   useSettingsStore: {
     getState: vi.fn(() => ({
-      getSetting: vi.fn(() => "false"),
+      getSetting: vi.fn(() => "true"),
     })),
   },
 }));
@@ -2863,6 +2863,9 @@ describe("sessionStore - Host Session", () => {
         hostedSession: null,
         showHostModal: false,
       } as Parameters<typeof useSessionStore.setState>[0]);
+      // Existing tests in this describe assert the manual approval flow.
+      // Auto-accept is on by default in production, so lock it off here.
+      setAutoAccept(false);
     });
 
     it("should do nothing if no hosted session exists", async () => {

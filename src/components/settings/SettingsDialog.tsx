@@ -480,7 +480,7 @@ function QueueSettings({ getSetting, setSetting }: SettingsSectionProps) {
 
         <SettingRow
           label="Auto-accept guest requests"
-          description="Skip approval — incoming requests go straight to the queue"
+          description="On by default. Turn off to review each request before it joins the queue."
         >
           <ToggleSwitch
             checked={getSetting(SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS) === "true"}

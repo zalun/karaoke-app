@@ -55,7 +55,7 @@ vi.mock("lucide-react", () => ({
   StopCircle: () => <span />,
   Users: () => <span />,
   Clock: () => <span />,
-  Zap: () => <span data-testid="zap-icon" />,
+  ShieldCheck: () => <span data-testid="shield-icon" />,
 }));
 
 function setup(autoAccept: boolean) {
@@ -78,22 +78,22 @@ function setup(autoAccept: boolean) {
   };
 }
 
-describe("HostSessionModal — auto-accept badge", () => {
+describe("HostSessionModal — manual-approval badge", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("shows the Auto-accept: ON badge when setting is true", () => {
-    setup(true);
-    render(<HostSessionModal />);
-    const badge = screen.getByTestId("auto-accept-badge");
-    expect(badge).toBeInTheDocument();
-    expect(badge).toHaveTextContent("Auto-accept: ON");
-  });
-
-  it("does not render the badge when setting is false", () => {
+  it("shows the Manual approval: ON badge when auto-accept is off (host opted out)", () => {
     setup(false);
     render(<HostSessionModal />);
-    expect(screen.queryByTestId("auto-accept-badge")).not.toBeInTheDocument();
+    const badge = screen.getByTestId("manual-approval-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("Manual approval: ON");
+  });
+
+  it("does not render the badge when auto-accept is on (default)", () => {
+    setup(true);
+    render(<HostSessionModal />);
+    expect(screen.queryByTestId("manual-approval-badge")).not.toBeInTheDocument();
   });
 });

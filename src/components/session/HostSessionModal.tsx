@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Copy, Check, StopCircle, Users, Clock, Zap } from "lucide-react";
+import { X, Copy, Check, StopCircle, Users, Clock, ShieldCheck } from "lucide-react";
 import { useSessionStore } from "../../stores";
 import { useSettingsStore, SETTINGS_KEYS } from "../../stores/settingsStore";
 import { notify } from "../../stores/notificationStore";
@@ -7,8 +7,9 @@ import { JoinCodeQR } from "./JoinCodeQR";
 
 export function HostSessionModal() {
   const { hostedSession, showHostModal, closeHostModal, stopHosting } = useSessionStore();
-  const autoAccept = useSettingsStore(
-    (state) => state.settings[SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS] === "true",
+  // Auto-accept is on by default; only badge when the host has opted into manual approval.
+  const manualApproval = useSettingsStore(
+    (state) => state.settings[SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS] === "false",
   );
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -75,13 +76,13 @@ export function HostSessionModal() {
           <p className="text-4xl font-bold font-mono text-white tracking-wider">
             {hostedSession.sessionCode}
           </p>
-          {autoAccept && (
+          {manualApproval && (
             <div
-              className="inline-flex items-center gap-1 mt-3 px-2 py-0.5 bg-blue-900/50 border border-blue-700 rounded text-xs text-blue-200"
-              data-testid="auto-accept-badge"
+              className="inline-flex items-center gap-1 mt-3 px-2 py-0.5 bg-amber-900/50 border border-amber-700 rounded text-xs text-amber-200"
+              data-testid="manual-approval-badge"
             >
-              <Zap size={12} />
-              <span>Auto-accept: ON</span>
+              <ShieldCheck size={12} />
+              <span>Manual approval: ON</span>
             </div>
           )}
         </div>

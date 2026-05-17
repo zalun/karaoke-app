@@ -17,8 +17,8 @@ describe("settingsStore", () => {
       expect(SETTINGS_DEFAULTS[SETTINGS_KEYS.FAIR_QUEUE_ENABLED]).toBe("false");
     });
 
-    it("should have AUTO_ACCEPT_GUEST_REQUESTS default set to 'false'", () => {
-      expect(SETTINGS_DEFAULTS[SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS]).toBe("false");
+    it("should have AUTO_ACCEPT_GUEST_REQUESTS default set to 'true' (opt-out)", () => {
+      expect(SETTINGS_DEFAULTS[SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS]).toBe("true");
     });
   });
 });
