@@ -67,6 +67,7 @@ status.json
 progress.txt
 .progress.txt
 
-# OpenSpec
-openspec/changes/
+# OpenSpec — ignore active in-flight changes, but track archived ones for PR review
+openspec/changes/*
+!openspec/changes/archive/
 

@@ -108,6 +108,18 @@ vi.mock("./notificationStore", () => ({
   notify: vi.fn(),
 }));
 
+// Mock settingsStore (getSetting; default mirrors production "true")
+vi.mock("./settingsStore", () => ({
+  SETTINGS_KEYS: {
+    AUTO_ACCEPT_GUEST_REQUESTS: "auto_accept_guest_requests",
+  },
+  useSettingsStore: {
+    getState: vi.fn(() => ({
+      getSetting: vi.fn(() => "true"),
+    })),
+  },
+}));
+
 // Mock authStore
 vi.mock("./authStore", () => ({
   useAuthStore: {
@@ -171,6 +183,14 @@ import { authService } from "../services/auth";
 import { useQueueStore, flushPendingOperations } from "./queueStore";
 import { notify } from "./notificationStore";
 import { useAuthStore } from "./authStore";
+import { useSettingsStore } from "./settingsStore";
+
+function setAutoAccept(enabled: boolean) {
+  vi.mocked(useSettingsStore.getState).mockReturnValue({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    getSetting: vi.fn(() => (enabled ? "true" : "false")),
+  } as any);
+}
 
 const mockSession: Session = {
   id: 1,
@@ -2843,6 +2863,9 @@ describe("sessionStore - Host Session", () => {
         hostedSession: null,
         showHostModal: false,
       } as Parameters<typeof useSessionStore.setState>[0]);
+      // Existing tests in this describe assert the manual approval flow.
+      // Auto-accept is on by default in production, so lock it off here.
+      setAutoAccept(false);
     });
 
     it("should do nothing if no hosted session exists", async () => {
@@ -3272,6 +3295,315 @@ describe("sessionStore - Host Session", () => {
 
       // Verify modal opens
       expect(useSessionStore.getState().showRequestsModal).toBe(true);
+    });
+
+    describe("auto-accept guest requests (#231)", () => {
+      const mockSongRequest = {
+        id: "req-1",
+        hosted_session_id: "session-123",
+        user_id: "user-A",
+        guest_name: "Alice",
+        youtube_id: "yt-abc",
+        title: "Don't Stop Believin'",
+        artist: "Journey",
+        duration: 251,
+        thumbnail_url: null,
+        status: "pending" as const,
+        requested_at: "2026-05-16T10:00:00Z",
+      };
+
+      beforeEach(() => {
+        setAutoAccept(false);
+        vi.mocked(notify).mockClear();
+        vi.mocked(hostedSessionService.getRequests).mockReset();
+        vi.mocked(hostedSessionService.approveRequest).mockReset();
+        vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+      });
+
+      it("shows manual notification when auto-accept is off (default)", async () => {
+        setAutoAccept(false);
+        useSessionStore.setState({
+          hostedSession: mockRefreshHostedSession,
+          previousPendingCount: 0,
+          _isRefreshingHostedSession: false,
+        } as Parameters<typeof useSessionStore.setState>[0]);
+        vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+        vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+          ...mockRefreshHostedSession,
+          stats: { pendingRequests: 2, approvedRequests: 0, totalGuests: 1 },
+        });
+
+        await useSessionStore.getState().refreshHostedSession();
+
+        expect(notify).toHaveBeenCalledWith(
+          "info",
+          "2 new song requests",
+          expect.objectContaining({ label: "View" }),
+        );
+        expect(hostedSessionService.getRequests).not.toHaveBeenCalled();
+      });
+
+      it("invokes autoAcceptNewRequests instead of notifying when setting is on", async () => {
+        setAutoAccept(true);
+        useSessionStore.setState({
+          hostedSession: mockRefreshHostedSession,
+          previousPendingCount: 0,
+          _isRefreshingHostedSession: false,
+        } as Parameters<typeof useSessionStore.setState>[0]);
+        vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+        vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+          ...mockRefreshHostedSession,
+          stats: { pendingRequests: 1, approvedRequests: 0, totalGuests: 1 },
+        });
+        vi.mocked(hostedSessionService.getRequests).mockResolvedValue([]);
+
+        const spy = vi
+          .spyOn(useSessionStore.getState(), "autoAcceptNewRequests")
+          .mockResolvedValue(undefined);
+
+        try {
+          await useSessionStore.getState().refreshHostedSession();
+
+          expect(spy).toHaveBeenCalled();
+          expect(notify).not.toHaveBeenCalledWith(
+            "info",
+            expect.stringContaining("new song request"),
+            expect.anything(),
+          );
+        } finally {
+          spy.mockRestore();
+        }
+      });
+
+      it("autoAcceptNewRequests adds each pending request to queue and emits passive toast", async () => {
+        setAutoAccept(true);
+        useSessionStore.setState({
+          hostedSession: mockRefreshHostedSession,
+          singers: [],
+          pendingRequests: [],
+        } as Parameters<typeof useSessionStore.setState>[0]);
+        vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+        vi.mocked(hostedSessionService.getRequests).mockResolvedValue([mockSongRequest]);
+        vi.mocked(useQueueStore.getState).mockReturnValue(
+          createMockQueueState({ queue: [], history: [] }),
+        );
+        vi.mocked(useQueueStore.getState().addToQueue).mockResolvedValue({
+          id: "q-1",
+          videoId: "yt-abc",
+          title: "Don't Stop Believin'",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any);
+        vi.mocked(sessionService.createSinger).mockResolvedValue(mockSinger1);
+        vi.mocked(sessionService.addSingerToSession).mockResolvedValue(undefined);
+        vi.mocked(sessionService.assignSingerToQueueItem).mockResolvedValue(undefined);
+        vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+
+        await useSessionStore.getState().autoAcceptNewRequests();
+
+        expect(useQueueStore.getState().addToQueue).toHaveBeenCalled();
+        expect(notify).toHaveBeenCalledWith(
+          "info",
+          "Alice added Don't Stop Believin' to the queue",
+        );
+        // Pending list cleared optimistically
+        expect(useSessionStore.getState().pendingRequests).toEqual([]);
+      });
+
+      it("autoAcceptNewRequests is a no-op when there are no pending requests", async () => {
+        setAutoAccept(true);
+        useSessionStore.setState({
+          hostedSession: mockRefreshHostedSession,
+        } as Parameters<typeof useSessionStore.setState>[0]);
+        vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+        vi.mocked(hostedSessionService.getRequests).mockResolvedValue([]);
+
+        await useSessionStore.getState().autoAcceptNewRequests();
+
+        expect(notify).not.toHaveBeenCalled();
+        expect(useQueueStore.getState().addToQueue).not.toHaveBeenCalled();
+      });
+
+      it("skips a request that has no youtube_id (does not toast, does not call approveRequest)", async () => {
+        setAutoAccept(true);
+        const missingYt = { ...mockSongRequest, id: "req-noyt", youtube_id: null };
+        const valid = { ...mockSongRequest, id: "req-ok" };
+        useSessionStore.setState({
+          hostedSession: mockRefreshHostedSession,
+          singers: [],
+          pendingRequests: [],
+        } as Parameters<typeof useSessionStore.setState>[0]);
+        vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+        vi.mocked(hostedSessionService.getRequests).mockResolvedValue([missingYt, valid]);
+        vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+        vi.mocked(useQueueStore.getState().addToQueue).mockResolvedValue(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { id: "q-1", videoId: "yt-abc", title: "ok" } as any,
+        );
+        vi.mocked(sessionService.createSinger).mockResolvedValue(mockSinger1);
+        vi.mocked(sessionService.assignSingerToQueueItem).mockResolvedValue(undefined);
+        vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+
+        await useSessionStore.getState().autoAcceptNewRequests();
+
+        // addToQueue invoked only for the valid request
+        expect(useQueueStore.getState().addToQueue).toHaveBeenCalledTimes(1);
+        // Exactly one toast (for the valid request)
+        const infoToasts = vi.mocked(notify).mock.calls.filter(
+          (c) => c[0] === "info" && typeof c[1] === "string" && c[1].includes("added"),
+        );
+        expect(infoToasts).toHaveLength(1);
+      });
+
+      it("continues processing remaining requests after one fails mid-iteration", async () => {
+        setAutoAccept(true);
+        const first = { ...mockSongRequest, id: "req-a", title: "First" };
+        const second = { ...mockSongRequest, id: "req-b", title: "Second" };
+        useSessionStore.setState({
+          hostedSession: mockRefreshHostedSession,
+          singers: [],
+          pendingRequests: [],
+        } as Parameters<typeof useSessionStore.setState>[0]);
+        vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+        vi.mocked(hostedSessionService.getRequests).mockResolvedValue([first, second]);
+        vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+        vi.mocked(useQueueStore.getState().addToQueue)
+          .mockRejectedValueOnce(new Error("transient queue write"))
+          .mockResolvedValueOnce(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            { id: "q-2", videoId: "yt-abc", title: "Second" } as any,
+          );
+        vi.mocked(sessionService.createSinger).mockResolvedValue(mockSinger1);
+        vi.mocked(sessionService.assignSingerToQueueItem).mockResolvedValue(undefined);
+        vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+
+        await useSessionStore.getState().autoAcceptNewRequests();
+
+        // Both requests attempted; second succeeded
+        expect(useQueueStore.getState().addToQueue).toHaveBeenCalledTimes(2);
+        const infoToasts = vi.mocked(notify).mock.calls.filter(
+          (c) => c[0] === "info" && typeof c[1] === "string" && c[1].includes("Second"),
+        );
+        expect(infoToasts).toHaveLength(1);
+      });
+
+      it("emits one passive toast per request when multiple arrive in one batch", async () => {
+        setAutoAccept(true);
+        const reqs = [
+          { ...mockSongRequest, id: "r1", title: "S1" },
+          { ...mockSongRequest, id: "r2", title: "S2" },
+          { ...mockSongRequest, id: "r3", title: "S3" },
+        ];
+        useSessionStore.setState({
+          hostedSession: mockRefreshHostedSession,
+          singers: [],
+          pendingRequests: [],
+        } as Parameters<typeof useSessionStore.setState>[0]);
+        vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+        vi.mocked(hostedSessionService.getRequests).mockResolvedValue(reqs);
+        vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+        vi.mocked(useQueueStore.getState().addToQueue).mockResolvedValue(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { id: "q", videoId: "yt-abc", title: "x" } as any,
+        );
+        vi.mocked(sessionService.createSinger).mockResolvedValue(mockSinger1);
+        vi.mocked(sessionService.assignSingerToQueueItem).mockResolvedValue(undefined);
+        vi.mocked(hostedSessionService.approveRequest).mockResolvedValue(undefined);
+
+        await useSessionStore.getState().autoAcceptNewRequests();
+
+        const songToasts = vi.mocked(notify).mock.calls.filter(
+          (c) => c[0] === "info" && typeof c[1] === "string" && /added S\d to the queue/.test(c[1]),
+        );
+        expect(songToasts).toHaveLength(3);
+        // No View-action toast in the auto-accept path
+        for (const call of songToasts) {
+          expect(call[2]).toBeUndefined();
+        }
+      });
+
+      it("does not revert optimistic state when server approveRequest fails", async () => {
+        setAutoAccept(true);
+        useSessionStore.setState({
+          hostedSession: mockRefreshHostedSession,
+          singers: [],
+          pendingRequests: [],
+        } as Parameters<typeof useSessionStore.setState>[0]);
+        vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+        vi.mocked(hostedSessionService.getRequests).mockResolvedValue([mockSongRequest]);
+        vi.mocked(useQueueStore.getState).mockReturnValue(createMockQueueState());
+        vi.mocked(useQueueStore.getState().addToQueue).mockResolvedValue(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { id: "q", videoId: "yt-abc", title: "x" } as any,
+        );
+        vi.mocked(sessionService.createSinger).mockResolvedValue(mockSinger1);
+        vi.mocked(sessionService.assignSingerToQueueItem).mockResolvedValue(undefined);
+        // Server rejection: should not surface as error toast, optimistic state preserved
+        vi.mocked(hostedSessionService.approveRequest).mockRejectedValue(new Error("500"));
+        // refreshHostedSession reconciliation: keep stable
+        vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+          ...mockRefreshHostedSession,
+          stats: { pendingRequests: 0, approvedRequests: 1, totalGuests: 1 },
+        });
+
+        await useSessionStore.getState().autoAcceptNewRequests();
+        // Let pending microtasks (server sync + reconcile) flush
+        await new Promise((r) => setTimeout(r, 0));
+
+        // Pending list still empty, no error toast fired
+        expect(useSessionStore.getState().pendingRequests).toEqual([]);
+        const errorToasts = vi.mocked(notify).mock.calls.filter((c) => c[0] === "error");
+        expect(errorToasts).toHaveLength(0);
+      });
+
+      it("toggling setting between polls changes routing on next poll", async () => {
+        // First poll: auto-accept OFF
+        setAutoAccept(false);
+        useSessionStore.setState({
+          hostedSession: mockRefreshHostedSession,
+          previousPendingCount: 0,
+          _isRefreshingHostedSession: false,
+        } as Parameters<typeof useSessionStore.setState>[0]);
+        vi.mocked(authService.getTokens).mockResolvedValue(mockTokens);
+        vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+          ...mockRefreshHostedSession,
+          stats: { pendingRequests: 1, approvedRequests: 0, totalGuests: 1 },
+        });
+
+        await useSessionStore.getState().refreshHostedSession();
+        expect(notify).toHaveBeenCalledWith(
+          "info",
+          "1 new song request",
+          expect.objectContaining({ label: "View" }),
+        );
+
+        // Flip setting and run another poll where count grows again
+        setAutoAccept(true);
+        vi.mocked(notify).mockClear();
+        useSessionStore.setState({
+          previousPendingCount: 1,
+          _isRefreshingHostedSession: false,
+        } as Parameters<typeof useSessionStore.setState>[0]);
+        vi.mocked(hostedSessionService.getSession).mockResolvedValue({
+          ...mockRefreshHostedSession,
+          stats: { pendingRequests: 3, approvedRequests: 0, totalGuests: 1 },
+        });
+        const spy = vi
+          .spyOn(useSessionStore.getState(), "autoAcceptNewRequests")
+          .mockResolvedValue(undefined);
+
+        try {
+          await useSessionStore.getState().refreshHostedSession();
+
+          expect(spy).toHaveBeenCalled();
+          expect(notify).not.toHaveBeenCalledWith(
+            "info",
+            expect.stringContaining("new song request"),
+            expect.anything(),
+          );
+        } finally {
+          spy.mockRestore();
+        }
+      });
     });
   });
 

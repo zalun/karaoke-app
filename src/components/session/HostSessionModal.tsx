@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { X, Copy, Check, StopCircle, Users, Clock } from "lucide-react";
+import { X, Copy, Check, StopCircle, Users, Clock, ShieldCheck } from "lucide-react";
 import { useSessionStore } from "../../stores";
+import { useSettingsStore, SETTINGS_KEYS } from "../../stores/settingsStore";
 import { notify } from "../../stores/notificationStore";
 import { JoinCodeQR } from "./JoinCodeQR";
 
 export function HostSessionModal() {
   const { hostedSession, showHostModal, closeHostModal, stopHosting } = useSessionStore();
+  // Auto-accept is on by default; only badge when the host has opted into manual approval.
+  const manualApproval = useSettingsStore(
+    (state) => state.settings[SETTINGS_KEYS.AUTO_ACCEPT_GUEST_REQUESTS] === "false",
+  );
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isStoppingHost, setIsStoppingHost] = useState(false);
@@ -71,6 +76,15 @@ export function HostSessionModal() {
           <p className="text-4xl font-bold font-mono text-white tracking-wider">
             {hostedSession.sessionCode}
           </p>
+          {manualApproval && (
+            <div
+              className="inline-flex items-center gap-1 mt-3 px-2 py-0.5 bg-yellow-900/40 border border-yellow-700 rounded text-xs text-yellow-200"
+              data-testid="manual-approval-badge"
+            >
+              <ShieldCheck size={12} />
+              <span>Manual approval: ON</span>
+            </div>
+          )}
         </div>
 
         {/* QR Code */}

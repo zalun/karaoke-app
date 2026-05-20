@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Guest song requests are now auto-accepted by default (#231)
+  - Incoming remote requests skip the approval modal and are added directly to the queue with singer auto-assignment
+  - Passive toast per accepted request ("<guest> added <song> to the queue")
+  - New "Auto-accept guest requests" toggle in Settings → Queue & History — turn off to restore manual approval
+  - When opted out, a `Manual approval: ON` badge appears in the Host Session modal as a visible reminder
+
+### Added
+- OpenSpec-driven development workflow (#232)
+  - Workflow recorded in `CLAUDE.md` (issue → explore → propose → branch → apply → review-and-fix → e2e → archive → PR)
+  - First spec captured under `openspec/specs/hosted-session-requests/spec.md`
+  - `/opsx:{explore,propose,apply,archive}` slash commands and `openspec-*` skills checked in under `.claude/` so the workflow is reproducible for contributors
+  - Archived OpenSpec changes are tracked in git for PR review; in-flight changes remain ignored
+
 ## [0.8.1] - 2026-05-15
 
 ### Fixed

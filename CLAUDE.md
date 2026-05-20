@@ -10,6 +10,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Branch naming: `feature/<issue-number>-<description>` or `fix/<issue-number>-<description>`
 - **Avoid `git commit --amend`** - prefer separate commits for fixes/updates (easier to review)
 
+### Standard Workflow (OpenSpec-driven)
+
+For any non-trivial change, follow this sequence:
+
+0. **Create a GitHub issue** describing the problem/feature
+1. `/opsx:explore` — think through the problem, surface options, ground in the codebase
+2. `/opsx:propose` — generate `openspec/changes/<name>/{proposal,specs,tasks}.md`
+3. **Create the feature branch** from main: `feature/<issue#>-<slug>` or `fix/<issue#>-<slug>`
+4. `/opsx:apply <name>` — implement tasks; mark each `[x]` as done
+5. `/review-and-fix` — run PR-review-toolkit agents, fix until clean
+6. **E2E + manual tests** — `just e2e` and a manual smoke of the feature
+7. `/opsx:archive <name>` — move spec deltas into `openspec/specs/`, close the change
+8. **PR + merge** — open PR linked to the issue, get review, squash-merge
+
+Notes:
+- `openspec/changes/` is gitignored; specs are committed only after archive.
+- Trivial fixes (typos, dep bumps) can skip steps 1–2 and 7.
+
 ### Pre-Push Checklist
 
 Before pushing changes, **ask the user** if E2E tests should be run:
