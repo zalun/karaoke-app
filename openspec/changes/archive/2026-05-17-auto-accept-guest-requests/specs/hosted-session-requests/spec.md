@@ -1,9 +1,5 @@
-# hosted-session-requests Specification
+## ADDED Requirements
 
-## Purpose
-Defines how guest song requests received via the hosted-session API are routed to the local queue — covering the default auto-accept flow, the opt-out manual-approval flow (preserving the approval modal from #211), and the host-visible reminder UI shown only when the host has opted out of the default.
-
-## Requirements
 ### Requirement: Auto-accept is the default for incoming guest song requests
 
 The system SHALL expose an app-wide boolean setting `auto_accept_guest_requests`, **default `true`**, configurable from the **Queue** tab of `SettingsDialog`. When `true` (default), incoming pending guest song requests SHALL be added to the queue automatically without host approval.
@@ -47,4 +43,3 @@ When the host toggles `auto_accept_guest_requests` to `false`, incoming guest so
 - **WHEN** the host toggles `auto_accept_guest_requests` from `false` to `true` while a session is active
 - **THEN** subsequent pending requests SHALL be auto-routed to the queue per the default behaviour
 - **AND** any pending requests still in the approval modal at toggle time SHALL remain pending until the next poll picks them up
-

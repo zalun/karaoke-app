@@ -996,7 +996,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }));
 
       if (autoAccept) {
-        void get().autoAcceptNewRequests();
+        void get()
+          .autoAcceptNewRequests()
+          .catch((err) => {
+            const message = err instanceof Error ? err.message : String(err);
+            log.error(`Auto-accept dispatch failed: ${message}`);
+          });
       }
 
       // Emit signal after successful stats update

@@ -78,7 +78,7 @@ export function HostSessionModal() {
           </p>
           {manualApproval && (
             <div
-              className="inline-flex items-center gap-1 mt-3 px-2 py-0.5 bg-amber-900/50 border border-amber-700 rounded text-xs text-amber-200"
+              className="inline-flex items-center gap-1 mt-3 px-2 py-0.5 bg-yellow-900/40 border border-yellow-700 rounded text-xs text-yellow-200"
               data-testid="manual-approval-badge"
             >
               <ShieldCheck size={12} />
