@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - When opted out, a `Manual approval: ON` badge appears in the Host Session modal as a visible reminder
 
 ### Added
+- In-app feedback reporting (#225)
+  - New native `Feedback` menu with `Report a Bug…`, `Suggest a Feature…`, and `Send Other Feedback…`
+  - `<FeedbackDialog>` collects a title, description, optional email, and (opt-in, default ON) recent application logs, plus auto-collected context (app version, OS, recent error/warning notifications)
+  - Privacy split: title and description are published to a public GitHub issue on `zalun/karaoke-app`, while email and logs are kept private in Supabase — a non-dismissable banner makes this explicit
+  - On success the dialog surfaces the created GitHub issue with `Open` / `Copy link` actions
+  - New `get_log_tail` Tauri command redacts secrets (JWTs, Supabase/API keys, Bearer tokens, opaque hex/base64) before logs leave the app
 - OpenSpec-driven development workflow (#232)
   - Workflow recorded in `CLAUDE.md` (issue → explore → propose → branch → apply → review-and-fix → e2e → archive → PR)
   - First spec captured under `openspec/specs/hosted-session-requests/spec.md`

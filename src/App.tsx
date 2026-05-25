@@ -25,8 +25,9 @@ import { DependencyCheck } from "./components/DependencyCheck";
 import { DisplayRestoreDialog } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
 import { SettingsDialog } from "./components/settings";
+import { FeedbackDialog } from "./components/feedback";
 import { AuthStatus } from "./components/auth";
-import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, useAuthStore, getStreamUrlWithCache, showWindowsAudioNoticeOnce, notify, SETTINGS_KEYS, type QueueItem, type LibraryVideo, type Video } from "./stores";
+import { usePlayerStore, useQueueStore, useSessionStore, useFavoritesStore, useSettingsStore, useLibraryStore, useAuthStore, useFeedbackStore, getStreamUrlWithCache, showWindowsAudioNoticeOnce, notify, SETTINGS_KEYS, type FeedbackType, type QueueItem, type LibraryVideo, type Video } from "./stores";
 import { SingerAvatar } from "./components/singers";
 import { Shuffle, Trash2, ListRestart, Star, ListOrdered, Inbox } from "lucide-react";
 import { youtubeService, createLogger, getErrorMessage, runLegacyHostedSessionMigration, emitSignal, APP_SIGNALS } from "./services";
@@ -235,6 +236,9 @@ function App() {
   // Get settings store methods for menu events
   const { openSettingsDialog } = useSettingsStore();
 
+  // Get feedback store method for the Feedback menu events
+  const { openWith: openFeedback } = useFeedbackStore();
+
   // Listen for menu events
   useEffect(() => {
     let mounted = true;
@@ -264,11 +268,19 @@ function App() {
       else fn(); // Already unmounted, clean up immediately
     });
 
+    listen<{ type: FeedbackType }>("open-feedback", (event) => {
+      log.info(`Feedback dialog triggered from menu: ${event.payload.type}`);
+      openFeedback(event.payload.type);
+    }).then((fn) => {
+      if (mounted) unsubscribers.push(fn);
+      else fn(); // Already unmounted, clean up immediately
+    });
+
     return () => {
       mounted = false;
       unsubscribers.forEach((fn) => fn());
     };
-  }, [openLoadFavoritesDialog, openManageFavoritesDialog, openSettingsDialog]);
+  }, [openLoadFavoritesDialog, openManageFavoritesDialog, openSettingsDialog, openFeedback]);
 
   // Load library folders on mount
   useEffect(() => {
@@ -581,6 +593,9 @@ function App() {
 
       {/* Settings dialog */}
       <SettingsDialog />
+
+      {/* Feedback dialog */}
+      <FeedbackDialog />
 
       <div data-tauri-drag-region className="h-full grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left: Main content area */}

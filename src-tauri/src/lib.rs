@@ -58,6 +58,9 @@ const LOAD_SESSION_MENU_ID: &str = "load-session";
 const SAVE_DISPLAY_LAYOUT_MENU_ID: &str = "save-display-layout";
 const LOAD_FAVORITES_MENU_ID: &str = "load-favorites";
 const MANAGE_FAVORITES_MENU_ID: &str = "manage-favorites";
+const FEEDBACK_BUG_MENU_ID: &str = "feedback-bug";
+const FEEDBACK_FEATURE_MENU_ID: &str = "feedback-feature";
+const FEEDBACK_OTHER_MENU_ID: &str = "feedback-other";
 
 fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>, tauri::Error> {
     // About metadata with app info
@@ -184,7 +187,26 @@ fn create_menu(app: &tauri::App, debug_enabled: bool) -> Result<Menu<tauri::Wry>
         ],
     )?;
 
-    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &sessions_menu, &singers_menu, &window_menu])
+    // Feedback menu - opens the in-app feedback dialog with a pre-selected type
+    let feedback_bug_item =
+        MenuItem::with_id(app, FEEDBACK_BUG_MENU_ID, "Report a Bug...", true, None::<&str>)?;
+    let feedback_feature_item =
+        MenuItem::with_id(app, FEEDBACK_FEATURE_MENU_ID, "Suggest a Feature...", true, None::<&str>)?;
+    let feedback_other_item =
+        MenuItem::with_id(app, FEEDBACK_OTHER_MENU_ID, "Send Other Feedback...", true, None::<&str>)?;
+
+    let feedback_menu = Submenu::with_items(
+        app,
+        "Feedback",
+        true,
+        &[
+            &feedback_bug_item,
+            &feedback_feature_item,
+            &feedback_other_item,
+        ],
+    )?;
+
+    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &sessions_menu, &singers_menu, &window_menu, &feedback_menu])
 }
 
 fn load_debug_preference(db: &Database) -> bool {
@@ -277,6 +299,7 @@ pub fn run() {
             commands::get_debug_mode,
             commands::set_debug_mode,
             commands::get_log_path,
+            commands::get_log_tail,
             // Settings commands
             commands::settings_get,
             commands::settings_set,
@@ -763,6 +786,17 @@ pub fn run() {
                 SETTINGS_MENU_ID => {
                     info!("Settings... menu clicked");
                     let _ = app.emit("show-settings-dialog", ());
+                }
+                FEEDBACK_BUG_MENU_ID | FEEDBACK_FEATURE_MENU_ID | FEEDBACK_OTHER_MENU_ID => {
+                    let feedback_type = match menu_id {
+                        FEEDBACK_BUG_MENU_ID => "bug",
+                        FEEDBACK_FEATURE_MENU_ID => "feature",
+                        _ => "other",
+                    };
+                    info!("Feedback menu clicked: {}", feedback_type);
+                    if let Err(e) = app.emit_to("main", "open-feedback", serde_json::json!({ "type": feedback_type })) {
+                        log::warn!("Failed to emit open-feedback event: {}", e);
+                    }
                 }
                 _ => {}
             }

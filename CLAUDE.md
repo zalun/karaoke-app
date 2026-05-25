@@ -206,6 +206,30 @@ refreshHostedSession() // Poll for updated stats (30s interval)
 - `GET /api/session/[id]` - Get session stats (guests, pending requests)
 - `DELETE /api/session/[id]` - End hosted session
 
+## Feedback
+
+In-app bug/feature/other reports (#225). A native `Feedback` menu opens `<FeedbackDialog>`; each report is split along privacy lines — a sanitized **public GitHub issue** plus a **private Supabase row** for email and logs.
+
+### Flow
+
+- **Menu:** `Feedback → {Report a Bug…, Suggest a Feature…, Send Other Feedback…}` emits `open-feedback` with the chosen type (`src-tauri/src/lib.rs`).
+- **Frontend:** `useFeedbackStore` controls the dialog; `src/services/feedback.ts` collects context (`collectContext`) and POSTs (`submitFeedback`).
+- **Log tail:** the `get_log_tail` Tauri command (`src-tauri/src/commands/feedback.rs`) returns up to 100 lines of the active log with secrets redacted (`commands/redaction.rs`) and a 50 KB cap. Included only when the dialog's "Dołącz logi aplikacji" checkbox is on (default ON).
+
+### Backend (homekaraoke.app, separate repo)
+
+`POST /api/feedback` validates, rate-limits (10/IP/hour), then best-effort dual-writes: private Supabase `feedback` table (RLS on, service-role only) + public GitHub issue on `zalun/karaoke-app` (labels `feedback` + `bug|feature|other`). Returns `200 { ok, githubIssueUrl? }`, `429`, `400`, or `502`.
+
+> The endpoint is the source of truth for this contract — the description here is a convenience copy and may drift. The client only branches on `429` and `ok` (`src/services/feedback.ts`), so verify status codes against the homekaraoke.app repo.
+
+### Env vars (Vercel, homekaraoke.app project)
+
+`GITHUB_FEEDBACK_TOKEN` (fine-grained PAT, Issues: R/W), `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY`, `FEEDBACK_IP_HASH_SALT`.
+
+> **Upstash coupling:** rate limiting reuses the KSeFka Upstash instance under key prefix `homekaraoke:feedback:ratelimit:<ip>`. The credentials are shared with KSeFka; deleting that Upstash instance disables rate limiting for both apps. Treat them as production-critical.
+
+The `feedback` table lives in the existing Supabase project (see the change's design.md D7 for schema).
+
 ## Logging
 
 - Uses `tauri-plugin-log` with file + stdout + webview targets

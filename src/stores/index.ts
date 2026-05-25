@@ -43,3 +43,4 @@ export {
 } from "./libraryStore";
 export { useSearchHistoryStore, type SearchType } from "./searchHistoryStore";
 export { useAuthStore, type AuthState } from "./authStore";
+export { useFeedbackStore, type FeedbackType } from "./feedbackStore";

@@ -9,6 +9,12 @@
 export const HOMEKARAOKE_API_URL = "https://homekaraoke.app";
 
 /**
+ * Feedback submission endpoint.
+ * Receives in-app bug/feature/other reports (see services/feedback.ts).
+ */
+export const FEEDBACK_ENDPOINT = `${HOMEKARAOKE_API_URL}/api/feedback`;
+
+/**
  * QR code generator service URL.
  * Used to generate QR codes for session join URLs.
  */
