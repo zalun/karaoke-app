@@ -14,6 +14,9 @@ const AUTO_HIDE_TIMEOUTS: Record<NotificationType, number> = {
 // Animation duration in milliseconds (must match CSS)
 const ANIMATION_DURATION_MS = 300;
 
+// How many recent notifications to retain for feedback context collection
+const RECENT_HISTORY_LIMIT = 50;
+
 export type NotificationType = "error" | "warning" | "success" | "info";
 
 export interface NotificationAction {
@@ -38,6 +41,7 @@ interface NotificationState {
   isHiding: boolean; // For slide-down animation
   showLast: boolean;
   moreCount: number; // Count of additional notifications while one is visible
+  recent: Notification[]; // Rolling history (most recent last) for feedback context
 
   // Actions
   notify: (type: NotificationType, message: string, action?: NotificationAction) => void;
@@ -69,11 +73,24 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   isHiding: false,
   showLast: false,
   moreCount: 0,
+  recent: [],
 
   notify: (type, message, action) => {
     log.info(`Notification [${type}]: ${message}`);
 
     const { isVisible, isHiding } = get();
+
+    // Record in the rolling history (capped) for feedback context collection
+    const historyEntry: Notification = {
+      id: crypto.randomUUID(),
+      type,
+      message,
+      timestamp: Date.now(),
+      action,
+    };
+    set((state) => ({
+      recent: [...state.recent, historyEntry].slice(-RECENT_HISTORY_LIMIT),
+    }));
 
     // If a notification is already visible (and not hiding), increment counter
     if (isVisible && !isHiding) {

@@ -108,6 +108,15 @@ export interface TauriMockConfig {
   shouldFailWithOwnershipConflict?: boolean;
   /** Delay in ms before auth_get_tokens returns (simulates slow keychain/network) */
   authDelay?: number;
+  /** Mock response for POST /api/feedback (feedback submission endpoint) */
+  feedbackResponse?: {
+    status: number;
+    ok: boolean;
+    githubIssueUrl?: string;
+    error?: string;
+  };
+  /** Mock log tail returned by the get_log_tail command */
+  logTail?: string;
   /** Mock song requests for testing song request approval feature */
   songRequests?: Array<{
     id: string;
@@ -583,6 +592,10 @@ export async function injectTauriMocks(
           case "get_persistent_singers":
             return [];
 
+          // Feedback log tail
+          case "get_log_tail":
+            return config.logTail ?? "[INFO][App] mock log line\n[WARN][App] mock warning";
+
           // Debug mode
           case "get_debug_mode":
             return false;
@@ -917,6 +930,19 @@ export async function injectTauriMocks(
                 getHttpMockGlobals().__HOSTED_SESSION_STOPPED__ = true;
                 responseBody = "{}";
               }
+            } else if (url.includes("homekaraoke.app/api/feedback")) {
+              // POST /api/feedback - feedback submission endpoint
+              const fb = config.feedbackResponse ?? {
+                status: 200,
+                ok: true,
+                githubIssueUrl: "https://github.com/zalun/karaoke-app/issues/999",
+              };
+              status = fb.status;
+              statusText = fb.status === 200 ? "OK" : "Error";
+              const fbBody: Record<string, unknown> = { ok: fb.ok };
+              if (fb.githubIssueUrl) fbBody.githubIssueUrl = fb.githubIssueUrl;
+              if (fb.error) fbBody.error = fb.error;
+              responseBody = JSON.stringify(fbBody);
             } else {
               console.warn(`[Tauri Mock] Unmocked HTTP request: ${method} ${url}`);
               status = 404;
