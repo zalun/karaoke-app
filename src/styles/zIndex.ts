@@ -18,6 +18,9 @@ export const Z_INDEX_NEXT_SONG_OVERLAY = 30;
 /** Drag overlay for window dragging - below play overlay so clicks work */
 export const Z_INDEX_DRAG_OVERLAY = 40;
 
+/** Always-on-top toggle button in detached player - above drag overlay so it's clickable */
+export const Z_INDEX_AOT_BUTTON = 45;
+
 /** Click to play / autoplay blocked overlay - must be above singer overlay and drag overlay */
 export const Z_INDEX_PLAY_OVERLAY = 50;
 

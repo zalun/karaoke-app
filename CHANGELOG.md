@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - When opted out, a `Manual approval: ON` badge appears in the Host Session modal as a visible reminder
 
 ### Added
+- Detached player window now stays on top of other windows (#178)
+  - Default ON, so the video stays visible while you browse or use other apps
+  - Hover-revealed pin button in the top-right toggles it on/off per session
 - OpenSpec-driven development workflow (#232)
   - Workflow recorded in `CLAUDE.md` (issue → explore → propose → branch → apply → review-and-fix → e2e → archive → PR)
   - First spec captured under `openspec/specs/hosted-session-requests/spec.md`

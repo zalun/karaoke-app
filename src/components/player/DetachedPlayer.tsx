@@ -1,4 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from "react";
+import { Pin, PinOff } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { windowManager, type PlayerState } from "../../services/windowManager";
 import { createLogger } from "../../services";
 import { SETTINGS_KEYS, SETTINGS_DEFAULTS } from "../../stores";
@@ -11,7 +13,7 @@ import { SingerOverlayDisplay } from "./SingerOverlayDisplay";
 import { CURRENT_SINGER_OVERLAY_DURATION_MS } from "./CurrentSingerOverlay";
 import { YouTubePlayer } from "./YouTubePlayer";
 import { NativePlayer } from "./NativePlayer";
-import { Z_INDEX_DRAG_OVERLAY } from "../../styles/zIndex";
+import { Z_INDEX_AOT_BUTTON, Z_INDEX_DRAG_OVERLAY } from "../../styles/zIndex";
 import { JoinCodeQR } from "../session";
 
 const log = createLogger("DetachedPlayer");
@@ -21,6 +23,8 @@ const TIME_UPDATE_THROTTLE_MS = 500;
 
 // Minimum position (in seconds) to restore when reattaching - avoids seeking to near-zero
 export const MIN_RESTORE_POSITION_SECONDS = 1;
+
+const HOVER_CONTROLS_HIDE_DELAY_MS = 2000;
 
 export function DetachedPlayer() {
   const lastTimeUpdateRef = useRef<number>(0);
@@ -39,6 +43,10 @@ export function DetachedPlayer() {
   const previousVideoIdRef = useRef<string | null>(null);
   // Seek time from main window
   const [seekTime, setSeekTime] = useState<number | null>(null);
+  // Always-on-top toggle (window is created with alwaysOnTop=true in WindowManager)
+  const [alwaysOnTop, setAlwaysOnTop] = useState(true);
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [state, setState] = useState<PlayerState>({
     streamUrl: null,
     videoId: null,
@@ -285,6 +293,33 @@ export function DetachedPlayer() {
     // Volume is handled by the player components
   }, [state.volume, state.isMuted]);
 
+  useEffect(() => {
+    const showControls = () => {
+      setControlsVisible((visible) => (visible ? visible : true));
+      if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
+      hideControlsTimerRef.current = setTimeout(
+        () => setControlsVisible(false),
+        HOVER_CONTROLS_HIDE_DELAY_MS,
+      );
+    };
+    window.addEventListener("mousemove", showControls);
+    return () => {
+      window.removeEventListener("mousemove", showControls);
+      if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
+    };
+  }, []);
+
+  const toggleAlwaysOnTop = useCallback(async () => {
+    const next = !alwaysOnTop;
+    try {
+      await getCurrentWindow().setAlwaysOnTop(next);
+      setAlwaysOnTop(next);
+      log.info(`Always-on-top set to ${next}`);
+    } catch (err) {
+      log.error("Failed to toggle always-on-top:", err);
+    }
+  }, [alwaysOnTop]);
+
 
   // Determine what to play
   const playbackMode = state.playbackMode || "youtube";
@@ -386,6 +421,20 @@ export function DetachedPlayer() {
         style={{ zIndex: Z_INDEX_DRAG_OVERLAY }}
         onDoubleClick={toggleFullscreen}
       />
+      <button
+        type="button"
+        onClick={toggleAlwaysOnTop}
+        aria-label={alwaysOnTop ? "Disable always on top" : "Enable always on top"}
+        aria-pressed={alwaysOnTop}
+        title={alwaysOnTop ? "Always on top: on" : "Always on top: off"}
+        data-testid="aot-toggle"
+        className={`absolute top-3 right-3 rounded-full bg-black/60 hover:bg-black/80 text-white p-2 transition-opacity duration-200 ${
+          controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+        style={{ zIndex: Z_INDEX_AOT_BUTTON }}
+      >
+        {alwaysOnTop ? <Pin size={18} /> : <PinOff size={18} />}
+      </button>
     </div>
   );
 }

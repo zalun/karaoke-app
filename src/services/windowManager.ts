@@ -186,6 +186,7 @@ class WindowManager {
         decorations: true,
         titleBarStyle: "overlay",
         center: true,
+        alwaysOnTop: true,
       });
 
       // Wait for the window to be created
