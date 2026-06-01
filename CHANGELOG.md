@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - When opted out, a `Manual approval: ON` badge appears in the Host Session modal as a visible reminder
 
 ### Added
+- Error boundary around `DisplayRestoreDialog` (#56)
+  - A render error in the layout-restore prompt now shows a dismiss-able fallback instead of crashing the app
+  - Dismissing also drops the pending restore so the broken dialog won't immediately re-mount
 - Detached player window now stays on top of other windows (#178)
   - Default ON, so the video stays visible while you browse or use other apps
   - Hover-revealed pin button in the top-right toggles it on/off per session
