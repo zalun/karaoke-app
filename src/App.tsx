@@ -22,7 +22,7 @@ import { LibraryBrowser, type LibraryBrowserRef } from "./components/library";
 import { DraggableQueueItem } from "./components/queue";
 import { SessionBar, HostedByOtherUserDialog, SongRequestsModal } from "./components/session";
 import { DependencyCheck } from "./components/DependencyCheck";
-import { DisplayRestoreDialog } from "./components/display";
+import { DisplayRestoreDialog, DisplayRestoreErrorBoundary } from "./components/display";
 import { LoadFavoritesDialog, ManageFavoritesDialog, FavoriteStar } from "./components/favorites";
 import { SettingsDialog } from "./components/settings";
 import { AuthStatus } from "./components/auth";
@@ -567,7 +567,9 @@ function App() {
       <NotificationBar />
 
       {/* Display configuration restore dialog */}
-      <DisplayRestoreDialog />
+      <DisplayRestoreErrorBoundary>
+        <DisplayRestoreDialog />
+      </DisplayRestoreErrorBoundary>
 
       {/* Hosted session ownership dialog */}
       <HostedByOtherUserDialog />
