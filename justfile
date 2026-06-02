@@ -11,19 +11,19 @@ default:
 
 # Start full development environment (Tauri + Vite)
 dev:
-    npm run tauri dev
+    pnpm tauri dev
 
 # Start frontend only (Vite dev server, no Tauri window)
 dev-web:
-    npm run dev
+    pnpm dev
 
 # Start with verbose Rust logging
 dev-verbose:
-    RUST_LOG=debug npm run tauri dev
+    RUST_LOG=debug pnpm tauri dev
 
 # Start with specific log level (trace, debug, info, warn, error)
 dev-log level="debug":
-    RUST_LOG={{level}} npm run tauri dev
+    RUST_LOG={{level}} pnpm tauri dev
 
 # ══════════════════════════════════════════════════════════════════════════════
 # BUILD
@@ -31,27 +31,27 @@ dev-log level="debug":
 
 # Build production release (creates .app and .dmg)
 build:
-    npm run tauri build
+    pnpm tauri build
 
 # Build frontend only (TypeScript + Vite)
 build-web:
-    npm run build
+    pnpm build
 
 # Build in debug mode (faster, no optimization)
 build-debug:
-    npm run tauri build -- --debug
+    pnpm tauri build --debug
 
 # Build for specific target (aarch64-apple-darwin or x86_64-apple-darwin)
 build-target target:
-    npm run tauri build -- --target {{target}}
+    pnpm tauri build --target {{target}}
 
 # Build Apple Silicon release
 build-arm:
-    npm run tauri build -- --target aarch64-apple-darwin
+    pnpm tauri build --target aarch64-apple-darwin
 
 # Build Intel release
 build-intel:
-    npm run tauri build -- --target x86_64-apple-darwin
+    pnpm tauri build --target x86_64-apple-darwin
 
 # Run local app
 run:
@@ -63,23 +63,23 @@ run:
 
 # Run unit tests once
 test:
-    npm run test:run
+    pnpm test:run
 
 # Run unit tests in watch mode
 test-watch:
-    npm run test
+    pnpm test
 
 # Run unit tests with coverage report
 test-coverage:
-    npm run test:coverage
+    pnpm test:coverage
 
 # Run specific test file
 test-file file:
-    npx vitest run {{file}}
+    pnpm exec vitest run {{file}}
 
 # Run tests matching pattern
 test-grep pattern:
-    npx vitest run -t "{{pattern}}"
+    pnpm exec vitest run -t "{{pattern}}"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TESTING - E2E TESTS
@@ -87,39 +87,39 @@ test-grep pattern:
 
 # Run all E2E tests
 e2e:
-    npm run test:e2e
+    pnpm test:e2e
 
 # Run E2E tests with Playwright UI
 e2e-ui:
-    npm run test:e2e:ui
+    pnpm test:e2e:ui
 
 # Run E2E tests in debug mode (step through)
 e2e-debug:
-    npm run test:e2e:debug
+    pnpm test:e2e:debug
 
 # Run E2E tests in headed mode (visible browser)
 e2e-headed:
-    npm run test:e2e:headed
+    pnpm test:e2e:headed
 
 # Run E2E tests for specific spec file
 e2e-file file:
-    npx playwright test {{file}}
+    pnpm exec playwright test {{file}}
 
 # Run E2E tests matching pattern
 e2e-grep pattern:
-    npx playwright test --grep "{{pattern}}"
+    pnpm exec playwright test --grep "{{pattern}}"
 
 # Run E2E tests on specific browser (chromium, webkit)
 e2e-browser browser:
-    npx playwright test --project={{browser}}
+    pnpm exec playwright test --project={{browser}}
 
 # Show Playwright test report
 e2e-report:
-    npx playwright show-report
+    pnpm exec playwright show-report
 
 # Install/update Playwright browsers
 e2e-install:
-    npx playwright install --with-deps chromium webkit
+    pnpm exec playwright install --with-deps chromium webkit
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TESTING - ALL
@@ -137,15 +137,15 @@ test-all-coverage: test-coverage e2e
 
 # Run ESLint
 lint:
-    npm run lint
+    pnpm lint
 
 # Run ESLint and fix auto-fixable issues
 lint-fix:
-    npx eslint . --fix
+    pnpm exec eslint . --fix
 
 # TypeScript type check (no emit)
 typecheck:
-    npx tsc --noEmit
+    pnpm exec tsc --noEmit
 
 # Run Rust clippy (linter)
 clippy:
@@ -201,23 +201,23 @@ cargo-outdated:
 # DEPENDENCIES
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Install all dependencies
+# Install all dependencies (frozen lockfile)
 install:
-    npm ci
+    pnpm install --frozen-lockfile
 
 # Install dependencies (allow updates)
 install-update:
-    npm install
+    pnpm install
 
-# Update npm dependencies
-npm-update:
-    npm update
+# Update pnpm dependencies
+pnpm-update:
+    pnpm update
 
-# Show outdated npm packages
-npm-outdated:
-    npm outdated
+# Show outdated pnpm packages
+pnpm-outdated:
+    pnpm outdated
 
-# Install all project dependencies (npm + Playwright + Rust)
+# Install all project dependencies (pnpm + Playwright + Rust)
 install-all: install e2e-install
     cd src-tauri && cargo fetch
 
@@ -388,7 +388,7 @@ info:
     @just version
     @echo ""
     @echo "Node: $(node --version)"
-    @echo "npm: $(npm --version)"
+    @echo "pnpm: $(pnpm --version)"
     @echo "Rust: $(rustc --version)"
     @echo "Cargo: $(cargo --version)"
 
@@ -410,7 +410,7 @@ issue-list:
 
 # Watch for file changes and run tests
 watch-test:
-    npm run test
+    pnpm test
 
 # Run a quick health check
 check: typecheck lint cargo-check
@@ -485,7 +485,7 @@ help-all:
     @echo "Linting:       lint, lint-fix, typecheck, clippy, lint-all"
     @echo "Formatting:    fmt, fmt-rust, fmt-rust-check"
     @echo "Cargo:         cargo-check, cargo-build, cargo-test, cargo-update"
-    @echo "Dependencies:  install, install-all, npm-update, npm-outdated"
+    @echo "Dependencies:  install, install-all, pnpm-update, pnpm-outdated"
     @echo "Git:           feature, fix, status, log, diff, sync"
     @echo "Release:       version, bump, tag"
     @echo "Notarization:  notarize, staple, validate, notarize-full"
