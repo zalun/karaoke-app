@@ -48,6 +48,10 @@ playwright/.cache/
 *.tmp
 *.temp
 
+# Brag video output
+brag-output/
+.playwright-mcp/
+
 # TypeScript build info
 *.tsbuildinfo
 
