@@ -48,6 +48,10 @@ playwright/.cache/
 *.tmp
 *.temp
 
+# Brag video output
+brag-output/
+.playwright-mcp/
+
 # TypeScript build info
 *.tsbuildinfo
 
@@ -71,3 +75,4 @@ progress.txt
 openspec/changes/*
 !openspec/changes/archive/
 
+WORKFLOW.md

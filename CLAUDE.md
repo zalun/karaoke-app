@@ -4,14 +4,7 @@ Project guidance for Claude Code. Keep concise — every line should earn its pl
 
 ## Workflow
 
-- **Plan mode first** for complex tasks; iterate until the plan is solid, then auto-accept.
-- **Git discipline**: GitHub issue first → feature branch → PR. Never commit to main.
-- **Branch naming**: `feature/<issue>-<desc>` or `fix/<issue>-<desc>`
-- **No amending**: prefer separate commits over `git commit --amend` (easier to review).
-
-**OpenSpec-driven** (non-trivial changes): `/opsx:explore` → `/opsx:propose` → branch →
-`/opsx:apply <name>` → `/review-and-fix` → E2E + manual smoke → `/opsx:archive <name>` → PR.
-`openspec/changes/` is gitignored; specs commit only on archive. Trivial fixes skip explore/propose/archive.
+@WORKFLOW.md
 
 ## Commands
 
