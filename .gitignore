@@ -75,3 +75,4 @@ progress.txt
 openspec/changes/*
 !openspec/changes/archive/
 
+WORKFLOW.md
