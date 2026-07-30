@@ -9,7 +9,7 @@ const log = createLogger("SessionService");
  * - paused: Session is temporarily paused (reserved for future use)
  * - ended: Session hosting has ended
  */
-export type HostedSessionStatus = "active" | "paused" | "ended";
+export type HostedSessionStatus = "active" | "paused" | "ended" | "expired";
 
 /**
  * Constants for hosted session status values.
@@ -19,6 +19,7 @@ export const HOSTED_SESSION_STATUS = {
   ACTIVE: "active",
   PAUSED: "paused",
   ENDED: "ended",
+  EXPIRED: "expired",
 } as const satisfies Record<string, HostedSessionStatus>;
 
 export interface Singer {
