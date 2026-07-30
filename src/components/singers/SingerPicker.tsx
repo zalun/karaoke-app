@@ -27,9 +27,11 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
   const [showNewSinger, setShowNewSinger] = useState(false);
   const [newSingerName, setNewSingerName] = useState("");
   const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition>({ top: 0, left: 0, openAbove: true, maxHeight: DROPDOWN_MAX_HEIGHT });
+  const [focusedIndex, setFocusedIndex] = useState(-1);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const {
     session,
@@ -126,6 +128,36 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
     }
   }, [showNewSinger]);
 
+  // Reset focused index when dropdown opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setFocusedIndex(0);
+    } else {
+      setFocusedIndex(-1);
+    }
+  }, [isOpen]);
+
+  // Focus the option at focusedIndex (use requestAnimationFrame to ensure refs are populated)
+  useEffect(() => {
+    if (isOpen && focusedIndex >= 0) {
+      requestAnimationFrame(() => {
+        optionRefs.current[focusedIndex]?.focus();
+      });
+    }
+  }, [isOpen, focusedIndex]);
+
+  // Clamp focusedIndex when options list changes
+  const totalOptions = singers.length + availablePersistentSingers.length;
+  useEffect(() => {
+    if (isOpen) {
+      if (totalOptions === 0) {
+        setFocusedIndex(-1);
+      } else if (focusedIndex >= totalOptions) {
+        setFocusedIndex(totalOptions - 1);
+      }
+    }
+  }, [isOpen, totalOptions, focusedIndex]);
+
   // Don't render if no active session
   if (!session) {
     return null;
@@ -168,9 +200,48 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
     }
   };
 
+  // Handle keyboard navigation on option buttons
+  const handleOptionKeyDown = (e: React.KeyboardEvent, onActivate: () => void) => {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        if (totalOptions > 0) {
+          setFocusedIndex((prev) => (prev + 1) % totalOptions);
+        }
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        if (totalOptions > 0) {
+          setFocusedIndex((prev) => (prev - 1 + totalOptions) % totalOptions);
+        }
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        onActivate();
+        break;
+      case "Escape":
+        e.preventDefault();
+        setIsOpen(false);
+        buttonRef.current?.focus();
+        break;
+      case "Tab":
+        // Let Tab move focus naturally (don't close dropdown)
+        break;
+    }
+  };
+
+  // Track option index for refs (refs will be updated naturally as map runs)
+  let optionIndex = 0;
+
+  // Generate unique ID for options
+  const getOptionId = (index: number) => `singer-picker-option-${queueItemId}-${index}`;
+
   const dropdown = isOpen ? (
     <div
       ref={dropdownRef}
+      role="listbox"
+      aria-label="Select singers"
       className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl min-w-[220px] flex flex-col"
       style={{
         top: dropdownPosition.top,
@@ -190,11 +261,19 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
             </div>
             {singers.map((singer) => {
               const isAssigned = assignedSingerIds.includes(singer.id);
+              const currentIndex = optionIndex++;
               return (
                 <button
                   key={singer.id}
+                  id={getOptionId(currentIndex)}
+                  ref={(el) => { optionRefs.current[currentIndex] = el; }}
                   onClick={() => handleToggleSinger(singer.id)}
-                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors"
+                  onKeyDown={(e) => handleOptionKeyDown(e, () => handleToggleSinger(singer.id))}
+                  className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors ${focusedIndex === currentIndex ? "bg-gray-700 outline-none ring-1 ring-blue-500" : ""}`}
+                  role="option"
+                  aria-selected={isAssigned}
+                  aria-label={`${isAssigned ? "Remove" : "Assign"} ${singer.name}`}
+                  tabIndex={focusedIndex === currentIndex ? 0 : -1}
                 >
                   <SingerAvatar
                     name={singer.name}
@@ -223,11 +302,20 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
             Persistent Singers
           </div>
           {availablePersistentSingers.length > 0 ? (
-            availablePersistentSingers.map((singer) => (
+            availablePersistentSingers.map((singer) => {
+              const currentIndex = optionIndex++;
+              return (
               <button
                 key={singer.id}
+                id={getOptionId(currentIndex)}
+                ref={(el) => { optionRefs.current[currentIndex] = el; }}
                 onClick={() => handleAddPersistentSingerToSession(singer.id)}
-                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors"
+                onKeyDown={(e) => handleOptionKeyDown(e, () => handleAddPersistentSingerToSession(singer.id))}
+                className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 transition-colors ${focusedIndex === currentIndex ? "bg-gray-700 outline-none ring-1 ring-blue-500" : ""}`}
+                role="option"
+                aria-selected={false}
+                aria-label={`Add ${singer.name} to session`}
+                tabIndex={focusedIndex === currentIndex ? 0 : -1}
               >
                 <SingerAvatar
                   name={singer.name}
@@ -244,7 +332,8 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
                 </span>
                 <UserPlus size={14} className="text-blue-400" />
               </button>
-            ))
+              );
+            })
           ) : (
             <div className="px-3 py-2 text-xs text-gray-500">
               {persistentSingers.length === 0
@@ -298,6 +387,9 @@ export function SingerPicker({ queueItemId, className = "" }: SingerPickerProps)
         }}
         className="p-1.5 rounded-full bg-gray-600 hover:bg-blue-600 text-gray-200 hover:text-white transition-colors ring-1 ring-gray-500 hover:ring-blue-500"
         title="Assign singers"
+        aria-label="Assign singers"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
       >
         <Users size={14} />
       </button>
