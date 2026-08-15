@@ -218,8 +218,12 @@ jobs:
           echo "$SUBMIT_OUTPUT"
 
           if [ "$NOTARY_EXIT" -ne 0 ] || ! grep -q "status: Accepted" <<< "$SUBMIT_OUTPUT"; then
+            # Annotate first: under errexit the diagnostics below must not be
+            # able to abort the step before it says what went wrong.
+            echo "::error::Notarization did not succeed (exit=$NOTARY_EXIT). Refusing to publish a DMG that would trip Gatekeeper."
+
             # Pull the detailed log so the failure is diagnosable from the run
-            SUBMISSION_ID=$(awk '/^ *id: /{print $2; exit}' <<< "$SUBMIT_OUTPUT")
+            SUBMISSION_ID=$(awk '/^ *id: /{print $2; exit}' <<< "$SUBMIT_OUTPUT" || true)
             if [ -n "$SUBMISSION_ID" ]; then
               echo "Fetching notarization log for submission $SUBMISSION_ID..."
               xcrun notarytool log "$SUBMISSION_ID" \
@@ -227,7 +231,6 @@ jobs:
                 --password "$APPLE_PASSWORD" \
                 --team-id "$APPLE_TEAM_ID" || true
             fi
-            echo "::error::Notarization did not succeed (exit=$NOTARY_EXIT). Refusing to publish a DMG that would trip Gatekeeper."
             exit 1
           fi
 
@@ -250,20 +253,6 @@ jobs:
             --clobber
 
           echo "Uploaded notarized DMG to release"
-
-      # publish-release already refuses to publish when this job fails, but the
-      # draft survives with whatever assets did upload. With fail-fast: false a
-      # single failed arch leaves a draft holding the other DMG plus every Linux
-      # artifact, which looks complete enough for a human to hit Publish.
-      - name: Mark draft release as unpublishable
-        if: failure()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release edit ${{ github.ref_name }} \
-            --repo ${{ github.repository }} \
-            --title "DO NOT PUBLISH - ${{ matrix.name }} build failed for HomeKaraoke ${{ github.ref_name }}" \
-            || echo "::warning::Could not retitle the draft release"
 
       - name: Cleanup keychain
         if: always()
@@ -528,6 +517,42 @@ jobs:
             "${{ steps.find-packages.outputs.nsis_path }}#${{ steps.find-packages.outputs.nsis_name }}" \
             --repo ${{ github.repository }} \
             --clobber
+
+  # Rename the draft when a required build did not succeed. publish-release
+  # already refuses to flip --draft=false, but the draft survives holding
+  # whatever assets did upload: build-linux creates the draft on its own, and
+  # with fail-fast: false one failed arch still leaves the other DMG in place.
+  # That looks complete enough for a human to hit Publish.
+  #
+  # This runs as its own job rather than a step inside build-macos because the
+  # draft is created two-thirds of the way through that job - an earlier failure
+  # would have nothing to rename. Its condition is the exact complement of
+  # publish-release's, so the two never run together, and `!= 'success'` also
+  # covers a cancelled job. Windows is excluded deliberately: a Windows failure
+  # is not meant to block the release.
+  mark-unpublishable:
+    needs: [build-macos, build-linux, build-windows]
+    if: always() && (needs.build-macos.result != 'success' || needs.build-linux.result != 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark draft release as unpublishable
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view ${{ github.ref_name }} --repo ${{ github.repository }} > /dev/null 2>&1; then
+            echo "No release exists for ${{ github.ref_name }} - nothing to mark."
+            exit 0
+          fi
+
+          gh release edit ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --title "DO NOT PUBLISH - build did not complete for HomeKaraoke ${{ github.ref_name }}" \
+            || {
+              echo "::error::Draft ${{ github.ref_name }} exists but could NOT be retitled. It is still named as a normal release even though a build failed. Do not publish it - delete the draft or rename it by hand."
+              exit 1
+            }
+
+          echo "Draft ${{ github.ref_name }} marked as unpublishable"
 
   # Publish the draft release after all builds complete
   # Windows build is optional - release continues if macOS and Linux succeed
