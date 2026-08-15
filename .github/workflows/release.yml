@@ -554,7 +554,9 @@ jobs:
             --json isDraft --jq .isDraft 2> "$VIEW_ERR") || VIEW_EXIT=$?
 
           if [ "$VIEW_EXIT" -ne 0 ]; then
-            cat "$VIEW_ERR"
+            # Guarded: if the redirect above could not create the file, errexit
+            # would kill the step here, before the annotation below explains why.
+            cat "$VIEW_ERR" || echo "(no captured stderr at $VIEW_ERR)"
             if grep -qiE 'release not found|HTTP 404' "$VIEW_ERR"; then
               echo "No release exists for ${{ github.ref_name }} - nothing to mark."
               exit 0
