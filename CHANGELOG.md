@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-15
+
 ### Fixed
 - Release workflow no longer publishes a macOS DMG that failed notarization (#239)
   - The workflow uploaded the DMG before notarization ran. A failed or timed-out `notarytool` submission then left that non-notarized DMG in the release while the job still reported success, so macOS users would have hit the Gatekeeper "Apple cannot check it for malicious software" wall with nothing to signal why
