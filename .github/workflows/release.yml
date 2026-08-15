@@ -204,9 +204,9 @@ jobs:
 
           echo "$SUBMIT_OUTPUT"
 
-          if [ "$NOTARY_EXIT" -ne 0 ] || ! echo "$SUBMIT_OUTPUT" | grep -q "status: Accepted"; then
+          if [ "$NOTARY_EXIT" -ne 0 ] || ! grep -q "status: Accepted" <<< "$SUBMIT_OUTPUT"; then
             # Pull the detailed log so the failure is diagnosable from the run
-            SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | awk '/^ *id: /{print $2; exit}')
+            SUBMISSION_ID=$(awk '/^ *id: /{print $2; exit}' <<< "$SUBMIT_OUTPUT")
             if [ -n "$SUBMISSION_ID" ]; then
               echo "Fetching notarization log for submission $SUBMISSION_ID..."
               xcrun notarytool log "$SUBMISSION_ID" \
