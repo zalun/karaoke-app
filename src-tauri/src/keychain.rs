@@ -1,8 +1,11 @@
 //! Secure token storage using the operating system's keychain/credential manager.
 //!
-//! On macOS: Uses Keychain
-//! On Windows: Uses Credential Manager
-//! On Linux: Uses Secret Service (GNOME Keyring / KDE Wallet)
+//! On macOS: Uses Keychain (`apple-native` feature)
+//! On Windows: Uses Credential Manager (`windows-native` feature)
+//! On Linux: No backend is compiled in. `Cargo.toml` sets `default-features = false`
+//! and adds no Linux store feature, so `keyring` falls back to its mock store, which
+//! its own docs describe as non-persistent. Read from the manifest, not yet confirmed
+//! on a Linux build. See issue #240.
 
 use keyring::Entry;
 use log::{debug, error, info};

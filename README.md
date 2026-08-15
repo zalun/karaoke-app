@@ -14,20 +14,36 @@ A cross-platform home karaoke application built with Tauri 2.0 and React.
 - **Smart Prefetch** - Pre-loads next video URL for seamless transitions
 
 ### Local Library
-- **Folder Scanning** - Add folders to scan for local video files (MP4, MKV, WebM, etc.)
+- **Folder Scanning** - Add folders to scan for local video files (`.mp4`, `.mkv`, `.webm`, `.avi`, `.mov`)
 - **Metadata Fetching** - Fetch song info from MusicBrainz and lyrics from Lrclib
-- **CDG Support** - Detects MP3+G karaoke files with CDG companion files
+- **CDG Detection** - Flags MP3+G karaoke videos that have a companion `.cdg` file, so you can filter for them
+
+Local files play through the system WebView, so stick to MP4 (H.264/AAC) or WebM. The scanner indexes MKV and AVI and you can search them, but no WebView on macOS or Windows decodes those containers.
+
+The app saves fetched lyrics next to the video and shows a "has lyrics" badge in the library. Nothing displays them during playback yet. The app detects MP3+G videos but does not play MP3+G audio.
 
 ### Queue & Sessions
 - **Queue Management** - Build playlists with drag-and-drop reordering
 - **Singer Sessions** - Track who's singing with color-coded singer assignments
+- **Fair Queue** - Insert new songs at a fair position instead of the end (off by default)
 - **Fair Shuffle** - Automatically rotate through singers fairly
 - **Favorites** - Save favorite songs per singer for quick access
 
+### Accounts & Hosted Sessions
+- **Sign In** - Google, Apple, or Email via Supabase OAuth in your default browser
+- **Secure Tokens** - Kept in the system credential store on macOS (Keychain) and Windows (Credential Manager). No Linux store is compiled in yet, so expect sign-in to drop on restart there ([#240](https://github.com/zalun/karaoke-app/issues/240))
+- **Host a Session** - Share a join code (`HK-XXXX-XXXX`) and QR code so guests can request songs from their phones without installing anything
+- **Song Requests** - Guests request YouTube songs. The app accepts them straight into the queue by default, or you can review each one
+- **Live Stats** - Connected guests and pending requests, refreshed every 30 seconds
+
+Hosting requires signing in. Everything else works offline.
+
 ### Display & Layout
-- **Multi-Display Support** - Detach video window to a secondary display/projector
-- **Layout Memory** - Remembers window positions for different display configurations
-- **Auto-Restore** - Automatically restores saved layouts when displays reconnect
+- **Multi-Display Support** - Detach the video window to a secondary display/projector, with always-on-top and fullscreen
+- **Layout Memory** *(macOS)* - Remembers window positions for different display configurations
+- **Auto-Restore** *(macOS)* - Automatically restores saved layouts when displays reconnect
+
+Detaching the video window works on all three platforms. Display detection runs only on macOS, so layout memory and auto-restore do too. On Windows and Linux you position the window yourself.
 
 ### Playback Settings
 - **Autoplay Next** - Automatically plays next song in queue
@@ -53,16 +69,18 @@ Download the latest release from the [Releases page](https://github.com/zalun/ka
 
 ### First Launch Notes
 
-**macOS:** On first launch, right-click the app and select "Open" (required for apps from identified developers).
+**macOS:** Every release carries an Apple Developer ID signature and Apple's notarization, so the app opens on a double-click. macOS may still show its usual "downloaded from the internet" prompt once. Choose "Open".
 
-**Windows:** You may see a SmartScreen warning. Click "More info" then "Run anyway".
+**Windows:** The app carries no code signature, so SmartScreen will warn you. Click "More info" then "Run anyway".
+
+**Linux:** Install the `.deb` or `.rpm` where you can. Your package manager pulls in the dependencies, and both packages use the WebKit already on your system. The AppImage carries its own WebKit, which can clash with the graphics stack on rolling distributions. Make it executable first (`chmod +x HomeKaraoke_x.x.x_amd64.AppImage`), and see [#237](https://github.com/zalun/karaoke-app/issues/237) if it fails to start.
 
 ## Optional Dependencies
 
-- **yt-dlp** - Required for high-quality streaming and yt-dlp search method
-- **ffmpeg** - Required for local video metadata extraction
+- **yt-dlp** - Required for high-quality streaming and the yt-dlp search method
+- **ffmpeg** - Required for library thumbnails, video duration, and year metadata (uses `ffmpeg` and `ffprobe` during a scan)
 
-The app works without these dependencies using YouTube Embed playback.
+The app works without these dependencies using YouTube Embed playback. Neither one decodes video during playback. The system WebView does that.
 
 ## Technology Stack
 
@@ -111,16 +129,19 @@ plan/                 # Development planning docs
 
 ## Current Development Status
 
-**Version:** 0.7.3
+**Version:** 0.8.1
 
 | Phase | Status |
 |-------|--------|
 | Foundation (Tauri + React) | Complete |
 | YouTube Integration | Complete |
 | Sessions & Singers | Complete |
-| Multi-Display Support | Complete |
+| Multi-Display Support | Complete (layout memory is macOS-only) |
 | Local Library | Complete |
+| Authentication | Complete |
+| Hosted Sessions | Complete |
 | Downloads | Planned |
+| Lyrics Display | Planned |
 | Polish & Settings | In Progress |
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

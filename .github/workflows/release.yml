@@ -86,10 +86,25 @@ jobs:
             exit 1
           fi
 
-      - name: Build Tauri app (signed, not notarized)
+      - name: Verify Apple notarization secrets
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Notarization is mandatory, so fail here rather than 30 minutes into
+          # the job after a full release build and DMG packaging.
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "::error::APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID repo secrets must be set. Notarization cannot be skipped."
+            exit 1
+          fi
+
+      - name: Build and sign Tauri app
         run: npm run tauri build -- --target ${{ matrix.target }}
         env:
-          # Only signing identity - no APPLE_ID/PASSWORD means no notarization
+          # Signing identity only. Deliberately no APPLE_ID/PASSWORD here, so
+          # Tauri signs but does not notarize - the DMG is notarized as a whole
+          # in a later step, once create-dmg has packaged it.
           APPLE_SIGNING_IDENTITY: "Developer ID Application: Piotr Zalewa"
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
@@ -167,8 +182,6 @@ jobs:
           - **Apple Silicon (M1/M2/M3)**: Download the \`aarch64\` DMG
           - **Intel Macs**: Download the \`x64\` DMG
 
-          ⏳ *Notarization in progress - DMGs will be updated when complete*
-
           ### Windows
           - **Windows 10/11**: Download the \`.msi\` installer
 
@@ -180,70 +193,62 @@ jobs:
             echo "Created draft release"
           fi
 
-      - name: Upload signed DMG to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Upload the signed (not yet notarized) DMG
-          gh release upload ${{ github.ref_name }} \
-            "${{ steps.find-dmg.outputs.path }}#${{ steps.find-dmg.outputs.name }}" \
-            --repo ${{ github.repository }} \
-            --clobber
-
-      - name: Notarize app (async with retries)
+      # Notarize and staple BEFORE uploading. The release is a draft at this
+      # point, so nothing is gained by publishing an intermediate DMG - and if
+      # notarization then failed, that intermediate would silently become the
+      # shipped artifact, giving every macOS user a Gatekeeper wall.
+      - name: Notarize app
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          set -euo pipefail
           echo "Submitting for notarization..."
 
-          # Submit for notarization and capture submission ID
+          NOTARY_EXIT=0
           SUBMIT_OUTPUT=$(xcrun notarytool submit "${{ steps.find-dmg.outputs.path }}" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait \
             --timeout 30m \
-            2>&1) || true
+            2>&1) || NOTARY_EXIT=$?
 
           echo "$SUBMIT_OUTPUT"
 
-          # Check if notarization succeeded
-          if echo "$SUBMIT_OUTPUT" | grep -q "status: Accepted"; then
-            echo "Notarization successful!"
-            echo "NOTARIZATION_SUCCESS=true" >> $GITHUB_ENV
-          else
-            echo "Notarization failed or timed out - signed DMG is still available"
-            echo "NOTARIZATION_SUCCESS=false" >> $GITHUB_ENV
+          if [ "$NOTARY_EXIT" -ne 0 ] || ! grep -q "status: Accepted" <<< "$SUBMIT_OUTPUT"; then
+            # Annotate first: under errexit the diagnostics below must not be
+            # able to abort the step before it says what went wrong.
+            echo "::error::Notarization did not succeed (exit=$NOTARY_EXIT). Refusing to publish a DMG that would trip Gatekeeper."
+
+            # Pull the detailed log so the failure is diagnosable from the run
+            SUBMISSION_ID=$(awk '/^ *id: /{print $2; exit}' <<< "$SUBMIT_OUTPUT" || true)
+            if [ -n "$SUBMISSION_ID" ]; then
+              echo "Fetching notarization log for submission $SUBMISSION_ID..."
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" || true
+            else
+              echo "::warning::No submission id in the notarytool output, so no detailed log could be fetched. See the raw output above."
+            fi
+            exit 1
           fi
 
+          echo "Notarization successful"
+
       - name: Staple notarization ticket
-        if: env.NOTARIZATION_SUCCESS == 'true'
         run: |
-          # Find the .app inside the DMG to staple
-          # First, mount the DMG
-          MOUNT_POINT=$(mktemp -d)
-          hdiutil attach "${{ steps.find-dmg.outputs.path }}" -mountpoint "$MOUNT_POINT" -nobrowse
-
-          # Find the app
-          APP_PATH=$(find "$MOUNT_POINT" -name "*.app" -maxdepth 1 | head -1)
-          APP_NAME=$(basename "$APP_PATH")
-
-          # Unmount
-          hdiutil detach "$MOUNT_POINT"
-
-          # For DMGs, we staple the DMG itself
+          # The ticket is stapled to the DMG itself, not to the .app inside it
           xcrun stapler staple "${{ steps.find-dmg.outputs.path }}"
-
-          echo "Stapled notarization ticket to DMG"
+          xcrun stapler validate "${{ steps.find-dmg.outputs.path }}"
+          echo "Stapled and validated notarization ticket"
 
       - name: Upload notarized DMG to release
-        if: env.NOTARIZATION_SUCCESS == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Replace with notarized DMG
           gh release upload ${{ github.ref_name }} \
             "${{ steps.find-dmg.outputs.path }}#${{ steps.find-dmg.outputs.name }}" \
             --repo ${{ github.repository }} \
@@ -515,6 +520,75 @@ jobs:
             --repo ${{ github.repository }} \
             --clobber
 
+  # Rename the draft when a required build did not succeed. publish-release
+  # already refuses to flip --draft=false, but the draft survives holding
+  # whatever assets did upload: build-linux creates the draft on its own, and
+  # with fail-fast: false one failed arch still leaves the other DMG in place.
+  # That looks complete enough for a human to hit Publish.
+  #
+  # This runs as its own job rather than a step inside build-macos because the
+  # draft is created two-thirds of the way through that job - an earlier failure
+  # would have nothing to rename. Its condition is the exact complement of
+  # publish-release's, so the two never run together, and `!= 'success'` also
+  # covers a cancelled job. Windows is excluded deliberately: a Windows failure
+  # is not meant to block the release.
+  mark-unpublishable:
+    needs: [build-macos, build-linux, build-windows]
+    if: always() && (needs.build-macos.result != 'success' || needs.build-linux.result != 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark draft release as unpublishable
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Only a genuine 404 means "nothing to mark". Every other gh failure -
+          # a 5xx, a rate limit, a network blip, a token problem - would
+          # otherwise be read as absence, and this job would go green while a
+          # partial draft sat unmarked. That is the exact case it exists for.
+          VIEW_ERR="$RUNNER_TEMP/gh-release-view.err"
+          VIEW_EXIT=0
+          IS_DRAFT=$(gh release view ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --json isDraft --jq .isDraft 2> "$VIEW_ERR") || VIEW_EXIT=$?
+
+          if [ "$VIEW_EXIT" -ne 0 ]; then
+            # Guarded: if the redirect above could not create the file, errexit
+            # would kill the step here, before the annotation below explains why.
+            cat "$VIEW_ERR" || echo "(no captured stderr at $VIEW_ERR)"
+            if grep -qiE 'release not found|HTTP 404' "$VIEW_ERR"; then
+              echo "No release exists for ${{ github.ref_name }} - nothing to mark."
+              exit 0
+            fi
+            echo "::error::Could not tell whether a release exists for ${{ github.ref_name }} (gh exit=$VIEW_EXIT). A required build failed, so a partial draft may exist and is NOT marked. Check the releases page before publishing anything for this tag."
+            exit 1
+          fi
+
+          if [ -z "$IS_DRAFT" ]; then
+            echo "::error::gh exited 0 but reported no draft flag for ${{ github.ref_name }}. Cannot tell whether a partial draft exists, so it is NOT marked. Check the releases page before publishing anything for this tag."
+            exit 1
+          fi
+
+          # Renaming a live release is worse than doing nothing. Reaching this
+          # means a re-run or a force-pushed tag hit an already-published
+          # release, and the build jobs upload with --clobber, so its assets may
+          # have been overwritten by this partial run.
+          if [ "$IS_DRAFT" != "true" ]; then
+            echo "::error::Release ${{ github.ref_name }} is already published, but a required build for this tag failed. Refusing to retitle a live release. Check its assets by hand and unpublish it if they are incomplete."
+            exit 1
+          fi
+
+          gh release edit ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --title "DO NOT PUBLISH - build did not complete for HomeKaraoke ${{ github.ref_name }}" \
+            || {
+              echo "::error::Draft ${{ github.ref_name }} exists but could NOT be retitled. It is still named as a normal release even though a build failed. Do not publish it - delete the draft or rename it by hand."
+              exit 1
+            }
+
+          echo "Draft ${{ github.ref_name }} marked as unpublishable"
+
   # Publish the draft release after all builds complete
   # Windows build is optional - release continues if macOS and Linux succeed
   publish-release:
@@ -526,9 +600,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Update release notes to remove "in progress" message
+          # Expand the draft notes with the Windows SmartScreen caveat.
+          # --title also resets the "DO NOT PUBLISH" name that a previous run's
+          # mark-unpublishable job may have left on this draft.
           gh release edit ${{ github.ref_name }} \
             --repo ${{ github.repository }} \
+            --title "HomeKaraoke ${{ github.ref_name }}" \
             --notes "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
 
           ## Downloads

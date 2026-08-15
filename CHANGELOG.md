@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Release workflow no longer publishes a macOS DMG that failed notarization (#239)
+  - The workflow uploaded the DMG before notarization ran. A failed or timed-out `notarytool` submission then left that non-notarized DMG in the release while the job still reported success, so macOS users would have hit the Gatekeeper "Apple cannot check it for malicious software" wall with nothing to signal why
+  - Notarization and stapling now run before the upload, and the job fails if either one does not succeed
+  - A failed run fetches the `notarytool` log, so you can find the cause without re-running the release
+  - The job now fails early when the Apple notarization secrets are missing, instead of surfacing that after a full release build
+  - When a required build does not complete, the draft release is renamed to `DO NOT PUBLISH - ...`. Nothing auto-publishes in that case, but the draft used to survive holding whatever artifacts had already uploaded, which looked complete enough to publish by hand. A later successful run restores the title
+- README described a pre-0.8.0 app (#239)
+  - Documented accounts and hosted sessions, missing since 0.8.0
+  - Dropped the macOS "right-click and Open" instruction. Releases are notarized and open on a double-click
+  - Described CDG as detection rather than playback, and listed which containers the system WebView actually plays
+  - Marked layout memory and auto-restore as macOS-only, matching the platform gates in the code
+  - Corrected the Linux token storage claim. `keychain.rs` documented a Secret Service backend that `Cargo.toml` never enables, so both the README and the module comment now point at #240
+
 ### Changed
 - Guest song requests are now auto-accepted by default (#231)
   - Incoming remote requests skip the approval modal and are added directly to the queue with singer auto-assignment
