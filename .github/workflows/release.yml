@@ -230,6 +230,8 @@ jobs:
                 --apple-id "$APPLE_ID" \
                 --password "$APPLE_PASSWORD" \
                 --team-id "$APPLE_TEAM_ID" || true
+            else
+              echo "::warning::No submission id in the notarytool output, so no detailed log could be fetched. See the raw output above."
             fi
             exit 1
           fi
@@ -539,9 +541,40 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if ! gh release view ${{ github.ref_name }} --repo ${{ github.repository }} > /dev/null 2>&1; then
-            echo "No release exists for ${{ github.ref_name }} - nothing to mark."
-            exit 0
+          set -euo pipefail
+
+          # Only a genuine 404 means "nothing to mark". Every other gh failure -
+          # a 5xx, a rate limit, a network blip, a token problem - would
+          # otherwise be read as absence, and this job would go green while a
+          # partial draft sat unmarked. That is the exact case it exists for.
+          VIEW_ERR="$RUNNER_TEMP/gh-release-view.err"
+          VIEW_EXIT=0
+          IS_DRAFT=$(gh release view ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --json isDraft --jq .isDraft 2> "$VIEW_ERR") || VIEW_EXIT=$?
+
+          if [ "$VIEW_EXIT" -ne 0 ]; then
+            cat "$VIEW_ERR"
+            if grep -qiE 'release not found|HTTP 404' "$VIEW_ERR"; then
+              echo "No release exists for ${{ github.ref_name }} - nothing to mark."
+              exit 0
+            fi
+            echo "::error::Could not tell whether a release exists for ${{ github.ref_name }} (gh exit=$VIEW_EXIT). A required build failed, so a partial draft may exist and is NOT marked. Check the releases page before publishing anything for this tag."
+            exit 1
+          fi
+
+          if [ -z "$IS_DRAFT" ]; then
+            echo "::error::gh exited 0 but reported no draft flag for ${{ github.ref_name }}. Cannot tell whether a partial draft exists, so it is NOT marked. Check the releases page before publishing anything for this tag."
+            exit 1
+          fi
+
+          # Renaming a live release is worse than doing nothing. Reaching this
+          # means a re-run or a force-pushed tag hit an already-published
+          # release, and the build jobs upload with --clobber, so its assets may
+          # have been overwritten by this partial run.
+          if [ "$IS_DRAFT" != "true" ]; then
+            echo "::error::Release ${{ github.ref_name }} is already published, but a required build for this tag failed. Refusing to retitle a live release. Check its assets by hand and unpublish it if they are incomplete."
+            exit 1
           fi
 
           gh release edit ${{ github.ref_name }} \
@@ -566,8 +599,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Expand the draft notes with the Windows SmartScreen caveat.
-          # --title also resets the "DO NOT PUBLISH" name a previously failed
-          # build job may have left on this draft.
+          # --title also resets the "DO NOT PUBLISH" name that a previous run's
+          # mark-unpublishable job may have left on this draft.
           gh release edit ${{ github.ref_name }} \
             --repo ${{ github.repository }} \
             --title "HomeKaraoke ${{ github.ref_name }}" \
