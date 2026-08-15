@@ -86,6 +86,19 @@ jobs:
             exit 1
           fi
 
+      - name: Verify Apple notarization secrets
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Notarization is mandatory, so fail here rather than 30 minutes into
+          # the job after a full release build and DMG packaging.
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "::error::APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID repo secrets must be set. Notarization cannot be skipped."
+            exit 1
+          fi
+
       - name: Build and sign Tauri app
         run: npm run tauri build -- --target ${{ matrix.target }}
         env:
@@ -190,7 +203,7 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           echo "Submitting for notarization..."
 
           NOTARY_EXIT=0
@@ -237,6 +250,20 @@ jobs:
             --clobber
 
           echo "Uploaded notarized DMG to release"
+
+      # publish-release already refuses to publish when this job fails, but the
+      # draft survives with whatever assets did upload. With fail-fast: false a
+      # single failed arch leaves a draft holding the other DMG plus every Linux
+      # artifact, which looks complete enough for a human to hit Publish.
+      - name: Mark draft release as unpublishable
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --title "DO NOT PUBLISH - ${{ matrix.name }} build failed for HomeKaraoke ${{ github.ref_name }}" \
+            || echo "::warning::Could not retitle the draft release"
 
       - name: Cleanup keychain
         if: always()
@@ -513,9 +540,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Expand the draft notes with the per-platform install caveats
+          # Expand the draft notes with the Windows SmartScreen caveat.
+          # --title also resets the "DO NOT PUBLISH" name a previously failed
+          # build job may have left on this draft.
           gh release edit ${{ github.ref_name }} \
             --repo ${{ github.repository }} \
+            --title "HomeKaraoke ${{ github.ref_name }}" \
             --notes "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
 
           ## Downloads

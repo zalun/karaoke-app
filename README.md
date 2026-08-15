@@ -78,7 +78,7 @@ Download the latest release from the [Releases page](https://github.com/zalun/ka
 ## Optional Dependencies
 
 - **yt-dlp** - Required for high-quality streaming and the yt-dlp search method
-- **ffmpeg** - Required for library thumbnails and video duration (uses `ffmpeg` and `ffprobe` during a scan)
+- **ffmpeg** - Required for library thumbnails, video duration, and year metadata (uses `ffmpeg` and `ffprobe` during a scan)
 
 The app works without these dependencies using YouTube Embed playback. Neither one decodes video during playback. The system WebView does that.
 
