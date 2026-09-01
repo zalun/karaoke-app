@@ -47,11 +47,13 @@ export function SessionBar() {
   const { isAuthenticated, user } = useAuthStore();
 
   // Check if hosting is blocked due to another user's active session
+  // Block only if another user has an ACTIVE or PAUSED session (not ENDED or EXPIRED)
   const isHostingBlockedByOtherUser = Boolean(
     session?.hosted_session_id &&
     session?.hosted_by_user_id &&
     session?.hosted_by_user_id !== user?.id &&
-    session?.hosted_session_status !== HOSTED_SESSION_STATUS.ENDED
+    (session?.hosted_session_status === HOSTED_SESSION_STATUS.ACTIVE ||
+     session?.hosted_session_status === HOSTED_SESSION_STATUS.PAUSED)
   );
 
   // Check if a singer is assigned to any queue item
