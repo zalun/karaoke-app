@@ -197,8 +197,21 @@ pub struct VideoInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamInfo {
     pub url: String,
+    /// Separate audio stream, set when YouTube offered no muxed format and the
+    /// video URL is video-only. The player must play both in sync.
+    pub audio_url: Option<String>,
     pub format: String,
     pub quality: String,
+}
+
+/// Parse `yt-dlp --print` output into (video URL, optional audio URL).
+/// A muxed format prints one line; a `video+audio` selection prints two, video first.
+/// Lines that are not URLs (yt-dlp prints `NA` for a missing field) are ignored.
+fn parse_stream_urls(stdout: &str) -> Option<(String, Option<String>)> {
+    let mut lines = stdout.lines().map(str::trim).filter(|l| l.starts_with("http"));
+    let video = lines.next()?.to_string();
+    let audio = lines.next().map(str::to_string);
+    Some((video, audio))
 }
 
 pub struct YtDlpService;
@@ -342,21 +355,97 @@ impl YtDlpService {
 
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
 
-        // Prefer H.264 (avc1) codec for best compatibility with WebKitGTK/GStreamer on Linux
-        // Exclude HLS (m3u8) streams - HTML5 video doesn't support HLS natively on WebKitGTK
-        // Format priority: best mp4 with H.264 (no HLS) > best mp4 (no HLS) > best (no HLS)
+        // macOS WebKit plays HLS natively. YouTube's HLS master manifest carries video and
+        // audio together and starts in seconds, while the video-only DASH files of the split
+        // fallback below take AVFoundation tens of seconds to open.
+        #[cfg(target_os = "macos")]
+        match self
+            .run_print(video_id, &url, "bv*[protocol=m3u8_native]", "%(manifest_url)s")
+            .await
+        {
+            Ok(stdout) => {
+                if let Some((manifest_url, _)) = parse_stream_urls(&stdout) {
+                    info!(
+                        "Got HLS manifest for video: {} (length: {} chars)",
+                        video_id,
+                        manifest_url.len()
+                    );
+                    return Ok(StreamInfo {
+                        url: manifest_url,
+                        audio_url: None,
+                        format: "hls".to_string(),
+                        quality: "adaptive".to_string(),
+                    });
+                }
+                warn!("Empty HLS manifest for {}, falling back to direct streams", video_id);
+            }
+            Err(YtDlpError::NotFound) => return Err(YtDlpError::NotFound),
+            Err(e) => warn!("No HLS manifest for {} ({}), falling back to direct streams", video_id, e),
+        }
+
+        // Direct streams (non-macOS, or macOS without an HLS manifest).
+        // Exclude HLS (m3u8) - WebKitGTK can't play it natively; prefer H.264 (avc1) for
+        // WebKitGTK/GStreamer compatibility.
+        // Priority: muxed mp4 H.264 > muxed mp4 > https H.264 video (<=1080p) + m4a audio
+        // > https mp4 video + m4a audio > any muxed non-HLS. YouTube mostly stopped serving
+        // muxed formats, so a split selection (two printed URLs) is the usual result.
+        let stdout = self
+            .run_print(
+                video_id,
+                &url,
+                concat!(
+                    "best[ext=mp4][vcodec^=avc][protocol!*=m3u8]",
+                    "/best[ext=mp4][protocol!*=m3u8]",
+                    "/bv*[ext=mp4][vcodec^=avc][height<=1080][protocol=https]+ba[ext=m4a][protocol=https]",
+                    "/bv*[ext=mp4][protocol=https]+ba[ext=m4a][protocol=https]",
+                    "/best[protocol!*=m3u8]",
+                ),
+                "urls",
+            )
+            .await?;
+
+        let Some((stream_url, audio_url)) = parse_stream_urls(&stdout) else {
+            warn!("Empty stream URL returned for video: {}", video_id);
+            return Err(YtDlpError::NoResults);
+        };
+
+        info!(
+            "Got stream URL for video: {} (length: {} chars, separate audio: {})",
+            video_id,
+            stream_url.len(),
+            audio_url.is_some()
+        );
+        Ok(StreamInfo {
+            url: stream_url,
+            audio_url,
+            format: "mp4".to_string(),
+            quality: "best".to_string(),
+        })
+    }
+
+    /// Run yt-dlp with a format selector and `--print` template, returning stdout.
+    /// The "urls" template prints one URL per selected format (two for `video+audio`);
+    /// a field template such as `%(manifest_url)s` prints one line.
+    async fn run_print(
+        &self,
+        video_id: &str,
+        url: &str,
+        format: &str,
+        template: &str,
+    ) -> Result<String, YtDlpError> {
         let output = Command::new(get_ytdlp_command())
-            .arg(&url)
+            .arg(url)
             .arg("-f")
-            .arg("best[ext=mp4][vcodec^=avc][protocol!*=m3u8]/best[ext=mp4][protocol!*=m3u8]/best[protocol!*=m3u8]/best")
-            .arg("--get-url")
+            .arg(format)
+            .arg("--print")
+            .arg(template)
             .arg("--no-warnings")
             .env("PATH", get_expanded_path())
             .no_window()
             .output()
             .await
             .map_err(|e| {
-                warn!("Failed to get stream URL for {}: {}", video_id, e);
+                warn!("Failed to run yt-dlp for {}: {}", video_id, e);
                 if e.kind() == std::io::ErrorKind::NotFound {
                     YtDlpError::NotFound
                 } else {
@@ -366,25 +455,11 @@ impl YtDlpService {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            warn!("yt-dlp get_stream_url failed for {}: {}", video_id, stderr);
+            warn!("yt-dlp failed for {} (format {}): {}", video_id, format, stderr);
             return Err(YtDlpError::ExecutionError(stderr.to_string()));
         }
 
-        let stream_url = String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .to_string();
-
-        if stream_url.is_empty() {
-            warn!("Empty stream URL returned for video: {}", video_id);
-            return Err(YtDlpError::NoResults);
-        }
-
-        info!("Got stream URL for video: {} (length: {} chars)", video_id, stream_url.len());
-        Ok(StreamInfo {
-            url: stream_url,
-            format: "mp4".to_string(),
-            quality: "best".to_string(),
-        })
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     }
 
     /// Get video info without downloading
@@ -436,5 +511,40 @@ impl YtDlpService {
 impl Default for YtDlpService {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_stream_urls_muxed_single_line() {
+        assert_eq!(
+            parse_stream_urls("https://v.example/muxed\n"),
+            Some(("https://v.example/muxed".to_string(), None))
+        );
+    }
+
+    #[test]
+    fn parse_stream_urls_split_video_and_audio() {
+        assert_eq!(
+            parse_stream_urls("https://v.example/video\nhttps://v.example/audio\n"),
+            Some((
+                "https://v.example/video".to_string(),
+                Some("https://v.example/audio".to_string())
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_stream_urls_ignores_missing_field_marker() {
+        assert_eq!(parse_stream_urls("NA\n"), None);
+    }
+
+    #[test]
+    fn parse_stream_urls_empty_output() {
+        assert_eq!(parse_stream_urls(""), None);
+        assert_eq!(parse_stream_urls("  \n\n"), None);
     }
 }

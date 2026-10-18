@@ -8,6 +8,7 @@ import {
   SETTINGS_KEYS,
   parseOverlaySeconds,
   getStreamUrlWithCache,
+  toStreamUrls,
   invalidatePrefetchIfStale,
   isEmbeddingError,
   notify,
@@ -133,6 +134,7 @@ export function VideoPlayer() {
 
     const playerState = {
       streamUrl,
+      audioStreamUrl: currentVideo?.source === "local" ? null : currentVideo?.audioStreamUrl ?? null,
       videoId: currentVideo?.youtubeId || null,
       playbackMode: currentVideo?.source === "local" ? "ytdlp" : playbackMode, // Local files use native player
       isPlaying,
@@ -185,7 +187,7 @@ export function VideoPlayer() {
       .then(info => {
         // Only cache if this is still the first item in queue
         if (useQueueStore.getState().queue[0]?.video.youtubeId === nextQueueVideoId) {
-          usePlayerStore.getState().setPrefetchedStreamUrl(nextQueueVideoId, info.url);
+          usePlayerStore.getState().setPrefetchedStreamUrl(nextQueueVideoId, toStreamUrls(info));
           log.debug(`Prefetch complete (idle): ${nextQueueItem?.video.title}`);
         }
       })
@@ -247,7 +249,7 @@ export function VideoPlayer() {
           youtubeService.getStreamUrl(videoIdToFetch)
             .then(info => {
               if (useQueueStore.getState().queue[0]?.video.youtubeId === videoIdToFetch) {
-                usePlayerStore.getState().setPrefetchedStreamUrl(videoIdToFetch, info.url);
+                usePlayerStore.getState().setPrefetchedStreamUrl(videoIdToFetch, toStreamUrls(info));
                 log.debug(`Prefetch complete for: ${nextItem?.video.title}`);
               }
             })
@@ -321,8 +323,8 @@ export function VideoPlayer() {
             const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(nextItem.video.youtubeId!);
             usedCachedUrlRef.current = !!cachedUrl;
 
-            const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId!);
-            setCurrentVideo({ ...nextItem.video, streamUrl });
+            const streamUrls = await getStreamUrlWithCache(nextItem.video.youtubeId!);
+            setCurrentVideo({ ...nextItem.video, ...streamUrls });
             setIsPlaying(true);
           } catch (err) {
             log.error("Failed to play next", err);
@@ -404,8 +406,8 @@ export function VideoPlayer() {
             log.info(`Auto-skipping to: "${nextItem.video.title}"`);
             if (playbackMode === "ytdlp") {
               try {
-                const streamUrl = await getStreamUrlWithCache(nextItem.video.youtubeId!);
-                setCurrentVideo({ ...nextItem.video, streamUrl });
+                const streamUrls = await getStreamUrlWithCache(nextItem.video.youtubeId!);
+                setCurrentVideo({ ...nextItem.video, ...streamUrls });
                 setIsPlaying(true);
               } catch (err) {
                 log.error("Failed to play next after skip", err);
@@ -460,7 +462,7 @@ export function VideoPlayer() {
       setIsLoading(true);
       try {
         const streamInfo = await youtubeService.getStreamUrl(currentVideo.youtubeId);
-        setCurrentVideo({ ...currentVideo, streamUrl: streamInfo.url });
+        setCurrentVideo({ ...currentVideo, ...toStreamUrls(streamInfo) });
         return;
       } catch (err) {
         log.error("Fresh fetch also failed", err);
@@ -583,6 +585,7 @@ export function VideoPlayer() {
       {canPlayNative && currentVideo?.streamUrl && (
         <NativePlayer
           streamUrl={currentVideo.streamUrl}
+          audioUrl={currentVideo.audioStreamUrl}
           isPlaying={isPlaying}
           volume={volume}
           isMuted={isMuted}

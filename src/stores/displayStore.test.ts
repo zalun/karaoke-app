@@ -175,6 +175,27 @@ describe("displayStore", () => {
         );
       });
 
+      it("should pass the separate audio stream url to detachPlayer", async () => {
+        const savedConfig = createMockSavedConfig();
+        const windowStates: WindowState[] = [
+          createMockWindowState({ window_type: "main" }),
+          createMockWindowState({ window_type: "video", is_detached: true }),
+        ];
+
+        const mockState = getMockPlayerState();
+        mockState.isDetached = false;
+        mockState.currentVideo = {
+          streamUrl: "v",
+          audioStreamUrl: "a",
+        } as unknown as typeof mockState.currentVideo;
+
+        await useDisplayStore.getState().restoreLayout({ savedConfig, windowStates });
+
+        expect(windowManager.detachPlayer).toHaveBeenCalledWith(
+          expect.objectContaining({ streamUrl: "v", audioStreamUrl: "a" })
+        );
+      });
+
       it("should not detach player if already detached", async () => {
         const savedConfig = createMockSavedConfig();
         const windowStates: WindowState[] = [

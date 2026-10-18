@@ -31,6 +31,83 @@ describe("NativePlayer", () => {
     vi.clearAllMocks();
   });
 
+  describe("Separate audio stream", () => {
+    it("renders an audio element for the audio URL", () => {
+      render(<NativePlayer {...defaultProps} audioUrl="https://example.com/audio.m4a" />);
+
+      expect(document.querySelector("audio")?.src).toBe("https://example.com/audio.m4a");
+    });
+
+    it("renders no audio element without an audio URL", () => {
+      render(<NativePlayer {...defaultProps} />);
+
+      expect(document.querySelector("audio")).not.toBeInTheDocument();
+    });
+
+    it("starts split-stream playback on loadedmetadata without waiting for canplay", () => {
+      const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      render(<NativePlayer {...defaultProps} isPlaying audioUrl="https://example.com/audio.m4a" />);
+
+      document.querySelector("video")!.dispatchEvent(new Event("loadedmetadata"));
+
+      expect(play).toHaveBeenCalled();
+      play.mockRestore();
+    });
+
+    it("waits for canplay on loadedmetadata when there is no separate audio", () => {
+      const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      render(<NativePlayer {...defaultProps} isPlaying />);
+
+      document.querySelector("video")!.dispatchEvent(new Event("loadedmetadata"));
+
+      expect(play).not.toHaveBeenCalled();
+      play.mockRestore();
+    });
+
+    it("starts a split stream loaded while paused when play is pressed later", () => {
+      const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      const props = { ...defaultProps, audioUrl: "https://example.com/audio.m4a" };
+      const { rerender } = render(<NativePlayer {...props} isPlaying={false} />);
+      const video = document.querySelector("video")!;
+      Object.defineProperty(video, "readyState", { configurable: true, value: 1 });
+
+      video.dispatchEvent(new Event("loadedmetadata"));
+      expect(play).not.toHaveBeenCalled();
+
+      rerender(<NativePlayer {...props} isPlaying />);
+      expect(play).toHaveBeenCalled();
+      play.mockRestore();
+    });
+
+    it("reports only the first error when video and audio fail together", () => {
+      const onError = vi.fn();
+      render(<NativePlayer {...defaultProps} onError={onError} audioUrl="https://example.com/audio.m4a" />);
+
+      document.querySelector("video")!.dispatchEvent(new Event("error"));
+      document.querySelector("audio")!.dispatchEvent(new Event("error"));
+
+      expect(onError).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports errors again after the source changes", () => {
+      const onError = vi.fn();
+      const props = { ...defaultProps, onError, audioUrl: "https://example.com/audio.m4a" };
+      const { rerender } = render(<NativePlayer {...props} />);
+
+      document.querySelector("video")!.dispatchEvent(new Event("error"));
+      rerender(<NativePlayer {...props} streamUrl="https://example.com/fresh.mp4" />);
+      document.querySelector("video")!.dispatchEvent(new Event("error"));
+
+      expect(onError).toHaveBeenCalledTimes(2);
+    });
+
+    it("shows error for an unsafe audio URL", () => {
+      render(<NativePlayer {...defaultProps} audioUrl="javascript:alert('xss')" />);
+
+      expect(screen.getByText("Invalid Stream URL")).toBeInTheDocument();
+    });
+  });
+
   describe("URL Validation", () => {
     it("renders video element with valid HTTPS URL", () => {
       render(<NativePlayer {...defaultProps} streamUrl="https://example.com/video.mp4" />);

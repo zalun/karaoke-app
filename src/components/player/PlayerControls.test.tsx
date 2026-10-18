@@ -13,6 +13,9 @@ interface MockVideo {
   artist?: string;
   youtubeId?: string;
   streamUrl?: string;
+  audioStreamUrl?: string;
+  source?: string;
+  filePath?: string;
   duration?: number;
 }
 
@@ -208,6 +211,14 @@ vi.mock("../../stores", () => ({
   },
   playVideo: () => mockPlayVideo(),
   notify: (...args: unknown[]) => mockNotify(...args),
+  toStreamUrls: (info: { url: string; audio_url?: string | null }) => ({
+    streamUrl: info.url,
+    audioStreamUrl: info.audio_url ?? undefined,
+  }),
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({
+  convertFileSrc: (path: string) => `asset://localhost/${path}`,
 }));
 
 vi.mock("../../services", () => ({
@@ -764,6 +775,43 @@ describe("PlayerControls", () => {
       await userEvent.click(detachButton);
 
       expect(mockPlayerStore.setIsPlaying).toHaveBeenCalledWith(false);
+    });
+
+    it("detach passes audioStreamUrl for a youtube video with a separate audio stream", async () => {
+      const video = setupVideoPlaying({ isDetached: false });
+      video.streamUrl = "v";
+      video.audioStreamUrl = "a";
+      render(<PlayerControls />);
+
+      await userEvent.click(screen.getByTitle("Detach player"));
+
+      await waitFor(() => {
+        expect(mockWindowManager.detachPlayer).toHaveBeenCalled();
+        const calledState = mockWindowManager.detachPlayer.mock.calls[0][0] as {
+          streamUrl?: string | null;
+          audioStreamUrl?: string | null;
+        };
+        expect(calledState.streamUrl).toBe("v");
+        expect(calledState.audioStreamUrl).toBe("a");
+      });
+    });
+
+    it("detach sends audioStreamUrl null for local videos even with a stale audio url", async () => {
+      const video = setupVideoPlaying({ isDetached: false });
+      video.source = "local";
+      video.filePath = "/songs/local.mp4";
+      video.audioStreamUrl = "stale";
+      render(<PlayerControls />);
+
+      await userEvent.click(screen.getByTitle("Detach player"));
+
+      await waitFor(() => {
+        expect(mockWindowManager.detachPlayer).toHaveBeenCalled();
+        const calledState = mockWindowManager.detachPlayer.mock.calls[0][0] as {
+          audioStreamUrl?: string | null;
+        };
+        expect(calledState.audioStreamUrl).toBeNull();
+      });
     });
 
     it("detach includes nextSongOverlaySeconds in synced state", async () => {

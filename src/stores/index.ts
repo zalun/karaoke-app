@@ -1,6 +1,7 @@
 export {
   usePlayerStore,
   getStreamUrlWithCache,
+  toStreamUrls,
   invalidatePrefetchIfStale,
   playVideo,
   stopVideo,
@@ -11,6 +12,7 @@ export {
   isEmbeddingError,
   EMBEDDING_ERROR_CODES,
   type Video,
+  type StreamUrls,
 } from "./playerStore";
 export { useQueueStore, type QueueItem } from "./queueStore";
 export { useAppStore } from "./appStore";

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { platform } from "@tauri-apps/plugin-os";
 import { youtubeService, createLogger, emitSignal, APP_SIGNALS } from "../services";
+import type { StreamInfo } from "../types";
 import { notify } from "./notificationStore";
 import { useSettingsStore, SETTINGS_KEYS } from "./settingsStore";
 
@@ -70,6 +71,16 @@ export interface Video {
   youtubeId?: string;
   filePath?: string;
   streamUrl?: string;
+  /** Separate audio stream for yt-dlp playback when streamUrl is video-only */
+  audioStreamUrl?: string;
+}
+
+/** Stream URLs for yt-dlp playback, spread into a Video */
+export type StreamUrls = Pick<Video, "streamUrl" | "audioStreamUrl">;
+
+/** Convert yt-dlp stream info to Video stream fields (always sets both keys so spreading clears a stale audio URL) */
+export function toStreamUrls(info: StreamInfo): StreamUrls {
+  return { streamUrl: info.url, audioStreamUrl: info.audio_url ?? undefined };
 }
 
 interface PlayerState {
@@ -83,7 +94,7 @@ interface PlayerState {
   isLoading: boolean;
   isDetached: boolean;
   seekTime: number | null;
-  prefetchedStreamUrl: { videoId: string; url: string; timestamp: number } | null;
+  prefetchedStreamUrl: { videoId: string; urls: StreamUrls; timestamp: number } | null;
   // Track videos that don't allow embedding (error 101/150)
   nonEmbeddableVideoIds: Set<string>;
   // Track last video ID for which VIDEO_METADATA_CHANGED was emitted
@@ -102,8 +113,8 @@ interface PlayerState {
   seekTo: (time: number) => void;
   clearSeek: () => void;
   reset: () => void;
-  setPrefetchedStreamUrl: (videoId: string, url: string) => void;
-  getPrefetchedStreamUrl: (videoId: string) => string | null;
+  setPrefetchedStreamUrl: (videoId: string, urls: StreamUrls) => void;
+  getPrefetchedStreamUrl: (videoId: string) => StreamUrls | null;
   clearPrefetchedStreamUrl: () => void;
   // Non-embeddable video tracking
   markAsNonEmbeddable: (videoId: string) => void;
@@ -175,10 +186,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     log.info("reset: resetting player state");
     set(initialState);
   },
-  setPrefetchedStreamUrl: (videoId, url) => {
+  setPrefetchedStreamUrl: (videoId, urls) => {
     log.debug(`setPrefetchedStreamUrl: cached URL for ${videoId}`);
     set({
-      prefetchedStreamUrl: { videoId, url, timestamp: Date.now() }
+      prefetchedStreamUrl: { videoId, urls, timestamp: Date.now() }
     });
   },
   getPrefetchedStreamUrl: (videoId) => {
@@ -197,7 +208,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
 
     log.debug(`getPrefetchedStreamUrl: cache hit for ${videoId}`);
-    return cached.url;
+    return cached.urls;
   },
   clearPrefetchedStreamUrl: () => {
     log.debug("clearPrefetchedStreamUrl");
@@ -228,25 +239,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
  *
  * @param videoId - YouTube video ID
  * @param clearCache - Whether to clear cache after retrieving (default: true)
- * @returns Promise resolving to the stream URL
+ * @returns Promise resolving to the stream URLs (spread into the Video)
  */
 export async function getStreamUrlWithCache(
   videoId: string,
   clearCache = true
-): Promise<string> {
-  const cachedUrl = usePlayerStore.getState().getPrefetchedStreamUrl(videoId);
+): Promise<StreamUrls> {
+  const cachedUrls = usePlayerStore.getState().getPrefetchedStreamUrl(videoId);
 
-  if (cachedUrl) {
+  if (cachedUrls) {
     log.info(`getStreamUrlWithCache: using cached URL for ${videoId}`);
     if (clearCache) {
       usePlayerStore.getState().clearPrefetchedStreamUrl();
     }
-    return cachedUrl;
+    return cachedUrls;
   }
 
   log.info(`getStreamUrlWithCache: fetching fresh URL for ${videoId}`);
   const streamInfo = await youtubeService.getStreamUrl(videoId);
-  return streamInfo.url;
+  return toStreamUrls(streamInfo);
 
 }
 
@@ -415,8 +426,8 @@ export async function playVideo(video: Video): Promise<void> {
   // yt-dlp mode - fetch stream URL (only reached if yt-dlp is available)
   setIsLoading(true);
   try {
-    const streamUrl = await getStreamUrlWithCache(video.youtubeId);
-    setCurrentVideo({ ...video, streamUrl });
+    const streamUrls = await getStreamUrlWithCache(video.youtubeId);
+    setCurrentVideo({ ...video, ...streamUrls });
     setIsPlaying(true);
     setIsLoading(false);
     // Emit video metadata changed signal (only if different video)
