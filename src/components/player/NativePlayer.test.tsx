@@ -89,6 +89,18 @@ describe("NativePlayer", () => {
       expect(onError).toHaveBeenCalledTimes(1);
     });
 
+    it("reports errors again after the source changes", () => {
+      const onError = vi.fn();
+      const props = { ...defaultProps, onError, audioUrl: "https://example.com/audio.m4a" };
+      const { rerender } = render(<NativePlayer {...props} />);
+
+      document.querySelector("video")!.dispatchEvent(new Event("error"));
+      rerender(<NativePlayer {...props} streamUrl="https://example.com/fresh.mp4" />);
+      document.querySelector("video")!.dispatchEvent(new Event("error"));
+
+      expect(onError).toHaveBeenCalledTimes(2);
+    });
+
     it("shows error for an unsafe audio URL", () => {
       render(<NativePlayer {...defaultProps} audioUrl="javascript:alert('xss')" />);
 

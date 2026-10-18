@@ -112,7 +112,7 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
   // Track if we're currently loading a new source to prevent play/pause interference
   const isLoadingSourceRef = useRef(false);
   // Video and audio of a split stream usually fail together (e.g. expired URLs);
-  // report only the first error per source so the parent retries once
+  // report only the first error per source so the parent handles it (retry or toast) once
   const errorReportedRef = useRef(false);
   // Track if we need to unmute after muted autoplay succeeds
   const pendingUnmuteRef = useRef(false);
@@ -234,7 +234,7 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
     } else if (video.readyState >= 3 || (audioUrl && video.readyState >= 1)) {
       tryPlay();
     }
-    // If isPlaying but video not ready, handleCanPlay will trigger play
+    // If isPlaying but video not ready, handleCanPlay (or handleLoadedMetadata for split streams) will trigger play
   }, [isPlaying, tryPlay, audioUrl]);
 
   // Handle volume changes (the audio element carries the sound for split streams)
@@ -270,8 +270,8 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
     log.debug(`Video duration: ${video.duration}`);
     onDurationChange?.(video.duration);
     // Split streams: don't wait for canplay. Observed on macOS WebKit: video-only DASH
-    // streams sat at loadstart until play() was called, so loading ends here and
-    // playback (if wanted) starts as soon as metadata is in
+    // streams were slow to reach canplay, so loading ends here (play/pause works again)
+    // and playback, if wanted, starts as soon as metadata is in
     if (audioUrl) {
       isLoadingSourceRef.current = false;
       setIsLoading(false);
