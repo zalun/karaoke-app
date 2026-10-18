@@ -154,16 +154,27 @@ describe("useSyncedAudio", () => {
     expect(videoStub.play).toHaveBeenCalled();
   });
 
-  it("does not resume after buffering if the user paused meanwhile", () => {
+  it("keeps the audio loading while the video is paused for audio buffering", () => {
+    const { video, audio, videoStub, audioStub } = setup();
+    videoStub.setPaused(false);
+
+    audio.dispatchEvent(new Event("waiting"));
+    video.dispatchEvent(new Event("pause"));
+
+    expect(audioStub.pause).not.toHaveBeenCalled();
+  });
+
+  it("does not resume after buffering if the user paused meanwhile, and stops the audio", () => {
     let video!: HTMLVideoElement;
     let audio!: HTMLAudioElement;
     let videoStub!: ReturnType<typeof stubMedia>;
+    let audioStub!: ReturnType<typeof stubMedia>;
     const onElements = (v: HTMLVideoElement, a: HTMLAudioElement) => {
       if (video) return;
       video = v;
       audio = a;
       videoStub = stubMedia(v);
-      stubMedia(a);
+      audioStub = stubMedia(a);
     };
     const { rerender } = render(
       <Harness audioUrl="https://example.com/audio" isPlaying onElements={onElements} />
@@ -175,7 +186,8 @@ describe("useSyncedAudio", () => {
     audio.dispatchEvent(new Event("canplay"));
 
     expect(videoStub.play).not.toHaveBeenCalled();
-    expect(video).toBeDefined();
+    // The video was already paused, so the audio must be stopped here
+    expect(audioStub.pause).toHaveBeenCalled();
   });
 
   it("pauses the video and reports when audio autoplay is blocked", async () => {

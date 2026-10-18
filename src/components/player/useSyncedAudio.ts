@@ -19,7 +19,8 @@ interface SyncedAudioOptions {
  * YouTube serves most videos to yt-dlp as separate video-only and audio-only
  * streams. The video element is the clock: audio follows its play, pause,
  * seek and buffering. When the audio runs out of data the video pauses until
- * the audio can continue, so the two never play out of step.
+ * the audio can continue, and drift beyond AUDIO_DRIFT_THRESHOLD_SECONDS is
+ * corrected by re-seeking the audio.
  */
 export function useSyncedAudio(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -59,7 +60,10 @@ export function useSyncedAudio(
       playAudio();
     };
 
-    const handleVideoPause = () => audio.pause();
+    // Keep the audio playing while it buffers; a paused stream may not keep loading
+    const handleVideoPause = () => {
+      if (!pausedForAudio) audio.pause();
+    };
     const handleVideoSeeking = () => {
       audio.currentTime = video.currentTime;
     };
@@ -76,9 +80,14 @@ export function useSyncedAudio(
     };
 
     const handleAudioCanPlay = () => {
-      if (!pausedForAudio || !isPlayingRef.current) return;
-      log.debug("Audio buffered, resuming video");
+      if (!pausedForAudio) return;
       pausedForAudio = false;
+      if (!isPlayingRef.current) {
+        // User paused while we waited; the video is already paused, so stop the audio here
+        audio.pause();
+        return;
+      }
+      log.debug("Audio buffered, resuming video");
       video.play().catch((e: DOMException) => {
         log.error(`Failed to resume video after audio buffering: ${e.name} - ${e.message}`);
       });

@@ -111,6 +111,9 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
   const shouldPlayOnLoadRef = useRef(false);
   // Track if we're currently loading a new source to prevent play/pause interference
   const isLoadingSourceRef = useRef(false);
+  // Video and audio of a split stream usually fail together (e.g. expired URLs);
+  // report only the first error per source so the parent retries once
+  const errorReportedRef = useRef(false);
   // Track if we need to unmute after muted autoplay succeeds
   const pendingUnmuteRef = useRef(false);
   // Store target volume for unmuting
@@ -172,6 +175,7 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
 
     log.info(`Source changed (key=${playbackKey}), loading: ${streamUrl.substring(0, 50)}...`);
     isLoadingSourceRef.current = true;
+    errorReportedRef.current = false;
     setIsLoading(true);
     setShowPlayButton(false); // Reset play button for new video
     // Remember if we should auto-play after load
@@ -227,11 +231,11 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
 
     if (!isPlaying) {
       video.pause();
-    } else if (video.readyState >= 3) {
+    } else if (video.readyState >= 3 || (audioUrl && video.readyState >= 1)) {
       tryPlay();
     }
     // If isPlaying but video not ready, handleCanPlay will trigger play
-  }, [isPlaying, tryPlay]);
+  }, [isPlaying, tryPlay, audioUrl]);
 
   // Handle volume changes (the audio element carries the sound for split streams)
   useEffect(() => {
@@ -265,11 +269,16 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
 
     log.debug(`Video duration: ${video.duration}`);
     onDurationChange?.(video.duration);
-    // WebKit does not buffer YouTube's video-only DASH streams (so never fires canplay)
-    // until play() is called; start them as soon as metadata is in
-    if (audioUrl && (isPlayingRef.current || shouldPlayOnLoadRef.current)) {
-      shouldPlayOnLoadRef.current = false;
-      tryPlay();
+    // Split streams: don't wait for canplay. Observed on macOS WebKit: video-only DASH
+    // streams sat at loadstart until play() was called, so loading ends here and
+    // playback (if wanted) starts as soon as metadata is in
+    if (audioUrl) {
+      isLoadingSourceRef.current = false;
+      setIsLoading(false);
+      if (isPlayingRef.current || shouldPlayOnLoadRef.current) {
+        shouldPlayOnLoadRef.current = false;
+        tryPlay();
+      }
     }
   }, [onDurationChange, audioUrl, tryPlay]);
 
@@ -336,8 +345,9 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
 
   const handleError = useCallback(
     (event: React.SyntheticEvent<HTMLMediaElement>) => {
-      const video = event.currentTarget;
-      const mediaError = video.error;
+      const element = event.currentTarget;
+      const mediaError = element.error;
+      const kind = element instanceof HTMLAudioElement ? "Audio" : "Video";
 
       // Log detailed error information
       const errorCodes: Record<number, string> = {
@@ -351,11 +361,13 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
       const errorMessage = mediaError?.message || "Unknown error";
       const errorDescription = errorCodes[errorCode] || `Unknown error code: ${errorCode}`;
 
-      log.error(`Video error: ${errorDescription}`);
+      log.error(`${kind} error: ${errorDescription}`);
       log.error(`Error message: ${errorMessage}`);
-      log.error(`Video src: ${video.src?.substring(0, 100)}...`);
+      log.error(`${kind} src: ${element.src?.substring(0, 100)}...`);
 
       setIsLoading(false);
+      if (errorReportedRef.current) return;
+      errorReportedRef.current = true;
       onError?.(mediaError);
     },
     [onError]

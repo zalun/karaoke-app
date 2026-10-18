@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { VideoPlayer } from "./VideoPlayer";
+import { youtubeService } from "../../services";
 
 // =============================================================================
 // Type Definitions for Mocks
@@ -555,6 +556,38 @@ describe("NextSongOverlay same-video check", () => {
 
       // Overlay should NOT show - this is the bug fix for issue #197
       expect(screen.queryByTestId("next-song-overlay")).not.toBeInTheDocument();
+    });
+  });
+});
+
+describe("idle prefetch with separate audio stream", () => {
+  beforeEach(() => {
+    resetMocks();
+  });
+
+  it("stores both video and audio urls via setPrefetchedStreamUrl", async () => {
+    vi.mocked(youtubeService.getStreamUrl).mockResolvedValueOnce({
+      url: "v",
+      audio_url: "a",
+    } as Awaited<ReturnType<typeof youtubeService.getStreamUrl>>);
+
+    // Idle: no current video, a queued item, ytdlp mode (default in mock settings)
+    mockPlayerStore.currentVideo = null;
+    mockQueueStore.queue = [
+      {
+        id: "queue-item-1",
+        video: { id: "next-1", title: "Next Song", youtubeId: "next-yt", source: "youtube" },
+        addedAt: new Date(),
+      },
+    ];
+
+    render(<VideoPlayer />);
+
+    await waitFor(() => {
+      expect(mockPlayerStore.setPrefetchedStreamUrl).toHaveBeenCalledWith("next-yt", {
+        streamUrl: "v",
+        audioStreamUrl: "a",
+      });
     });
   });
 });

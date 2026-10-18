@@ -64,6 +64,31 @@ describe("NativePlayer", () => {
       play.mockRestore();
     });
 
+    it("starts a split stream loaded while paused when play is pressed later", () => {
+      const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      const props = { ...defaultProps, audioUrl: "https://example.com/audio.m4a" };
+      const { rerender } = render(<NativePlayer {...props} isPlaying={false} />);
+      const video = document.querySelector("video")!;
+      Object.defineProperty(video, "readyState", { configurable: true, value: 1 });
+
+      video.dispatchEvent(new Event("loadedmetadata"));
+      expect(play).not.toHaveBeenCalled();
+
+      rerender(<NativePlayer {...props} isPlaying />);
+      expect(play).toHaveBeenCalled();
+      play.mockRestore();
+    });
+
+    it("reports only the first error when video and audio fail together", () => {
+      const onError = vi.fn();
+      render(<NativePlayer {...defaultProps} onError={onError} audioUrl="https://example.com/audio.m4a" />);
+
+      document.querySelector("video")!.dispatchEvent(new Event("error"));
+      document.querySelector("audio")!.dispatchEvent(new Event("error"));
+
+      expect(onError).toHaveBeenCalledTimes(1);
+    });
+
     it("shows error for an unsafe audio URL", () => {
       render(<NativePlayer {...defaultProps} audioUrl="javascript:alert('xss')" />);
 

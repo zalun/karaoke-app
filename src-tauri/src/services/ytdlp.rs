@@ -204,10 +204,11 @@ pub struct StreamInfo {
     pub quality: String,
 }
 
-/// Parse `yt-dlp --get-url` output into (video URL, optional audio URL).
+/// Parse `yt-dlp --print` output into (video URL, optional audio URL).
 /// A muxed format prints one line; a `video+audio` selection prints two, video first.
+/// Lines that are not URLs (yt-dlp prints `NA` for a missing field) are ignored.
 fn parse_stream_urls(stdout: &str) -> Option<(String, Option<String>)> {
-    let mut lines = stdout.lines().map(str::trim).filter(|l| !l.is_empty());
+    let mut lines = stdout.lines().map(str::trim).filter(|l| l.starts_with("http"));
     let video = lines.next()?.to_string();
     let audio = lines.next().map(str::to_string);
     Some((video, audio))
@@ -382,11 +383,12 @@ impl YtDlpService {
             Err(e) => warn!("No HLS manifest for {} ({}), falling back to direct streams", video_id, e),
         }
 
-        // Prefer H.264 (avc1) codec for best compatibility with WebKitGTK/GStreamer on Linux
-        // Exclude HLS (m3u8) streams - HTML5 video doesn't support HLS natively on WebKitGTK
-        // Format priority: muxed mp4 with H.264 > muxed mp4 > separate H.264 video + m4a audio
-        // > any mp4 video + m4a audio > any muxed non-HLS. YouTube mostly stopped serving muxed formats,
-        // so the split fallbacks are the common case; the URL template then prints two lines.
+        // Direct streams (non-macOS, or macOS without an HLS manifest).
+        // Exclude HLS (m3u8) - WebKitGTK can't play it natively; prefer H.264 (avc1) for
+        // WebKitGTK/GStreamer compatibility.
+        // Priority: muxed mp4 H.264 > muxed mp4 > https H.264 video (<=1080p) + m4a audio
+        // > https mp4 video + m4a audio > any muxed non-HLS. YouTube mostly stopped serving
+        // muxed formats, so a split selection (two printed URLs) is the usual result.
         let stdout = self
             .run_print(
                 video_id,
@@ -422,7 +424,8 @@ impl YtDlpService {
     }
 
     /// Run yt-dlp with a format selector and `--print` template, returning stdout.
-    /// The "urls" template prints one URL per selected format (two for `video+audio`).
+    /// The "urls" template prints one URL per selected format (two for `video+audio`);
+    /// a field template such as `%(manifest_url)s` prints one line.
     async fn run_print(
         &self,
         video_id: &str,
@@ -452,7 +455,7 @@ impl YtDlpService {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            warn!("yt-dlp get_stream_url failed for {}: {}", video_id, stderr);
+            warn!("yt-dlp failed for {} (format {}): {}", video_id, format, stderr);
             return Err(YtDlpError::ExecutionError(stderr.to_string()));
         }
 
@@ -532,6 +535,11 @@ mod tests {
                 Some("https://v.example/audio".to_string())
             ))
         );
+    }
+
+    #[test]
+    fn parse_stream_urls_ignores_missing_field_marker() {
+        assert_eq!(parse_stream_urls("NA\n"), None);
     }
 
     #[test]
