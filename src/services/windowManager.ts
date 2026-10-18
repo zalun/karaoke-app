@@ -32,6 +32,8 @@ export interface SongInfo {
 
 export interface PlayerState {
   streamUrl: string | null;
+  /** Separate audio stream when streamUrl is video-only (yt-dlp split formats) */
+  audioStreamUrl?: string | null;
   videoId?: string | null;
   playbackMode?: "youtube" | "ytdlp";
   isPlaying: boolean;

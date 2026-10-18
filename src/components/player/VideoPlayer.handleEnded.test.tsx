@@ -140,7 +140,7 @@ let mockSessionStore = createMockSessionStore();
 let mockWindowManager = createMockWindowManager();
 let mockYoutubeService = createMockYoutubeService();
 const mockNotify = vi.fn();
-const mockGetStreamUrlWithCache = vi.fn(() => Promise.resolve("https://cached.stream.url"));
+const mockGetStreamUrlWithCache = vi.fn(() => Promise.resolve({ streamUrl: "https://cached.stream.url" }));
 const mockEmitSignal = vi.fn().mockResolvedValue(undefined);
 
 // Track call order for setIsPlaying
@@ -228,6 +228,10 @@ vi.mock("../../stores", () => ({
     return isNaN(parsed) ? 20 : parsed;
   },
   getStreamUrlWithCache: (...args: unknown[]) => mockGetStreamUrlWithCache(...args),
+  toStreamUrls: (info: { url: string; audio_url?: string | null }) => ({
+    streamUrl: info.url,
+    audioStreamUrl: info.audio_url ?? undefined,
+  }),
   invalidatePrefetchIfStale: vi.fn(),
   isEmbeddingError: () => false,
   notify: (...args: unknown[]) => mockNotify(...args),
@@ -306,7 +310,7 @@ function resetMocks() {
   mockYoutubeService = createMockYoutubeService();
   mockNotify.mockClear();
   mockGetStreamUrlWithCache.mockClear();
-  mockGetStreamUrlWithCache.mockImplementation(() => Promise.resolve("https://cached.stream.url"));
+  mockGetStreamUrlWithCache.mockImplementation(() => Promise.resolve({ streamUrl: "https://cached.stream.url" }));
   mockEmitSignal.mockClear();
   capturedOnEnded = null;
   callOrder = [];
@@ -418,9 +422,9 @@ describe("VideoPlayer handleEnded", () => {
       }));
 
       // Make getStreamUrlWithCache take some time to simulate async fetch
-      let resolveStreamUrl: (url: string) => void;
+      let resolveStreamUrl: (urls: { streamUrl: string }) => void;
       mockGetStreamUrlWithCache.mockImplementation(() => {
-        return new Promise<string>((resolve) => {
+        return new Promise<{ streamUrl: string }>((resolve) => {
           resolveStreamUrl = resolve;
         });
       });
@@ -440,7 +444,7 @@ describe("VideoPlayer handleEnded", () => {
 
       // Now resolve the stream URL
       await act(async () => {
-        resolveStreamUrl!("https://stream.example.com/next");
+        resolveStreamUrl!({ streamUrl: "https://stream.example.com/next" });
         await endedPromise;
       });
 

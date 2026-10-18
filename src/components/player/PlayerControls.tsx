@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { usePlayerStore, useQueueStore, useSessionStore, useSettingsStore, SETTINGS_KEYS, parseOverlaySeconds, playVideo, notify } from "../../stores";
+import { usePlayerStore, useQueueStore, useSessionStore, useSettingsStore, SETTINGS_KEYS, parseOverlaySeconds, playVideo, notify, toStreamUrls } from "../../stores";
 import { windowManager, youtubeService, createLogger, emitSignal, APP_SIGNALS } from "../../services";
 
 const log = createLogger("PlayerControls");
@@ -55,7 +55,7 @@ export function PlayerControls() {
 
     youtubeService.getStreamUrl(currentVideo.youtubeId)
       .then((streamInfo) => {
-        setCurrentVideo({ ...currentVideo, streamUrl: streamInfo.url });
+        setCurrentVideo({ ...currentVideo, ...toStreamUrls(streamInfo) });
         log.info(`Stream URL fetched for mode switch`);
       })
       .catch((err) => {
@@ -105,9 +105,11 @@ export function PlayerControls() {
 
     // For local files, convert file path to asset URL
     let streamUrl = state.currentVideo?.streamUrl ?? null;
+    let audioStreamUrl = state.currentVideo?.audioStreamUrl ?? null;
     let effectivePlaybackMode = playbackMode;
     if (state.currentVideo?.source === "local" && state.currentVideo?.filePath) {
       streamUrl = convertFileSrc(state.currentVideo.filePath);
+      audioStreamUrl = null;
       effectivePlaybackMode = "ytdlp"; // Local files use native player
     }
 
@@ -118,6 +120,7 @@ export function PlayerControls() {
 
     return {
       streamUrl,
+      audioStreamUrl,
       videoId: state.currentVideo?.youtubeId ?? null,
       playbackMode: effectivePlaybackMode,
       isPlaying: state.isPlaying,
@@ -456,7 +459,7 @@ export function PlayerControls() {
           return;
         }
 
-        setCurrentVideo({ ...videoToReload, streamUrl: streamInfo.url });
+        setCurrentVideo({ ...videoToReload, ...toStreamUrls(streamInfo) });
       } else {
         // YouTube mode: clear and restore video to force player re-initialization
         setCurrentVideo(null);

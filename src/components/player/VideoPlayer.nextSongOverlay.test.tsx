@@ -213,7 +213,11 @@ vi.mock("../../stores", () => ({
     const parsed = parseInt(raw, 10);
     return isNaN(parsed) ? 20 : parsed;
   },
-  getStreamUrlWithCache: vi.fn(() => Promise.resolve("https://cached.stream.url")),
+  getStreamUrlWithCache: vi.fn(() => Promise.resolve({ streamUrl: "https://cached.stream.url" })),
+  toStreamUrls: (info: { url: string; audio_url?: string | null }) => ({
+    streamUrl: info.url,
+    audioStreamUrl: info.audio_url ?? undefined,
+  }),
   invalidatePrefetchIfStale: vi.fn(),
   isEmbeddingError: () => false,
   notify: vi.fn(),

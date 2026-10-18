@@ -77,8 +77,8 @@ async function prepareVideoForPlayback(video: Video): Promise<Video> {
   if (!video.youtubeId) {
     return video;
   }
-  const streamUrl = await getStreamUrlWithCache(video.youtubeId);
-  return { ...video, streamUrl };
+  const streamUrls = await getStreamUrlWithCache(video.youtubeId);
+  return { ...video, ...streamUrls };
 }
 
 function App() {

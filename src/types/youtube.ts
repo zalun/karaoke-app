@@ -9,6 +9,8 @@ export interface SearchResult {
 
 export interface StreamInfo {
   url: string;
+  /** Separate audio stream; set when the video URL is video-only */
+  audio_url?: string | null;
   format: string;
   quality: string;
 }

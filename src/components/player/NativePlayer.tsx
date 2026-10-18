@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from "react";
 import { createLogger } from "../../services";
 import { Z_INDEX_PLAY_OVERLAY } from "../../styles/zIndex";
+import { useSyncedAudio } from "./useSyncedAudio";
 
 const log = createLogger("NativePlayer");
 
@@ -50,6 +51,8 @@ function safeLocalStorageSet(key: string, value: string): void {
 export interface NativePlayerProps {
   /** Stream URL to play. If empty/undefined, renders video element for priming only. */
   streamUrl?: string;
+  /** Separate audio stream, played in sync when streamUrl is video-only */
+  audioUrl?: string;
   isPlaying: boolean;
   volume: number;
   isMuted: boolean;
@@ -80,6 +83,7 @@ export interface NativePlayerRef {
  */
 export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(function NativePlayer({
   streamUrl,
+  audioUrl,
   isPlaying,
   volume,
   isMuted,
@@ -96,6 +100,7 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
   className,
 }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showPlayButton, setShowPlayButton] = useState(false);
   // Track if video element has been primed for autoplay
@@ -117,6 +122,13 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
   // Track isPlaying in a ref for source change effect
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
+
+  const handleAudioBlocked = useCallback(() => {
+    setShowPlayButton(true);
+    onAutoplayBlocked?.();
+  }, [onAutoplayBlocked]);
+
+  useSyncedAudio(videoRef, audioRef, audioUrl, { isPlayingRef, onBlocked: handleAudioBlocked });
 
   // Expose primeVideo method via ref for parent components
   useImperativeHandle(ref, () => ({
@@ -167,7 +179,12 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
     // Reset to beginning when replaying same video
     video.currentTime = 0;
     video.load(); // Force reload with new source
-  }, [streamUrl, playbackKey]);
+    const audio = audioRef.current;
+    if (audio) {
+      audio.currentTime = 0;
+      audio.load();
+    }
+  }, [streamUrl, audioUrl, playbackKey]);
 
   // Try to play video with muted autoplay fallback
   const tryPlay = useCallback(() => {
@@ -216,13 +233,14 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
     // If isPlaying but video not ready, handleCanPlay will trigger play
   }, [isPlaying, tryPlay]);
 
-  // Handle volume changes
+  // Handle volume changes (the audio element carries the sound for split streams)
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     video.volume = isMuted ? 0 : volume;
-  }, [volume, isMuted]);
+    if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume;
+  }, [volume, isMuted, audioUrl]);
 
   // Handle seeking
   useEffect(() => {
@@ -247,7 +265,13 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
 
     log.debug(`Video duration: ${video.duration}`);
     onDurationChange?.(video.duration);
-  }, [onDurationChange]);
+    // WebKit does not buffer YouTube's video-only DASH streams (so never fires canplay)
+    // until play() is called; start them as soon as metadata is in
+    if (audioUrl && (isPlayingRef.current || shouldPlayOnLoadRef.current)) {
+      shouldPlayOnLoadRef.current = false;
+      tryPlay();
+    }
+  }, [onDurationChange, audioUrl, tryPlay]);
 
   const handleCanPlay = useCallback(() => {
     log.debug(`handleCanPlay: isPlaying=${isPlaying}, shouldPlayOnLoad=${shouldPlayOnLoadRef.current}`);
@@ -272,6 +296,10 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
   const handlePlaying = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // Playback may start before canplay (split streams start from loadedmetadata)
+    isLoadingSourceRef.current = false;
+    setIsLoading(false);
 
     if (pendingUnmuteRef.current) {
       log.info("Video playing, unmuting now");
@@ -300,10 +328,14 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
     video.play().catch((e) => {
       log.error(`Manual play failed: ${e.name} - ${e.message}`);
     });
+    // Start audio inside the gesture too; the "playing" event arrives too late to count as one
+    audioRef.current?.play().catch((e) => {
+      log.error(`Manual audio play failed: ${e.name} - ${e.message}`);
+    });
   }, [isMuted, volume]);
 
   const handleError = useCallback(
-    (event: React.SyntheticEvent<HTMLVideoElement>) => {
+    (event: React.SyntheticEvent<HTMLMediaElement>) => {
       const video = event.currentTarget;
       const mediaError = video.error;
 
@@ -337,7 +369,7 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
   // Validate stream URL for security (skip if undefined - dummy mode for priming)
   // Empty string is treated as invalid, not dummy mode
   const isDummyMode = streamUrl === undefined;
-  const isUrlValid = isDummyMode || isValidStreamUrl(streamUrl || "");
+  const isUrlValid = isDummyMode || (isValidStreamUrl(streamUrl || "") && (!audioUrl || isValidStreamUrl(audioUrl)));
 
   if (!isUrlValid) {
     log.error(`Invalid stream URL: ${streamUrl}`);
@@ -367,6 +399,9 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
       video.play().catch((e) => {
         log.error(`Click-to-play failed: ${e.name}`);
       });
+      audioRef.current?.play().catch((e) => {
+        log.error(`Click-to-play audio failed: ${e.name}`);
+      });
     }
   }, [isPlaying, isMuted, volume]);
 
@@ -388,6 +423,14 @@ export const NativePlayer = forwardRef<NativePlayerRef, NativePlayerProps>(funct
         onLoadStart={isDummyMode ? undefined : handleLoadStart}
         playsInline
       />
+      {audioUrl && !isDummyMode && (
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          preload="auto"
+          onError={handleError}
+        />
+      )}
       {/* Loading spinner - only show when loading real content */}
       {isLoading && !isDummyMode && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">

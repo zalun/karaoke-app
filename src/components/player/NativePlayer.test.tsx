@@ -31,6 +31,46 @@ describe("NativePlayer", () => {
     vi.clearAllMocks();
   });
 
+  describe("Separate audio stream", () => {
+    it("renders an audio element for the audio URL", () => {
+      render(<NativePlayer {...defaultProps} audioUrl="https://example.com/audio.m4a" />);
+
+      expect(document.querySelector("audio")?.src).toBe("https://example.com/audio.m4a");
+    });
+
+    it("renders no audio element without an audio URL", () => {
+      render(<NativePlayer {...defaultProps} />);
+
+      expect(document.querySelector("audio")).not.toBeInTheDocument();
+    });
+
+    it("starts split-stream playback on loadedmetadata without waiting for canplay", () => {
+      const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      render(<NativePlayer {...defaultProps} isPlaying audioUrl="https://example.com/audio.m4a" />);
+
+      document.querySelector("video")!.dispatchEvent(new Event("loadedmetadata"));
+
+      expect(play).toHaveBeenCalled();
+      play.mockRestore();
+    });
+
+    it("waits for canplay on loadedmetadata when there is no separate audio", () => {
+      const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      render(<NativePlayer {...defaultProps} isPlaying />);
+
+      document.querySelector("video")!.dispatchEvent(new Event("loadedmetadata"));
+
+      expect(play).not.toHaveBeenCalled();
+      play.mockRestore();
+    });
+
+    it("shows error for an unsafe audio URL", () => {
+      render(<NativePlayer {...defaultProps} audioUrl="javascript:alert('xss')" />);
+
+      expect(screen.getByText("Invalid Stream URL")).toBeInTheDocument();
+    });
+  });
+
   describe("URL Validation", () => {
     it("renders video element with valid HTTPS URL", () => {
       render(<NativePlayer {...defaultProps} streamUrl="https://example.com/video.mp4" />);

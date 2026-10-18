@@ -154,6 +154,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
           // Build a minimal player state for detaching
           const playerState = {
             streamUrl: playerStore.currentVideo?.streamUrl || null,
+            audioStreamUrl: playerStore.currentVideo?.audioStreamUrl || null,
             isPlaying: playerStore.isPlaying,
             currentTime: playerStore.currentTime,
             duration: playerStore.duration,

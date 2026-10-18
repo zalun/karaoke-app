@@ -208,6 +208,10 @@ vi.mock("../../stores", () => ({
   },
   playVideo: () => mockPlayVideo(),
   notify: (...args: unknown[]) => mockNotify(...args),
+  toStreamUrls: (info: { url: string; audio_url?: string | null }) => ({
+    streamUrl: info.url,
+    audioStreamUrl: info.audio_url ?? undefined,
+  }),
 }));
 
 vi.mock("../../services", () => ({

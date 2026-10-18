@@ -255,6 +255,7 @@ export function DetachedPlayer() {
       if (state.streamUrl || state.videoId) {
         windowManager.emitFinalState({
           streamUrl: state.streamUrl,
+          audioStreamUrl: state.audioStreamUrl,
           videoId: state.videoId,
           playbackMode: state.playbackMode,
           isPlaying: intendedPlayStateRef.current,
@@ -268,7 +269,7 @@ export function DetachedPlayer() {
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [state.streamUrl, state.videoId, state.playbackMode, state.duration, state.volume, state.isMuted]);
+  }, [state.streamUrl, state.audioStreamUrl, state.videoId, state.playbackMode, state.duration, state.volume, state.isMuted]);
 
   // Show current singer overlay when video changes
   useEffect(() => {
@@ -359,6 +360,7 @@ export function DetachedPlayer() {
       <div className={canPlayNative || !hasContent ? "w-full h-full absolute inset-0" : "hidden"}>
         <NativePlayer
           streamUrl={canPlayNative && state.streamUrl ? state.streamUrl : undefined}
+          audioUrl={canPlayNative ? state.audioStreamUrl ?? undefined : undefined}
           isPlaying={canPlayNative ? state.isPlaying : false}
           volume={state.volume}
           isMuted={state.isMuted}
