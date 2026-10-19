@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-19
+
+### Fixed
+- YouTube videos play again in yt-dlp mode (#245)
+  - YouTube stopped offering yt-dlp a single file with both video and audio, so playback failed with "Failed to switch to yt-dlp mode"
+  - On macOS the player now uses YouTube's HLS stream, which starts in a few seconds
+  - Elsewhere, and when HLS is unavailable, the app plays the separate video and audio streams together and keeps them in sync, including after seeking and while either one buffers
+  - Works in the main window and in the detached player
+
 ## [0.9.0] - 2026-08-15
 
 ### Fixed
