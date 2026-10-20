@@ -26,7 +26,7 @@ export {
   type NotificationAction,
   type NotificationType,
 } from "./notificationStore";
-export { checkForUpdate } from "./updateStore";
+export { checkForUpdate, installUpdate, updateAction } from "./updateStore";
 export {
   useSettingsStore,
   SETTINGS_KEYS,

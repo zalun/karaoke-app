@@ -4,6 +4,12 @@
   "version": "0.9.1",
   "identifier": "app.homekaraoke",
   "plugins": {
+    "updater": {
+      "pubkey": "PENDING_SIGNING_KEY",
+      "endpoints": [
+        "https://github.com/zalun/karaoke-app/releases/latest/download/latest.json"
+      ]
+    },
     "deep-link": {
       "desktop": {
         "schemes": [
