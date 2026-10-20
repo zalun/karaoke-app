@@ -99,6 +99,17 @@ jobs:
             exit 1
           fi
 
+      - name: Verify tag matches app version
+        run: |
+          # latest.json takes its version from the tag. A tag without a bump
+          # would make installed apps download the same version forever.
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          APP_VERSION=$(jq -r .version src-tauri/tauri.conf.json)
+          if [ "$TAG_VERSION" != "$APP_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match tauri.conf.json version $APP_VERSION. Run 'just bump $TAG_VERSION' first."
+            exit 1
+          fi
+
       - name: Verify updater signing secrets
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

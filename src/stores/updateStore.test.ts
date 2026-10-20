@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { UpdateInfo } from "../services/update";
 
 const mockCheck = vi.fn();
@@ -70,43 +70,69 @@ describe("updateAction", () => {
 describe("installUpdate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
     mockInstall.mockResolvedValue(undefined);
     mockRestart.mockResolvedValue(undefined);
   });
 
-  it("installs, then restarts", async () => {
-    const { installUpdate } = await loadStore();
-
-    await installUpdate(updateInfo());
-
-    expect(mockDismiss).toHaveBeenCalled();
-    expect(mockNotify).toHaveBeenCalledWith("info", "Downloading update v9.9.9…");
-    expect(mockInstall).toHaveBeenCalled();
-    expect(mockRestart).toHaveBeenCalled();
-    expect(mockInstall.mock.invocationCallOrder[0]).toBeLessThan(
-      mockRestart.mock.invocationCallOrder[0]
-    );
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it("offers the release page and does not restart when install fails", async () => {
+  /** Run an install through the "Restarting…" delay */
+  async function runInstall(installUpdate: (info: UpdateInfo) => Promise<void>) {
+    const done = installUpdate(updateInfo());
+    await vi.runAllTimersAsync();
+    await done;
+  }
+
+  it("installs, announces the restart, then restarts", async () => {
+    const { installUpdate, RESTART_DELAY_MS } = await loadStore();
+
+    const done = installUpdate(updateInfo());
+    expect(mockNotify).toHaveBeenCalledWith(
+      "info",
+      "Downloading update v9.9.9… HomeKaraoke restarts when it is ready."
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockNotify).toHaveBeenCalledWith("success", "Update v9.9.9 installed. Restarting…");
+    expect(mockRestart).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(RESTART_DELAY_MS);
+    await done;
+
+    expect(mockRestart).toHaveBeenCalled();
+  });
+
+  it("replaces the visible notification with each update message", async () => {
+    const { installUpdate } = await loadStore();
+
+    await runInstall(installUpdate);
+
+    // Without dismissing first, notify() would only queue behind the visible bar
+    expect(mockDismiss).toHaveBeenCalledTimes(mockNotify.mock.calls.length);
+  });
+
+  it("shows the cause and the release page and does not restart when install fails", async () => {
     mockInstall.mockRejectedValue({ type: "install", message: "bad signature" });
     const { installUpdate } = await loadStore();
 
-    await installUpdate(updateInfo());
+    await runInstall(installUpdate);
 
     expect(mockRestart).not.toHaveBeenCalled();
-    expect(mockNotify).toHaveBeenCalledWith("error", "Could not install the update", {
-      label: "Download",
-      url: RELEASE_URL,
-    });
+    expect(mockNotify).toHaveBeenCalledWith(
+      "error",
+      "Could not install the update: bad signature",
+      { label: "Download", url: RELEASE_URL }
+    );
   });
 
   it("allows a retry after a failed install", async () => {
     mockInstall.mockRejectedValueOnce(new Error("offline"));
     const { installUpdate } = await loadStore();
 
-    await installUpdate(updateInfo());
-    await installUpdate(updateInfo());
+    await runInstall(installUpdate);
+    await runInstall(installUpdate);
 
     expect(mockInstall).toHaveBeenCalledTimes(2);
     expect(mockRestart).toHaveBeenCalledTimes(1);
@@ -120,16 +146,18 @@ describe("installUpdate", () => {
     const first = installUpdate(updateInfo());
     await installUpdate(updateInfo());
     finishInstall();
+    await vi.runAllTimersAsync();
     await first;
 
     expect(mockInstall).toHaveBeenCalledTimes(1);
+    expect(mockNotify).toHaveBeenCalledWith("info", "Update v9.9.9 is already downloading…");
   });
 
   it("asks for a manual restart when restarting fails", async () => {
     mockRestart.mockRejectedValue(new Error("restart failed"));
     const { installUpdate } = await loadStore();
 
-    await installUpdate(updateInfo());
+    await runInstall(installUpdate);
 
     expect(mockNotify).toHaveBeenCalledWith(
       "warning",

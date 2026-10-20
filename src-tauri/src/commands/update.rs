@@ -1,4 +1,4 @@
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -334,7 +334,7 @@ pub async fn update_install(app: tauri::AppHandle) -> Result<(), UpdateError> {
     use tauri_plugin_updater::UpdaterExt;
 
     let install_err = |e: tauri_plugin_updater::Error| {
-        warn!("update_install: {}", e);
+        error!("update_install: {}", e);
         UpdateError::Install(e.to_string())
     };
 
@@ -346,19 +346,24 @@ pub async fn update_install(app: tauri::AppHandle) -> Result<(), UpdateError> {
         .map_err(install_err)?
         .ok_or_else(|| {
             warn!("update_install: updater endpoint has no newer version");
-            UpdateError::Install("No update available for this platform".to_string())
+            UpdateError::Install("the update server does not offer a newer version yet".to_string())
         })?;
 
     info!(
         "update_install: installing {} -> {}",
         update.current_version, update.version
     );
+    // Log progress every 10 MB rather than per chunk, to keep the log readable
+    const PROGRESS_LOG_STEP: usize = 10 * 1024 * 1024;
     let mut downloaded: usize = 0;
     update
         .download_and_install(
             |chunk, total| {
+                let before = downloaded;
                 downloaded += chunk;
-                debug!("update_install: downloaded {} of {:?} bytes", downloaded, total);
+                if downloaded / PROGRESS_LOG_STEP > before / PROGRESS_LOG_STEP {
+                    debug!("update_install: downloaded {} of {:?} bytes", downloaded, total);
+                }
             },
             || info!("update_install: download finished"),
         )

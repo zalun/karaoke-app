@@ -47,6 +47,9 @@ export async function checkForUpdate(): Promise<void> {
 // Set while an install runs, so a second click does not start another download
 let isInstalling = false;
 
+/** How long "Restarting…" stays on screen before the app restarts */
+export const RESTART_DELAY_MS = 1500;
+
 /**
  * Notification action for an available update: install in-app where the
  * platform supports it (macOS), otherwise open the release page.
@@ -58,6 +61,19 @@ export function updateAction(info: UpdateInfo): NotificationAction {
   return { label: "Download", url: info.download_url };
 }
 
+/** Show a notification right away; notify() only queues while another one is visible */
+function showNow(...args: Parameters<typeof notify>): void {
+  useNotificationStore.getState().dismiss();
+  notify(...args);
+}
+
+function errorMessage(err: unknown): string {
+  if (typeof err === "object" && err !== null && "message" in err) {
+    return String(err.message);
+  }
+  return String(err);
+}
+
 /**
  * Download and install the update, then restart into it. On failure the user
  * keeps the current version and gets the release page link instead.
@@ -65,19 +81,21 @@ export function updateAction(info: UpdateInfo): NotificationAction {
 export async function installUpdate(info: UpdateInfo): Promise<void> {
   if (isInstalling) {
     log.debug("Update install already in progress");
+    showNow("info", `Update ${info.latest_version} is already downloading…`);
     return;
   }
   isInstalling = true;
 
-  // Replace the "Update available" bar; notify() only queues while one is visible
-  useNotificationStore.getState().dismiss();
-  notify("info", `Downloading update ${info.latest_version}…`);
+  showNow(
+    "info",
+    `Downloading update ${info.latest_version}… HomeKaraoke restarts when it is ready.`
+  );
 
   try {
     await updateService.install();
   } catch (err) {
     log.error("Update install failed", err);
-    notify("error", "Could not install the update", {
+    showNow("error", `Could not install the update: ${errorMessage(err)}`, {
       label: "Download",
       url: info.download_url,
     });
@@ -86,11 +104,14 @@ export async function installUpdate(info: UpdateInfo): Promise<void> {
   }
 
   log.info(`Update ${info.latest_version} installed, restarting`);
+  showNow("success", `Update ${info.latest_version} installed. Restarting…`);
+  await new Promise((resolve) => setTimeout(resolve, RESTART_DELAY_MS));
+
   try {
     await updateService.restart();
   } catch (err) {
     log.error("Restart after update failed", err);
-    notify("warning", "Update installed. Restart HomeKaraoke to use it.");
+    showNow("warning", "Update installed. Restart HomeKaraoke to use it.");
     isInstalling = false;
   }
 }
