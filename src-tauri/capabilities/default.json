@@ -22,6 +22,10 @@
     "core:webview:allow-create-webview-window",
     "log:default",
     "opener:allow-reveal-item-in-dir",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://github.com/*" }]
+    },
     "dialog:default",
     {
       "identifier": "fs:allow-read-file",

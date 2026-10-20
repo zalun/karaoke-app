@@ -1,5 +1,5 @@
 import { X, AlertCircle, CheckCircle, Info, AlertTriangle, ExternalLink } from "lucide-react";
-import { open } from "@tauri-apps/plugin-shell";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useNotificationStore, type NotificationType } from "../../stores/notificationStore";
 import { createLogger } from "../../services";
 
@@ -59,7 +59,7 @@ function handleActionClick(url: string) {
   }
 
   log.info(`Opening URL: ${url}`);
-  open(url).catch((err: unknown) => {
+  openUrl(url).catch((err: unknown) => {
     log.error("Failed to open URL", err);
   });
 }
