@@ -77,6 +77,16 @@ test.describe("YouTube API Search", () => {
       await expect(page.locator("text=YouTube Search Not Configured")).toBeVisible({ timeout: 10000 });
       await expect(page.locator('a[href*="console.cloud.google.com"]')).toBeVisible();
     });
+
+    test("should offer the yt-dlp route alongside the API key route", async ({ page }) => {
+      await mainPage.search("test");
+
+      await expect(page.locator("text=YouTube Search Not Configured")).toBeVisible({ timeout: 10000 });
+      // Both routes must be presented - yt-dlp was previously missing from this prompt
+      await expect(page.locator("text=Option 1: a YouTube Data API key")).toBeVisible();
+      await expect(page.locator("text=Option 2: install yt-dlp")).toBeVisible();
+      await expect(page.locator('a[href*="homekaraoke.app/youtube-search-setup"]')).toBeVisible();
+    });
   });
 
   test.describe("With yt-dlp fallback", () => {
