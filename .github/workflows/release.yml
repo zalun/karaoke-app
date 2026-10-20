@@ -99,6 +99,29 @@ jobs:
             exit 1
           fi
 
+      - name: Verify tag matches app version
+        run: |
+          # latest.json takes its version from the tag. A tag without a bump
+          # would make installed apps download the same version forever.
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          APP_VERSION=$(jq -r .version src-tauri/tauri.conf.json)
+          if [ "$TAG_VERSION" != "$APP_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match tauri.conf.json version $APP_VERSION. Run 'just bump $TAG_VERSION' first."
+            exit 1
+          fi
+
+      - name: Verify updater signing secrets
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          # Installed apps only accept updates signed with this key, so a
+          # release without the signed archive would strand them silently.
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ] || [ -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD repo secrets must be set. See plan/deployment.md."
+            exit 1
+          fi
+
       - name: Build and sign Tauri app
         run: npm run tauri build -- --target ${{ matrix.target }}
         env:
@@ -159,6 +182,7 @@ jobs:
 
           echo "path=$DMG_PATH" >> $GITHUB_OUTPUT
           echo "name=$DMG_NAME" >> $GITHUB_OUTPUT
+          echo "app=$APP_PATH" >> $GITHUB_OUTPUT
           echo "Created customized DMG: $DMG_PATH"
 
       - name: Create or get release
@@ -255,6 +279,52 @@ jobs:
             --clobber
 
           echo "Uploaded notarized DMG to release"
+
+      # The in-app updater downloads this archive instead of the DMG. The .app
+      # inside is the same signed bundle the DMG was notarized with, so Apple
+      # already holds its ticket; stapling it makes the check work offline.
+      - name: Package and sign updater archive
+        id: updater
+        env:
+          # `tauri signer sign` reads TAURI_PRIVATE_KEY*, not the TAURI_SIGNING_*
+          # names that `tauri build` uses
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          APP_PATH="${{ steps.find-dmg.outputs.app }}"
+
+          xcrun stapler staple "$APP_PATH"
+          xcrun stapler validate "$APP_PATH"
+
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            ARCHIVE_NAME="HomeKaraoke_${VERSION}_aarch64.app.tar.gz"
+          else
+            ARCHIVE_NAME="HomeKaraoke_${VERSION}_x64.app.tar.gz"
+          fi
+          ARCHIVE_PATH="$RUNNER_TEMP/$ARCHIVE_NAME"
+
+          # COPYFILE_DISABLE keeps macOS from adding ._ AppleDouble files
+          COPYFILE_DISABLE=1 tar -czf "$ARCHIVE_PATH" -C "$(dirname "$APP_PATH")" "$(basename "$APP_PATH")"
+          npx tauri signer sign "$ARCHIVE_PATH"
+          test -s "$ARCHIVE_PATH.sig"
+
+          echo "path=$ARCHIVE_PATH" >> $GITHUB_OUTPUT
+          echo "name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Upload updater archive to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} \
+            "${{ steps.updater.outputs.path }}#${{ steps.updater.outputs.name }}" \
+            "${{ steps.updater.outputs.path }}.sig#${{ steps.updater.outputs.name }}.sig" \
+            --repo ${{ github.repository }} \
+            --clobber
+
+          echo "Uploaded updater archive and signature to release"
 
       - name: Cleanup keychain
         if: always()
@@ -596,6 +666,56 @@ jobs:
     if: always() && needs.build-macos.result == 'success' && needs.build-linux.result == 'success'
     runs-on: ubuntu-latest
     steps:
+      # Built here, after both macOS jobs succeeded, so the manifest never
+      # points at a missing archive. Installed apps read it through
+      # releases/latest/download/latest.json, which only sees published
+      # releases, so it goes live together with the release itself.
+      - name: Upload updater manifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/$TAG"
+          WORK_DIR="$RUNNER_TEMP/updater"
+          mkdir -p "$WORK_DIR"
+
+          gh release download "$TAG" \
+            --repo ${{ github.repository }} \
+            --pattern "HomeKaraoke_${VERSION}_*.app.tar.gz.sig" \
+            --dir "$WORK_DIR"
+
+          for ARCH in aarch64 x64; do
+            if [ ! -s "$WORK_DIR/HomeKaraoke_${VERSION}_${ARCH}.app.tar.gz.sig" ]; then
+              echo "::error::Updater signature for $ARCH is missing from the release. Not publishing a manifest that points at it."
+              exit 1
+            fi
+          done
+
+          jq -n \
+            --arg version "$VERSION" \
+            --arg notes "See https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md" \
+            --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg arm_url "$BASE_URL/HomeKaraoke_${VERSION}_aarch64.app.tar.gz" \
+            --rawfile arm_sig "$WORK_DIR/HomeKaraoke_${VERSION}_aarch64.app.tar.gz.sig" \
+            --arg x64_url "$BASE_URL/HomeKaraoke_${VERSION}_x64.app.tar.gz" \
+            --rawfile x64_sig "$WORK_DIR/HomeKaraoke_${VERSION}_x64.app.tar.gz.sig" \
+            '{
+              version: $version,
+              notes: $notes,
+              pub_date: $pub_date,
+              platforms: {
+                "darwin-aarch64": { url: $arm_url, signature: ($arm_sig | rtrimstr("\n")) },
+                "darwin-x86_64": { url: $x64_url, signature: ($x64_sig | rtrimstr("\n")) }
+              }
+            }' > "$WORK_DIR/latest.json"
+
+          cat "$WORK_DIR/latest.json"
+          gh release upload "$TAG" "$WORK_DIR/latest.json" \
+            --repo ${{ github.repository }} \
+            --clobber
+
       - name: Update release notes and publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

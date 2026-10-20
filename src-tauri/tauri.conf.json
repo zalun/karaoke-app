@@ -4,6 +4,12 @@
   "version": "0.9.1",
   "identifier": "app.homekaraoke",
   "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyREZCODBDQUQ1ODFDOUIKUldTYkhGaXRETGpmOGwxZ2RabmwwNU5OSXZYa0ZLSTcvSDhpQ0o3dXVtVjVYZjV5Vjg5WTdDNFUK",
+      "endpoints": [
+        "https://github.com/zalun/karaoke-app/releases/latest/download/latest.json"
+      ]
+    },
     "deep-link": {
       "desktop": {
         "schemes": [

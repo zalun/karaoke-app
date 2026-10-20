@@ -255,6 +255,8 @@ Configure these in repository Settings → Secrets:
 | `APPLE_ID` | Apple Developer email |
 | `APPLE_PASSWORD` | App-specific password (not Apple ID password) |
 | `APPLE_TEAM_ID` | Team ID (e.g., DCXDSQYXM7) |
+| `TAURI_SIGNING_PRIVATE_KEY` | Updater signing key (contents of `~/.tauri/homekaraoke.key`) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password of the updater signing key |
 
 ### Getting an App-Specific Password
 
@@ -267,6 +269,23 @@ Configure these in repository Settings → Secrets:
 The app uses: `Developer ID Application: Piotr Zalewa (DCXDSQYXM7)`
 
 This must be installed in your Keychain for local builds.
+
+## In-App Updates (macOS)
+
+On macOS the "Update available" notification offers **Install & restart**. The app reads `https://github.com/zalun/karaoke-app/releases/latest/download/latest.json`, downloads the `.app.tar.gz` it points to, checks its signature against `plugins.updater.pubkey` in `tauri.conf.json`, replaces the app and restarts. Windows and Linux get a **Download** link to the release page instead.
+
+The release workflow produces the files:
+
+- Each macOS job staples the notarization ticket to the `.app`, packs it as `HomeKaraoke_<version>_<arch>.app.tar.gz`, signs it with `npx tauri signer sign` and uploads the archive and its `.sig`.
+- `publish-release` builds `latest.json` from both signatures and uploads it before publishing. `releases/latest` ignores drafts, so apps see the manifest only once the release is public.
+
+`scripts/build-and-release.sh` replaces only the DMG; the updater archive from CI stays.
+
+### Signing key
+
+Generated once with `npx tauri signer generate -w ~/.tauri/homekaraoke.key`. The public key (`homekaraoke.key.pub`) is in `tauri.conf.json`; the private key and its password are the two `TAURI_SIGNING_*` secrets.
+
+**Keep a backup of the private key and password outside GitHub.** Installed apps accept only updates signed with this key. If it is lost, a new key needs a new public key in the app, so every existing install has to be updated by hand once.
 
 ## Troubleshooting
 

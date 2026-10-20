@@ -21,7 +21,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { useSettingsStore, useLibraryStore, usePlayerStore, SETTINGS_KEYS, notify } from "../../stores";
+import { useSettingsStore, useLibraryStore, usePlayerStore, SETTINGS_KEYS, notify, updateAction } from "../../stores";
 import { updateService, createLogger, youtubeService } from "../../services";
 import type { SettingsTab } from "../../stores";
 
@@ -924,10 +924,7 @@ function AboutSettings({
 
       if (info.update_available) {
         setUpdateStatus(`Update available: ${info.latest_version}`);
-        notify("info", `Update available: ${info.latest_version}`, {
-          label: "Download",
-          url: info.download_url,
-        });
+        notify("info", `Update available: ${info.latest_version}`, updateAction(info));
       } else {
         setUpdateStatus("You're on the latest version");
         notify("success", "You're on the latest version");

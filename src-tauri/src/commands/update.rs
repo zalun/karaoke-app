@@ -1,4 +1,4 @@
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -13,6 +13,9 @@ pub enum UpdateError {
 
     #[error("No releases found")]
     NoReleases,
+
+    #[error("{0}")]
+    Install(String),
 }
 
 impl Serialize for UpdateError {
@@ -28,6 +31,7 @@ impl Serialize for UpdateError {
             UpdateError::Network(_) => "network",
             UpdateError::Parse(_) => "parse",
             UpdateError::NoReleases => "no_releases",
+            UpdateError::Install(_) => "install",
         };
 
         state.serialize_field("type", error_type)?;
@@ -51,6 +55,8 @@ pub struct UpdateInfo {
     pub download_url: String,
     /// Release name/title (optional)
     pub release_name: Option<String>,
+    /// Whether this platform can install the update in-app (macOS only)
+    pub can_install: bool,
 }
 
 /// GitHub release response (simplified)
@@ -314,7 +320,65 @@ pub async fn update_check() -> Result<UpdateInfo, UpdateError> {
         release_url: release_url.clone(),
         download_url: release_url,
         release_name,
+        can_install: CAN_INSTALL_IN_APP,
     })
+}
+
+/// Only macOS releases ship signed updater archives (see release.yml)
+const CAN_INSTALL_IN_APP: bool = cfg!(target_os = "macos");
+
+/// Download, verify and install the latest release from the updater endpoint.
+/// The new version runs after `update_restart`.
+#[tauri::command]
+pub async fn update_install(app: tauri::AppHandle) -> Result<(), UpdateError> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let install_err = |e: tauri_plugin_updater::Error| {
+        error!("update_install: {}", e);
+        UpdateError::Install(e.to_string())
+    };
+
+    let update = app
+        .updater()
+        .map_err(install_err)?
+        .check()
+        .await
+        .map_err(install_err)?
+        .ok_or_else(|| {
+            warn!("update_install: updater endpoint has no newer version");
+            UpdateError::Install("the update server does not offer a newer version yet".to_string())
+        })?;
+
+    info!(
+        "update_install: installing {} -> {}",
+        update.current_version, update.version
+    );
+    // Log progress every 10 MB rather than per chunk, to keep the log readable
+    const PROGRESS_LOG_STEP: usize = 10 * 1024 * 1024;
+    let mut downloaded: usize = 0;
+    update
+        .download_and_install(
+            |chunk, total| {
+                let before = downloaded;
+                downloaded += chunk;
+                if downloaded / PROGRESS_LOG_STEP > before / PROGRESS_LOG_STEP {
+                    debug!("update_install: downloaded {} of {:?} bytes", downloaded, total);
+                }
+            },
+            || info!("update_install: download finished"),
+        )
+        .await
+        .map_err(install_err)?;
+
+    info!("update_install: installed {}", update.version);
+    Ok(())
+}
+
+/// Restart the app into the freshly installed version
+#[tauri::command]
+pub fn update_restart(app: tauri::AppHandle) {
+    info!("update_restart: restarting");
+    app.restart();
 }
 
 /// Normalize version string to always have "v" prefix

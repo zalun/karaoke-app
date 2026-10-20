@@ -236,6 +236,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Configure logging with file + stdout + webview targets
         // File logs capture everything (debug level) for issue reporting
         // Stdout uses info level by default
@@ -345,6 +346,8 @@ pub fn run() {
             commands::window_clear_states,
             // Update check command
             commands::update_check,
+            commands::update_install,
+            commands::update_restart,
             // Library commands
             commands::library_add_folder,
             commands::library_remove_folder,
