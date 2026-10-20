@@ -14,7 +14,7 @@ pub enum UpdateError {
     #[error("No releases found")]
     NoReleases,
 
-    #[error("Failed to install update: {0}")]
+    #[error("{0}")]
     Install(String),
 }
 
