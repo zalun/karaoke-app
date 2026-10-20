@@ -188,7 +188,9 @@ export const SearchResults = forwardRef<SearchResultsRef, SearchResultsProps>(fu
           <Settings size={48} className="text-gray-500 mb-4" />
           <div className="text-white font-medium mb-4">YouTube Search Not Configured</div>
           <div className="text-gray-400 text-sm text-left mb-6 max-w-md">
-            <p className="mb-3">To enable YouTube search, you need a YouTube Data API key:</p>
+            <p className="mb-4">YouTube search needs either an API key or yt-dlp. Set up whichever you prefer.</p>
+
+            <p className="text-gray-300 font-medium mb-2">Option 1: a YouTube Data API key</p>
             <ol className="list-decimal list-inside space-y-1 text-gray-300">
               <li>Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">Google Cloud Console</a></li>
               <li>Create a new project (or select existing)</li>
@@ -197,7 +199,20 @@ export const SearchResults = forwardRef<SearchResultsRef, SearchResultsProps>(fu
               <li>Click "Create Credentials" &gt; "API Key"</li>
               <li>Copy the key and paste it in Settings &gt; YouTube</li>
             </ol>
-            <p className="mt-3 text-gray-500 text-xs italic">Free tier: ~100 searches per day</p>
+            <p className="mt-2 mb-4 text-gray-500 text-xs italic">Free tier: ~100 searches per day</p>
+
+            <p className="text-gray-300 font-medium mb-2">Option 2: install yt-dlp</p>
+            <p className="text-gray-300">
+              No key and no daily limit, but it takes two steps: install yt-dlp
+              (<code className="text-gray-400">brew install yt-dlp</code> or{" "}
+              <code className="text-gray-400">pip install --user yt-dlp</code>), then switch the
+              search method to yt-dlp in Settings &gt; YouTube. Installing it alone is not enough.
+            </p>
+
+            <p className="mt-4 text-gray-500 text-xs">
+              Both routes step by step:{" "}
+              <a href="https://homekaraoke.app/youtube-search-setup" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">homekaraoke.app/youtube-search-setup</a>
+            </p>
           </div>
           <button
             onClick={() => {

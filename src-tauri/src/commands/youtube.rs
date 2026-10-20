@@ -389,10 +389,13 @@ pub async fn youtube_validate_api_key(
 
 /// Get the current search method based on configuration
 ///
+/// Dispatches on the `youtube_search_method` setting, which defaults to "api".
+/// yt-dlp is never selected implicitly - the user must choose it in Settings.
+///
 /// Returns:
-/// - "api" if YouTube API key is configured
-/// - "ytdlp" if yt-dlp is available but no API key
-/// - "none" if neither is available
+/// - "api" if the method is "api" (or unset) and an API key is configured
+/// - "ytdlp" if the method is "ytdlp" and the yt-dlp binary was found
+/// - "none" if the selected method is not usable
 #[tauri::command]
 pub async fn youtube_get_search_method(
     state: State<'_, AppState>,
