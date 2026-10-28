@@ -76,3 +76,4 @@ openspec/changes/*
 !openspec/changes/archive/
 
 WORKFLOW.md
+.claude/skills/review-pr
